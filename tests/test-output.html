@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JSONL Tree: 4dcf9bd0-523d-4669-a4be-a4dc2ca74302.jsonl</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 13px;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    padding: 20px;
+    line-height: 1.6;
+  }
+  h1 {
+    color: #7ecfff;
+    font-size: 16px;
+    margin-bottom: 8px;
+  }
+  .stats {
+    color: #888;
+    font-size: 12px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+  }
+  .node {
+    padding: 2px 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    border-radius: 3px;
+  }
+  .node:hover {
+    background: #2a2a4e;
+  }
+  .node.orphaned {
+    opacity: 0.5;
+  }
+  .node.orphaned:hover {
+    opacity: 0.8;
+  }
+  .toggle {
+    color: #7ecfff;
+    font-weight: bold;
+    user-select: none;
+    display: inline-block;
+    width: 24px;
+  }
+  .label {
+    color: #e0e0e0;
+  }
+  .node.active > .label {
+    color: #c8e6c9;
+  }
+  .node.orphaned > .label {
+    color: #999;
+  }
+  .node.has-diff {
+    opacity: 0.9 !important;
+    background: rgba(255, 152, 0, 0.08);
+    border-left: 3px solid #ff9800;
+    padding-left: 8px;
+  }
+  .diff-badge {
+    display: inline-block;
+    background: #ff9800;
+    color: #1a1a2e;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 0 6px;
+    border-radius: 3px;
+    margin-left: 8px;
+  }
+  .diff-container {
+    margin: 4px 0;
+  }
+  .diff-view {
+    background: #0d1117;
+    border: 1px solid #333;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 4px 0;
+    max-height: 500px;
+    overflow-y: auto;
+  }
+  .diff-header {
+    background: #161b22;
+    color: #8b949e;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: bold;
+    border-bottom: 1px solid #333;
+  }
+  .diff-hunk {
+    border-bottom: 1px solid #21262d;
+  }
+  .diff-hunk:last-child {
+    border-bottom: none;
+  }
+  .diff-line {
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 0 12px;
+    white-space: pre;
+  }
+  .diff-line.diff-add {
+    background: rgba(63, 185, 80, 0.15);
+    color: #7ee787;
+  }
+  .diff-line.diff-del {
+    background: rgba(248, 81, 73, 0.15);
+    color: #ffa198;
+  }
+  .diff-line.diff-ctx {
+    color: #8b949e;
+  }
+  .diff-line.diff-range {
+    color: #6e7681;
+    background: rgba(56, 139, 253, 0.1);
+    padding: 4px 12px;
+  }
+  .diff-ln {
+    display: inline-block;
+    width: 40px;
+    color: #484f58;
+    text-align: right;
+    margin-right: 8px;
+    user-select: none;
+  }
+  .diff-text {
+    white-space: pre;
+  }
+  .node.contains-diff {
+    border-left: 3px solid #ff9800;
+    padding-left: 8px;
+  }
+  .node.role-user-prompt {
+    background: rgba(66, 165, 245, 0.1);
+    border-left: 3px solid #42a5f5;
+    padding-left: 8px;
+  }
+  .node.role-user-prompt > .label {
+    color: #90caf9;
+    font-weight: bold;
+  }
+  .node.role-user-prompt.orphaned > .label {
+    color: #5a8ab5;
+  }
+  .node.role-assistant > .label {
+    color: #b0bec5;
+  }
+  .node.role-assistant.active > .label {
+    color: #cfd8dc;
+  }
+  .node.role-assistant.orphaned > .label {
+    color: #78909c;
+  }
+  .node.role-tool-use,
+  .node.role-user-tool-result {
+    opacity: 0.45;
+  }
+  .node.role-tool-use:hover,
+  .node.role-user-tool-result:hover {
+    opacity: 0.75;
+  }
+  .node.role-tool-use > .label,
+  .node.role-user-tool-result > .label {
+    color: #90a4ae;
+  }
+  .node.role-tool-use.orphaned,
+  .node.role-user-tool-result.orphaned {
+    opacity: 0.25;
+  }
+  .node.role-system > .label {
+    color: #616161;
+    font-style: italic;
+  }
+  .node.role-system.active > .label {
+    color: #757575;
+  }
+  .branch-container {
+    border-left: 2px solid #444;
+    padding-left: 8px;
+    margin-top: 2px;
+    margin-bottom: 2px;
+  }
+  .branch-header {
+    color: #ff9800;
+    font-weight: bold;
+    font-size: 12px;
+    margin: 4px 0 2px 0;
+  }
+  .branch {
+    margin: 2px 0;
+  }
+  .branch-toggle {
+    color: #ff9800;
+    cursor: pointer;
+    font-weight: bold;
+    user-select: none;
+    display: inline-block;
+    width: 24px;
+  }
+  .branch-label {
+    color: #ff9800;
+    font-weight: bold;
+  }
+  .branch.active > .branch-label {
+    color: #4caf50;
+  }
+  .branch.orphaned > .branch-label {
+    color: #f44336;
+  }
+  .branch-children {
+    margin-left: 20px;
+  }
+  .copy-btn {
+    display: none;
+    font-size: 11px;
+    cursor: pointer;
+    opacity: 0.4;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+  .copy-btn:hover {
+    opacity: 1.0;
+  }
+  .node:hover .copy-btn {
+    display: inline;
+  }
+  .copy-toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #4caf50;
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .copy-toast.show {
+    opacity: 1;
+  }
+  .inspect-btn {
+    display: none;
+    font-size: 11px;
+    cursor: pointer;
+    opacity: 0.4;
+    margin-left: 2px;
+    color: #7ecfff;
+    vertical-align: middle;
+  }
+  .inspect-btn:hover {
+    opacity: 1.0;
+  }
+  .node:hover .inspect-btn {
+    display: inline;
+  }
+  .inspect-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 1000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+  }
+  .inspect-overlay.show {
+    display: flex;
+  }
+  .inspect-panel {
+    background: #0d1117;
+    border: 1px solid #444;
+    border-radius: 8px;
+    max-width: 80vw;
+    max-height: 80vh;
+    overflow: auto;
+    padding: 16px;
+    position: relative;
+  }
+  .inspect-panel pre {
+    color: #c9d1d9;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .inspect-close {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    color: #8b949e;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: bold;
+  }
+  .inspect-close:hover {
+    color: #fff;
+  }
+  .inspect-title {
+    color: #7ecfff;
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #333;
+  }
+  .toolbar-btn {
+    background: #2a2a4e;
+    color: #7ecfff;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .toolbar-btn:hover {
+    background: #3a3a5e;
+    border-color: #7ecfff;
+  }
+  .json-key { color: #79c0ff; }
+  .json-string { color: #a5d6ff; }
+  .json-number { color: #79c0ff; }
+  .json-boolean { color: #ff7b72; }
+  .json-null { color: #8b949e; }
+</style>
+</head>
+<body>
+<h1>JSONL Conversation Tree</h1>
+<div class="toolbar">
+  <button id="open-jsonl-btn" class="toolbar-btn">Open JSONL...</button>
+  <span class="stats">
+    File: <span id="stats-file">4dcf9bd0-523d-4669-a4be-a4dc2ca74302.jsonl</span> |
+    Raw entries: 214 |
+    Visible nodes: 99 |
+    Branch points: 2 |
+    Active leaf: 6ea6ed71
+  </span>
+</div>
+<input type="file" id="jsonl-file-input" accept=".jsonl" style="display:none">
+<div id="copy-toast" class="copy-toast"></div>
+<div id="inspect-overlay" class="inspect-overlay">
+  <div class="inspect-panel">
+    <span class="inspect-close" id="inspect-close">&times;</span>
+    <div class="inspect-title" id="inspect-title"></div>
+    <pre id="inspect-content"></pre>
+  </div>
+</div>
+<script src="test-output-data.js"></script>
+<div id="tree">
+<div class="node active role-system" style="margin-left:0px;" data-uuid="bef91959-437d-4319-89b0-2d1ad40ddd61"><span class="toggle">[+]</span> <span class="label">System: bridge_status</span> <span class="copy-btn" data-line="6" data-uuid="bef91959-437d-4319-89b0-2d1ad40ddd61" title="Copy line 6 / bef91959">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="bef91959-437d-4319-89b0-2d1ad40ddd61" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-user-prompt" style="margin-left:0px;" data-uuid="dabf041a-57d4-47b4-bb7e-f558e161ac94"><span class="toggle">[+]</span> <span class="label">User: Write a file called scenario6.py. Create a class called TaskManager with these m</span> <span class="copy-btn" data-line="14" data-uuid="dabf041a-57d4-47b4-bb7e-f558e161ac94" title="Copy line 14 / dabf041a">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="dabf041a-57d4-47b4-bb7e-f558e161ac94" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-assistant has-tool-children" style="margin-left:0px;" data-uuid="02fdfe45-0c2d-4269-bb73-db2a3f98cc81"><span class="toggle">[+]</span> <span class="label">Agent: I'll read the coding standards guide first, then write the file.</span> <span class="copy-btn" data-line="25" data-uuid="02fdfe45-0c2d-4269-bb73-db2a3f98cc81" title="Copy line 25 / 02fdfe45">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="02fdfe45-0c2d-4269-bb73-db2a3f98cc81" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:3px;"><div class="node active role-assistant" style="margin-left:0px;" data-uuid="21019152-0a97-4a50-8e12-cb03aaf5a000"><span class="toggle">[+]</span> <span class="label">Agent: thinking</span> <span class="copy-btn" data-line="24" data-uuid="21019152-0a97-4a50-8e12-cb03aaf5a000" title="Copy line 24 / 21019152">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="21019152-0a97-4a50-8e12-cb03aaf5a000" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-tool-use" style="margin-left:0px;" data-uuid="a51b38ce-0a99-4f93-8aa0-38d91782c81b"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Read</span> <span class="copy-btn" data-line="26" data-uuid="a51b38ce-0a99-4f93-8aa0-38d91782c81b" title="Copy line 26 / a51b38ce">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="a51b38ce-0a99-4f93-8aa0-38d91782c81b" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-user-tool-result" style="margin-left:0px;" data-uuid="57935780-0355-42b4-a0c7-5176f3b2cbce"><span class="toggle">[+]</span> <span class="label">User: tool_result</span> <span class="copy-btn" data-line="30" data-uuid="57935780-0355-42b4-a0c7-5176f3b2cbce" title="Copy line 30 / 57935780">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="57935780-0355-42b4-a0c7-5176f3b2cbce" title="Inspect raw JSON">{ }</span></div>
+</div>
+<div class="node active role-assistant has-tool-children contains-diff" style="margin-left:0px;" data-uuid="02a3e984-1b3e-4efa-9576-e78ace13eb28"><span class="toggle">[+]</span> <span class="label">Agent: Now I'll write the `scenario6.py` file.</span> <span class="diff-badge">Δ scenario6.py</span> <span class="copy-btn" data-line="35" data-uuid="02a3e984-1b3e-4efa-9576-e78ace13eb28" title="Copy line 35 / 02a3e984">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="02a3e984-1b3e-4efa-9576-e78ace13eb28" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:3px;"><div class="node active role-tool-use" style="margin-left:0px;" data-uuid="c2095527-dc2e-4335-917e-7f9fa7da9a07"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Write</span> <span class="copy-btn" data-line="36" data-uuid="c2095527-dc2e-4335-917e-7f9fa7da9a07" title="Copy line 36 / c2095527">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="c2095527-dc2e-4335-917e-7f9fa7da9a07" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-user-tool-result has-diff" style="margin-left:0px;" data-uuid="5a18e217-dbc2-4364-a8d1-9f316f358a3f"><span class="toggle">[+]</span> <span class="label">tool_result <span class="diff-badge">Δ scenario6.py</span></span> <span class="copy-btn" data-line="37" data-uuid="5a18e217-dbc2-4364-a8d1-9f316f358a3f" title="Copy line 37 / 5a18e217">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="5a18e217-dbc2-4364-a8d1-9f316f358a3f" title="Inspect raw JSON">{ }</span></div>
+<div class="diff-container" style="display:none;margin-left:3px;"><div class="diff-view"><div class="diff-header">scenario6.py (create)</div><div class="diff-hunk"><div class="diff-line diff-add"><span class="diff-ln">1</span><span class="diff-text">+&quot;&quot;&quot;TaskManager: priority-aware task tracking with due-date and completion support.&quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-ln">2</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">3</span><span class="diff-text">+from datetime import date</span></div><div class="diff-line diff-add"><span class="diff-ln">4</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">5</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">6</span><span class="diff-text">+class TaskManager:</span></div><div class="diff-line diff-add"><span class="diff-ln">7</span><span class="diff-text">+    &quot;&quot;&quot;Manages a collection of tasks stored as a list of dicts.</span></div><div class="diff-line diff-add"><span class="diff-ln">8</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">9</span><span class="diff-text">+    Each task dict has keys: title, priority, due_date, completed.</span></div><div class="diff-line diff-add"><span class="diff-ln">10</span><span class="diff-text">+    &quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-ln">11</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">12</span><span class="diff-text">+    def __init__(self):</span></div><div class="diff-line diff-add"><span class="diff-ln">13</span><span class="diff-text">+        &quot;&quot;&quot;Initialize an empty task list.&quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-ln">14</span><span class="diff-text">+        self.tasks = []</span></div><div class="diff-line diff-add"><span class="diff-ln">15</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">16</span><span class="diff-text">+    def add_task(self, title, priority, due_date):</span></div><div class="diff-line diff-add"><span class="diff-ln">17</span><span class="diff-text">+        &quot;&quot;&quot;Add a new task with the given title, priority, and due date.</span></div><div class="diff-line diff-add"><span class="diff-ln">18</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">19</span><span class="diff-text">+        Args:</span></div><div class="diff-line diff-add"><span class="diff-ln">20</span><span class="diff-text">+            title: string identifier for the task.</span></div><div class="diff-line diff-add"><span class="diff-ln">21</span><span class="diff-text">+            priority: string like 'high', 'medium', 'low'.</span></div><div class="diff-line diff-add"><span class="diff-ln">22</span><span class="diff-text">+            due_date: a datetime.date object for the deadline.</span></div><div class="diff-line diff-add"><span class="diff-ln">23</span><span class="diff-text">+        &quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-ln">24</span><span class="diff-text">+        self.tasks.append({</span></div><div class="diff-line diff-add"><span class="diff-ln">25</span><span class="diff-text">+            &quot;title&quot;: title,</span></div><div class="diff-line diff-add"><span class="diff-ln">26</span><span class="diff-text">+            &quot;priority&quot;: priority,</span></div><div class="diff-line diff-add"><span class="diff-ln">27</span><span class="diff-text">+            &quot;due_date&quot;: due_date,</span></div><div class="diff-line diff-add"><span class="diff-ln">28</span><span class="diff-text">+            &quot;completed&quot;: False,</span></div><div class="diff-line diff-add"><span class="diff-ln">29</span><span class="diff-text">+        })</span></div><div class="diff-line diff-add"><span class="diff-ln">30</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">31</span><span class="diff-text">+    def remove_task(self, title):</span></div><div class="diff-line diff-add"><span class="diff-ln">32</span><span class="diff-text">+        &quot;&quot;&quot;Remove the first task matching the given title.</span></div><div class="diff-line diff-add"><span class="diff-ln">33</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">34</span><span class="diff-text">+        Returns True if a task was removed, False if not found.</span></div><div class="diff-line diff-add"><span class="diff-ln">35</span><span class="diff-text">+        &quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-ln">36</span><span class="diff-text">+        for i, task in enumerate(self.tasks):</span></div><div class="diff-line diff-add"><span class="diff-ln">37</span><span class="diff-text">+            if task[&quot;title&quot;] == title:</span></div><div class="diff-line diff-add"><span class="diff-ln">38</span><span class="diff-text">+                self.tasks.pop(i)</span></div><div class="diff-line diff-add"><span class="diff-ln">39</span><span class="diff-text">+                return True</span></div><div class="diff-line diff-add"><span class="diff-ln">40</span><span class="diff-text">+        return False</span></div><div class="diff-line diff-add"><span class="diff-ln">41</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">42</span><span class="diff-text">+    def get_tasks_by_priority(self, priority):</span></div><div class="diff-line diff-add"><span class="diff-ln">43</span><span class="diff-text">+        &quot;&quot;&quot;Return a list of tasks matching the given priority level.&quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-ln">44</span><span class="diff-text">+        return [t for t in self.tasks if t[&quot;priority&quot;] == priority]</span></div><div class="diff-line diff-add"><span class="diff-ln">45</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">46</span><span class="diff-text">+    def mark_complete(self, title):</span></div><div class="diff-line diff-add"><span class="diff-ln">47</span><span class="diff-text">+        &quot;&quot;&quot;Mark the first task matching the given title as completed.</span></div><div class="diff-line diff-add"><span class="diff-ln">48</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">49</span><span class="diff-text">+        Returns True if a task was marked, False if not found.</span></div><div class="diff-line diff-add"><span class="diff-ln">50</span><span class="diff-text">+        &quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-ln">51</span><span class="diff-text">+        for task in self.tasks:</span></div><div class="diff-line diff-add"><span class="diff-ln">52</span><span class="diff-text">+            if task[&quot;title&quot;] == title:</span></div><div class="diff-line diff-add"><span class="diff-ln">53</span><span class="diff-text">+                task[&quot;completed&quot;] = True</span></div><div class="diff-line diff-add"><span class="diff-ln">54</span><span class="diff-text">+                return True</span></div><div class="diff-line diff-add"><span class="diff-ln">55</span><span class="diff-text">+        return False</span></div><div class="diff-line diff-add"><span class="diff-ln">56</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">57</span><span class="diff-text">+    def get_overdue_tasks(self, today_date):</span></div><div class="diff-line diff-add"><span class="diff-ln">58</span><span class="diff-text">+        &quot;&quot;&quot;Return all incomplete tasks whose due_date is before today_date.&quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-ln">59</span><span class="diff-text">+        return [</span></div><div class="diff-line diff-add"><span class="diff-ln">60</span><span class="diff-text">+            t for t in self.tasks</span></div><div class="diff-line diff-add"><span class="diff-ln">61</span><span class="diff-text">+            if not t[&quot;completed&quot;] and t[&quot;due_date&quot;] &lt; today_date</span></div><div class="diff-line diff-add"><span class="diff-ln">62</span><span class="diff-text">+        ]</span></div><div class="diff-line diff-add"><span class="diff-ln">63</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">64</span><span class="diff-text">+    def get_completion_stats(self):</span></div><div class="diff-line diff-add"><span class="diff-ln">65</span><span class="diff-text">+        &quot;&quot;&quot;Return a dict with total, completed, and pending counts.&quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-ln">66</span><span class="diff-text">+        total = len(self.tasks)</span></div><div class="diff-line diff-add"><span class="diff-ln">67</span><span class="diff-text">+        completed = sum(1 for t in self.tasks if t[&quot;completed&quot;])</span></div><div class="diff-line diff-add"><span class="diff-ln">68</span><span class="diff-text">+        return {</span></div><div class="diff-line diff-add"><span class="diff-ln">69</span><span class="diff-text">+            &quot;total&quot;: total,</span></div><div class="diff-line diff-add"><span class="diff-ln">70</span><span class="diff-text">+            &quot;completed&quot;: completed,</span></div><div class="diff-line diff-add"><span class="diff-ln">71</span><span class="diff-text">+            &quot;pending&quot;: total - completed,</span></div><div class="diff-line diff-add"><span class="diff-ln">72</span><span class="diff-text">+        }</span></div><div class="diff-line diff-add"><span class="diff-ln">73</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">74</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">75</span><span class="diff-text">+if __name__ == &quot;__main__&quot;:</span></div><div class="diff-line diff-add"><span class="diff-ln">76</span><span class="diff-text">+    tm = TaskManager()</span></div><div class="diff-line diff-add"><span class="diff-ln">77</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">78</span><span class="diff-text">+    tm.add_task(&quot;Write report&quot;, &quot;high&quot;, date(2026, 5, 28))</span></div><div class="diff-line diff-add"><span class="diff-ln">79</span><span class="diff-text">+    tm.add_task(&quot;Code review&quot;, &quot;medium&quot;, date(2026, 6, 1))</span></div><div class="diff-line diff-add"><span class="diff-ln">80</span><span class="diff-text">+    tm.add_task(&quot;Update docs&quot;, &quot;low&quot;, date(2026, 5, 25))</span></div><div class="diff-line diff-add"><span class="diff-ln">81</span><span class="diff-text">+    tm.add_task(&quot;Fix login bug&quot;, &quot;high&quot;, date(2026, 6, 3))</span></div><div class="diff-line diff-add"><span class="diff-ln">82</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">83</span><span class="diff-text">+    print(&quot;High-priority tasks:&quot;)</span></div><div class="diff-line diff-add"><span class="diff-ln">84</span><span class="diff-text">+    for t in tm.get_tasks_by_priority(&quot;high&quot;):</span></div><div class="diff-line diff-add"><span class="diff-ln">85</span><span class="diff-text">+        print(f&quot;  {t['title']} — due {t['due_date']}&quot;)</span></div><div class="diff-line diff-add"><span class="diff-ln">86</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">87</span><span class="diff-text">+    tm.mark_complete(&quot;Update docs&quot;)</span></div><div class="diff-line diff-add"><span class="diff-ln">88</span><span class="diff-text">+    tm.mark_complete(&quot;Write report&quot;)</span></div><div class="diff-line diff-add"><span class="diff-ln">89</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">90</span><span class="diff-text">+    today = date(2026, 5, 30)</span></div><div class="diff-line diff-add"><span class="diff-ln">91</span><span class="diff-text">+    print(f&quot;\nOverdue as of {today}:&quot;)</span></div><div class="diff-line diff-add"><span class="diff-ln">92</span><span class="diff-text">+    for t in tm.get_overdue_tasks(today):</span></div><div class="diff-line diff-add"><span class="diff-ln">93</span><span class="diff-text">+        print(f&quot;  {t['title']} — due {t['due_date']}&quot;)</span></div><div class="diff-line diff-add"><span class="diff-ln">94</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">95</span><span class="diff-text">+    print(f&quot;\nCompletion stats: {tm.get_completion_stats()}&quot;)</span></div><div class="diff-line diff-add"><span class="diff-ln">96</span><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-ln">97</span><span class="diff-text">+    tm.remove_task(&quot;Code review&quot;)</span></div><div class="diff-line diff-add"><span class="diff-ln">98</span><span class="diff-text">+    print(f&quot;After removing 'Code review': {len(tm.tasks)} tasks remain&quot;)</span></div><div class="diff-line diff-add"><span class="diff-ln">99</span><span class="diff-text">+</span></div></div></div></div>
+</div>
+<div class="node active role-assistant has-tool-children" style="margin-left:0px;" data-uuid="3c9879e1-b187-47eb-a6af-aad8d2655927"><span class="toggle">[+]</span> <span class="label">Agent: Now I'll read the verify-work guide and run the file to confirm it works.</span> <span class="copy-btn" data-line="42" data-uuid="3c9879e1-b187-47eb-a6af-aad8d2655927" title="Copy line 42 / 3c9879e1">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="3c9879e1-b187-47eb-a6af-aad8d2655927" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:3px;"><div class="node active role-tool-use" style="margin-left:0px;" data-uuid="e50c48e7-ff5b-44c6-9fed-9ad7a8d1b14b"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Read</span> <span class="copy-btn" data-line="43" data-uuid="e50c48e7-ff5b-44c6-9fed-9ad7a8d1b14b" title="Copy line 43 / e50c48e7">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="e50c48e7-ff5b-44c6-9fed-9ad7a8d1b14b" title="Inspect raw JSON">{ }</span></div>
+</div>
+<div class="node active role-assistant has-tool-children" style="margin-left:0px;" data-uuid="1f5f7041-c35c-4fd4-bf30-da699623e1c5"><span class="toggle">[+]</span> <span class="label">Agent: The file runs but I notice `get_overdue_tasks` returned nothing — &quot;Write report&quot;</span> <span class="copy-btn" data-line="61" data-uuid="1f5f7041-c35c-4fd4-bf30-da699623e1c5" title="Copy line 61 / 1f5f7041">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="1f5f7041-c35c-4fd4-bf30-da699623e1c5" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:3px;"><div class="node active role-tool-use" style="margin-left:0px;" data-uuid="6b140718-4776-4faa-912e-0a978d71648d"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Bash</span> <span class="copy-btn" data-line="44" data-uuid="6b140718-4776-4faa-912e-0a978d71648d" title="Copy line 44 / 6b140718">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="6b140718-4776-4faa-912e-0a978d71648d" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-user-tool-result" style="margin-left:0px;" data-uuid="50e4accd-52e3-4302-860b-5eb8de466656"><span class="toggle">[+]</span> <span class="label">User: tool_result</span> <span class="copy-btn" data-line="58" data-uuid="50e4accd-52e3-4302-860b-5eb8de466656" title="Copy line 58 / 50e4accd">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="50e4accd-52e3-4302-860b-5eb8de466656" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-tool-use" style="margin-left:0px;" data-uuid="5917b14f-2ec3-41d8-a199-8eb38b6ecc94"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Bash</span> <span class="copy-btn" data-line="62" data-uuid="5917b14f-2ec3-41d8-a199-8eb38b6ecc94" title="Copy line 62 / 5917b14f">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="5917b14f-2ec3-41d8-a199-8eb38b6ecc94" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-user-tool-result" style="margin-left:0px;" data-uuid="1a4bbfd7-6f61-463c-ba90-744e5750d760"><span class="toggle">[+]</span> <span class="label">User: tool_result</span> <span class="copy-btn" data-line="64" data-uuid="1a4bbfd7-6f61-463c-ba90-744e5750d760" title="Copy line 64 / 1a4bbfd7">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="1a4bbfd7-6f61-463c-ba90-744e5750d760" title="Inspect raw JSON">{ }</span></div>
+</div>
+<div class="node active role-assistant has-tool-children" style="margin-left:0px;" data-uuid="8309683d-c5ae-46ce-ade3-5df31c838326"><span class="toggle">[+]</span> <span class="label">Agent: All methods verified correct. `scenario6.py` is 96 lines with a `TaskManager` cl</span> <span class="copy-btn" data-line="67" data-uuid="8309683d-c5ae-46ce-ade3-5df31c838326" title="Copy line 67 / 8309683d">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="8309683d-c5ae-46ce-ade3-5df31c838326" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:3px;"><div class="node active role-system" style="margin-left:0px;" data-uuid="6ed5ec7c-bf30-4263-8cf5-7184d3cc3959"><span class="toggle">[+]</span> <span class="label">System: stop_hook_summary</span> <span class="copy-btn" data-line="69" data-uuid="6ed5ec7c-bf30-4263-8cf5-7184d3cc3959" title="Copy line 69 / 6ed5ec7c">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="6ed5ec7c-bf30-4263-8cf5-7184d3cc3959" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-system" style="margin-left:0px;" data-uuid="dea5e9d5-62cc-4544-9ffc-bbbf4446d8a6"><span class="toggle">[+]</span> <span class="label">System: turn_duration</span> <span class="copy-btn" data-line="70" data-uuid="dea5e9d5-62cc-4544-9ffc-bbbf4446d8a6" title="Copy line 70 / dea5e9d5">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="dea5e9d5-62cc-4544-9ffc-bbbf4446d8a6" title="Inspect raw JSON">{ }</span></div>
+</div>
+<div class="node active role-user-prompt" style="margin-left:0px;" data-uuid="55e9b9d3-6fc0-4243-8898-3330212e11d6"><span class="toggle">[+]</span> <span class="label">User: Edit scenario6.py. Add three new methods: reschedule_task(title, new_date) that </span> <span class="copy-btn" data-line="71" data-uuid="55e9b9d3-6fc0-4243-8898-3330212e11d6" title="Copy line 71 / 55e9b9d3">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="55e9b9d3-6fc0-4243-8898-3330212e11d6" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-assistant has-tool-children contains-diff" style="margin-left:0px;" data-uuid="0c0c8961-09b2-4336-ac7a-cdd364f47a21"><span class="toggle">[+]</span> <span class="label">Agent: I'll read the current file, then add the three methods.</span> <span class="diff-badge">Δ scenario6.py</span> <span class="copy-btn" data-line="75" data-uuid="0c0c8961-09b2-4336-ac7a-cdd364f47a21" title="Copy line 75 / 0c0c8961">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="0c0c8961-09b2-4336-ac7a-cdd364f47a21" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:3px;"><div class="node active role-tool-use" style="margin-left:0px;" data-uuid="c64da80e-340e-4310-acd2-ad90bc21b670"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Read</span> <span class="copy-btn" data-line="76" data-uuid="c64da80e-340e-4310-acd2-ad90bc21b670" title="Copy line 76 / c64da80e">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="c64da80e-340e-4310-acd2-ad90bc21b670" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-user-tool-result" style="margin-left:0px;" data-uuid="c31351e3-8f8c-467c-bfa2-42132ad16184"><span class="toggle">[+]</span> <span class="label">User: tool_result</span> <span class="copy-btn" data-line="79" data-uuid="c31351e3-8f8c-467c-bfa2-42132ad16184" title="Copy line 79 / c31351e3">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="c31351e3-8f8c-467c-bfa2-42132ad16184" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-tool-use" style="margin-left:0px;" data-uuid="9532f312-93d7-4937-a334-9fdfc6dc9fa1"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Edit</span> <span class="copy-btn" data-line="89" data-uuid="9532f312-93d7-4937-a334-9fdfc6dc9fa1" title="Copy line 89 / 9532f312">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="9532f312-93d7-4937-a334-9fdfc6dc9fa1" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-user-tool-result has-diff" style="margin-left:0px;" data-uuid="8bcb0657-b158-4229-93bb-eb272b0ffee2"><span class="toggle">[+]</span> <span class="label">tool_result <span class="diff-badge">Δ scenario6.py</span></span> <span class="copy-btn" data-line="90" data-uuid="8bcb0657-b158-4229-93bb-eb272b0ffee2" title="Copy line 90 / 8bcb0657">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="8bcb0657-b158-4229-93bb-eb272b0ffee2" title="Inspect raw JSON">{ }</span></div>
+<div class="diff-container" style="display:none;margin-left:3px;"><div class="diff-view"><div class="diff-header">scenario6.py (edit)</div><div class="diff-hunk"><div class="diff-line diff-range">@@ -71,7 +71,54 @@</div><div class="diff-line diff-ctx"><span class="diff-text">             &quot;pending&quot;: total - completed,</span></div><div class="diff-line diff-ctx"><span class="diff-text">         }</span></div><div class="diff-line diff-ctx"><span class="diff-text"> </span></div><div class="diff-line diff-add"><span class="diff-text">+    def reschedule_task(self, title, new_date):</span></div><div class="diff-line diff-add"><span class="diff-text">+        &quot;&quot;&quot;Update the due date of the first task matching the given title.</span></div><div class="diff-line diff-ctx"><span class="diff-text"> </span></div><div class="diff-line diff-add"><span class="diff-text">+        Returns True if a task was rescheduled, False if not found.</span></div><div class="diff-line diff-add"><span class="diff-text">+        &quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-text">+        for task in self.tasks:</span></div><div class="diff-line diff-add"><span class="diff-text">+            if task[&quot;title&quot;] == title:</span></div><div class="diff-line diff-add"><span class="diff-text">+                task[&quot;due_date&quot;] = new_date</span></div><div class="diff-line diff-add"><span class="diff-text">+                return True</span></div><div class="diff-line diff-add"><span class="diff-text">+        return False</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+    def bulk_import(self, task_list):</span></div><div class="diff-line diff-add"><span class="diff-text">+        &quot;&quot;&quot;Add multiple tasks from a list of dicts.</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+        Each dict must have keys: title, priority, due_date.</span></div><div class="diff-line diff-add"><span class="diff-text">+        The completed field defaults to False if not provided.</span></div><div class="diff-line diff-add"><span class="diff-text">+        &quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-text">+        for entry in task_list:</span></div><div class="diff-line diff-add"><span class="diff-text">+            self.tasks.append({</span></div><div class="diff-line diff-add"><span class="diff-text">+                &quot;title&quot;: entry[&quot;title&quot;],</span></div><div class="diff-line diff-add"><span class="diff-text">+                &quot;priority&quot;: entry[&quot;priority&quot;],</span></div><div class="diff-line diff-add"><span class="diff-text">+                &quot;due_date&quot;: entry[&quot;due_date&quot;],</span></div><div class="diff-line diff-add"><span class="diff-text">+                &quot;completed&quot;: entry.get(&quot;completed&quot;, False),</span></div><div class="diff-line diff-add"><span class="diff-text">+            })</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+    def export_report(self, filepath):</span></div><div class="diff-line diff-add"><span class="diff-text">+        &quot;&quot;&quot;Write a summary of all tasks to a file, grouped by priority.</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+        Each priority group lists its tasks with status and due date.</span></div><div class="diff-line diff-add"><span class="diff-text">+        &quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-text">+        grouped = {}</span></div><div class="diff-line diff-add"><span class="diff-text">+        for task in self.tasks:</span></div><div class="diff-line diff-add"><span class="diff-text">+            grouped.setdefault(task[&quot;priority&quot;], []).append(task)</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+        with open(filepath, &quot;w&quot;) as f:</span></div><div class="diff-line diff-add"><span class="diff-text">+            f.write(&quot;Task Report\n&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+            f.write(&quot;=&quot; * 40 + &quot;\n\n&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+            for priority in [&quot;high&quot;, &quot;medium&quot;, &quot;low&quot;]:</span></div><div class="diff-line diff-add"><span class="diff-text">+                tasks = grouped.get(priority, [])</span></div><div class="diff-line diff-add"><span class="diff-text">+                if not tasks:</span></div><div class="diff-line diff-add"><span class="diff-text">+                    continue</span></div><div class="diff-line diff-add"><span class="diff-text">+                f.write(f&quot;[{priority.upper()}]\n&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+                for t in tasks:</span></div><div class="diff-line diff-add"><span class="diff-text">+                    status = &quot;DONE&quot; if t[&quot;completed&quot;] else &quot;PENDING&quot;</span></div><div class="diff-line diff-add"><span class="diff-text">+                    f.write(f&quot;  {t['title']} — due {t['due_date']} [{status}]\n&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+                f.write(&quot;\n&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-ctx"><span class="diff-text"> if __name__ == &quot;__main__&quot;:</span></div><div class="diff-line diff-ctx"><span class="diff-text">     tm = TaskManager()</span></div><div class="diff-line diff-ctx"><span class="diff-text"> </span></div></div></div></div>
+</div>
+<div class="node active role-assistant has-tool-children contains-diff" style="margin-left:0px;" data-uuid="c18ae56a-d5b6-4d9f-892e-f3dd0a93ef1e"><span class="toggle">[+]</span> <span class="label">Agent: Now I'll update the demo block to exercise the new methods.</span> <span class="diff-badge">Δ scenario6.py</span> <span class="copy-btn" data-line="96" data-uuid="c18ae56a-d5b6-4d9f-892e-f3dd0a93ef1e" title="Copy line 96 / c18ae56a">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="c18ae56a-d5b6-4d9f-892e-f3dd0a93ef1e" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:3px;"><div class="node active role-tool-use" style="margin-left:0px;" data-uuid="a633f31a-8c6f-4475-b5eb-3e39a747457f"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Edit</span> <span class="copy-btn" data-line="97" data-uuid="a633f31a-8c6f-4475-b5eb-3e39a747457f" title="Copy line 97 / a633f31a">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="a633f31a-8c6f-4475-b5eb-3e39a747457f" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-user-tool-result has-diff" style="margin-left:0px;" data-uuid="7c7e4e08-7100-463f-8fe6-0e9bab6f0f93"><span class="toggle">[+]</span> <span class="label">tool_result <span class="diff-badge">Δ scenario6.py</span></span> <span class="copy-btn" data-line="98" data-uuid="7c7e4e08-7100-463f-8fe6-0e9bab6f0f93" title="Copy line 98 / 7c7e4e08">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="7c7e4e08-7100-463f-8fe6-0e9bab6f0f93" title="Inspect raw JSON">{ }</span></div>
+<div class="diff-container" style="display:none;margin-left:3px;"><div class="diff-view"><div class="diff-header">scenario6.py (edit)</div><div class="diff-hunk"><div class="diff-line diff-range">@@ -143,3 +143,21 @@</div><div class="diff-line diff-ctx"><span class="diff-text"> </span></div><div class="diff-line diff-ctx"><span class="diff-text">     tm.remove_task(&quot;Code review&quot;)</span></div><div class="diff-line diff-ctx"><span class="diff-text">     print(f&quot;After removing 'Code review': {len(tm.tasks)} tasks remain&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+    tm.reschedule_task(&quot;Fix login bug&quot;, date(2026, 5, 29))</span></div><div class="diff-line diff-add"><span class="diff-text">+    print(f&quot;\nRescheduled 'Fix login bug' to 2026-05-29&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+    overdue_after = tm.get_overdue_tasks(today)</span></div><div class="diff-line diff-add"><span class="diff-text">+    print(f&quot;Overdue after reschedule: {[t['title'] for t in overdue_after]}&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+    tm.bulk_import([</span></div><div class="diff-line diff-add"><span class="diff-text">+        {&quot;title&quot;: &quot;Deploy v2&quot;, &quot;priority&quot;: &quot;high&quot;, &quot;due_date&quot;: date(2026, 6, 10)},</span></div><div class="diff-line diff-add"><span class="diff-text">+        {&quot;title&quot;: &quot;Team retro&quot;, &quot;priority&quot;: &quot;low&quot;, &quot;due_date&quot;: date(2026, 6, 5)},</span></div><div class="diff-line diff-add"><span class="diff-text">+    ])</span></div><div class="diff-line diff-add"><span class="diff-text">+    print(f&quot;\nAfter bulk import: {len(tm.tasks)} tasks total&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+    import tempfile, os</span></div><div class="diff-line diff-add"><span class="diff-text">+    report_path = os.path.join(tempfile.gettempdir(), &quot;task_report.txt&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+    tm.export_report(report_path)</span></div><div class="diff-line diff-add"><span class="diff-text">+    with open(report_path) as f:</span></div><div class="diff-line diff-add"><span class="diff-text">+        print(f&quot;\nExported report:\n{f.read()}&quot;)</span></div></div></div></div>
+<div class="node active role-tool-use" style="margin-left:0px;" data-uuid="220d8949-b297-4602-ae19-8c061712240f"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Bash</span> <span class="copy-btn" data-line="103" data-uuid="220d8949-b297-4602-ae19-8c061712240f" title="Copy line 103 / 220d8949">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="220d8949-b297-4602-ae19-8c061712240f" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-user-tool-result" style="margin-left:0px;" data-uuid="35dd3263-714b-46b9-90d0-b8f6de88d67a"><span class="toggle">[+]</span> <span class="label">User: tool_result</span> <span class="copy-btn" data-line="105" data-uuid="35dd3263-714b-46b9-90d0-b8f6de88d67a" title="Copy line 105 / 35dd3263">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="35dd3263-714b-46b9-90d0-b8f6de88d67a" title="Inspect raw JSON">{ }</span></div>
+</div>
+<div class="node active role-assistant has-tool-children" style="margin-left:0px;" data-uuid="83d77cb9-513a-4b12-8d1b-620190cc0d8a"><span class="toggle">[+]</span> <span class="label">Agent: All three new methods verified:  - **`reschedule_task`** — moved &quot;Fix login bug&quot;</span> <span class="copy-btn" data-line="114" data-uuid="83d77cb9-513a-4b12-8d1b-620190cc0d8a" title="Copy line 114 / 83d77cb9">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="83d77cb9-513a-4b12-8d1b-620190cc0d8a" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:3px;"><div class="node active role-system" style="margin-left:0px;" data-uuid="02a0c2b8-4497-4730-8f20-12c0cfae800e"><span class="toggle">[+]</span> <span class="label">System: stop_hook_summary</span> <span class="copy-btn" data-line="116" data-uuid="02a0c2b8-4497-4730-8f20-12c0cfae800e" title="Copy line 116 / 02a0c2b8">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="02a0c2b8-4497-4730-8f20-12c0cfae800e" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-system" style="margin-left:0px;" data-uuid="9651f509-2d1f-4b80-9db2-7ddb9c498a05"><span class="toggle">[+]</span> <span class="label">System: turn_duration</span> <span class="copy-btn" data-line="117" data-uuid="9651f509-2d1f-4b80-9db2-7ddb9c498a05" title="Copy line 117 / 9651f509">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="9651f509-2d1f-4b80-9db2-7ddb9c498a05" title="Inspect raw JSON">{ }</span></div>
+</div>
+<div class="branch-container" style="margin-left:3px;"><div class="branch-header">Branches</div><div class="branch orphaned"><span class="toggle branch-toggle">[+]</span><span class="branch-label">&lt;branch 1&gt;</span><div class="branch-children" style="display:none"><div class="node orphaned role-user-prompt" style="margin-left:6px;" data-uuid="de82141a-0ffc-4264-bb99-f01d61e17b09"><span class="toggle">[+]</span> <span class="label">User: Good. Now edit scenario6.py again. Add a method called find_tasks(keyword) that </span> <span class="copy-btn" data-line="118" data-uuid="de82141a-0ffc-4264-bb99-f01d61e17b09" title="Copy line 118 / de82141a">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="de82141a-0ffc-4264-bb99-f01d61e17b09" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-assistant has-tool-children contains-diff" style="margin-left:6px;" data-uuid="282fb7e7-b86f-4886-a72a-ec80278f90e6"><span class="toggle">[+]</span> <span class="label">Agent: I need to initialize the archive list in `__init__`, add the two new methods, an</span> <span class="diff-badge">Δ scenario6.py, scenario6.py, scenario6.py</span> <span class="copy-btn" data-line="128" data-uuid="282fb7e7-b86f-4886-a72a-ec80278f90e6" title="Copy line 128 / 282fb7e7">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="282fb7e7-b86f-4886-a72a-ec80278f90e6" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:9px;"><div class="node orphaned role-tool-use" style="margin-left:0px;" data-uuid="3572b4e5-eddd-41ea-b11a-930b813084ae"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Read</span> <span class="copy-btn" data-line="121" data-uuid="3572b4e5-eddd-41ea-b11a-930b813084ae" title="Copy line 121 / 3572b4e5">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="3572b4e5-eddd-41ea-b11a-930b813084ae" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-user-tool-result" style="margin-left:0px;" data-uuid="8e58a2a9-8cd6-4e13-b7e7-a0baccc266d4"><span class="toggle">[+]</span> <span class="label">User: tool_result</span> <span class="copy-btn" data-line="124" data-uuid="8e58a2a9-8cd6-4e13-b7e7-a0baccc266d4" title="Copy line 124 / 8e58a2a9">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="8e58a2a9-8cd6-4e13-b7e7-a0baccc266d4" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-tool-use" style="margin-left:0px;" data-uuid="b147cc17-5fa9-429a-916d-f8ac2fe99d91"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Edit</span> <span class="copy-btn" data-line="129" data-uuid="b147cc17-5fa9-429a-916d-f8ac2fe99d91" title="Copy line 129 / b147cc17">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="b147cc17-5fa9-429a-916d-f8ac2fe99d91" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-user-tool-result has-diff" style="margin-left:0px;" data-uuid="4a80b2c5-b73a-48c3-a29d-ee9dc1dd2503"><span class="toggle">[+]</span> <span class="label">tool_result <span class="diff-badge">Δ scenario6.py</span></span> <span class="copy-btn" data-line="130" data-uuid="4a80b2c5-b73a-48c3-a29d-ee9dc1dd2503" title="Copy line 130 / 4a80b2c5">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="4a80b2c5-b73a-48c3-a29d-ee9dc1dd2503" title="Inspect raw JSON">{ }</span></div>
+<div class="diff-container" style="display:none;margin-left:3px;"><div class="diff-view"><div class="diff-header">scenario6.py (edit)</div><div class="diff-hunk"><div class="diff-line diff-range">@@ -10,8 +10,9 @@</div><div class="diff-line diff-ctx"><span class="diff-text">     &quot;&quot;&quot;</span></div><div class="diff-line diff-ctx"><span class="diff-text"> </span></div><div class="diff-line diff-ctx"><span class="diff-text">     def __init__(self):</span></div><div class="diff-line diff-del"><span class="diff-text">-        &quot;&quot;&quot;Initialize an empty task list.&quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-text">+        &quot;&quot;&quot;Initialize empty task and archive lists.&quot;&quot;&quot;</span></div><div class="diff-line diff-ctx"><span class="diff-text">         self.tasks = []</span></div><div class="diff-line diff-add"><span class="diff-text">+        self.archived = []</span></div><div class="diff-line diff-ctx"><span class="diff-text"> </span></div><div class="diff-line diff-ctx"><span class="diff-text">     def add_task(self, title, priority, due_date):</span></div><div class="diff-line diff-ctx"><span class="diff-text">         &quot;&quot;&quot;Add a new task with the given title, priority, and due date.</span></div></div></div></div>
+<div class="node orphaned role-tool-use" style="margin-left:0px;" data-uuid="838ab3b5-56e0-4425-8566-b5c44457b0f5"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Edit</span> <span class="copy-btn" data-line="143" data-uuid="838ab3b5-56e0-4425-8566-b5c44457b0f5" title="Copy line 143 / 838ab3b5">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="838ab3b5-56e0-4425-8566-b5c44457b0f5" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-user-tool-result has-diff" style="margin-left:0px;" data-uuid="0d7c1b74-3330-459d-bd97-f9a296b6a532"><span class="toggle">[+]</span> <span class="label">tool_result <span class="diff-badge">Δ scenario6.py</span></span> <span class="copy-btn" data-line="144" data-uuid="0d7c1b74-3330-459d-bd97-f9a296b6a532" title="Copy line 144 / 0d7c1b74">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="0d7c1b74-3330-459d-bd97-f9a296b6a532" title="Inspect raw JSON">{ }</span></div>
+<div class="diff-container" style="display:none;margin-left:3px;"><div class="diff-view"><div class="diff-header">scenario6.py (edit)</div><div class="diff-hunk"><div class="diff-line diff-range">@@ -120,6 +120,22 @@</div><div class="diff-line diff-ctx"><span class="diff-text">                 f.write(&quot;\n&quot;)</span></div><div class="diff-line diff-ctx"><span class="diff-text"> </span></div><div class="diff-line diff-ctx"><span class="diff-text"> </span></div><div class="diff-line diff-add"><span class="diff-text">+    def find_tasks(self, keyword):</span></div><div class="diff-line diff-add"><span class="diff-text">+        &quot;&quot;&quot;Return all tasks whose title contains the keyword (case-insensitive).&quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-text">+        keyword_lower = keyword.lower()</span></div><div class="diff-line diff-add"><span class="diff-text">+        return [t for t in self.tasks if keyword_lower in t[&quot;title&quot;].lower()]</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+    def archive_completed(self):</span></div><div class="diff-line diff-add"><span class="diff-text">+        &quot;&quot;&quot;Move all completed tasks to the archived list.</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+        Returns the count of tasks archived.</span></div><div class="diff-line diff-add"><span class="diff-text">+        &quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-text">+        completed = [t for t in self.tasks if t[&quot;completed&quot;]]</span></div><div class="diff-line diff-add"><span class="diff-text">+        self.tasks = [t for t in self.tasks if not t[&quot;completed&quot;]]</span></div><div class="diff-line diff-add"><span class="diff-text">+        self.archived.extend(completed)</span></div><div class="diff-line diff-add"><span class="diff-text">+        return len(completed)</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-ctx"><span class="diff-text"> if __name__ == &quot;__main__&quot;:</span></div><div class="diff-line diff-ctx"><span class="diff-text">     tm = TaskManager()</span></div><div class="diff-line diff-ctx"><span class="diff-text"> </span></div></div></div></div>
+<div class="node orphaned role-tool-use" style="margin-left:0px;" data-uuid="7291b553-5952-4874-b828-3f3557192717"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Edit</span> <span class="copy-btn" data-line="150" data-uuid="7291b553-5952-4874-b828-3f3557192717" title="Copy line 150 / 7291b553">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="7291b553-5952-4874-b828-3f3557192717" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-user-tool-result has-diff" style="margin-left:0px;" data-uuid="eb7df026-effb-4aff-bb2e-903a947a041f"><span class="toggle">[+]</span> <span class="label">tool_result <span class="diff-badge">Δ scenario6.py</span></span> <span class="copy-btn" data-line="151" data-uuid="eb7df026-effb-4aff-bb2e-903a947a041f" title="Copy line 151 / eb7df026">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="eb7df026-effb-4aff-bb2e-903a947a041f" title="Inspect raw JSON">{ }</span></div>
+<div class="diff-container" style="display:none;margin-left:3px;"><div class="diff-view"><div class="diff-header">scenario6.py (edit)</div><div class="diff-hunk"><div class="diff-line diff-range">@@ -178,3 +178,13 @@</div><div class="diff-line diff-ctx"><span class="diff-text">     tm.export_report(report_path)</span></div><div class="diff-line diff-ctx"><span class="diff-text">     with open(report_path) as f:</span></div><div class="diff-line diff-ctx"><span class="diff-text">         print(f&quot;\nExported report:\n{f.read()}&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+    found = tm.find_tasks(&quot;bug&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+    print(f&quot;Search 'bug': {[t['title'] for t in found]}&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+    found_doc = tm.find_tasks(&quot;DOC&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+    print(f&quot;Search 'DOC' (case-insensitive): {[t['title'] for t in found_doc]}&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+    archived_count = tm.archive_completed()</span></div><div class="diff-line diff-add"><span class="diff-text">+    print(f&quot;\nArchived {archived_count} completed tasks&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+    print(f&quot;Active tasks: {len(tm.tasks)}, Archived: {len(tm.archived)}&quot;)</span></div></div></div></div>
+<div class="node orphaned role-tool-use" style="margin-left:0px;" data-uuid="b6ae3f9f-7764-4789-935b-00a8676a0457"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Bash</span> <span class="copy-btn" data-line="156" data-uuid="b6ae3f9f-7764-4789-935b-00a8676a0457" title="Copy line 156 / b6ae3f9f">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="b6ae3f9f-7764-4789-935b-00a8676a0457" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-user-tool-result" style="margin-left:0px;" data-uuid="63f73d6a-7d78-41d9-9f26-09b9483d4bd7"><span class="toggle">[+]</span> <span class="label">User: tool_result</span> <span class="copy-btn" data-line="158" data-uuid="63f73d6a-7d78-41d9-9f26-09b9483d4bd7" title="Copy line 158 / 63f73d6a">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="63f73d6a-7d78-41d9-9f26-09b9483d4bd7" title="Inspect raw JSON">{ }</span></div>
+</div>
+<div class="node orphaned role-assistant has-tool-children" style="margin-left:6px;" data-uuid="d020d284-91c7-42e1-bdab-103438ab9627"><span class="toggle">[+]</span> <span class="label">Agent: Both methods verified:  - **`find_tasks`** — case-insensitive keyword search fou</span> <span class="copy-btn" data-line="167" data-uuid="d020d284-91c7-42e1-bdab-103438ab9627" title="Copy line 167 / d020d284">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="d020d284-91c7-42e1-bdab-103438ab9627" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:9px;"><div class="node orphaned role-system" style="margin-left:0px;" data-uuid="e9ccccd4-11f2-472a-b88d-eecdf5a7d744"><span class="toggle">[+]</span> <span class="label">System: stop_hook_summary</span> <span class="copy-btn" data-line="169" data-uuid="e9ccccd4-11f2-472a-b88d-eecdf5a7d744" title="Copy line 169 / e9ccccd4">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="e9ccccd4-11f2-472a-b88d-eecdf5a7d744" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-system" style="margin-left:0px;" data-uuid="0a535412-767e-49a6-b0d7-078d5986e370"><span class="toggle">[+]</span> <span class="label">System: turn_duration</span> <span class="copy-btn" data-line="170" data-uuid="0a535412-767e-49a6-b0d7-078d5986e370" title="Copy line 170 / 0a535412">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="0a535412-767e-49a6-b0d7-078d5986e370" title="Inspect raw JSON">{ }</span></div>
+</div>
+<div class="node orphaned role-user-prompt" style="margin-left:6px;" data-uuid="71231426-f55f-47e8-9f6f-4c1bf6b00d13"><span class="toggle">[+]</span> <span class="label">User: Looks good so far.</span> <span class="copy-btn" data-line="171" data-uuid="71231426-f55f-47e8-9f6f-4c1bf6b00d13" title="Copy line 171 / 71231426">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="71231426-f55f-47e8-9f6f-4c1bf6b00d13" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-assistant has-tool-children" style="margin-left:6px;" data-uuid="296bdaa4-1ddb-41f9-b4a1-1a3d4401713d"><span class="toggle">[+]</span> <span class="label">Agent: Thanks! TaskManager is at 11 methods now. Ready for the next edit whenever you a</span> <span class="copy-btn" data-line="174" data-uuid="296bdaa4-1ddb-41f9-b4a1-1a3d4401713d" title="Copy line 174 / 296bdaa4">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="296bdaa4-1ddb-41f9-b4a1-1a3d4401713d" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:9px;"><div class="node orphaned role-system" style="margin-left:0px;" data-uuid="af5fe0db-a2d4-436b-b956-39e5a82965bd"><span class="toggle">[+]</span> <span class="label">System: stop_hook_summary</span> <span class="copy-btn" data-line="176" data-uuid="af5fe0db-a2d4-436b-b956-39e5a82965bd" title="Copy line 176 / af5fe0db">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="af5fe0db-a2d4-436b-b956-39e5a82965bd" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-system" style="margin-left:0px;" data-uuid="926486da-ea08-425e-82f2-6fdeb7ab2aee"><span class="toggle">[+]</span> <span class="label">System: turn_duration</span> <span class="copy-btn" data-line="177" data-uuid="926486da-ea08-425e-82f2-6fdeb7ab2aee" title="Copy line 177 / 926486da">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="926486da-ea08-425e-82f2-6fdeb7ab2aee" title="Inspect raw JSON">{ }</span></div>
+</div>
+</div></div>
+<div class="branch active"><span class="toggle branch-toggle">[-]</span><span class="branch-label">&lt;branch 2 : active&gt;</span><div class="branch-children" style="display:block"><div class="node active role-user-prompt" style="margin-left:6px;" data-uuid="f9f5e91e-e372-40d1-b975-b92b20c73278"><span class="toggle">[+]</span> <span class="label">User: Read scenario6.py and list all the method names it has.</span> <span class="copy-btn" data-line="178" data-uuid="f9f5e91e-e372-40d1-b975-b92b20c73278" title="Copy line 178 / f9f5e91e">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="f9f5e91e-e372-40d1-b975-b92b20c73278" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-assistant has-tool-children" style="margin-left:6px;" data-uuid="22e3af94-4bf3-48e6-98c7-cac918fe3097"><span class="toggle">[+]</span> <span class="label">Agent: The `TaskManager` class has 9 methods:  1. `__init__` 2. `add_task(title, priori</span> <span class="copy-btn" data-line="188" data-uuid="22e3af94-4bf3-48e6-98c7-cac918fe3097" title="Copy line 188 / 22e3af94">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="22e3af94-4bf3-48e6-98c7-cac918fe3097" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:9px;"><div class="node active role-tool-use" style="margin-left:0px;" data-uuid="7160f99f-4fc8-4582-a6e2-6fd6e8e86611"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Read</span> <span class="copy-btn" data-line="182" data-uuid="7160f99f-4fc8-4582-a6e2-6fd6e8e86611" title="Copy line 182 / 7160f99f">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="7160f99f-4fc8-4582-a6e2-6fd6e8e86611" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-user-tool-result" style="margin-left:0px;" data-uuid="db224f2b-4376-4959-86cc-fa43d32d6ba1"><span class="toggle">[+]</span> <span class="label">User: tool_result</span> <span class="copy-btn" data-line="185" data-uuid="db224f2b-4376-4959-86cc-fa43d32d6ba1" title="Copy line 185 / db224f2b">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="db224f2b-4376-4959-86cc-fa43d32d6ba1" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-system" style="margin-left:0px;" data-uuid="93fe4d54-1dec-431e-acae-eb44e3d509e9"><span class="toggle">[+]</span> <span class="label">System: stop_hook_summary</span> <span class="copy-btn" data-line="190" data-uuid="93fe4d54-1dec-431e-acae-eb44e3d509e9" title="Copy line 190 / 93fe4d54">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="93fe4d54-1dec-431e-acae-eb44e3d509e9" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-system" style="margin-left:0px;" data-uuid="da595204-cfe9-4e97-b716-33b46802a1d3"><span class="toggle">[+]</span> <span class="label">System: turn_duration</span> <span class="copy-btn" data-line="191" data-uuid="da595204-cfe9-4e97-b716-33b46802a1d3" title="Copy line 191 / da595204">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="da595204-cfe9-4e97-b716-33b46802a1d3" title="Inspect raw JSON">{ }</span></div>
+</div>
+<div class="branch-container" style="margin-left:9px;"><div class="branch-header">Branches</div><div class="branch orphaned"><span class="toggle branch-toggle">[+]</span><span class="branch-label">&lt;branch 1&gt;</span><div class="branch-children" style="display:none"><div class="node orphaned role-user-prompt" style="margin-left:12px;" data-uuid="bf644c8b-7774-4c01-b974-f4626e4ce3d6"><span class="toggle">[+]</span> <span class="label">User: Now edit scenario6.py. Add a method called get_task_summary(title) that returns </span> <span class="copy-btn" data-line="193" data-uuid="bf644c8b-7774-4c01-b974-f4626e4ce3d6" title="Copy line 193 / bf644c8b">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="bf644c8b-7774-4c01-b974-f4626e4ce3d6" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-assistant has-tool-children contains-diff" style="margin-left:12px;" data-uuid="a52866fe-033d-4ae0-aa44-9181271247cc"><span class="toggle">[+]</span> <span class="label">Agent: I'll add the method after `export_report` and exercise it in the demo block.</span> <span class="diff-badge">Δ scenario6.py, scenario6.py</span> <span class="copy-btn" data-line="209" data-uuid="a52866fe-033d-4ae0-aa44-9181271247cc" title="Copy line 209 / a52866fe">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="a52866fe-033d-4ae0-aa44-9181271247cc" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:15px;"><div class="node orphaned role-tool-use" style="margin-left:0px;" data-uuid="c7cf5a0f-8d95-4328-ab4e-d261d7953fe4"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Read</span> <span class="copy-btn" data-line="201" data-uuid="c7cf5a0f-8d95-4328-ab4e-d261d7953fe4" title="Copy line 201 / c7cf5a0f">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="c7cf5a0f-8d95-4328-ab4e-d261d7953fe4" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-user-tool-result" style="margin-left:0px;" data-uuid="fae2cf14-cf7a-41e6-9d70-a594376f2a57"><span class="toggle">[+]</span> <span class="label">User: tool_result</span> <span class="copy-btn" data-line="204" data-uuid="fae2cf14-cf7a-41e6-9d70-a594376f2a57" title="Copy line 204 / fae2cf14">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="fae2cf14-cf7a-41e6-9d70-a594376f2a57" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-tool-use" style="margin-left:0px;" data-uuid="778e102c-64c5-4a70-8aa2-77f1fbd54eed"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Edit</span> <span class="copy-btn" data-line="210" data-uuid="778e102c-64c5-4a70-8aa2-77f1fbd54eed" title="Copy line 210 / 778e102c">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="778e102c-64c5-4a70-8aa2-77f1fbd54eed" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-user-tool-result has-diff" style="margin-left:0px;" data-uuid="cce186d9-d67f-4983-b394-d65d3111fba0"><span class="toggle">[+]</span> <span class="label">tool_result <span class="diff-badge">Δ scenario6.py</span></span> <span class="copy-btn" data-line="211" data-uuid="cce186d9-d67f-4983-b394-d65d3111fba0" title="Copy line 211 / cce186d9">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="cce186d9-d67f-4983-b394-d65d3111fba0" title="Inspect raw JSON">{ }</span></div>
+<div class="diff-container" style="display:none;margin-left:3px;"><div class="diff-view"><div class="diff-header">scenario6.py (edit)</div><div class="diff-hunk"><div class="diff-line diff-range">@@ -118,7 +118,18 @@</div><div class="diff-line diff-ctx"><span class="diff-text">                     f.write(f&quot;  {t['title']} — due {t['due_date']} [{status}]\n&quot;)</span></div><div class="diff-line diff-ctx"><span class="diff-text">                 f.write(&quot;\n&quot;)</span></div><div class="diff-line diff-ctx"><span class="diff-text"> </span></div><div class="diff-line diff-add"><span class="diff-text">+    def get_task_summary(self, title):</span></div><div class="diff-line diff-add"><span class="diff-text">+        &quot;&quot;&quot;Return a one-line string describing the task's title, priority, due date, and status.</span></div><div class="diff-line diff-ctx"><span class="diff-text"> </span></div><div class="diff-line diff-add"><span class="diff-text">+        Returns None if the task is not found.</span></div><div class="diff-line diff-add"><span class="diff-text">+        &quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-text">+        for task in self.tasks:</span></div><div class="diff-line diff-add"><span class="diff-text">+            if task[&quot;title&quot;] == title:</span></div><div class="diff-line diff-add"><span class="diff-text">+                status = &quot;DONE&quot; if task[&quot;completed&quot;] else &quot;PENDING&quot;</span></div><div class="diff-line diff-add"><span class="diff-text">+                return f&quot;{task['title']} | {task['priority']} priority | due {task['due_date']} | {status}&quot;</span></div><div class="diff-line diff-add"><span class="diff-text">+        return None</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-ctx"><span class="diff-text"> if __name__ == &quot;__main__&quot;:</span></div><div class="diff-line diff-ctx"><span class="diff-text">     tm = TaskManager()</span></div><div class="diff-line diff-ctx"><span class="diff-text"> </span></div></div></div></div>
+<div class="node orphaned role-tool-use" style="margin-left:0px;" data-uuid="c7a1db99-6364-4276-b3d7-f9fee33ad371"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Edit</span> <span class="copy-btn" data-line="217" data-uuid="c7a1db99-6364-4276-b3d7-f9fee33ad371" title="Copy line 217 / c7a1db99">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="c7a1db99-6364-4276-b3d7-f9fee33ad371" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-user-tool-result has-diff" style="margin-left:0px;" data-uuid="c63198cd-2e4b-4144-93ad-80d7720e23c8"><span class="toggle">[+]</span> <span class="label">tool_result <span class="diff-badge">Δ scenario6.py</span></span> <span class="copy-btn" data-line="218" data-uuid="c63198cd-2e4b-4144-93ad-80d7720e23c8" title="Copy line 218 / c63198cd">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="c63198cd-2e4b-4144-93ad-80d7720e23c8" title="Inspect raw JSON">{ }</span></div>
+<div class="diff-container" style="display:none;margin-left:3px;"><div class="diff-view"><div class="diff-header">scenario6.py (edit)</div><div class="diff-hunk"><div class="diff-line diff-range">@@ -172,3 +172,8 @@</div><div class="diff-line diff-ctx"><span class="diff-text">     tm.export_report(report_path)</span></div><div class="diff-line diff-ctx"><span class="diff-text">     with open(report_path) as f:</span></div><div class="diff-line diff-ctx"><span class="diff-text">         print(f&quot;\nExported report:\n{f.read()}&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+    print(&quot;Task summaries:&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+    print(f&quot;  {tm.get_task_summary('Fix login bug')}&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+    print(f&quot;  {tm.get_task_summary('Write report')}&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+    print(f&quot;  {tm.get_task_summary('Nonexistent')}&quot;)</span></div></div></div></div>
+<div class="node orphaned role-tool-use" style="margin-left:0px;" data-uuid="dc9b0c6a-7304-4a8a-a2af-6e773ffded7f"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Bash</span> <span class="copy-btn" data-line="229" data-uuid="dc9b0c6a-7304-4a8a-a2af-6e773ffded7f" title="Copy line 229 / dc9b0c6a">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="dc9b0c6a-7304-4a8a-a2af-6e773ffded7f" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-user-tool-result" style="margin-left:0px;" data-uuid="ca12fcba-91d8-46d3-9737-ee84c16ab440"><span class="toggle">[+]</span> <span class="label">User: tool_result</span> <span class="copy-btn" data-line="231" data-uuid="ca12fcba-91d8-46d3-9737-ee84c16ab440" title="Copy line 231 / ca12fcba">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="ca12fcba-91d8-46d3-9737-ee84c16ab440" title="Inspect raw JSON">{ }</span></div>
+</div>
+<div class="node orphaned role-assistant has-tool-children" style="margin-left:12px;" data-uuid="1e09eb2d-f9e3-4931-ba22-40594da76268"><span class="toggle">[+]</span> <span class="label">Agent: Verified correct:  - `get_task_summary(&quot;Fix login bug&quot;)` → `Fix login bug | high</span> <span class="copy-btn" data-line="234" data-uuid="1e09eb2d-f9e3-4931-ba22-40594da76268" title="Copy line 234 / 1e09eb2d">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="1e09eb2d-f9e3-4931-ba22-40594da76268" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:15px;"><div class="node orphaned role-system" style="margin-left:0px;" data-uuid="c1feb416-6579-4dbc-a244-5c6891b15b3a"><span class="toggle">[+]</span> <span class="label">System: stop_hook_summary</span> <span class="copy-btn" data-line="236" data-uuid="c1feb416-6579-4dbc-a244-5c6891b15b3a" title="Copy line 236 / c1feb416">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="c1feb416-6579-4dbc-a244-5c6891b15b3a" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-system" style="margin-left:0px;" data-uuid="e501c1f5-c11e-4c6a-af36-05b28c404474"><span class="toggle">[+]</span> <span class="label">System: turn_duration</span> <span class="copy-btn" data-line="237" data-uuid="e501c1f5-c11e-4c6a-af36-05b28c404474" title="Copy line 237 / e501c1f5">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="e501c1f5-c11e-4c6a-af36-05b28c404474" title="Inspect raw JSON">{ }</span></div>
+</div>
+<div class="node orphaned role-user-prompt" style="margin-left:12px;" data-uuid="5ebf265d-b91c-43fa-9cd7-7ea6d8c64cd3"><span class="toggle">[+]</span> <span class="label">User: Perfect.</span> <span class="copy-btn" data-line="238" data-uuid="5ebf265d-b91c-43fa-9cd7-7ea6d8c64cd3" title="Copy line 238 / 5ebf265d">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="5ebf265d-b91c-43fa-9cd7-7ea6d8c64cd3" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-assistant has-tool-children" style="margin-left:12px;" data-uuid="43384daa-b1cd-4551-af6a-f9cbbd3089a9"><span class="toggle">[+]</span> <span class="label">Agent: Thanks! `scenario6.py` now has 10 public methods on `TaskManager`, all verified </span> <span class="copy-btn" data-line="241" data-uuid="43384daa-b1cd-4551-af6a-f9cbbd3089a9" title="Copy line 241 / 43384daa">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="43384daa-b1cd-4551-af6a-f9cbbd3089a9" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:15px;"><div class="node orphaned role-system" style="margin-left:0px;" data-uuid="7e4e1ff1-1721-49be-a56b-72ff77a44540"><span class="toggle">[+]</span> <span class="label">System: stop_hook_summary</span> <span class="copy-btn" data-line="243" data-uuid="7e4e1ff1-1721-49be-a56b-72ff77a44540" title="Copy line 243 / 7e4e1ff1">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="7e4e1ff1-1721-49be-a56b-72ff77a44540" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-system" style="margin-left:0px;" data-uuid="cb948e9f-3829-410b-af17-af752f888394"><span class="toggle">[+]</span> <span class="label">System: turn_duration</span> <span class="copy-btn" data-line="244" data-uuid="cb948e9f-3829-410b-af17-af752f888394" title="Copy line 244 / cb948e9f">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="cb948e9f-3829-410b-af17-af752f888394" title="Inspect raw JSON">{ }</span></div>
+</div>
+</div></div>
+<div class="branch active"><span class="toggle branch-toggle">[-]</span><span class="branch-label">&lt;branch 2 : active&gt;</span><div class="branch-children" style="display:block"><div class="node active role-user-prompt" style="margin-left:12px;" data-uuid="e6200bb9-8584-4899-b92d-294f73be6a44"><span class="toggle">[+]</span> <span class="label">User: Read scenario6.py and list all the method names it has.</span> <span class="copy-btn" data-line="246" data-uuid="e6200bb9-8584-4899-b92d-294f73be6a44" title="Copy line 246 / e6200bb9">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="e6200bb9-8584-4899-b92d-294f73be6a44" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-assistant has-tool-children" style="margin-left:12px;" data-uuid="d1fc2932-46de-4780-9d92-a59d94448857"><span class="toggle">[+]</span> <span class="label">Agent: I see the file has been updated since my last read — a `get_task_summary` method</span> <span class="copy-btn" data-line="261" data-uuid="d1fc2932-46de-4780-9d92-a59d94448857" title="Copy line 261 / d1fc2932">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="d1fc2932-46de-4780-9d92-a59d94448857" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:15px;"><div class="node active role-tool-use" style="margin-left:0px;" data-uuid="e7085a91-0aa4-4ba7-89b1-adf75d6b368c"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Read</span> <span class="copy-btn" data-line="248" data-uuid="e7085a91-0aa4-4ba7-89b1-adf75d6b368c" title="Copy line 248 / e7085a91">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="e7085a91-0aa4-4ba7-89b1-adf75d6b368c" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-user-tool-result" style="margin-left:0px;" data-uuid="7d1bd338-ef6c-4d3a-ae9f-2b324e91c34a"><span class="toggle">[+]</span> <span class="label">User: tool_result</span> <span class="copy-btn" data-line="251" data-uuid="7d1bd338-ef6c-4d3a-ae9f-2b324e91c34a" title="Copy line 251 / 7d1bd338">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="7d1bd338-ef6c-4d3a-ae9f-2b324e91c34a" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-system" style="margin-left:0px;" data-uuid="f16ce789-2417-423f-ba99-516f5757411a"><span class="toggle">[+]</span> <span class="label">System: stop_hook_summary</span> <span class="copy-btn" data-line="263" data-uuid="f16ce789-2417-423f-ba99-516f5757411a" title="Copy line 263 / f16ce789">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="f16ce789-2417-423f-ba99-516f5757411a" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-system" style="margin-left:0px;" data-uuid="c129910e-0e7f-4966-b90a-4420e9f2a7fd"><span class="toggle">[+]</span> <span class="label">System: turn_duration</span> <span class="copy-btn" data-line="264" data-uuid="c129910e-0e7f-4966-b90a-4420e9f2a7fd" title="Copy line 264 / c129910e">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="c129910e-0e7f-4966-b90a-4420e9f2a7fd" title="Inspect raw JSON">{ }</span></div>
+</div>
+<div class="node active role-user-prompt" style="margin-left:12px;" data-uuid="64678bd1-d53b-4182-8945-502d73ea016b"><span class="toggle">[+]</span> <span class="label">User: Now edit scenario6.py. Add a method called count_by_status() that returns a dict</span> <span class="copy-btn" data-line="266" data-uuid="64678bd1-d53b-4182-8945-502d73ea016b" title="Copy line 266 / 64678bd1">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="64678bd1-d53b-4182-8945-502d73ea016b" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-assistant has-tool-children contains-diff" style="margin-left:12px;" data-uuid="8a13ada3-32d6-4b39-b65e-84ac9aefe0e4"><span class="toggle">[+]</span> <span class="label">Agent: Now I'll add a demo call and verify it works.</span> <span class="diff-badge">Δ scenario6.py, scenario6.py</span> <span class="copy-btn" data-line="282" data-uuid="8a13ada3-32d6-4b39-b65e-84ac9aefe0e4" title="Copy line 282 / 8a13ada3">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="8a13ada3-32d6-4b39-b65e-84ac9aefe0e4" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:15px;"><div class="node active role-tool-use" style="margin-left:0px;" data-uuid="59f19399-918b-4e92-9035-3139593c5bba"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Read</span> <span class="copy-btn" data-line="268" data-uuid="59f19399-918b-4e92-9035-3139593c5bba" title="Copy line 268 / 59f19399">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="59f19399-918b-4e92-9035-3139593c5bba" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-user-tool-result" style="margin-left:0px;" data-uuid="ad54c44c-db0d-4f48-8fa2-b20610fb4bfd"><span class="toggle">[+]</span> <span class="label">User: tool_result</span> <span class="copy-btn" data-line="271" data-uuid="ad54c44c-db0d-4f48-8fa2-b20610fb4bfd" title="Copy line 271 / ad54c44c">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="ad54c44c-db0d-4f48-8fa2-b20610fb4bfd" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-tool-use" style="margin-left:0px;" data-uuid="d8b6878f-5f36-4d90-ab9d-c84da6865dea"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Edit</span> <span class="copy-btn" data-line="275" data-uuid="d8b6878f-5f36-4d90-ab9d-c84da6865dea" title="Copy line 275 / d8b6878f">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="d8b6878f-5f36-4d90-ab9d-c84da6865dea" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-user-tool-result has-diff" style="margin-left:0px;" data-uuid="455ff247-7cf9-40a0-9aaa-f271739dc07b"><span class="toggle">[+]</span> <span class="label">tool_result <span class="diff-badge">Δ scenario6.py</span></span> <span class="copy-btn" data-line="276" data-uuid="455ff247-7cf9-40a0-9aaa-f271739dc07b" title="Copy line 276 / 455ff247">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="455ff247-7cf9-40a0-9aaa-f271739dc07b" title="Inspect raw JSON">{ }</span></div>
+<div class="diff-container" style="display:none;margin-left:3px;"><div class="diff-view"><div class="diff-header">scenario6.py (edit)</div><div class="diff-hunk"><div class="diff-line diff-range">@@ -118,6 +118,29 @@</div><div class="diff-line diff-ctx"><span class="diff-text">                     f.write(f&quot;  {t['title']} — due {t['due_date']} [{status}]\n&quot;)</span></div><div class="diff-line diff-ctx"><span class="diff-text">                 f.write(&quot;\n&quot;)</span></div><div class="diff-line diff-ctx"><span class="diff-text"> </span></div><div class="diff-line diff-add"><span class="diff-text">+    def count_by_status(self, today_date=None):</span></div><div class="diff-line diff-add"><span class="diff-text">+        &quot;&quot;&quot;Return a dict with counts of tasks by status: pending, complete, overdue.</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+        Args:</span></div><div class="diff-line diff-add"><span class="diff-text">+            today_date: a datetime.date used to determine overdue tasks.</span></div><div class="diff-line diff-add"><span class="diff-text">+                        Defaults to date.today() if not provided.</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+        A task is 'overdue' if it is incomplete and past its due date.</span></div><div class="diff-line diff-add"><span class="diff-text">+        A task is 'complete' if marked completed.</span></div><div class="diff-line diff-add"><span class="diff-text">+        A task is 'pending' if incomplete and not yet overdue.</span></div><div class="diff-line diff-add"><span class="diff-text">+        &quot;&quot;&quot;</span></div><div class="diff-line diff-add"><span class="diff-text">+        if today_date is None:</span></div><div class="diff-line diff-add"><span class="diff-text">+            today_date = date.today()</span></div><div class="diff-line diff-add"><span class="diff-text">+        counts = {&quot;pending&quot;: 0, &quot;complete&quot;: 0, &quot;overdue&quot;: 0}</span></div><div class="diff-line diff-add"><span class="diff-text">+        for task in self.tasks:</span></div><div class="diff-line diff-add"><span class="diff-text">+            if task[&quot;completed&quot;]:</span></div><div class="diff-line diff-add"><span class="diff-text">+                counts[&quot;complete&quot;] += 1</span></div><div class="diff-line diff-add"><span class="diff-text">+            elif task[&quot;due_date&quot;] &lt; today_date:</span></div><div class="diff-line diff-add"><span class="diff-text">+                counts[&quot;overdue&quot;] += 1</span></div><div class="diff-line diff-add"><span class="diff-text">+            else:</span></div><div class="diff-line diff-add"><span class="diff-text">+                counts[&quot;pending&quot;] += 1</span></div><div class="diff-line diff-add"><span class="diff-text">+        return counts</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-ctx"><span class="diff-text">     def get_task_summary(self, title):</span></div><div class="diff-line diff-ctx"><span class="diff-text">         &quot;&quot;&quot;Return a one-line string describing the task's title, priority, due date, and status.</span></div><div class="diff-line diff-ctx"><span class="diff-text"> </span></div></div></div></div>
+<div class="node active role-tool-use" style="margin-left:0px;" data-uuid="3abeb0b0-447a-4894-8549-9a477cf09bc5"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Edit</span> <span class="copy-btn" data-line="283" data-uuid="3abeb0b0-447a-4894-8549-9a477cf09bc5" title="Copy line 283 / 3abeb0b0">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="3abeb0b0-447a-4894-8549-9a477cf09bc5" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-user-tool-result has-diff" style="margin-left:0px;" data-uuid="9512a94d-762e-4345-a929-f4c826287bad"><span class="toggle">[+]</span> <span class="label">tool_result <span class="diff-badge">Δ scenario6.py</span></span> <span class="copy-btn" data-line="284" data-uuid="9512a94d-762e-4345-a929-f4c826287bad" title="Copy line 284 / 9512a94d">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="9512a94d-762e-4345-a929-f4c826287bad" title="Inspect raw JSON">{ }</span></div>
+<div class="diff-container" style="display:none;margin-left:3px;"><div class="diff-view"><div class="diff-header">scenario6.py (edit)</div><div class="diff-hunk"><div class="diff-line diff-range">@@ -196,7 +196,9 @@</div><div class="diff-line diff-ctx"><span class="diff-text">     with open(report_path) as f:</span></div><div class="diff-line diff-ctx"><span class="diff-text">         print(f&quot;\nExported report:\n{f.read()}&quot;)</span></div><div class="diff-line diff-ctx"><span class="diff-text"> </span></div><div class="diff-line diff-del"><span class="diff-text">-    print(&quot;Task summaries:&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+    print(f&quot;\nCount by status: {tm.count_by_status(today)}&quot;)</span></div><div class="diff-line diff-add"><span class="diff-text">+</span></div><div class="diff-line diff-add"><span class="diff-text">+    print(&quot;\nTask summaries:&quot;)</span></div><div class="diff-line diff-ctx"><span class="diff-text">     print(f&quot;  {tm.get_task_summary('Fix login bug')}&quot;)</span></div><div class="diff-line diff-ctx"><span class="diff-text">     print(f&quot;  {tm.get_task_summary('Write report')}&quot;)</span></div><div class="diff-line diff-ctx"><span class="diff-text">     print(f&quot;  {tm.get_task_summary('Nonexistent')}&quot;)</span></div></div></div></div>
+<div class="node active role-tool-use" style="margin-left:0px;" data-uuid="9789ded0-3579-4b92-8680-4d6d30f9cdd7"><span class="toggle">[+]</span> <span class="label">Agent: tool_use:Bash</span> <span class="copy-btn" data-line="295" data-uuid="9789ded0-3579-4b92-8680-4d6d30f9cdd7" title="Copy line 295 / 9789ded0">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="9789ded0-3579-4b92-8680-4d6d30f9cdd7" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-user-tool-result" style="margin-left:0px;" data-uuid="fb15305c-9333-46c3-84e1-1b2bc618eb5f"><span class="toggle">[+]</span> <span class="label">User: tool_result</span> <span class="copy-btn" data-line="297" data-uuid="fb15305c-9333-46c3-84e1-1b2bc618eb5f" title="Copy line 297 / fb15305c">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="fb15305c-9333-46c3-84e1-1b2bc618eb5f" title="Inspect raw JSON">{ }</span></div>
+</div>
+<div class="node active role-assistant has-tool-children" style="margin-left:12px;" data-uuid="f7a9506a-6936-4a4c-b6ac-d9c32c093a97"><span class="toggle">[+]</span> <span class="label">Agent: Verified correct. `count_by_status(today)` returns `{'pending': 2, 'complete': 2</span> <span class="copy-btn" data-line="300" data-uuid="f7a9506a-6936-4a4c-b6ac-d9c32c093a97" title="Copy line 300 / f7a9506a">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="f7a9506a-6936-4a4c-b6ac-d9c32c093a97" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:15px;"><div class="node active role-system" style="margin-left:0px;" data-uuid="71335f63-0376-4122-90b3-ca143ce8a411"><span class="toggle">[+]</span> <span class="label">System: stop_hook_summary</span> <span class="copy-btn" data-line="302" data-uuid="71335f63-0376-4122-90b3-ca143ce8a411" title="Copy line 302 / 71335f63">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="71335f63-0376-4122-90b3-ca143ce8a411" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-system" style="margin-left:0px;" data-uuid="b4a55df5-c635-4ab7-89ae-a4789e48d26f"><span class="toggle">[+]</span> <span class="label">System: turn_duration</span> <span class="copy-btn" data-line="303" data-uuid="b4a55df5-c635-4ab7-89ae-a4789e48d26f" title="Copy line 303 / b4a55df5">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="b4a55df5-c635-4ab7-89ae-a4789e48d26f" title="Inspect raw JSON">{ }</span></div>
+</div>
+<div class="node active role-user-prompt" style="margin-left:12px;" data-uuid="aaee5aaa-ec91-4c8f-857f-c4e19d34038b"><span class="toggle">[+]</span> <span class="label">User: Great, thank you.</span> <span class="copy-btn" data-line="304" data-uuid="aaee5aaa-ec91-4c8f-857f-c4e19d34038b" title="Copy line 304 / aaee5aaa">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="aaee5aaa-ec91-4c8f-857f-c4e19d34038b" title="Inspect raw JSON">{ }</span></div>
+<div class="node active role-assistant has-tool-children" style="margin-left:12px;" data-uuid="6ea6ed71-6ce2-41f3-bd7e-5b199ee46f56"><span class="toggle">[+]</span> <span class="label">Agent: You're welcome!</span> <span class="copy-btn" data-line="307" data-uuid="6ea6ed71-6ce2-41f3-bd7e-5b199ee46f56" title="Copy line 307 / 6ea6ed71">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="6ea6ed71-6ce2-41f3-bd7e-5b199ee46f56" title="Inspect raw JSON">{ }</span></div>
+<div class="tool-children" style="display:none;margin-left:15px;"><div class="node orphaned role-system" style="margin-left:0px;" data-uuid="f4ea8110-384f-4164-aff8-c55e3087dd79"><span class="toggle">[+]</span> <span class="label">System: stop_hook_summary</span> <span class="copy-btn" data-line="309" data-uuid="f4ea8110-384f-4164-aff8-c55e3087dd79" title="Copy line 309 / f4ea8110">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="f4ea8110-384f-4164-aff8-c55e3087dd79" title="Inspect raw JSON">{ }</span></div>
+<div class="node orphaned role-system" style="margin-left:0px;" data-uuid="83c32340-8bd7-403f-973f-a3482f7044b1"><span class="toggle">[+]</span> <span class="label">System: turn_duration</span> <span class="copy-btn" data-line="310" data-uuid="83c32340-8bd7-403f-973f-a3482f7044b1" title="Copy line 310 / 83c32340">&#x1f4cb;</span> <span class="inspect-btn" data-uuid="83c32340-8bd7-403f-973f-a3482f7044b1" title="Inspect raw JSON">{ }</span></div>
+</div>
+</div></div>
+</div></div></div>
+</div>
+</div>
+<script>
+function syntaxHighlight(json) {
+  return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(s*:)?|(true|false|null)|-?d+(?:.d*)?(?:[eE][+-]?d+)?)/g, function(match) {
+    var cls = 'json-number';
+    if (/^"/.test(match)) {
+      if (/:$/.test(match)) {
+        cls = 'json-key';
+      } else {
+        cls = 'json-string';
+      }
+    } else if (/true|false/.test(match)) {
+      cls = 'json-boolean';
+    } else if (/null/.test(match)) {
+      cls = 'json-null';
+    }
+    return '<span class="' + cls + '">' + match + '</span>';
+  });
+}
+
+document.getElementById('tree').addEventListener('click', function(e) {
+  const inspectBtn = e.target.closest('.inspect-btn');
+  if (inspectBtn) {
+    const uuid = inspectBtn.dataset.uuid;
+    const overlay = document.getElementById('inspect-overlay');
+    const title = document.getElementById('inspect-title');
+    const content = document.getElementById('inspect-content');
+    if (window.JSONL_RAW && window.JSONL_RAW[uuid]) {
+      try {
+        const parsed = JSON.parse(window.JSONL_RAW[uuid]);
+        content.innerHTML = syntaxHighlight(JSON.stringify(parsed, null, 4));
+      } catch(ex) {
+        content.textContent = window.JSONL_RAW[uuid];
+      }
+    } else {
+      content.textContent = '(not found in data file)';
+    }
+    title.textContent = 'UUID: ' + uuid;
+    overlay.classList.add('show');
+    return;
+  }
+
+  const copyBtn = e.target.closest('.copy-btn');
+  if (copyBtn) {
+    const line = copyBtn.dataset.line;
+    const uuid = copyBtn.dataset.uuid;
+    const text = 'Line: ' + line + '  UUID: ' + uuid;
+    navigator.clipboard.writeText(text).then(function() {
+      const toast = document.getElementById('copy-toast');
+      toast.textContent = 'Copied: ' + text;
+      toast.classList.add('show');
+      setTimeout(function() { toast.classList.remove('show'); }, 1500);
+    });
+    return;
+  }
+
+  const toggle = e.target.closest('.toggle');
+  if (!toggle) return;
+
+  const branch = toggle.closest('.branch');
+  if (branch && toggle.classList.contains('branch-toggle')) {
+    const children = branch.querySelector('.branch-children');
+    if (children) {
+      const isOpen = children.style.display !== 'none';
+      children.style.display = isOpen ? 'none' : 'block';
+      toggle.textContent = isOpen ? '[+]' : '[-]';
+    }
+    return;
+  }
+
+  const node = toggle.closest('.node');
+  if (node) {
+    const next = node.nextElementSibling;
+    if (next && next.classList.contains('tool-children')) {
+      const isOpen = next.style.display !== 'none';
+      next.style.display = isOpen ? 'none' : 'block';
+      toggle.textContent = isOpen ? '[+]' : '[-]';
+    } else if (next && next.classList.contains('diff-container')) {
+      const isOpen = next.style.display !== 'none';
+      next.style.display = isOpen ? 'none' : 'block';
+      toggle.textContent = isOpen ? '[+]' : '[-]';
+    } else {
+      const isOpen = toggle.textContent.trim() === '[-]';
+      toggle.textContent = isOpen ? '[+]' : '[-]';
+    }
+  }
+});
+document.getElementById('inspect-close').addEventListener('click', function() {
+  document.getElementById('inspect-overlay').classList.remove('show');
+});
+document.getElementById('inspect-overlay').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('show');
+});
+document.getElementById('open-jsonl-btn').addEventListener('click', function() {
+  document.getElementById('jsonl-file-input').click();
+});
+document.getElementById('jsonl-file-input').addEventListener('change', function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var text = ev.target.result;
+    var lines = text.split('\n');
+    var newRaw = {};
+    var count = 0;
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      try {
+        var obj = JSON.parse(line);
+        if (obj.uuid) {
+          newRaw[obj.uuid] = line;
+          count++;
+        }
+      } catch(ex) {}
+    }
+    window.JSONL_RAW = newRaw;
+    document.getElementById('stats-file').textContent = file.name;
+    var toast = document.getElementById('copy-toast');
+    toast.textContent = 'Loaded ' + count + ' entries from ' + file.name + ' (inspect data updated, re-run generator for tree view)';
+    toast.classList.add('show');
+    setTimeout(function() { toast.classList.remove('show'); }, 3000);
+  };
+  reader.readAsText(file);
+});
+</script>
+</body>
+</html>

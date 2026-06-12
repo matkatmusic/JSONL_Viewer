@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JSONL Conversation Tree Viewer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 13px;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    padding: 20px;
+    line-height: 1.6;
+  }
+  h1 { color: #7ecfff; font-size: 16px; margin-bottom: 8px; }
+  .toolbar {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #333;
+  }
+  .toolbar-btn {
+    background: #2a2a4e; color: #7ecfff; border: 1px solid #444;
+    border-radius: 4px; padding: 4px 12px; font-family: inherit;
+    font-size: 12px; cursor: pointer;
+  }
+  .toolbar-btn:hover { background: #3a3a5e; border-color: #7ecfff; }
+  .toolbar-btn.active { background: #3a3a5e; border-color: #7ecfff; color: #fff; font-weight: bold; }
+  .toolbar-btn:disabled { opacity: 0.4; cursor: default; }
+  .stats { color: #888; font-size: 12px; }
+  .empty-state { color: #666; margin-top: 40px; text-align: center; font-size: 14px; }
+  .node { padding: 2px 4px; cursor: pointer; white-space: nowrap; border-radius: 3px; position: relative; }
+  .node:hover { background: #2a2a4e; }
+  .node.orphaned { opacity: 0.5; }
+  .node.orphaned:hover { opacity: 0.8; }
+  .toggle { color: #7ecfff; font-weight: bold; user-select: none; display: inline-block; width: 24px; }
+  .label { color: #e0e0e0; }
+  .node.active > .label { color: #c8e6c9; }
+  .node.orphaned > .label { color: #999; }
+  .node.has-diff { opacity: 0.9 !important; background: rgba(255,152,0,0.08); border-left: 3px solid #ff9800; padding-left: 8px; }
+  .diff-badge { display: inline-block; background: #ff9800; color: #1a1a2e; font-size: 11px; font-weight: bold; padding: 0 6px; border-radius: 3px; margin-left: 8px; }
+  .diff-container { margin: 4px 0; }
+  .diff-view { background: #0d1117; border: 1px solid #333; border-radius: 4px; overflow-x: auto; margin: 4px 0; max-height: 500px; overflow-y: auto; }
+  .diff-header { background: #161b22; color: #8b949e; padding: 6px 12px; font-size: 12px; font-weight: bold; border-bottom: 1px solid #333; }
+  .diff-hunk { border-bottom: 1px solid #21262d; }
+  .diff-hunk:last-child { border-bottom: none; }
+  .diff-line { font-size: 12px; line-height: 1.5; padding: 0 12px; white-space: pre; }
+  .diff-line.diff-add { background: rgba(63,185,80,0.15); color: #7ee787; }
+  .diff-line.diff-del { background: rgba(248,81,73,0.15); color: #ffa198; }
+  .diff-line.diff-ctx { color: #8b949e; }
+  .diff-line.diff-range { color: #6e7681; background: rgba(56,139,253,0.1); padding: 4px 12px; }
+  .diff-text { white-space: pre; }
+  .node.contains-diff { border-left: 3px solid #ff9800; padding-left: 8px; }
+  .node.role-user-prompt { background: rgba(66,165,245,0.1); border-left: 3px solid #42a5f5; padding-left: 8px; }
+  .node.role-user-prompt > .label { color: #90caf9; font-weight: bold; }
+  .node.role-user-prompt.orphaned > .label { color: #5a8ab5; }
+  .node.role-assistant > .label { color: #b0bec5; }
+  .node.role-assistant.active > .label { color: #cfd8dc; }
+  .node.role-assistant.orphaned > .label { color: #78909c; }
+  .node.role-tool-use, .node.role-user-tool-result { opacity: 0.45; }
+  .node.role-tool-use:hover, .node.role-user-tool-result:hover { opacity: 0.75; }
+  .node.role-tool-use > .label, .node.role-user-tool-result > .label { color: #90a4ae; }
+  .node.role-tool-use.orphaned, .node.role-user-tool-result.orphaned { opacity: 0.25; }
+  .node.role-system > .label { color: #616161; font-style: italic; }
+  .node.role-system.active > .label { color: #757575; }
+  .branch-container { border-left: 2px solid #444; padding-left: 8px; margin-top: 2px; margin-bottom: 2px; }
+  .branch-header { color: #ff9800; font-weight: bold; font-size: 12px; margin: 4px 0 2px 0; }
+  .branch { margin: 2px 0; }
+  .branch-toggle { color: #ff9800; cursor: pointer; font-weight: bold; user-select: none; display: inline-block; width: 24px; }
+  .branch-label { color: #ff9800; font-weight: bold; }
+  .branch.active > .branch-label { color: #4caf50; }
+  .branch.orphaned > .branch-label { color: #f44336; }
+  .branch-children { margin-left: 20px; }
+  .node-actions { display: none; position: fixed; right: 20px; background: #1a1a2e; padding: 2px 6px; border-radius: 3px; border: 1px solid #333; z-index: 10; }
+  .node:hover .node-actions { display: inline-flex; gap: 6px; align-items: center; }
+  .copy-btn { font-size: 11px; cursor: pointer; opacity: 0.6; }
+  .copy-btn:hover { opacity: 1.0; }
+  .copy-toast { position: fixed; bottom: 20px; right: 20px; background: #4caf50; color: #fff; padding: 8px 16px; border-radius: 4px; font-size: 12px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 1001; }
+  .copy-toast.show { opacity: 1; }
+  .inspect-panel { position: fixed; bottom: 0; left: 0; right: 0; height: 35vh; background: #0d1117; border-top: 2px solid #444; display: none; flex-direction: column; z-index: 1000; }
+  .inspect-panel.show { display: flex; }
+  .inspect-panel pre { color: #c9d1d9; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; overflow: auto; flex: 1; padding: 0 16px 16px 16px; margin: 0; }
+  .inspect-close { color: #8b949e; cursor: pointer; font-size: 18px; font-weight: bold; margin-left: auto; }
+  .inspect-close:hover { color: #fff; }
+  .inspect-nav { display: flex; align-items: center; gap: 8px; padding: 8px 16px; flex-shrink: 0; border-bottom: 1px solid #333; }
+  .inspect-nav-btn { background: #2a2a4e; color: #7ecfff; border: 1px solid #444; border-radius: 4px; padding: 4px 12px; font-family: inherit; font-size: 12px; font-weight: bold; cursor: pointer; white-space: nowrap; }
+  .inspect-nav-btn:hover { background: #3a3a5e; border-color: #7ecfff; }
+  .inspect-nav-btn:disabled { opacity: 0.3; cursor: default; }
+  .inspect-title { color: #7ecfff; font-size: 12px; }
+  .inspect-pos { color: #666; font-size: 11px; }
+  .node.inspected { outline: 2px solid #7ecfff; outline-offset: 1px; background: rgba(126,207,255,0.08); }
+  .json-key { color: #79c0ff; }
+  .json-string { color: #a5d6ff; }
+  .json-number { color: #79c0ff; }
+  .json-boolean { color: #ff7b72; }
+  .json-null { color: #8b949e; }
+  .json-type-key { color: #ffa657; font-weight: bold; background: rgba(255,166,87,0.1); padding: 0 2px; border-radius: 2px; }
+  .trunc-btn { color: #7ecfff; cursor: pointer; font-size: 11px; }
+  .trunc-btn:hover { color: #fff; text-decoration: underline; }
+  .path-input { background: #0d1117; color: #c9d1d9; border: 1px solid #444; border-radius: 4px; padding: 4px 8px; font-family: inherit; font-size: 12px; flex: 1; min-width: 200px; }
+  .path-input:focus { border-color: #7ecfff; outline: none; }
+</style>
+</head>
+<body>
+<h1>JSONL Conversation Tree Viewer</h1>
+<div class="toolbar">
+  <button id="open-jsonl-btn" class="toolbar-btn">Open JSONL...</button>
+  <input id="path-input" class="path-input" placeholder="~/.claude/projects/..." value="">
+  <button id="load-path-btn" class="toolbar-btn">Load path</button>
+  <span class="stats" id="stats"></span>
+</div>
+<div class="filter-bar" id="filter-bar">
+  <input class="filter-search" id="filter-search" placeholder="field name..." title="Type a JSON field name and press Enter">
+  <span class="filter-pos" id="filter-pos"></span>
+</div>
+<input type="file" id="jsonl-file-input" accept=".jsonl" style="display:none">
+<div id="copy-toast" class="copy-toast"></div>
+<div id="tree">
+  <div class="empty-state">Click "Open JSONL..." to load a conversation transcript.</div>
+</div>
+<div class="inspect-panel" id="inspect-panel">
+  <div class="inspect-nav">
+    <button class="inspect-nav-btn" id="inspect-prev" title="Previous line">&#9664; Prev</button>
+    <span class="inspect-title" id="inspect-title"></span>
+    <span class="inspect-pos" id="inspect-pos"></span>
+    <button class="inspect-nav-btn" id="inspect-next" title="Next line">Next &#9654;</button>
+    <span id="diff-controls">
+      <button class="inspect-nav-btn" id="diff-mode-sxs" title="Side-by-side diff">Side-by-side</button>
+      <button class="inspect-nav-btn" id="diff-mode-inline" title="Inline diff">Inline</button>
+    </span>
+    <span class="inspect-close" id="inspect-close">&#10005;</span>
+  </div>
+  <pre id="inspect-content"></pre>
+</div>
+
+<script>
+var INDENT_PX = 5;
+var DISPLAYABLE_TYPES = { user: true, assistant: true, system: true };
+var JSONL_RAW = {};
+var JSONL_UUIDS = [];
+var TOOL_ID_TO_UUIDS = {};
+var FIELD_INDEX = {};
+var inspectIndex = -1;
+var SHOW_ALL = false;   // when true, every uuid'd entry is shown in the tree (incl. attachments/meta)
+var LAST_TEXT = null;   // last-loaded transcript text, for re-render on toggle
+var LAST_FILE = null;
+var cmpSel = [];        // checked uuids, in click order (max 2)
+var cmpType = null;     // locked role-* type while a selection is active
+var diffMode = 'sxs';   // 'sxs' (side-by-side) | 'inline'
+var activeFilter = null;
+var activeFilterMatches = [];
+var activeFilterPos = -1;
+
+var PRESET_FIELDS = [
+  'originalFile', 'structuredPatch', 'old_string', 'new_string',
+  'oldString', 'newString', 'tool_use', 'tool_result', 'toolUseResult',
+  'thinking', 'isSidechain'
+];
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function summarizeContent(entry) {
+  var c = entry.message && entry.message.content;
+  if (!c) return entry.subtype || '(empty)';
+  if (typeof c === 'string') return c.slice(0,100).replace(/\n/g,' ');
+  for (var i = 0; i < c.length; i++) {
+    var b = c[i];
+    if (b.type === 'text' && b.text) return b.text.slice(0,100).replace(/\n/g,' ');
+    if (b.type === 'tool_use') return 'tool_use:' + (b.name || '?');
+    if (b.type === 'tool_result') return 'tool_result';
+    if (b.type === 'thinking') return 'thinking';
+  }
+  return c.map(function(b){return b.type}).join(', ');
+}
+
+function isPlumbingNode(node) {
+  if (node.entryType === 'assistant' && node.contentSummary.indexOf('tool_use:') === 0) return true;
+  if (node.entryType === 'assistant' && node.contentSummary === 'thinking') return true;
+  if (node.entryType === 'user' && node.contentSummary.indexOf('tool_result') === 0) return true;
+  if (node.entryType === 'system') return true;
+  return false;
+}
+
+function isAgentText(node) {
+  return node.entryType === 'assistant' && !isPlumbingNode(node);
+}
+
+function buildVisibleTree(entries) {
+  var rawMap = {};
+  for (var i = 0; i < entries.length; i++) {
+    var e = entries[i];
+    if (e.uuid === undefined || e.parentUuid === undefined) continue;
+    rawMap[e.uuid] = {
+      uuid: e.uuid, parentUuid: e.parentUuid || null,
+      entry: e, lineIndex: i, children: [],
+      displayable: SHOW_ALL || !!DISPLAYABLE_TYPES[e.type]
+    };
+  }
+
+  // Thread orphan nodes (null or unresolved parentUuid) into file order by
+  // attaching each to its immediate predecessor. Without this, a disconnected
+  // subtree renders as a separate root *after* the entire conversation, stranding
+  // early-sequence nodes (e.g. session-init attachments) at the bottom of the
+  // tree. The earliest entry by line stays the sole genuine root.
+  var ordered = Object.keys(rawMap).map(function(k){ return rawMap[k]; })
+                      .sort(function(a, b){ return a.lineIndex - b.lineIndex; });
+  for (var oi = 1; oi < ordered.length; oi++) {
+    var nd = ordered[oi];
+    if (!nd.parentUuid || !rawMap[nd.parentUuid]) {
+      nd.parentUuid = ordered[oi - 1].uuid;
+    }
+  }
+
+  var rawRoots = [];
+  var keys = Object.keys(rawMap);
+  for (var k = 0; k < keys.length; k++) {
+    var n = rawMap[keys[k]];
+    if (n.parentUuid && rawMap[n.parentUuid]) {
+      rawMap[n.parentUuid].children.push(n);
+    } else {
+      rawRoots.push(n);
+    }
+  }
+
+  function toVisNode(raw) {
+    var tr = raw.entry.toolUseResult;
+    var hasDiff = tr && ('originalFile' in tr);
+    var diffFile = hasDiff ? (tr.filePath || null) : null;
+    var diffData = null;
+    if (hasDiff && tr) {
+      var sp = tr.structuredPatch;
+      var opType = tr.type || (tr.oldString !== undefined ? 'edit' : 'unknown');
+      diffData = {
+        filePath: tr.filePath || '', opType: opType,
+        hunks: Array.isArray(sp) ? sp : [],
+        content: opType === 'create' ? (tr.content || null) : null
+      };
+    }
+    return {
+      uuid: raw.uuid, entryType: raw.entry.type,
+      role: (raw.entry.message && raw.entry.message.role) || raw.entry.type,
+      messageId: (raw.entry.message && raw.entry.message.id) || null,
+      isSidechain: raw.entry.isSidechain || false,
+      contentSummary: summarizeContent(raw.entry),
+      timestamp: raw.entry.timestamp || '',
+      lineIndex: raw.lineIndex,
+      visibleChildren: [], toolChildren: [], attachKids: [],
+      hasDiff: !!hasDiff, diffFile: diffFile, diffData: diffData
+    };
+  }
+
+  function collectVisibleChildren(raw) {
+    var result = [];
+    for (var i = 0; i < raw.children.length; i++) {
+      var child = raw.children[i];
+      if (child.displayable) {
+        var vis = toVisNode(child);
+        vis.visibleChildren = collectVisibleChildren(child);
+        result.push(vis);
+      } else {
+        var sub = collectVisibleChildren(child);
+        for (var j = 0; j < sub.length; j++) result.push(sub[j]);
+      }
+    }
+    return result;
+  }
+
+  var visRoots = [];
+  for (var r = 0; r < rawRoots.length; r++) {
+    var raw = rawRoots[r];
+    if (raw.displayable) {
+      var vis = toVisNode(raw);
+      vis.visibleChildren = collectVisibleChildren(raw);
+      visRoots.push(vis);
+    } else {
+      var sub = collectVisibleChildren(raw);
+      for (var j = 0; j < sub.length; j++) visRoots.push(sub[j]);
+    }
+  }
+
+  // Pure-attachment side-children (an attachment whose entire subtree is attachments)
+  // are context notes, not conversational forks. Move them out of visibleChildren into
+  // attachKids so they render as collapsed children instead of forcing a branch — a
+  // branch would otherwise nest the whole conversation one level deeper at every turn,
+  // making indentation grow without bound. Attachment chains that lead back into the
+  // conversation (subtree contains a user/assistant/system node) stay in the main flow.
+  function subtreeAllAttachments(n) {
+    if (n.entryType !== 'attachment') return false;
+    for (var i = 0; i < n.visibleChildren.length; i++) {
+      if (!subtreeAllAttachments(n.visibleChildren[i])) return false;
+    }
+    return true;
+  }
+  function partitionAttachments(n) {
+    var main = [], side = [];
+    for (var i = 0; i < n.visibleChildren.length; i++) {
+      if (subtreeAllAttachments(n.visibleChildren[i])) side.push(n.visibleChildren[i]);
+      else main.push(n.visibleChildren[i]);
+    }
+    n.attachKids = side;
+    n.visibleChildren = main;
+    for (var i = 0; i < main.length; i++) partitionAttachments(main[i]);
+  }
+  for (var i = 0; i < visRoots.length; i++) partitionAttachments(visRoots[i]);
+
+  var visMap = {};
+  function indexVis(node) {
+    visMap[node.uuid] = node;
+    for (var i = 0; i < node.visibleChildren.length; i++) indexVis(node.visibleChildren[i]);
+    for (var i = 0; i < node.attachKids.length; i++) indexVis(node.attachKids[i]);
+  }
+  for (var i = 0; i < visRoots.length; i++) indexVis(visRoots[i]);
+
+  var branchPoints = {};
+  function isParallelToolUse(children) {
+    var ids = {};
+    for (var i = 0; i < children.length; i++) {
+      if (children[i].messageId) ids[children[i].messageId] = true;
+    }
+    var uniqueCount = Object.keys(ids).length;
+    if (uniqueCount === 1) {
+      var hasA = false, hasU = false;
+      for (var i = 0; i < children.length; i++) {
+        if (children[i].entryType === 'assistant') hasA = true;
+        if (children[i].entryType === 'user') hasU = true;
+      }
+      if (hasA) return true;
+    }
+    return false;
+  }
+  function detectBranches(node) {
+    if (node.visibleChildren.length > 1 && !isParallelToolUse(node.visibleChildren)) {
+      branchPoints[node.uuid] = true;
+    }
+    for (var i = 0; i < node.visibleChildren.length; i++) detectBranches(node.visibleChildren[i]);
+  }
+  for (var i = 0; i < visRoots.length; i++) detectBranches(visRoots[i]);
+
+  var rawLeaves = [];
+  var rk = Object.keys(rawMap);
+  for (var i = 0; i < rk.length; i++) {
+    if (rawMap[rk[i]].children.length === 0) rawLeaves.push(rawMap[rk[i]]);
+  }
+  rawLeaves.sort(function(a,b) { return (a.entry.timestamp||'') > (b.entry.timestamp||'') ? -1 : 1; });
+
+  var activeLeafUuid = null;
+  for (var i = 0; i < rawLeaves.length; i++) {
+    var cur = rawLeaves[i];
+    while (cur) {
+      if (cur.displayable && !cur.entry.isSidechain && (cur.entry.type === 'user' || cur.entry.type === 'assistant')) {
+        activeLeafUuid = cur.uuid;
+        break;
+      }
+      cur = cur.parentUuid ? rawMap[cur.parentUuid] : null;
+    }
+    if (activeLeafUuid) break;
+  }
+
+  var activePath = {};
+  if (activeLeafUuid) {
+    var cur = rawMap[activeLeafUuid];
+    while (cur) {
+      activePath[cur.uuid] = true;
+      cur = cur.parentUuid ? rawMap[cur.parentUuid] : null;
+    }
+  }
+
+  var msgIdToNodes = {};
+  for (var i = 0; i < rk.length; i++) {
+    var nd = rawMap[rk[i]];
+    var mid = nd.entry.message && nd.entry.message.id;
+    if (mid) {
+      if (!msgIdToNodes[mid]) msgIdToNodes[mid] = [];
+      msgIdToNodes[mid].push(nd);
+    }
+  }
+  function markActive(nd) {
+    activePath[nd.uuid] = true;
+    for (var i = 0; i < nd.children.length; i++) {
+      if (!activePath[nd.children[i].uuid]) markActive(nd.children[i]);
+    }
+  }
+  var mk = Object.keys(msgIdToNodes);
+  for (var i = 0; i < mk.length; i++) {
+    var sibs = msgIdToNodes[mk[i]];
+    var any = false;
+    for (var j = 0; j < sibs.length; j++) { if (activePath[sibs[j].uuid]) { any = true; break; } }
+    if (any) {
+      for (var j = 0; j < sibs.length; j++) {
+        if (!activePath[sibs[j].uuid]) markActive(sibs[j]);
+      }
+    }
+  }
+
+  return {
+    visRoots: visRoots, branchPoints: branchPoints, activePath: activePath,
+    activeLeafUuid: activeLeafUuid,
+    totalRawNodes: rk.length, totalVisNodes: Object.keys(visMap).length,
+    totalBranches: Object.keys(branchPoints).length
+  };
+}
+
+function renderTree(tree) {
+  var bp = tree.branchPoints;
+  var ap = tree.activePath;
+
+  function label(node) {
+    var t = node.entryType;
+    var r = t === 'user' ? 'User' : t === 'assistant' ? 'Agent' : t === 'system' ? 'System'
+          : (t.charAt(0).toUpperCase() + t.slice(1));  // e.g. attachment -> "Attachment"
+    var side = node.isSidechain ? ' [sidechain]' : '';
+    return r + side + ': ' + esc(node.contentSummary.slice(0,80));
+  }
+
+  function roleClass(node) {
+    var isUP = node.entryType === 'user' && node.contentSummary.indexOf('tool_result') !== 0;
+    var isTR = node.entryType === 'user' && node.contentSummary.indexOf('tool_result') === 0;
+    var isTU = node.entryType === 'assistant' && node.contentSummary.indexOf('tool_use:') === 0;
+    return isUP ? 'role-user-prompt' : isTR ? 'role-user-tool-result' : isTU ? 'role-tool-use' : 'role-' + node.entryType;
+  }
+
+  function isSubtreeActive(node) {
+    if (ap[node.uuid]) return true;
+    for (var i = 0; i < node.visibleChildren.length; i++) {
+      if (isSubtreeActive(node.visibleChildren[i])) return true;
+    }
+    return false;
+  }
+
+  function btns(node) {
+    return '<span class="node-actions">' +
+           '<span class="copy-btn" data-line="'+node.lineIndex+'" data-uuid="'+node.uuid+'" title="Line '+node.lineIndex+' / '+node.uuid.slice(0,8)+'">&#x1f4cb;</span>' +
+           '</span>';
+  }
+
+  function renderDiff(data) {
+    var h = '<div class="diff-view"><div class="diff-header">' + esc(data.filePath.split('/').pop()) + ' (' + data.opType + ')</div>';
+    if (data.opType === 'create' && data.content) {
+      h += '<div class="diff-hunk">';
+      var lines = data.content.split('\n');
+      for (var i = 0; i < lines.length; i++) {
+        h += '<div class="diff-line diff-add"><span class="diff-text">+' + esc(lines[i]) + '</span></div>';
+      }
+      h += '</div>';
+    } else {
+      for (var hi = 0; hi < data.hunks.length; hi++) {
+        var hunk = data.hunks[hi];
+        h += '<div class="diff-hunk"><div class="diff-line diff-range">@@ -' + hunk.oldStart + (hunk.oldLines !== undefined ? ','+hunk.oldLines : '') + ' +' + hunk.newStart + (hunk.newLines !== undefined ? ','+hunk.newLines : '') + ' @@</div>';
+        for (var li = 0; li < hunk.lines.length; li++) {
+          var ln = hunk.lines[li];
+          var pfx = ln[0], txt = ln.slice(1);
+          var cls = pfx === '+' ? 'diff-add' : pfx === '-' ? 'diff-del' : 'diff-ctx';
+          h += '<div class="diff-line ' + cls + '"><span class="diff-text">' + esc(pfx + txt) + '</span></div>';
+        }
+        h += '</div>';
+      }
+    }
+    h += '</div>';
+    return h;
+  }
+
+  // Flatten a node's pure-attachment side-chains into a flat list of attachment nodes.
+  function attachFlat(node) {
+    var out = [];
+    function walk(n) { out.push(n); for (var i = 0; i < n.visibleChildren.length; i++) walk(n.visibleChildren[i]); }
+    var ak = node.attachKids || [];
+    for (var i = 0; i < ak.length; i++) walk(ak[i]);
+    return out;
+  }
+
+  function renderPlumbing(node, depth) {
+    var ac = ap[node.uuid] ? 'active' : 'orphaned';
+    var rc = roleClass(node);
+    var dc = node.hasDiff ? ' has-diff' : '';
+    var fn = node.diffFile ? node.diffFile.split('/').pop() : '';
+    var lb = node.hasDiff
+      ? esc(node.contentSummary.slice(0,40)) + ' <span class="diff-badge">Δ ' + esc(fn) + '</span>'
+      : label(node);
+    var af = attachFlat(node);
+    var hasTool = af.length > 0;
+    var h = '<div class="node ' + ac + ' ' + rc + dc + (hasTool ? ' has-tool-children' : '') + '" style="margin-left:' + (depth*INDENT_PX) + 'px;" data-uuid="' + node.uuid + '"><span class="toggle">[+]</span> <span class="label">' + lb + '</span>' + btns(node) + '</div>\n';
+    if (node.diffData) {
+      h += '<div class="diff-container" style="display:none;margin-left:' + ((depth+1)*INDENT_PX) + 'px;">' + renderDiff(node.diffData) + '</div>\n';
+    }
+    if (hasTool) {
+      h += '<div class="tool-children" style="display:none;margin-left:' + ((depth+1)*INDENT_PX) + 'px;">';
+      for (var i = 0; i < af.length; i++) h += renderPlumbing(af[i], 0);
+      h += '</div>\n';
+    }
+    return h;
+  }
+
+  function renderSingle(node, depth, plumbing) {
+    plumbing = plumbing.concat(attachFlat(node));  // fold pure-attachment side-notes in as collapsed children
+    var ac = ap[node.uuid] ? 'active' : 'orphaned';
+    var rc = roleClass(node);
+    var hasTool = plumbing.length > 0;
+    var containsDiff = false;
+    var diffFiles = [];
+    for (var i = 0; i < plumbing.length; i++) {
+      if (plumbing[i].hasDiff) {
+        containsDiff = true;
+        diffFiles.push(plumbing[i].diffFile ? plumbing[i].diffFile.split('/').pop() : '');
+      }
+    }
+    var di = containsDiff ? ' <span class="diff-badge">Δ ' + esc(diffFiles.join(', ')) + '</span>' : '';
+    var h = '<div class="node ' + ac + ' ' + rc + (hasTool ? ' has-tool-children' : '') + (containsDiff ? ' contains-diff' : '') + '" style="margin-left:' + (depth*INDENT_PX) + 'px;" data-uuid="' + node.uuid + '">';
+    h += '<span class="toggle">[+]</span> <span class="label">' + label(node) + '</span>' + di + btns(node) + '</div>\n';
+    if (hasTool) {
+      h += '<div class="tool-children" style="display:none;margin-left:' + ((depth+1)*INDENT_PX) + 'px;">';
+      for (var i = 0; i < plumbing.length; i++) h += renderPlumbing(plumbing[i], 0);
+      h += '</div>\n';
+    }
+    return h;
+  }
+
+  function flattenChain(start) {
+    var list = [start], cur = start;
+    while (cur.visibleChildren.length === 1) { cur = cur.visibleChildren[0]; list.push(cur); }
+    return { list: list, tail: cur };
+  }
+
+  function renderChain(start, depth) {
+    var fc = flattenChain(start);
+    var list = fc.list, tail = fc.tail;
+    var html = '', buf = [];
+    var i = 0;
+    while (i < list.length) {
+      var node = list[i];
+      if (isAgentText(node)) {
+        var plumbing = buf.slice(); buf = [];
+        var j = i + 1;
+        while (j < list.length && isPlumbingNode(list[j])) { plumbing.push(list[j]); j++; }
+        i = j;
+        html += renderSingle(node, depth, plumbing);
+      } else if (isPlumbingNode(node)) {
+        buf.push(node); i++;
+      } else {
+        if (buf.length > 0) { for (var b = 0; b < buf.length; b++) html += renderPlumbing(buf[b], depth); buf = []; }
+        html += renderSingle(node, depth, []); i++;
+      }
+    }
+    // Flush any trailing buffered plumbing (otherwise nodes at the end of a
+    // chain — e.g. final tool_use/thinking or system summaries — vanish).
+    for (var fb = 0; fb < buf.length; fb++) html += renderPlumbing(buf[fb], depth);
+    buf = [];
+
+    if (tail.visibleChildren.length > 1) {
+      if (bp[tail.uuid]) {
+        html += '<div class="branch-container" style="margin-left:' + ((depth+1)*INDENT_PX) + 'px;">';
+        html += '<div class="branch-header">Branches</div>';
+        for (var i = 0; i < tail.visibleChildren.length; i++) {
+          var child = tail.visibleChildren[i];
+          var ba = isSubtreeActive(child);
+          html += '<div class="branch ' + (ba ? 'active' : 'orphaned') + '">';
+          html += '<span class="toggle branch-toggle">' + (ba ? '[-]' : '[+]') + '</span>';
+          html += '<span class="branch-label">&lt;branch ' + (i+1) + (ba ? ' : active' : '') + '&gt;</span>';
+          html += '<div class="branch-children" style="display:' + (ba ? 'block' : 'none') + '">';
+          html += renderChain(child, depth + 2);
+          html += '</div></div>\n';
+        }
+        html += '</div>';
+      } else {
+        for (var i = 0; i < tail.visibleChildren.length; i++) {
+          html += renderChain(tail.visibleChildren[i], depth);
+        }
+      }
+    }
+    return html;
+  }
+
+  var html = '';
+  for (var i = 0; i < tree.visRoots.length; i++) {
+    html += renderChain(tree.visRoots[i], 0);
+  }
+  return html;
+}
+
+function syntaxHighlight(json) {
+  var tId = 0;
+  return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(m) {
+    var c = 'json-number';
+    if (/^"/.test(m)) {
+      if (/:$/.test(m)) {
+        c = /^"type"\s*:/.test(m) ? 'json-type-key' : 'json-key';
+      } else {
+        c = 'json-string';
+        if (m.length > 300) {
+          var id = 'trunc-' + (tId++);
+          var preview = esc(m.slice(0, 80)) + '…"';
+          var full = esc(m);
+          return '<span class="json-string json-truncated">' +
+            '<span class="trunc-short" id="ts-' + id + '">' + preview +
+            '<span class="trunc-btn" data-trunc="' + id + '"> [expand...]</span></span>' +
+            '<span class="trunc-full" id="tf-' + id + '" style="display:none;">' + full +
+            '<span class="trunc-btn" data-trunc="' + id + '"> [collapse]</span></span></span>';
+        }
+      }
+    }
+    else if (/true|false/.test(m)) c = 'json-boolean';
+    else if (/null/.test(m)) c = 'json-null';
+    return '<span class="' + c + '">' + m + '</span>';
+  });
+}
+
+function showToast(msg, duration) {
+  var t = document.getElementById('copy-toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, duration || 1500);
+}
+
+function loadJSONL(text, fileName) {
+  LAST_TEXT = text; LAST_FILE = fileName;
+  document.getElementById('show-all-btn').disabled = false;
+  var lines = text.split('\n');
+  var entries = []; JSONL_RAW = {}; JSONL_UUIDS = []; TOOL_ID_TO_UUIDS = {}; FIELD_INDEX = {};
+
+  function collectKeys(val, uuid) {
+    if (!val || typeof val !== 'object') return;
+    if (Array.isArray(val)) {
+      for (var ai = 0; ai < val.length; ai++) collectKeys(val[ai], uuid);
+      return;
+    }
+    var ks = Object.keys(val);
+    for (var ki = 0; ki < ks.length; ki++) {
+      var k = ks[ki];
+      if (!FIELD_INDEX[k]) FIELD_INDEX[k] = [];
+      var arr = FIELD_INDEX[k];
+      if (arr.length === 0 || arr[arr.length - 1] !== uuid) arr.push(uuid);
+      collectKeys(val[k], uuid);
+    }
+  }
+
+  for (var i = 0; i < lines.length; i++) {
+    var ln = lines[i].trim();
+    if (!ln) continue;
+    try {
+      var obj = JSON.parse(ln);
+      obj._rawLine = ln;
+      entries.push(obj);
+      if (obj.uuid) {
+        JSONL_RAW[obj.uuid] = ln;
+        JSONL_UUIDS.push(obj.uuid);
+        collectKeys(obj, obj.uuid);
+        var content = obj.message && obj.message.content;
+        if (Array.isArray(content)) {
+          for (var ci = 0; ci < content.length; ci++) {
+            var block = content[ci];
+            var tid = null;
+            if (block.type === 'tool_use' && block.id) tid = block.id;
+            else if (block.type === 'tool_result' && block.tool_use_id) tid = block.tool_use_id;
+            if (tid) {
+              if (!TOOL_ID_TO_UUIDS[tid]) TOOL_ID_TO_UUIDS[tid] = [];
+              TOOL_ID_TO_UUIDS[tid].push(obj.uuid);
+            }
+          }
+        }
+      }
+    } catch(e) {}
+  }
+
+  try {
+    var tree = buildVisibleTree(entries);
+    var html = renderTree(tree);
+
+    document.getElementById('tree').innerHTML = html;
+    cmpSel = []; cmpType = null;
+    decorateCompareCheckboxes();
+    document.getElementById('stats').innerHTML =
+      'File: ' + esc(fileName) + ' | Raw: ' + tree.totalRawNodes +
+      ' | Visible: ' + tree.totalVisNodes + ' | Branches: ' + tree.totalBranches +
+      ' | Leaf: ' + (tree.activeLeafUuid ? tree.activeLeafUuid.slice(0,8) : 'none');
+
+    showToast('Loaded ' + entries.length + ' entries from ' + fileName, 2000);
+    buildFilterBar();
+  } catch(err) {
+    document.getElementById('tree').innerHTML = '<div class="empty-state" style="color:#f44336;">Error: ' + esc(err.message) + '<br><pre style="text-align:left;margin-top:10px;font-size:11px;color:#999;">' + esc(err.stack || '') + '</pre></div>';
+  }
+}
+
+function buildFilterBar() {
+  var bar = document.getElementById('filter-bar');
+  var search = document.getElementById('filter-search');
+  var chips = bar.querySelectorAll('.filter-chip');
+  for (var i = chips.length - 1; i >= 0; i--) bar.removeChild(chips[i]);
+
+  for (var p = 0; p < PRESET_FIELDS.length; p++) {
+    var field = PRESET_FIELDS[p];
+    var count = FIELD_INDEX[field] ? FIELD_INDEX[field].length : 0;
+    var chip = document.createElement('button');
+    chip.className = 'filter-chip';
+    chip.dataset.field = field;
+    chip.innerHTML = field + '<span class="chip-count' + (count > 0 ? ' has-matches' : '') + '">' + count + '</span>';
+    if (count === 0) chip.style.opacity = '0.35';
+    bar.insertBefore(chip, search);
+  }
+
+  activeFilter = null;
+  activeFilterMatches = [];
+  activeFilterPos = -1;
+  document.getElementById('filter-pos').textContent = '';
+  bar.classList.add('visible');
+}
+
+function jumpToField(field, direction) {
+  var matches = FIELD_INDEX[field];
+  if (!matches || matches.length === 0) { showToast('No entries with "' + field + '"', 1500); return; }
+
+  if (field !== activeFilter) {
+    activeFilter = field;
+    activeFilterMatches = matches;
+    activeFilterPos = -1;
+    var chips = document.querySelectorAll('.filter-chip');
+    for (var i = 0; i < chips.length; i++) chips[i].classList.toggle('active', chips[i].dataset.field === field);
+  }
+
+  if (direction === 'prev') {
+    activeFilterPos = activeFilterPos <= 0 ? matches.length - 1 : activeFilterPos - 1;
+  } else {
+    activeFilterPos = activeFilterPos >= matches.length - 1 ? 0 : activeFilterPos + 1;
+  }
+
+  var uuid = matches[activeFilterPos];
+  var idx = JSONL_UUIDS.indexOf(uuid);
+  document.getElementById('filter-pos').textContent = (activeFilterPos + 1) + '/' + matches.length;
+  if (idx >= 0) showInspect(idx);
+}
+
+function nodeTypeOf(el) {
+  if (!el) return null;
+  var m = el.className.match(/\brole-[\w-]+/);
+  return m ? m[0] : null;
+}
+
+// Expand any collapsed ancestors so the node for `uuid` is visible. Returns the node el (or null).
+function revealNode(uuid) {
+  var target = document.querySelector('.node[data-uuid="' + uuid + '"]');
+  if (!target) return null;
+  var el = target.parentElement;
+  while (el && el.id !== 'tree') {
+    if (el.style.display === 'none') {
+      el.style.display = 'block';
+      var toggle = el.previousElementSibling && el.previousElementSibling.querySelector('.toggle, .branch-toggle');
+      if (toggle) toggle.textContent = '[-]';
+    }
+    el = el.parentElement;
+  }
+  return target;
+}
+
+// Add a compare checkbox to the left of every line row that maps to a raw JSONL entry.
+function decorateCompareCheckboxes() {
+  var nodes = document.querySelectorAll('#tree .node[data-uuid]');
+  for (var i = 0; i < nodes.length; i++) {
+    var n = nodes[i];
+    var uuid = n.getAttribute('data-uuid');
+    if (!JSONL_RAW[uuid] || n.querySelector('.cmp-chk')) continue;
+    var wrap = document.createElement('span');
+    wrap.className = 'cmp-chk-wrap';
+    var chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.className = 'cmp-chk';
+    chk.setAttribute('data-uuid', uuid);
+    chk.title = 'Select to inspect; select a 2nd same-type row to diff';
+    wrap.appendChild(chk);
+    n.insertBefore(wrap, n.firstChild);
+  }
+}
+
+function showInspect(idx) {
+  if (idx < 0 || idx >= JSONL_UUIDS.length) return;
+  inspectIndex = idx;
+  var uuid = JSONL_UUIDS[idx];
+  var content = document.getElementById('inspect-content');
+  if (JSONL_RAW[uuid]) {
+    try {
+      var highlighted = syntaxHighlight(JSON.stringify(JSON.parse(JSONL_RAW[uuid]), null, 4));
+      highlighted = highlighted.replace(/"(toolu_[A-Za-z0-9_]+)"/g, function(full, toolId) {
+        var targets = TOOL_ID_TO_UUIDS[toolId];
+        if (!targets) return full;
+        var otherUuid = null;
+        for (var t = 0; t < targets.length; t++) {
+          if (targets[t] !== uuid) { otherUuid = targets[t]; break; }
+        }
+        if (!otherUuid) return full;
+        return '"<span class="tool-link" data-target-uuid="' + otherUuid + '" title="Jump to paired entry">' + toolId + '</span>"';
+      });
+      highlighted = highlighted.replace(/("parentUuid":\s*<\/span>\s*<span class="json-string">)"([0-9a-f-]{36})"/g, function(full, prefix, uid) {
+        if (!JSONL_RAW[uid]) return full;
+        return prefix + '"<span class="tool-link" data-target-uuid="' + uid + '" title="Jump to parent">' + uid + '</span>"';
+      });
+      highlighted = highlighted.replace(/<span class="json-key">"originalFile":/g, '<span class="json-type-key">"originalFile":');
+      highlighted = highlighted.replace(/<span class="json-key">"(old_string|new_string)":/g, function(full, key) {
+        var cls = key === 'old_string' ? 'json-key-old' : 'json-key-new';
+        return '<span class="json-key ' + cls + '">"' + key + '":';
+      });
+      highlighted = highlighted.replace(/<span class="json-string">"([+-])/g, function(full, pfx) {
+        var cls = pfx === '-' ? 'json-string-del' : 'json-string-add';
+        return '<span class="json-string ' + cls + '">"' + pfx;
+      });
+      content.innerHTML = highlighted;
+    }
+    catch(ex) { content.textContent = JSONL_RAW[uuid]; }
+  } else { content.textContent = '(not found)'; }
+  document.getElementById('inspect-title').textContent = 'UUID: ' + uuid.slice(0,8);
+  document.getElementById('inspect-pos').textContent = (idx + 1) + ' / ' + JSONL_UUIDS.length;
+  document.getElementById('inspect-prev').disabled = idx === 0;
+  document.getElementById('inspect-next').disabled = idx === JSONL_UUIDS.length - 1;
+  // restore single-line chrome (in case we were showing a diff)
+  document.getElementById('diff-controls').classList.remove('show');
+  document.getElementById('inspect-pos').style.display = '';
+  document.getElementById('inspect-prev').style.display = '';
+  document.getElementById('inspect-next').style.display = '';
+
+  var prev = document.querySelector('.node.inspected');
+  if (prev) prev.classList.remove('inspected');
+  var target = revealNode(uuid);
+  if (target) {
+    target.classList.add('inspected');
+    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  var panel = document.getElementById('inspect-panel');
+  if (!panel.classList.contains('show')) {
+    panel.classList.add('show');
+    document.getElementById('tree').style.paddingBottom = '38vh';
+  }
+}
+
+// ── Event handlers ─────────────────────────────────────────────────────────
+
+var DEFAULT_PROJECTS_DIR = (function() {
+  var home = location.protocol === 'file:' ? '' : '';
+  return '/Users/' + (location.pathname.split('/Users/')[1] || '').split('/')[0] + '/.claude/projects/';
+})();
+(function() {
+  var inp = document.getElementById('path-input');
+  if (!inp.value) inp.value = DEFAULT_PROJECTS_DIR;
+})();
+
+document.getElementById('open-jsonl-btn').addEventListener('click', async function() {
+  if (window.showOpenFilePicker) {
+    try {
+      var handles = await window.showOpenFilePicker({
+        id: 'jsonl-viewer-picker',
+        types: [{ description: 'JSONL transcripts', accept: { 'application/x-jsonl': ['.jsonl'] } }],
+        multiple: false
+      });
+      var file = await handles[0].getFile();
+      var text = await file.text();
+      loadJSONL(text, file.name);
+      return;
+    } catch(e) { if (e.name === 'AbortError') return; }
+  }
+  document.getElementById('jsonl-file-input').click();
+});
+
+document.getElementById('jsonl-file-input').addEventListener('change', function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) { loadJSONL(ev.target.result, file.name); };
+  reader.readAsText(file);
+  this.value = '';
+});
+
+function loadFromPath(path) {
+  if (!path) return;
+  document.getElementById('tree').innerHTML = '<div class="empty-state">Loading ' + esc(path) + '...</div>';
+  fetch(path)
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+    .then(function(text) { loadJSONL(text, path.split('/').pop() || path); })
+    .catch(function(err) {
+      document.getElementById('tree').innerHTML = '<div class="empty-state" style="color:#f44336;">Failed to load: ' + esc(err.message) + '</div>';
+    });
+}
+document.getElementById('load-path-btn').addEventListener('click', function() {
+  loadFromPath(document.getElementById('path-input').value.trim());
+});
+document.getElementById('path-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') loadFromPath(this.value.trim());
+});
+
+document.getElementById('show-all-btn').addEventListener('click', function() {
+  if (!LAST_TEXT) return;
+  SHOW_ALL = !SHOW_ALL;
+  this.classList.toggle('active', SHOW_ALL);
+  this.textContent = SHOW_ALL ? 'Showing All Nodes' : 'Show All Nodes';
+  resetCompare();
+  closeInspectPanel();
+  loadJSONL(LAST_TEXT, LAST_FILE);  // re-render with the new visibility
+});
+
+// ── Compare / diff ───────────────────────────────────────────────────────────
+
+// Classic LCS line diff. Returns ordered ops: [{op:'ctx'|'del'|'add', text}].
+function lineDiff(a, b) {
+  var CAP = 2500;
+  if (a.length > CAP || b.length > CAP) {
+    showToast('Diff truncated to ' + CAP + ' lines per side', 2500);
+    if (a.length > CAP) a = a.slice(0, CAP);
+    if (b.length > CAP) b = b.slice(0, CAP);
+  }
+  var n = a.length, m = b.length;
+  var dp = new Array(n + 1);
+  for (var i = 0; i <= n; i++) dp[i] = new Int32Array(m + 1);
+  for (var i = n - 1; i >= 0; i--) {
+    for (var j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  var ops = [], x = 0, y = 0;
+  while (x < n && y < m) {
+    if (a[x] === b[y]) { ops.push({ op: 'ctx', text: a[x] }); x++; y++; }
+    else if (dp[x + 1][y] >= dp[x][y + 1]) { ops.push({ op: 'del', text: a[x] }); x++; }
+    else { ops.push({ op: 'add', text: b[y] }); y++; }
+  }
+  while (x < n) { ops.push({ op: 'del', text: a[x] }); x++; }
+  while (y < m) { ops.push({ op: 'add', text: b[y] }); y++; }
+  return ops;
+}
+
+function diffLinesFor(uuid) {
+  var raw = JSONL_RAW[uuid];
+  try { return JSON.stringify(JSON.parse(raw), null, 4).split('\n'); }
+  catch (e) { return (raw || '').split('\n'); }
+}
+
+function renderInlineDiff(ops) {
+  var h = '<div class="diff-view"><div class="diff-hunk">';
+  for (var i = 0; i < ops.length; i++) {
+    var o = ops[i];
+    var cls = o.op === 'add' ? 'diff-add' : o.op === 'del' ? 'diff-del' : 'diff-ctx';
+    var pfx = o.op === 'add' ? '+' : o.op === 'del' ? '-' : ' ';
+    h += '<div class="diff-line ' + cls + '"><span class="diff-text">' + esc(pfx + o.text) + '</span></div>';
+  }
+  return h + '</div></div>';
+}
+
+function renderSxsDiff(ops) {
+  var h = '<div class="diff-view"><div class="diff-sxs">', i = 0;
+  while (i < ops.length) {
+    if (ops[i].op === 'ctx') {
+      h += '<div class="diff-sxs-row ctx-row"><div class="diff-cell ctx">' + esc(' ' + ops[i].text) + '</div></div>';
+      i++;
+    } else {
+      var dels = [], adds = [];
+      while (i < ops.length && ops[i].op === 'del') { dels.push(ops[i].text); i++; }
+      while (i < ops.length && ops[i].op === 'add') { adds.push(ops[i].text); i++; }
+      var rows = Math.max(dels.length, adds.length);
+      for (var r = 0; r < rows; r++) {
+        var left = r < dels.length ? '<div class="diff-cell del">' + esc('-' + dels[r]) + '</div>' : '<div class="diff-cell empty"></div>';
+        var right = r < adds.length ? '<div class="diff-cell add">' + esc('+' + adds[r]) + '</div>' : '<div class="diff-cell empty"></div>';
+        h += '<div class="diff-sxs-row">' + left + right + '</div>';
+      }
+    }
+  }
+  return h + '</div></div>';
+}
+
+function showDiff(uuidA, uuidB) {
+  var ops = lineDiff(diffLinesFor(uuidA), diffLinesFor(uuidB));
+  document.getElementById('inspect-content').innerHTML =
+    diffMode === 'inline' ? renderInlineDiff(ops) : renderSxsDiff(ops);
+  document.getElementById('inspect-title').textContent = 'Diff: ' + uuidA.slice(0,8) + ' ↔ ' + uuidB.slice(0,8);
+  document.getElementById('inspect-pos').style.display = 'none';
+  document.getElementById('inspect-prev').style.display = 'none';
+  document.getElementById('inspect-next').style.display = 'none';
+  document.getElementById('diff-controls').classList.add('show');
+  document.getElementById('diff-mode-sxs').classList.toggle('active', diffMode === 'sxs');
+  document.getElementById('diff-mode-inline').classList.toggle('active', diffMode === 'inline');
+  var panel = document.getElementById('inspect-panel');
+  if (!panel.classList.contains('show')) {
+    panel.classList.add('show');
+    document.getElementById('tree').style.paddingBottom = '38vh';
+  }
+}
+
+function applyTypeGate() {
+  var boxes = document.querySelectorAll('.cmp-chk');
+  for (var i = 0; i < boxes.length; i++) {
+    var node = boxes[i].closest('.node');
+    var off = cmpType && nodeTypeOf(node) !== cmpType;
+    boxes[i].disabled = !!off;
+    if (node) node.classList.toggle('cmp-disabled', !!off);
+  }
+}
+
+function clearTypeGate() {
+  var boxes = document.querySelectorAll('.cmp-chk');
+  for (var i = 0; i < boxes.length; i++) {
+    boxes[i].disabled = false;
+    var node = boxes[i].closest('.node');
+    if (node) node.classList.remove('cmp-disabled');
+  }
+}
+
+function revealMatching() {
+  var boxes = document.querySelectorAll('.cmp-chk');
+  for (var i = 0; i < boxes.length; i++) {
+    if (nodeTypeOf(boxes[i].closest('.node')) === cmpType) revealNode(boxes[i].getAttribute('data-uuid'));
+  }
+}
+
+// Reset all compare selection state and checkboxes.
+function resetCompare() {
+  cmpSel = []; cmpType = null;
+  var boxes = document.querySelectorAll('.cmp-chk');
+  for (var i = 0; i < boxes.length; i++) {
+    boxes[i].checked = false;
+    boxes[i].disabled = false;
+    var node = boxes[i].closest('.node');
+    if (node) node.classList.remove('cmp-disabled');
+  }
+}
+
+function closeInspectPanel() {
+  document.getElementById('inspect-panel').classList.remove('show');
+  document.getElementById('tree').style.paddingBottom = '';
+  document.getElementById('diff-controls').classList.remove('show');
+  var prev = document.querySelector('.node.inspected');
+  if (prev) prev.classList.remove('inspected');
+}
+
+document.getElementById('tree').addEventListener('change', function(e) {
+  var chk = e.target.closest('.cmp-chk');
+  if (!chk) return;
+  var uuid = chk.getAttribute('data-uuid');
+  if (chk.checked) {
+    if (cmpSel.length >= 2) { chk.checked = false; return; }
+    cmpSel.push(uuid);
+    if (cmpSel.length === 1) {
+      cmpType = nodeTypeOf(chk.closest('.node'));
+      applyTypeGate();
+      revealMatching();
+      showInspect(JSONL_UUIDS.indexOf(uuid));
+    } else {
+      showDiff(cmpSel[0], cmpSel[1]);
+    }
+  } else {
+    var pos = cmpSel.indexOf(uuid);
+    if (pos >= 0) cmpSel.splice(pos, 1);
+    if (cmpSel.length === 1) {
+      showInspect(JSONL_UUIDS.indexOf(cmpSel[0]));
+    } else if (cmpSel.length === 0) {
+      cmpType = null;
+      clearTypeGate();
+      closeInspectPanel();
+    }
+  }
+});
+
+document.getElementById('diff-mode-sxs').addEventListener('click', function() {
+  if (cmpSel.length === 2) { diffMode = 'sxs'; showDiff(cmpSel[0], cmpSel[1]); }
+});
+document.getElementById('diff-mode-inline').addEventListener('click', function() {
+  if (cmpSel.length === 2) { diffMode = 'inline'; showDiff(cmpSel[0], cmpSel[1]); }
+});
+
+document.getElementById('tree').addEventListener('click', function(e) {
+  var cb = e.target.closest('.copy-btn');
+  if (cb) {
+    var text = 'Line: ' + cb.dataset.line + '  UUID: ' + cb.dataset.uuid;
+    navigator.clipboard.writeText(text).then(function() { showToast('Copied: ' + text); });
+    return;
+  }
+
+  var toggle = e.target.closest('.toggle');
+  if (!toggle) return;
+
+  var branch = toggle.closest('.branch');
+  if (branch && toggle.classList.contains('branch-toggle')) {
+    var ch = branch.querySelector('.branch-children');
+    if (ch) { var open = ch.style.display !== 'none'; ch.style.display = open ? 'none' : 'block'; toggle.textContent = open ? '[+]' : '[-]'; }
+    return;
+  }
+
+  var node = toggle.closest('.node');
+  if (node) {
+    var next = node.nextElementSibling;
+    if (next && (next.classList.contains('tool-children') || next.classList.contains('diff-container'))) {
+      var open = next.style.display !== 'none';
+      next.style.display = open ? 'none' : 'block';
+      toggle.textContent = open ? '[+]' : '[-]';
+    } else {
+      toggle.textContent = toggle.textContent.trim() === '[-]' ? '[+]' : '[-]';
+    }
+  }
+});
+
+document.getElementById('inspect-content').addEventListener('click', function(e) {
+  var btn = e.target.closest('.trunc-btn');
+  if (!btn) return;
+  var id = btn.dataset.trunc;
+  var short = document.getElementById('ts-' + id);
+  var full = document.getElementById('tf-' + id);
+  if (short && full) {
+    var isShort = short.style.display !== 'none';
+    short.style.display = isShort ? 'none' : '';
+    full.style.display = isShort ? '' : 'none';
+  }
+});
+
+document.getElementById('inspect-close').addEventListener('click', function() {
+  resetCompare();
+  closeInspectPanel();
+});
+document.getElementById('inspect-prev').addEventListener('click', function() {
+  if (inspectIndex > 0) showInspect(inspectIndex - 1);
+});
+document.getElementById('inspect-next').addEventListener('click', function() {
+  if (inspectIndex < JSONL_UUIDS.length - 1) showInspect(inspectIndex + 1);
+});
+document.addEventListener('keydown', function(e) {
+  var panel = document.getElementById('inspect-panel');
+  if (!panel.classList.contains('show')) return;
+  if (e.key === 'Escape') { document.getElementById('inspect-close').click(); return; }
+  // Per-line nav is meaningless while a 2-line diff is showing.
+  if (document.getElementById('diff-controls').classList.contains('show')) return;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); if (inspectIndex > 0) showInspect(inspectIndex - 1); }
+  else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); if (inspectIndex < JSONL_UUIDS.length - 1) showInspect(inspectIndex + 1); }
+});
+
+// Support drag and drop
+document.body.addEventListener('dragover', function(e) { e.preventDefault(); });
+document.body.addEventListener('drop', function(e) {
+  e.preventDefault();
+  var file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.jsonl')) {
+    var reader = new FileReader();
+    reader.onload = function(ev) { loadJSONL(ev.target.result, file.name); };
+    reader.readAsText(file);
+  }
+});
+</script>
+</body>
+</html>

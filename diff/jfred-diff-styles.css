@@ -1,0 +1,195 @@
+/* JFReD Diff Viewer — layout extending common/jfred-styles.css */
+
+/* ─── Top half: 3 columns ──────────────────────────────────────── */
+.diff-top-half {
+  flex: 1.5;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Left column: file tree + alllines stacked */
+.diff-left-col {
+  flex: 0 0 30%;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid #333;
+}
+
+.diff-file-tree {
+  flex: none;
+  min-height: 40px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.diff-tree-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2px 0;
+}
+
+.diff-alllines {
+  flex: 1;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid #333;
+}
+
+.diff-alllines .diff-pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.diff-alllines-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+/* Middle column: current file state */
+.diff-mid-col {
+  flex: 0 0 40%;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Right column: JSON inspector */
+.diff-right-col {
+  flex: 0 0 30%;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid #333;
+}
+
+/* ─── Pane headers and bodies ──────────────────────────────────── */
+.diff-pane-header {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: bold;
+  color: #7ecfff;
+  background: #1a1a2e;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.diff-pane-body {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 12px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ─── Bottom half: 3 columns ───────────────────────────────────── */
+.diff-bottom-half {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+  border-top: 1px solid #333;
+}
+
+.diff-bot-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid #333;
+}
+
+.diff-bot-pane-last {
+  border-right: none;
+}
+
+/* ─── File tree styles ─────────────────────────────────────────── */
+.tree-dir-hdr {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #7ecfff;
+}
+.tree-dir-hdr:hover { background: #2a2a4e; }
+
+.tree-dir-name { font-weight: bold; }
+
+.tree-toggle {
+  color: #666;
+  width: 12px;
+  text-align: center;
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.tree-file {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #e0e0e0;
+}
+.tree-file:hover { background: #2a2a4e; }
+.tree-file-selected { background: #2a2a4e; border-left: 2px solid #7ecfff; }
+
+.tree-file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.tree-count {
+  color: #666;
+  font-size: 10px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ─── Hint bar ─────────────────────────────────────────────────── */
+.hint-bar {
+  padding: 3px 16px;
+  font-size: 11px;
+  color: #888;
+  background: #16213e;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+  min-height: 20px;
+}
+
+/* ─── Jump-to-step button in current state pane ────────────────── */
+.jump-to-step-btn {
+  margin: 4px 8px 4px 0;
+  font-size: 11px;
+}
+
+/* ─── Edit selection checkboxes (edits-only mode) ──────────────── */
+.al-edit-chk {
+  width: 14px; height: 14px;
+  margin-right: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #7ecfff;
+}
+.al-edit-selected { background: rgba(126, 207, 255, 0.12); }
+
+/* ─── Export bar ───────────────────────────────────────────────── */
+.edit-export-bar {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* ─── File-relevant highlight ──────────────────────────────────── */
+.al-file-relevant { background: rgba(126, 207, 255, 0.08); }

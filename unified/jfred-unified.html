@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JFReD Unified — Branch View + File Debugger</title>
+<link rel="stylesheet" href="../common/jfred-styles.css">
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>JFReD</h1>
+  <button id="open-btn" class="toolbar-btn">Open JSONL...</button>
+  <select id="file-select" class="file-select" disabled>
+    <option value="">-- select file --</option>
+  </select>
+  <button id="engine-toggle" class="toolbar-btn" disabled>Engine: Old</button>
+  <div class="step-nav">
+    <span class="step-info" id="step-info">No file loaded</span>
+    <button id="prev-btn" class="nav-btn" disabled title="Previous step">&#9664;</button>
+    <button id="next-btn" class="nav-btn" disabled title="Next step">&#9654;</button>
+    <button id="jump-div-btn" class="nav-btn jump" disabled title="Jump to next divergence">&#9888;</button>
+    <button id="jump-user-btn" class="nav-btn jump" disabled title="Jump to next user edit">&#9650;</button>
+  </div>
+</div>
+<div class="toolbar toolbar-secondary">
+  <div class="path-bar visible" id="path-bar">
+    <input type="text" id="path-input" placeholder="/path/to/file.jsonl" spellcheck="false">
+    <button id="load-path-btn" class="toolbar-btn">Load</button>
+  </div>
+  <span class="file-stats" id="file-stats"></span>
+</div>
+<div class="filter-bar" id="filter-bar">
+  <input class="filter-search" id="filter-search" placeholder="field name..." title="Type a JSON field name and press Enter">
+  <span class="filter-pos" id="filter-pos"></span>
+</div>
+
+<div class="top-half">
+  <div class="branch-view" id="branch-view">
+    <div class="empty-state">Load a JSONL file to begin.</div>
+  </div>
+  <div class="resize-v" id="resize-v-left"></div>
+  <div class="current-state-pane" id="current-state-pane">
+    <div class="inspector-pane-header">Current State</div>
+    <div class="inspector-pane-body" id="current-state-body">
+      <div class="no-data">Select a step to view file state.</div>
+    </div>
+  </div>
+  <div class="resize-v" id="resize-v-right"></div>
+  <div class="json-inspector-pane" id="json-inspector-pane">
+    <div class="inspector-pane-header">JSON Inspector</div>
+    <div class="inspector-pane-body"><pre id="json-inspector-content"></pre></div>
+  </div>
+</div>
+
+<div class="resize-h" id="resize-h"></div>
+
+<div class="bottom-half" id="pane-area">
+  <div class="pane-toolbar">
+    <button id="diff-only-btn" class="toolbar-btn">Diff Only</button>
+  </div>
+  <div class="pane" id="pane-prev">
+    <div class="pane-header">PREVIOUS <span class="pane-badge" id="prev-badge"></span></div>
+    <div class="pane-body" id="prev-body"><div class="no-data">expectedState</div></div>
+  </div>
+  <div class="pane" id="pane-computed">
+    <div class="pane-header">COMPUTED <span class="pane-badge" id="computed-badge"></span></div>
+    <div class="pane-body" id="computed-body"><div class="no-data">contents</div></div>
+  </div>
+  <div class="pane" id="pane-next">
+    <div class="pane-header">NEXT <span class="pane-badge" id="next-badge"></span></div>
+    <div class="pane-body" id="next-body"><div class="no-data">next expectedState</div></div>
+  </div>
+</div>
+
+<!-- Shared reusable components -->
+<script src="../common/json-inspector.js"></script>
+<script src="../common/diff-engine.js"></script>
+
+<!-- Engine modules (browser-compatible, global scope) -->
+<script src="../common/jsonl-parse.js"></script>
+<script src="../common/extract-file-state.js"></script>
+<script src="../common/git-file-state.js"></script>
+<script src="../common/classify-edits.js"></script>
+<script src="../common/replay-edits.js"></script>
+<script src="../common/file-state-history.js"></script>
+<script src="../common/unified-reconstruct-patch.js"></script>
+<script src="../common/unified-reconstruct-steps.js"></script>
+<script src="../common/unified-reconstruct.js"></script>
+
+<!-- JFReD Unified modules (ES modules) -->
+<script type="module" src="jfred-adapter.js"></script>
+<script type="module" src="../common/jfred-alllines.js"></script>
+<script type="module" src="jfred-unified-panes.js"></script>
+<script type="module" src="jfred-unified-filter.js"></script>
+<script type="module" src="jfred-unified-load.js"></script>
+<script type="module" src="../common/jfred-layout.js"></script>
+</body>
+</html>
