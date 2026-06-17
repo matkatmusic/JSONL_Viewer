@@ -10,7 +10,7 @@
 
 var path, os;
 var extractReadEdits, extractEditsFromJSONL, extractBashFileOps;
-var extractSessionMetadata, collectGrepTouches;
+var extractSessionMetadata, collectGrepTouches, collectBashReadTouches;
 if (typeof module !== 'undefined' && typeof require === 'function') {
   path = require('path');
   os = require('os');
@@ -19,6 +19,7 @@ if (typeof module !== 'undefined' && typeof require === 'function') {
   extractBashFileOps = require('./extract-bash-file-ops').extractBashFileOps;
   extractSessionMetadata = require('./transcript-parsers').extractSessionMetadata;
   collectGrepTouches = require('./grep-tool-results').collectGrepTouches;
+  collectBashReadTouches = require('./bash-read-touches').collectBashReadTouches;
 }
 
 // Bash op types that participate in lineage (rename/copy), vs. plain touches.
@@ -130,6 +131,7 @@ function collectTouches(jsonlText) {
   appendReadTouches(touches, lines, parsed);
   appendEditTouches(touches, jsonlText, cwd);
   Array.prototype.push.apply(touches, collectGrepTouches(parsed, cwd));
+  Array.prototype.push.apply(touches, collectBashReadTouches(parsed, cwd));
 
   var ops = [];
   var bashOps = extractBashFileOps(parsed);
