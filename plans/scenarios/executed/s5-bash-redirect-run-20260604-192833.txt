@@ -1,0 +1,12 @@
+tmpdir: /var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/run-scenario.kmc4wfky
+session: s5-bash-redirect
+---
+- [x] 1. Say: `Write a file called s5_redirect.txt with the text "line one".`
+- [x] 2. Say: `Use a bash command to append "line two" to s5_redirect.txt.`
+- [x] 3. Say: `Use a bash command to overwrite s5_redirect.txt with "replaced content".`
+- [x] 4. Say: `Thanks.`
+- [x] 5. Exit
+- [x] 6. Record: JSONL filename
+
+---
+result: {"completed": true, "jsonl_path": "/Users/matkatmusicllc/.claude/projects/-private-var-folders-fy-wg2tzrv957sg2vqjcvdkdzvm0000gn-T-run-scenario-kmc4wfky/98d877be-1f7b-416a-a702-2ba1f5d6d385.jsonl"}

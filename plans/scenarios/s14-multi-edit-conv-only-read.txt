@@ -1,0 +1,10 @@
+session: s14-multi-edit-conv-only-read
+---
+- [ ] 1. Say: `Write a file called scenario14.py with a function called greet(name) that returns "Hello, " + name, and write tests/test_scenario14.py that tests greet("world") returns "Hello, world".`
+- [ ] 2. Say: `Edit scenario14.py. Add a function called farewell(name) that returns "Goodbye, " + name.`
+- [ ] 3. Say: `Good work.`
+- [ ] 4. Rewind: 2
+- [ ] 5. Say: `Read scenario14.py and tell me what functions it has.`
+- [ ] 6. Say: `Thanks.`
+- [ ] 7. Exit
+- [ ] 8. Record: JSONL filename

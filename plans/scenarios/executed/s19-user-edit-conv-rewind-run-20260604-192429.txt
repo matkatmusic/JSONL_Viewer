@@ -1,0 +1,15 @@
+tmpdir: /var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/run-scenario.6fyl0c13
+session: s19-user-edit-conv-rewind
+---
+- [x] 1. Say: `Write a file called scenario19.py with a function called add(a, b) that returns a + b, and write tests/test_scenario19.py that tests add(1, 2) returns 3.`
+- [x] 2. Edit: scenario19.py — after `return a + b` insert `# user tweak`
+- [x] 3. Say: `Edit scenario19.py. Add a function called subtract(a, b) that returns a - b.`
+- [x] 4. Say: `Looks good.`
+- [x] 5. Rewind: 2
+- [x] 6. Say: `Edit scenario19.py. Add a function called multiply(a, b) that returns a * b.`
+- [x] 7. Say: `Thanks.`
+- [x] 8. Exit
+- [x] 9. Record: JSONL filename
+
+---
+result: {"completed": true, "jsonl_path": "/Users/matkatmusicllc/.claude/projects/-private-var-folders-fy-wg2tzrv957sg2vqjcvdkdzvm0000gn-T-run-scenario-6fyl0c13/2dcaa131-8a77-45e1-bbc6-7b86222a1c68.jsonl"}

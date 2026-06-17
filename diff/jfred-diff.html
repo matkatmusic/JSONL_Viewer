@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>JFReD Diff Viewer</title>
+  <link rel="stylesheet" href="../web-shared/jfred-styles.css">
+  <link rel="stylesheet" href="jfred-diff-styles.css">
+</head>
+<body>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <h1>JFReD Diff</h1>
+    <button id="open-btn" class="toolbar-btn">Open</button>
+    <div class="path-bar" id="path-bar">
+      <input id="path-input" type="text" placeholder="JSONL path...">
+      <button id="load-path-btn" class="toolbar-btn">Load</button>
+    </div>
+    <div class="step-nav">
+      <span id="step-info" class="step-info">No file loaded</span>
+      <button id="prev-btn" class="nav-btn" disabled>&larr;</button>
+      <button id="next-btn" class="nav-btn" disabled>&rarr;</button>
+      <button id="jump-div-btn" class="nav-btn jump" disabled title="Jump to next divergence">&#9888;</button>
+      <button id="jump-user-btn" class="nav-btn jump" disabled title="Jump to next user edit">&#9650;</button>
+    </div>
+  </div>
+
+  <!-- Hint bar -->
+  <div class="hint-bar" id="hint-bar"></div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar" id="filter-bar">
+    <input class="filter-search" id="filter-search" placeholder="field...">
+    <span class="filter-pos" id="filter-pos"></span>
+    <span class="file-stats" id="file-stats"></span>
+  </div>
+
+  <!-- Top half: 3 columns -->
+  <div class="diff-top-half">
+    <!-- Left column: file tree + alllines stacked -->
+    <div class="diff-left-col">
+      <div id="file-tree-pane" class="diff-file-tree">
+        <div class="diff-pane-header">Files</div>
+        <div id="file-tree-body" class="diff-tree-body">
+          <div class="empty-state">Open a JSONL file.</div>
+        </div>
+      </div>
+      <div class="resize-h" id="rh-left-col"></div>
+      <div id="alllines-pane" class="diff-alllines">
+        <div class="diff-pane-header">
+          <span>JSON Lines</span>
+          <select id="filter-mode-select" class="file-select" disabled>
+            <option value="all">Show All</option>
+            <option value="file-only">File Only</option>
+            <option value="edits-only">Edits Only</option>
+          </select>
+          <span id="edit-export-bar" class="edit-export-bar" style="display:none">
+            <button id="export-patch-btn" class="toolbar-btn" disabled>Export .patch</button>
+            <button id="copy-patch-btn" class="toolbar-btn" disabled>Copy patch</button>
+          </span>
+        </div>
+        <div id="alllines-view" class="diff-alllines-body"></div>
+      </div>
+    </div>
+
+    <div class="resize-v" id="rv-left-mid"></div>
+
+    <!-- Middle column: current file state -->
+    <div class="diff-mid-col">
+      <div class="diff-pane-header">Current State <span id="base-source-badge" class="pane-badge"></span></div>
+      <div id="current-state-body" class="diff-pane-body"></div>
+    </div>
+
+    <div class="resize-v" id="rv-mid-right"></div>
+
+    <!-- Right column: JSON inspector -->
+    <div class="diff-right-col">
+      <div class="diff-pane-header">Inspector</div>
+      <div id="json-inspector-content" class="diff-pane-body"></div>
+    </div>
+  </div>
+
+  <!-- Resize between top and bottom -->
+  <div class="resize-h" id="rh-top-bot"></div>
+
+  <!-- Bottom half: 3 columns -->
+  <div class="diff-bottom-half">
+    <div class="diff-bot-pane">
+      <div class="diff-pane-header">Base State</div>
+      <div id="base-state-body" class="diff-pane-body"></div>
+    </div>
+    <div class="diff-bot-pane">
+      <div class="diff-pane-header">Diff vs Base</div>
+      <div id="diff-vs-base-body" class="diff-pane-body"></div>
+    </div>
+    <div class="diff-bot-pane diff-bot-pane-last">
+      <div class="diff-pane-header">Diff vs Previous</div>
+      <div id="diff-vs-prev-body" class="diff-pane-body"></div>
+    </div>
+  </div>
+
+  <!-- Global scripts (api/ engine + web-shared UI, non-module; dependency order) -->
+  <script src="../web-shared/json-inspector.js"></script>
+  <script src="../api/transcript-parsers.js"></script>
+  <script src="../api/extract-bash-file-ops.js"></script>
+  <script src="../api/snapshot-store-io.js"></script>
+  <script src="../api/edit-replay.js"></script>
+  <script src="../api/line-diff.js"></script>
+  <script src="../api/rewind-classification.js"></script>
+  <script src="../api/file-event-observations.js"></script>
+  <script src="../api/edit-stream-extraction.js"></script>
+  <script src="../api/unified-reconstruct-patch.js"></script>
+  <script src="../api/unified-reconstruct-steps.js"></script>
+  <script src="../api/unified-reconstruct.js"></script>
+
+  <!-- ES modules -->
+  <script type="module" src="jfred-diff-tree.js"></script>
+  <script type="module" src="jfred-diff-base.js"></script>
+  <script type="module" src="jfred-diff-filter-mode.js"></script>
+  <script type="module" src="jfred-diff-layout.js"></script>
+  <script type="module" src="jfred-diff-main.js"></script>
+</body>
+</html>

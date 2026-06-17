@@ -1,0 +1,11 @@
+session: g-user-edit-code-rewind
+---
+- [ ] 1. Say: `Write a file called g_user_edit_code_rewind.py with a function called f1() that returns 1, and write tests/test_g_user_edit_code_rewind.py that tests f1() returns 1.`
+- [ ] 2. Edit: g_user_edit_code_rewind.py — append `def u2(): return 2`
+- [ ] 3. Say: `Edit g_user_edit_code_rewind.py. Add a function called f3() that returns 3.`
+- [ ] 4. Say: `Thanks.`
+- [ ] 5. Rewind: 2, code
+- [ ] 6. Say: `Read g_user_edit_code_rewind.py and tell me what functions it has.`
+- [ ] 7. Say: `Thanks.`
+- [ ] 8. Exit
+- [ ] 9. Record: JSONL filename

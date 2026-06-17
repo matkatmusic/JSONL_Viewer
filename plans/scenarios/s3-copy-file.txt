@@ -1,0 +1,8 @@
+session: s3-copy-file
+---
+- [ ] 1. Say: `Write a file called s3_source.py with a function called hello() that prints "hello", and write tests/test_s3_source.py that tests hello() works.`
+- [ ] 2. Say: `Copy s3_source.py to s3_copy.py.`
+- [ ] 3. Say: `Edit s3_copy.py. Change the function name from hello to greet.`
+- [ ] 4. Say: `Thanks.`
+- [ ] 5. Exit
+- [ ] 6. Record: JSONL filename

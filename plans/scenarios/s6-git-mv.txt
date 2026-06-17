@@ -1,0 +1,8 @@
+session: s6-git-mv
+---
+- [ ] 1. Say: `Initialize a git repo here if there isn't one. Write a file called s6_git.py with a function called hello() that prints "hello", and write tests/test_s6_git.py that tests hello() works. Stage and commit it.`
+- [ ] 2. Say: `Use git mv to rename s6_git.py to s6_git_renamed.py.`
+- [ ] 3. Say: `Edit s6_git_renamed.py. Add a function called goodbye() that prints "goodbye".`
+- [ ] 4. Say: `Thanks.`
+- [ ] 5. Exit
+- [ ] 6. Record: JSONL filename

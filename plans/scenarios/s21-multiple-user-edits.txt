@@ -1,0 +1,12 @@
+session: s21-multiple-user-edits
+---
+- [ ] 1. Say: `Write a file called scenario21.py with a class called Counter with an __init__ that sets self.count = 0, and write tests/test_scenario21.py that tests Counter().count == 0.`
+- [ ] 2. Edit: scenario21.py — after `self.count = 0` insert `    def increment(self): self.count += 1`
+- [ ] 3. Say: `Edit scenario21.py. Add a method called decrement that subtracts 1 from self.count.`
+- [ ] 4. Edit: scenario21.py — after `self.count -= 1` insert `    def reset(self): self.count = 0`
+- [ ] 5. Say: `Edit scenario21.py. Add a method called get_count that returns self.count.`
+- [ ] 6. Edit: scenario21.py — prepend `# Counter class`
+- [ ] 7. Say: `Read scenario21.py and list all the methods.`
+- [ ] 8. Say: `Thanks.`
+- [ ] 9. Exit
+- [ ] 10. Record: JSONL filename

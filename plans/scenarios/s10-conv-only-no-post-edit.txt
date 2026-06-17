@@ -1,0 +1,9 @@
+session: s10-conv-only-no-post-edit
+---
+- [ ] 1. Say: `Write a file called scenario10.py with a function called greet(name) that returns "Hello, " + name, and write tests/test_scenario10.py that tests greet("world") returns "Hello, world".`
+- [ ] 2. Say: `Looks good, thanks.`
+- [ ] 3. Rewind: 2
+- [ ] 4. Say: `Read scenario10.py and tell me what functions it has.`
+- [ ] 5. Say: `Thanks, that's all.`
+- [ ] 6. Exit
+- [ ] 7. Record: JSONL filename

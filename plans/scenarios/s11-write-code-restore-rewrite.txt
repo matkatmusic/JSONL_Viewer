@@ -1,0 +1,9 @@
+session: s11-write-code-restore-rewrite
+---
+- [ ] 1. Say: `Write a file called scenario11.py with a function called add(a, b) that returns a + b, and write tests/test_scenario11.py that tests add(1, 2) returns 3.`
+- [ ] 2. Say: `That looks correct.`
+- [ ] 3. Rewind: 2, code
+- [ ] 4. Say: `Write a file called scenario11.py with a function called multiply(a, b) that returns a * b, and write tests/test_scenario11.py that tests multiply(2, 3) returns 6.`
+- [ ] 5. Say: `Thanks.`
+- [ ] 6. Exit
+- [ ] 7. Record: JSONL filename

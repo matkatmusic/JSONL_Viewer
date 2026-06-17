@@ -1,0 +1,10 @@
+session: s16-multi-edit-code-restore-re-edit
+---
+- [ ] 1. Say: `Write a file called scenario16.py with a function called greet(name) that returns "Hello, " + name, and write tests/test_scenario16.py that tests greet("world") returns "Hello, world".`
+- [ ] 2. Say: `Edit scenario16.py. Add a function called farewell(name) that returns "Goodbye, " + name.`
+- [ ] 3. Say: `Good work.`
+- [ ] 4. Rewind: 2, code
+- [ ] 5. Say: `Edit scenario16.py. Add a function called shout(name) that returns name.upper().`
+- [ ] 6. Say: `Thanks.`
+- [ ] 7. Exit
+- [ ] 8. Record: JSONL filename

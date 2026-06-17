@@ -1,0 +1,9 @@
+session: m2-mv-rename
+---
+- [ ] 1. Say: `Write a file called m2_old_name.py with a function called process() that returns "processing", and write tests/test_m2_old_name.py that tests process() returns "processing".`
+- [ ] 2. Say: `Edit m2_old_name.py. Add a function called validate() that returns "valid".`
+- [ ] 3. Say: `Rename m2_old_name.py to m2_new_name.py using mv.`
+- [ ] 4. Say: `Edit m2_new_name.py. Add a function called finalize() that returns "done".`
+- [ ] 5. Say: `Thanks.`
+- [ ] 6. Exit
+- [ ] 7. Record: JSONL filename

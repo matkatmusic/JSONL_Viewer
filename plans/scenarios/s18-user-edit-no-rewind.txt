@@ -1,0 +1,8 @@
+session: s18-user-edit-no-rewind
+---
+- [ ] 1. Say: `Write a file called scenario18.py with a function called greet(name) that returns "Hello, " + name, and write tests/test_scenario18.py that tests greet("world") returns "Hello, world".`
+- [ ] 2. Edit: scenario18.py — prepend `# user was here`
+- [ ] 3. Say: `Edit scenario18.py. Add a function called farewell(name) that returns "Goodbye, " + name.`
+- [ ] 4. Say: `Thanks.`
+- [ ] 5. Exit
+- [ ] 6. Record: JSONL filename

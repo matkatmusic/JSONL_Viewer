@@ -1,0 +1,8 @@
+session: s5-bash-redirect
+---
+- [ ] 1. Say: `Write a file called s5_redirect.txt with the text "line one".`
+- [ ] 2. Say: `Use a bash command to append "line two" to s5_redirect.txt.`
+- [ ] 3. Say: `Use a bash command to overwrite s5_redirect.txt with "replaced content".`
+- [ ] 4. Say: `Thanks.`
+- [ ] 5. Exit
+- [ ] 6. Record: JSONL filename

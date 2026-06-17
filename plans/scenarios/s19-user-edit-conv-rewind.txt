@@ -1,0 +1,11 @@
+session: s19-user-edit-conv-rewind
+---
+- [ ] 1. Say: `Write a file called scenario19.py with a function called add(a, b) that returns a + b, and write tests/test_scenario19.py that tests add(1, 2) returns 3.`
+- [ ] 2. Edit: scenario19.py — after `return a + b` insert `# user tweak`
+- [ ] 3. Say: `Edit scenario19.py. Add a function called subtract(a, b) that returns a - b.`
+- [ ] 4. Say: `Looks good.`
+- [ ] 5. Rewind: 2
+- [ ] 6. Say: `Edit scenario19.py. Add a function called multiply(a, b) that returns a * b.`
+- [ ] 7. Say: `Thanks.`
+- [ ] 8. Exit
+- [ ] 9. Record: JSONL filename

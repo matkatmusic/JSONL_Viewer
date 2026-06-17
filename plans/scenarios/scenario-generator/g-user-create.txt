@@ -1,0 +1,7 @@
+session: g-user-create
+---
+- [ ] 1. Create: g_user_create.py — `def f1(): return 1`
+- [ ] 2. Say: `Edit g_user_create.py. Add a function called f2() that returns 2.`
+- [ ] 3. Say: `Thanks.`
+- [ ] 4. Exit
+- [ ] 5. Record: JSONL filename

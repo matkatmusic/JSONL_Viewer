@@ -1,0 +1,7 @@
+session: s1-delete-file
+---
+- [ ] 1. Say: `Write a file called s1_delete.py with a function called hello() that prints "hello", and write tests/test_s1_delete.py that tests hello() works.`
+- [ ] 2. Say: `Delete s1_delete.py.`
+- [ ] 3. Say: `Thanks.`
+- [ ] 4. Exit
+- [ ] 5. Record: JSONL filename

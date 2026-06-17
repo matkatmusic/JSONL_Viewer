@@ -1,0 +1,7 @@
+session: s4-overwrite-file
+---
+- [ ] 1. Say: `Write a file called s4_overwrite.py with a function called version1() that returns 1, and write tests/test_s4_overwrite.py that tests version1() returns 1.`
+- [ ] 2. Say: `Rewrite s4_overwrite.py completely. Replace everything with a function called version2() that returns 2. Update the test file too.`
+- [ ] 3. Say: `Thanks.`
+- [ ] 4. Exit
+- [ ] 5. Record: JSONL filename

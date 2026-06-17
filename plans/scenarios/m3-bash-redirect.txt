@@ -1,0 +1,9 @@
+session: m3-bash-redirect
+---
+- [ ] 1. Say: `Write a file called m3_mixed.txt with the text "line one".`
+- [ ] 2. Say: `Use a bash command to append "line two" to m3_mixed.txt.`
+- [ ] 3. Say: `Edit m3_mixed.txt. Change "line one" to "LINE ONE".`
+- [ ] 4. Say: `Use a bash command to append "line three" to m3_mixed.txt.`
+- [ ] 5. Say: `Thanks.`
+- [ ] 6. Exit
+- [ ] 7. Record: JSONL filename

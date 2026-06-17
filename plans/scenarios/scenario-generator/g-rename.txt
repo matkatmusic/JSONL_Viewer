@@ -1,0 +1,7 @@
+session: g-rename
+---
+- [ ] 1. Say: `Write a file called g_rename.py with a function called f1() that returns 1, and write tests/test_g_rename.py that tests f1() returns 1.`
+- [ ] 2. Say: `Rename g_rename.py to g_rename_renamed.py using mv.`
+- [ ] 3. Say: `Thanks.`
+- [ ] 4. Exit
+- [ ] 5. Record: JSONL filename

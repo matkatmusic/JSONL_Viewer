@@ -1,0 +1,43 @@
+## 2026-06-16:14:10:00 — Roadmap item 4: partial-content Bash reads (bashReadChunk / bashExtent / bashGrep)
+Chat title: item4-bash-reads (RevEng — implement roadmap item 4, partial-content bash reads)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Desktop-claude-code-src/1501c53d-344a-4290-89e7-cc074f4b02bd.jsonl
+
+### References
+/Users/matkatmusicllc/.claude/plans/make-a-plan-for-cheeky-lampson.md
+/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/handoff-develop-20260616-1352.md
+/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/handoff-develop-20260616-1204.md
+/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/roadmap-100-percent-reconstruction.md
+/Users/matkatmusicllc/Programming/jot/skills/implement/templates/Implementation-notes.md
+
+### Design decisions
+- **Baseline verified GREEN before writing any code:** full suite 47 suites / 493 passed / 0 failed (re-run, matches handoff). RED-before-GREEN per phase from this known-green start.
+- **Three independent kinds** (`bashReadChunk`, `bashGrep`, `bashExtent`) shipped as phases A/B/C, each a near-exact twin of an existing apply path (readChunk / patchContext / extent-only). Per the "non-null sub-object IS the kind" convention — no discriminator strings.
+- **Anchor verification (3 Explore agents) confirmed all signatures/exports/structure**; the apply branches to copy were quoted verbatim:
+  - readChunk branch (track-line-states.js): `applyOverlayLines` → `finishChunk(belief, event.readChunk.hitEof, maxByLineNum(m.byLine))` → return conflicts.
+  - patchContext branch: `return lb.applyOverlayLines(belief, m.byLine, event.unixMs)` (sparse; no finishChunk).
+  - `ensureImpliedLines(belief, throughLineNum)` raises `lastLine` only, NEVER sets `eofConfirmed` — safe for `wc -l` lower bound.
+- **Local `timestampAt` copy** in bash-read-events.js (verbatim from bash-op-events.js): `recordTimestampAt` is NOT exported from file-events-extractors.js AND that module requires bash-read-events (cycle). Confirmed by agents.
+- **Replicate (not import) `scanToolUseResults` pairing + `isValidReadContent` guards**: their source file `file-event-observations.js` is 278 lines (over the 250 cap) so it cannot grow to export them. Error prefixes replicated verbatim: `'Wasted call'`, `'Error'`, `'File does not exist'` (each `indexOf(...) === 0`). Stdout read order mirrors `confirmCatResult`: `item.content` if string, else `record.toolUseResult.stdout || ''`.
+- **lse() call-time cycle break** in bash-read-evidence.js: `function lse() { return require('./line-state-evidence'); }` + inline `require('./bash-read-evidence')` in materializeEvent (mirror structured-patch-evidence.js).
+- **New fixture helper** `makeBashReadResult` (or similar) added to track-line-states-fixtures.js / test-helpers.js, modeled on existing `makeBashCatToolResult` (test-helpers.js ~122-135): a Bash tool_result record with `toolUseResult.stdout` + `message.content[].content` carrying stdout, linked by `tool_use_id`.
+
+### Deviations
+- **Spec line numbers are stale (files edited since the spec was written).** Drift ranged 1–13 lines in the materialize/apply file and was large/garbled in one agent's report for big files. RESOLUTION: anchoring all edits to function/symbol names and verbatim-quoted code, NOT to spec line numbers. Verified CURRENT counts (wc -l): line-state-evidence.js=245, track-line-states.js=232, file-events-extractors.js=229, file-event-kinds.js=43, line-belief.js=238.
+- **`applyOneEvent` extracted to `api/apply-one-event.js` (spec's planned cap contingency).** After Phase B, `track-line-states.js` hit exactly 250 lines; Phase C's `bashGrep` branch would exceed the hard cap. Moved `applyOneEvent` + `maxByLineNum` + `shiftByLine` + `applyEditEvent` to a sibling module (pure move; track-line-states.js → 153 lines, apply-one-event.js → 112). Behavior unchanged (tracker suites green); new dedicated `tests/test-apply-one-event.js` (2 tests) plus the existing integration coverage.
+- **All three bash kinds are sparse/extend-only — none claim EOF.** `bashReadChunk` (sparse overlay), `bashGrep` (sparse overlay, mirrors patchContext), `bashExtent` (extend-only via `ensureImpliedLines`, never `eofConfirmed`). Consistent rationale: Bash stdout's stripped trailing newline makes line counts a lower bound.
+- **bashReadChunk apply: SPARSE overlay (no finishChunk) — DEVIATES from the spec's "copy readChunk's finishChunk verbatim".** Real-data evidence forced this. On `plate_cli.py`, `sed -n '179,189p'` (lines 179–189, where 189 is a blank line) returns stdout whose trailing newline the Bash harness strips, so `splitContentLines` counts 10 not 11 → `hitEof = 10 < 11` fired spuriously true → `finishChunk` set eofConfirmed and **truncated belief to line 188 on a 207-line file** (real corruption). This is the SAME trailing-newline lower-bound hazard the spec calls out for `wc -l`. Fix: bashReadChunk now overlays witnessed lines like `patchContext` and never claims EOF. `hitEof` is still emitted (provenance) but deliberately NOT consumed in apply (commented in track-line-states.js so it isn't "fixed" back). This makes ALL three bash kinds consistent (none truncate on bash counts).
+
+### Tradeoffs
+- **line-state-evidence.js is at 245L — only 5 lines of headroom under the 250 cap.** Each phase adds exactly ONE dispatch line to materializeEvent (3 total → 248). Staying single-line per dispatch (inline require form). If any phase would exceed 250, the cap contingency is to extract the dispatch tail; not expected to be needed.
+- track-line-states.js (232) gains ~12 lines for 3 apply branches → ~244 (under cap). file-events-extractors.js (229) gains ~2 → ~231. Shared test files test-file-events-extractors.js (205) and test-line-state-evidence.js (199) have limited room; keep extensions minimal there and put the bulk of new assertions in the three new dedicated test files.
+
+### Open questions
+- (none blocking) Path matching mirrors `cat` (raw captured path vs aliasSet, no cwd resolution) per spec — relative-path misses accepted; cwd-resolution deferred as a future refinement.
+- **RESOLVED — new conflicts on `plate_cli.py` are legit, not a bug.** Official gate `plate_summary.py`: verdict 247/247 unchanged, 0 new conflicts (no bash reads). `plate_cli.py` (4 real `sed` reads): verdict still PERFECT (296 matchedObserved, 0 mismatched) but conflicts 0 → 34. Root-caused: the conflict source (jl=203) is a SNAPSHOT BEACON at 15:45, not a Read. (1) At 08:30 a subagent's `sed` reads pin belief to the 08:30 file (`def main` @190 — verified correct, sed numbers from A). (2) The file then gains a blank line above `def main` via means untracked by this belief chain (first tracked edit is 15:53, AFTER the snapshot). (3) The 15:45 snapshot's verify step compares belief vs ground truth and records 34 real disagreements (belief stale). So bash reads correctly recorded the 08:30 state; the snapshot beacon correctly caught that the (now more-specific) belief drifted. NOT spurious, NOT a numbering bug. DECISION (user-confirmed 2026-06-16): bash reads are Source-Of-Truth objects → treated as FULL observations, same tier/rules as cat/Read. Making them "soft" (corroboration-only) was rejected — a `sed` read is as real as a `cat` read.
+- **Conflict impact attributed (RESOLVED).** The new conflicts are file-dependent and never harm the final verdict: `plate_cli.py` 0→34 (one untracked insertion → a snapshot-verify cascade), but `plate_lib.py` 43508→43508 IDENTICAL baseline-vs-current despite 11 bashGrep + 4 bashExtent events (bash reads added ZERO net there). The 43508 is the file's inherent churn in baseline, NOT caused by this work. The per-line cascade noise (one insertion → N records) is roadmap **item 12 ("Collapse conflict cascades")**, separately tracked — out of scope for item 4.
+
+### Final state / gates (all GREEN)
+- Full suite: **52 suites / 556 passed / 0 failed** (baseline 47/493). New suites: test-bash-read-commands, -events, -evidence, test-apply-one-event, test-track-line-states-bashreads.
+- detect-rewinds: 15/0. Probe A/B byte-identical vs develop-baseline (frozen fixture): **true** after each phase (SAFETY GATE held throughout).
+- Sidecar e2e `plate_summary.py`: 247/247 matchedObserved, 0 mismatched, conflicts 233 (unchanged) — 0 new. Path fires on real data: bashReadChunk (plate_cli.py), bashGrep + bashExtent (plate_lib.py), parser matches 26 partial-reads / 172 grep paths across live data.
+- Every new/edited source + test file ≤ 250 lines (line-state-evidence.js 248, test-file-events-extractors.js 247 are the tightest). Conflicts are diagnostic output only (printConflicts + line-state-reports/*.json); nothing automated consumes them.

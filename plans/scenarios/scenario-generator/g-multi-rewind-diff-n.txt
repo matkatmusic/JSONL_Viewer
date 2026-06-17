@@ -1,0 +1,20 @@
+session: g-multi-rewind-diff-n
+---
+- [ ] 1. Say: `Write a file called g_multi_rewind_diff_n.py with a function called f1() that returns 1, and write tests/test_g_multi_rewind_diff_n.py that tests f1() returns 1.`
+- [ ] 2. Say: `Edit g_multi_rewind_diff_n.py. Add a function called f2() that returns 2.`
+- [ ] 3. Say: `Edit g_multi_rewind_diff_n.py. Add a function called f3() that returns 3.`
+- [ ] 4. Say: `Edit g_multi_rewind_diff_n.py. Add a function called f4() that returns 4.`
+- [ ] 5. Rewind: 1, code
+- [ ] 6. Say: `Edit g_multi_rewind_diff_n.py. Add a function called f5() that returns 5.`
+- [ ] 7. Say: `Delete g_multi_rewind_diff_n.py.`
+- [ ] 8. Rewind: 3, code
+- [ ] 9. Say: `Edit g_multi_rewind_diff_n.py. Add a function called f6() that returns 6.`
+- [ ] 10. Say: `Edit g_multi_rewind_diff_n.py. Add a function called f7() that returns 7.`
+- [ ] 11. Say: `Move g_multi_rewind_diff_n.py to g_multi_rewind_diff_n_moved.py.`
+- [ ] 12. Say: `Edit g_multi_rewind_diff_n_moved.py. Add a function called f8() that returns 8.`
+- [ ] 13. Rewind: 2, code
+- [ ] 14. Say: `Move g_multi_rewind_diff_n.py to g_multi_rewind_diff_n_moved.py.`
+- [ ] 15. Say: `Edit g_multi_rewind_diff_n_moved.py. Add a function called f9() that returns 9.`
+- [ ] 16. Say: `Thanks.`
+- [ ] 17. Exit
+- [ ] 18. Record: JSONL filename

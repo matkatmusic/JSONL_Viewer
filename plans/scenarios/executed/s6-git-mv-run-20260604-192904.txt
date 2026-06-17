@@ -1,0 +1,12 @@
+tmpdir: /var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/run-scenario.x31z6_4q
+session: s6-git-mv
+---
+- [x] 1. Say: `Initialize a git repo here if there isn't one. Write a file called s6_git.py with a function called hello() that prints "hello", and write tests/test_s6_git.py that tests hello() works. Stage and commit it.`
+- [x] 2. Say: `Use git mv to rename s6_git.py to s6_git_renamed.py.`
+- [x] 3. Say: `Edit s6_git_renamed.py. Add a function called goodbye() that prints "goodbye".`
+- [x] 4. Say: `Thanks.`
+- [x] 5. Exit
+- [x] 6. Record: JSONL filename
+
+---
+result: {"completed": true, "jsonl_path": "/Users/matkatmusicllc/.claude/projects/-private-var-folders-fy-wg2tzrv957sg2vqjcvdkdzvm0000gn-T-run-scenario-x31z6-4q/d6eb9d06-9008-427b-be2f-a257cf132842.jsonl"}

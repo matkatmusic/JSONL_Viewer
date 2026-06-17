@@ -1,0 +1,12 @@
+tmpdir: /var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/run-scenario.2xgoaw1q
+session: s2-move-file
+---
+- [x] 1. Say: `Write a file called s2_original.py with a function called hello() that prints "hello", and write tests/test_s2_original.py that tests hello() works.`
+- [x] 2. Say: `Move s2_original.py to s2_moved.py.`
+- [x] 3. Say: `Edit s2_moved.py. Add a function called goodbye() that prints "goodbye".`
+- [x] 4. Say: `Thanks.`
+- [x] 5. Exit
+- [x] 6. Record: JSONL filename
+
+---
+result: {"completed": true, "jsonl_path": "/Users/matkatmusicllc/.claude/projects/-private-var-folders-fy-wg2tzrv957sg2vqjcvdkdzvm0000gn-T-run-scenario-2xgoaw1q/14a62666-db8e-4da7-a3d5-cb0b34b41d3f.jsonl"}

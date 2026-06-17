@@ -1,0 +1,8 @@
+session: g-resume-continue
+---
+- [ ] 1. /resume g-resume-base
+- [ ] 2. Say: `Read g_resume_base.py and tell me what functions it has.`
+- [ ] 3. Say: `Edit g_resume_base.py. Add a function called f3() that returns 3.`
+- [ ] 4. Say: `Thanks.`
+- [ ] 5. Exit
+- [ ] 6. Record: JSONL filename

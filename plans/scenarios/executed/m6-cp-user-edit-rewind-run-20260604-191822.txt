@@ -1,0 +1,18 @@
+tmpdir: /var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/run-scenario.znnf5bmv
+session: m6-cp-user-edit-rewind
+---
+- [x] 1. Say: `Write a file called m6_source.py with a class called Base with __init__ that sets self.name = "base", and write tests/test_m6_source.py that tests Base().name == "base".`
+- [x] 2. Say: `Edit m6_source.py. Add a method called describe() that returns self.name.`
+- [x] 3. Say: `Copy m6_source.py to m6_derived.py.`
+- [x] 4. Edit: m6_derived.py — before `self.name = "base"` insert `# derived version`
+- [x] 5. Say: `Edit m6_derived.py. Add a method called transform() that returns self.name.upper().`
+- [x] 6. Say: `Good.`
+- [x] 7. Rewind: 2, code
+- [x] 8. Say: `Read m6_derived.py and show me the contents.`
+- [x] 9. Say: `Edit m6_derived.py. Add a method called validate() that returns True.`
+- [x] 10. Say: `Thanks.`
+- [x] 11. Exit
+- [x] 12. Record: JSONL filename
+
+---
+result: {"completed": true, "jsonl_path": "/Users/matkatmusicllc/.claude/projects/-private-var-folders-fy-wg2tzrv957sg2vqjcvdkdzvm0000gn-T-run-scenario-znnf5bmv/413f862e-6805-4dd1-91e8-d05ad3b8681b.jsonl"}

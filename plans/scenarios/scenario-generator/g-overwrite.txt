@@ -1,0 +1,7 @@
+session: g-overwrite
+---
+- [ ] 1. Say: `Write a file called g_overwrite.py with a function called f1() that returns 1, and write tests/test_g_overwrite.py that tests f1() returns 1.`
+- [ ] 2. Say: `Rewrite g_overwrite.py completely. Replace everything with a function called f2() that returns 2. Update the test file too.`
+- [ ] 3. Say: `Thanks.`
+- [ ] 4. Exit
+- [ ] 5. Record: JSONL filename

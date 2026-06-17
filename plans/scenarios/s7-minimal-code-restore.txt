@@ -1,0 +1,8 @@
+session: s7-minimal-code-restore
+---
+- [ ] 1. Say: `Write a file called scenario7.py with a function called celsius_to_fahrenheit(c) that converts Celsius to Fahrenheit, and write tests/test_scenario7.py that tests celsius_to_fahrenheit(0) returns 32.`
+- [ ] 2. Rewind: 1, code
+- [ ] 3. Say: `Write a file called scenario7.py with a function called celsius_to_fahrenheit(c) that converts Celsius to Fahrenheit. Also add a function fahrenheit_to_celsius(f) that does the reverse. Write tests/test_scenario7.py that tests both.`
+- [ ] 4. Say: `Thanks.`
+- [ ] 5. Exit
+- [ ] 6. Record: JSONL filename

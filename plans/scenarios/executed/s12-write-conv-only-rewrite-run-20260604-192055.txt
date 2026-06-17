@@ -1,0 +1,13 @@
+tmpdir: /var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/run-scenario.h41a05hh
+session: s12-write-conv-only-rewrite
+---
+- [x] 1. Say: `Write a file called scenario12.py with a function called add(a, b) that returns a + b, and write tests/test_scenario12.py that tests add(1, 2) returns 3.`
+- [x] 2. Say: `That looks correct.`
+- [x] 3. Rewind: 2
+- [x] 4. Say: `Write a file called scenario12.py with a function called multiply(a, b) that returns a * b, and write tests/test_scenario12.py that tests multiply(2, 3) returns 6.`
+- [x] 5. Say: `Thanks.`
+- [x] 6. Exit
+- [x] 7. Record: JSONL filename
+
+---
+result: {"completed": true, "jsonl_path": "/Users/matkatmusicllc/.claude/projects/-private-var-folders-fy-wg2tzrv957sg2vqjcvdkdzvm0000gn-T-run-scenario-h41a05hh/5c17927c-0570-4ea5-a6bc-64c387641031.jsonl"}

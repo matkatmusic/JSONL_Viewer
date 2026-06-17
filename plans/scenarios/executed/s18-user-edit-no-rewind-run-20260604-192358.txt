@@ -1,0 +1,12 @@
+tmpdir: /var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/run-scenario.u1uc8760
+session: s18-user-edit-no-rewind
+---
+- [x] 1. Say: `Write a file called scenario18.py with a function called greet(name) that returns "Hello, " + name, and write tests/test_scenario18.py that tests greet("world") returns "Hello, world".`
+- [x] 2. Edit: scenario18.py — prepend `# user was here`
+- [x] 3. Say: `Edit scenario18.py. Add a function called farewell(name) that returns "Goodbye, " + name.`
+- [x] 4. Say: `Thanks.`
+- [x] 5. Exit
+- [x] 6. Record: JSONL filename
+
+---
+result: {"completed": true, "jsonl_path": "/Users/matkatmusicllc/.claude/projects/-private-var-folders-fy-wg2tzrv957sg2vqjcvdkdzvm0000gn-T-run-scenario-u1uc8760/2cdacde4-84da-48cd-901a-7cfdc5c54234.jsonl"}

@@ -1,0 +1,8 @@
+session: s2-move-file
+---
+- [ ] 1. Say: `Write a file called s2_original.py with a function called hello() that prints "hello", and write tests/test_s2_original.py that tests hello() works.`
+- [ ] 2. Say: `Move s2_original.py to s2_moved.py.`
+- [ ] 3. Say: `Edit s2_moved.py. Add a function called goodbye() that prints "goodbye".`
+- [ ] 4. Say: `Thanks.`
+- [ ] 5. Exit
+- [ ] 6. Record: JSONL filename

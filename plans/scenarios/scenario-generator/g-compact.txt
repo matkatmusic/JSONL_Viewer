@@ -1,0 +1,9 @@
+session: g-compact
+---
+- [ ] 1. Say: `Write a file called g_compact.py with a function called f1() that returns 1, and write tests/test_g_compact.py that tests f1() returns 1.`
+- [ ] 2. Say: `Edit g_compact.py. Add a function called f2() that returns 2.`
+- [ ] 3. /compact
+- [ ] 4. Say: `Edit g_compact.py. Add a function called f3() that returns 3.`
+- [ ] 5. Say: `Thanks.`
+- [ ] 6. Exit
+- [ ] 7. Record: JSONL filename

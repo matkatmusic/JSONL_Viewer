@@ -1,0 +1,10 @@
+session: s15-user-edit-then-conv-rewind
+---
+- [ ] 1. Say: `Write a file called scenario15.py with a function called hello() that prints "hello", and write tests/test_scenario15.py that tests hello() works.`
+- [ ] 2. Edit: scenario15.py — prepend `# user edit`
+- [ ] 3. Say: `What time is it?`
+- [ ] 4. Rewind: 1
+- [ ] 5. Say: `Read scenario15.py and show me the contents.`
+- [ ] 6. Say: `Thanks.`
+- [ ] 7. Exit
+- [ ] 8. Record: JSONL filename

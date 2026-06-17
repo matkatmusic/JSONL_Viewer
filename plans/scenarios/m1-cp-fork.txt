@@ -1,0 +1,10 @@
+session: m1-cp-fork
+---
+- [ ] 1. Say: `Write a file called m1_base.py with a class called Config with __init__ that sets self.debug = False and self.verbose = False, and write tests/test_m1_base.py that tests Config().debug == False.`
+- [ ] 2. Say: `Edit m1_base.py. Add a method called enable_debug that sets self.debug = True.`
+- [ ] 3. Say: `Copy m1_base.py to m1_fork.py.`
+- [ ] 4. Say: `Edit m1_fork.py. Add a method called enable_verbose that sets self.verbose = True.`
+- [ ] 5. Say: `Edit m1_base.py. Add a method called disable_all that sets both to False.`
+- [ ] 6. Say: `Thanks.`
+- [ ] 7. Exit
+- [ ] 8. Record: JSONL filename

@@ -1,0 +1,11 @@
+session: m7-conv-rewind-no-user-edits
+---
+- [ ] 1. Say: `Write a file called m7_conv.py with a function called step1() that returns 1, and write tests/test_m7_conv.py that tests step1() returns 1.`
+- [ ] 2. Say: `Edit m7_conv.py. Add a function called step2() that returns 2.`
+- [ ] 3. Say: `Edit m7_conv.py. Add a function called step3() that returns 3.`
+- [ ] 4. Say: `Looking good.`
+- [ ] 5. Rewind: 3
+- [ ] 6. Say: `Edit m7_conv.py. Add a function called step2_alt() that returns "2alt".`
+- [ ] 7. Say: `Thanks.`
+- [ ] 8. Exit
+- [ ] 9. Record: JSONL filename

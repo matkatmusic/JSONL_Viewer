@@ -1,0 +1,13 @@
+tmpdir: /var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/run-scenario.gx7ouqn6
+session: m4-delete-recreate
+---
+- [x] 1. Say: `Write a file called m4_lifecycle.py with a function called v1() that returns 1, and write tests/test_m4_lifecycle.py that tests v1() returns 1.`
+- [x] 2. Say: `Edit m4_lifecycle.py. Add a function called v1_helper() that returns "helper".`
+- [x] 3. Say: `Delete m4_lifecycle.py.`
+- [x] 4. Say: `Write a new file called m4_lifecycle.py with a function called v2() that returns 2. Update the test file too.`
+- [x] 5. Say: `Thanks.`
+- [x] 6. Exit
+- [x] 7. Record: JSONL filename
+
+---
+result: {"completed": true, "jsonl_path": "/Users/matkatmusicllc/.claude/projects/-private-var-folders-fy-wg2tzrv957sg2vqjcvdkdzvm0000gn-T-run-scenario-gx7ouqn6/2f79de11-e0c1-4ad8-b1e8-7d3d404c9984.jsonl"}

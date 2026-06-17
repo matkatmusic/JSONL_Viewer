@@ -1,0 +1,14 @@
+tmpdir: /var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/run-scenario.hjd4sb2w
+session: s14-multi-edit-conv-only-read
+---
+- [x] 1. Say: `Write a file called scenario14.py with a function called greet(name) that returns "Hello, " + name, and write tests/test_scenario14.py that tests greet("world") returns "Hello, world".`
+- [x] 2. Say: `Edit scenario14.py. Add a function called farewell(name) that returns "Goodbye, " + name.`
+- [x] 3. Say: `Good work.`
+- [x] 4. Rewind: 2
+- [x] 5. Say: `Read scenario14.py and tell me what functions it has.`
+- [x] 6. Say: `Thanks.`
+- [x] 7. Exit
+- [x] 8. Record: JSONL filename
+
+---
+result: {"completed": true, "jsonl_path": "/Users/matkatmusicllc/.claude/projects/-private-var-folders-fy-wg2tzrv957sg2vqjcvdkdzvm0000gn-T-run-scenario-hjd4sb2w/19fc9a5b-eefc-416e-87d8-96bbd4169f04.jsonl"}

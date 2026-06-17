@@ -1,0 +1,14 @@
+session: m6-cp-user-edit-rewind
+---
+- [ ] 1. Say: `Write a file called m6_source.py with a class called Base with __init__ that sets self.name = "base", and write tests/test_m6_source.py that tests Base().name == "base".`
+- [ ] 2. Say: `Edit m6_source.py. Add a method called describe() that returns self.name.`
+- [ ] 3. Say: `Copy m6_source.py to m6_derived.py.`
+- [ ] 4. Edit: m6_derived.py — before `self.name = "base"` insert `# derived version`
+- [ ] 5. Say: `Edit m6_derived.py. Add a method called transform() that returns self.name.upper().`
+- [ ] 6. Say: `Good.`
+- [ ] 7. Rewind: 2, code
+- [ ] 8. Say: `Read m6_derived.py and show me the contents.`
+- [ ] 9. Say: `Edit m6_derived.py. Add a method called validate() that returns True.`
+- [ ] 10. Say: `Thanks.`
+- [ ] 11. Exit
+- [ ] 12. Record: JSONL filename

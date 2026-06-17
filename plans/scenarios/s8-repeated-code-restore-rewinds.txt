@@ -1,0 +1,16 @@
+session: s8-repeated-code-restore-rewinds
+---
+- [ ] 1. Say: `Hello`
+- [ ] 2. Say: `Write a file called scenario8.py with a function called celsius_to_fahrenheit(c) that converts Celsius to Fahrenheit, and write tests/test_scenario8.py that tests celsius_to_fahrenheit(0) returns 32.`
+- [ ] 3. Say: `Thanks`
+- [ ] 4. Rewind: 3, code
+- [ ] 5. Say: `Write a file called scenario8.py with a function called celsius_to_fahrenheit(c) that converts Celsius to Fahrenheit, and write tests/test_scenario8.py that tests celsius_to_fahrenheit(0) returns 32.`
+- [ ] 6. Say: `Thanks`
+- [ ] 7. Rewind: 2, code
+- [ ] 8. Say: `Hello`
+- [ ] 9. Say: `Write a file called scenario8.py with a function called celsius_to_fahrenheit(c) that converts Celsius to Fahrenheit, and write tests/test_scenario8.py that tests celsius_to_fahrenheit(0) returns 32.`
+- [ ] 10. Say: `Thanks`
+- [ ] 11. Rewind: 3
+- [ ] 12. Say: `Hello`
+- [ ] 13. Exit
+- [ ] 14. Record: JSONL filename

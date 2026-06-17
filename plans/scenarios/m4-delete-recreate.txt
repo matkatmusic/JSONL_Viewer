@@ -1,0 +1,9 @@
+session: m4-delete-recreate
+---
+- [ ] 1. Say: `Write a file called m4_lifecycle.py with a function called v1() that returns 1, and write tests/test_m4_lifecycle.py that tests v1() returns 1.`
+- [ ] 2. Say: `Edit m4_lifecycle.py. Add a function called v1_helper() that returns "helper".`
+- [ ] 3. Say: `Delete m4_lifecycle.py.`
+- [ ] 4. Say: `Write a new file called m4_lifecycle.py with a function called v2() that returns 2. Update the test file too.`
+- [ ] 5. Say: `Thanks.`
+- [ ] 6. Exit
+- [ ] 7. Record: JSONL filename

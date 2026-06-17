@@ -141,3 +141,9 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+.plate/
+
+# Per-line state sidecar scratch reports (tools/track-line-states.js output)
+tools/line-state-reports/
+tools/line-state-report.json

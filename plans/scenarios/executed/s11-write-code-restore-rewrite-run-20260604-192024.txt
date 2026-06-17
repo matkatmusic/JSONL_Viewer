@@ -1,0 +1,13 @@
+tmpdir: /var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/run-scenario._z6x3lu9
+session: s11-write-code-restore-rewrite
+---
+- [x] 1. Say: `Write a file called scenario11.py with a function called add(a, b) that returns a + b, and write tests/test_scenario11.py that tests add(1, 2) returns 3.`
+- [x] 2. Say: `That looks correct.`
+- [x] 3. Rewind: 2, code
+- [x] 4. Say: `Write a file called scenario11.py with a function called multiply(a, b) that returns a * b, and write tests/test_scenario11.py that tests multiply(2, 3) returns 6.`
+- [x] 5. Say: `Thanks.`
+- [x] 6. Exit
+- [x] 7. Record: JSONL filename
+
+---
+result: {"completed": true, "jsonl_path": "/Users/matkatmusicllc/.claude/projects/-private-var-folders-fy-wg2tzrv957sg2vqjcvdkdzvm0000gn-T-run-scenario--z6x3lu9/bdbf383e-6181-47fd-adc5-5953a7848e0c.jsonl"}

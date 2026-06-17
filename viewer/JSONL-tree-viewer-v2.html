@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JSONL Viewer v2</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+}
+.top-area { padding: 20px 20px 0 20px; flex-shrink: 0; }
+h1 { color: #7ecfff; font-size: 16px; margin-bottom: 8px; }
+
+/* Toolbar */
+.toolbar {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #333;
+}
+.toolbar-btn {
+  background: #2a2a4e; color: #7ecfff; border: 1px solid #444;
+  border-radius: 4px; padding: 4px 12px; font-family: inherit;
+  font-size: 12px; cursor: pointer;
+}
+.toolbar-btn:hover { background: #3a3a5e; border-color: #7ecfff; }
+.file-info { color: #888; font-size: 12px; }
+
+/* Line list */
+.line-list { flex: 1; overflow: auto; padding: 0 20px 20px 20px; }
+.line-row {
+  padding: 2px 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: 3px;
+}
+.line-row:hover { background: #2a2a4e; }
+.line-num { color: #666; display: inline-block; min-width: 36px; text-align: right; margin-right: 6px; }
+.line-text { color: #ccc; }
+.toggle { color: #7ecfff; font-weight: bold; user-select: none; cursor: pointer; display: inline-block; width: 24px; }
+.json-expand { color: #888; font-weight: bold; user-select: none; cursor: pointer; display: inline-block; width: 24px; font-size: 11px; }
+.json-expand:hover { color: #7ecfff; }
+.line-row.expanded { white-space: pre-wrap; word-break: break-all; }
+.line-row.expanded .line-num { display: none; }
+
+/* Subtype colors — user (green ~120°) and agent (orange ~30°) pop;
+   everything else spreads across the opposite side of the wheel (180°–360°) */
+.line-row.stype-user-prompt .line-text { color: #00ff41; font-weight: bold; }
+.line-row.stype-assistant-text .line-text { color: #ff6d00; font-weight: bold; }
+.line-row.stype-assistant-thinking .line-text { color: #90a4ae; }
+.line-row.stype-system .line-text { color: #4dd0e1; }
+.line-row.stype-tool-use .line-text { color: #e040fb; }
+.line-row.stype-tool-result .line-text { color: #b388ff; }
+.line-row.stype-preamble .line-text { color: #5c6bc0; }
+.line-row.stype-file-history .line-text { color: #7986cb; }
+.line-row.stype-queue-op .line-text { color: #26c6da; }
+.line-row.stype-attach-hook-success .line-text { color: #ce93d8; }
+.line-row.stype-attach-hook-context .line-text { color: #ff5252; }
+.line-row.stype-attach-hook-system .line-text { color: #448aff; }
+.line-row.stype-attach-deferred .line-text { color: #29b6f6; }
+.line-row.stype-attach-skill .line-text { color: #ab47bc; }
+.line-row.stype-attach-queued .line-text { color: #7c4dff; }
+.line-row.stype-attach-task .line-text { color: #ec407a; }
+.line-row.stype-attach-other .line-text { color: #8c9eff; }
+
+/* Checkbox selection */
+.sel-chk { appearance: none; width: 14px; height: 14px; border: 1px solid #555; border-radius: 2px; background: transparent; cursor: pointer; vertical-align: middle; margin-right: 4px; position: relative; flex-shrink: 0; }
+.sel-chk:checked { background: #7ecfff; border-color: #7ecfff; }
+.sel-chk:checked::after { content: '✓'; position: absolute; top: -2px; left: 1px; font-size: 12px; color: #1a1a2e; font-weight: bold; }
+.line-row.selected { background: #2a2a4e; outline: 1px solid #444; }
+
+/* Inspector panel */
+.inspect-panel { background: #16213e; border-top: 2px solid #444; display: none; height: 38vh; flex-shrink: 0; overflow: hidden; }
+.inspect-panel.show { display: flex; flex-direction: column; }
+.inspect-resize { height: 6px; cursor: ns-resize; background: transparent; flex-shrink: 0; }
+.inspect-resize:hover { background: rgba(126,207,255,0.3); }
+.inspect-nav { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid #333; background: #1a1a2e; position: sticky; top: 0; z-index: 1; }
+.inspect-nav-btn { background: #2a2a4e; color: #7ecfff; border: 1px solid #444; border-radius: 4px; padding: 2px 10px; font-family: inherit; font-size: 12px; cursor: pointer; }
+.inspect-nav-btn:hover:not(:disabled) { background: #3a3a5e; border-color: #7ecfff; }
+.inspect-nav-btn:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+.inspect-title { color: #aaa; font-size: 12px; }
+.inspect-pos { color: #7ecfff; font-size: 12px; }
+.inspect-close { color: #888; cursor: pointer; font-size: 16px; margin-left: 8px; }
+.inspect-close:hover { color: #fff; }
+#inspect-content { padding: 12px; font-size: 12px; white-space: pre-wrap; word-break: break-all; overflow: auto; flex: 1; }
+
+/* Syntax highlighting */
+.json-key { color: #82aaff; font-weight: bold; }
+.json-string { color: #c3e88d; }
+.json-number { color: #f78c6c; }
+.json-boolean { color: #ffcb6b; }
+.json-null { color: #f07178; }
+
+/* Diff styles */
+.diff-view { font-size: 12px; line-height: 1.5; }
+.diff-hunk { border-bottom: 1px solid #21262d; }
+.diff-line { padding: 0 12px; white-space: pre-wrap; word-break: break-all; }
+.diff-line.diff-add { background: rgba(63,185,80,0.15); color: #7ee787; }
+.diff-line.diff-del { background: rgba(248,81,73,0.15); color: #ffa198; }
+.diff-line.diff-ctx { color: #8b949e; }
+.diff-sxs { font-size: 12px; line-height: 1.5; }
+.diff-sxs-row { display: grid; grid-template-columns: 1fr 1fr; }
+.diff-sxs-row.ctx-row { grid-template-columns: 1fr; }
+.diff-cell { padding: 0 12px; white-space: pre-wrap; word-break: break-all; border-right: 1px solid #21262d; }
+.diff-cell.empty { background: #0a0d12; }
+.diff-cell.del { background: rgba(248,81,73,0.15); color: #ffa198; }
+.diff-cell.add { background: rgba(63,185,80,0.15); color: #7ee787; }
+.diff-cell.ctx { color: #8b949e; }
+#diff-controls { display: inline-flex; gap: 6px; align-items: center; }
+#diff-controls button.active { background: #3a3a5e; border-color: #7ecfff; color: #fff; }
+.diff-nav { gap: 6px; }
+.diff-pane-headers { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #333; background: #1a1a2e; flex-shrink: 0; }
+.diff-pane-header { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 4px 12px; }
+.diff-pane-header:first-child { border-right: 1px solid #21262d; }
+.diff-pane-label { color: #7ecfff; font-size: 12px; }
+
+/* Type gating — dim non-matching rows when first diff line is selected */
+.line-row.cmp-disabled { opacity: 0.2; }
+.line-row.cmp-disabled .sel-chk { cursor: default; }
+
+/* Clickable links in inspector */
+.jump-link { color: #ffb74d; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; }
+.jump-link:hover { color: #fff; background: rgba(255,183,77,0.2); border-radius: 2px; }
+
+
+.nav-sep { color: #333; margin: 0 2px; }
+
+/* Filter bar */
+.filter-bar { display: none; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #333; }
+.filter-bar.visible { display: flex; }
+.filter-chip { background: #2a2a4e; color: #7ecfff; border: 1px solid #444; border-radius: 12px; padding: 2px 10px; font-family: inherit; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.filter-chip:hover { background: #3a3a5e; border-color: #7ecfff; }
+.filter-chip.active { background: #3a3a5e; border-color: #7ecfff; box-shadow: 0 0 4px rgba(126,207,255,0.3); }
+.chip-count { color: #666; font-size: 10px; margin-left: 4px; }
+.chip-count.has-matches { color: #7ecfff; }
+.filter-search { background: #0d1117; color: #c9d1d9; border: 1px solid #444; border-radius: 12px; padding: 2px 10px; font-family: inherit; font-size: 11px; width: 140px; }
+.filter-search:focus { border-color: #7ecfff; outline: none; }
+.filter-pos { color: #666; font-size: 11px; margin-left: 4px; }
+
+/* Empty / error states */
+.empty-state { color: #666; margin-top: 40px; text-align: center; font-size: 14px; }
+.error-state { color: #f44336; margin-top: 40px; text-align: center; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="top-area">
+  <h1>JSONL Viewer v2</h1>
+  <div class="toolbar">
+    <button id="open-btn" class="toolbar-btn">Open JSONL...</button>
+    <span class="file-info" id="file-info"></span>
+  </div>
+  <div class="filter-bar" id="filter-bar">
+    <input class="filter-search" id="filter-search" placeholder="field name..." title="Type a JSON field name and press Enter">
+    <span class="filter-pos" id="filter-pos"></span>
+  </div>
+</div>
+<div class="line-list" id="line-list">
+  <div class="empty-state">Click "Open JSONL..." or pass <code>?file=&lt;path&gt;</code> to load a transcript.</div>
+</div>
+
+<div class="inspect-panel" id="inspect-panel">
+  <div class="inspect-resize" id="inspect-resize"></div>
+  <div class="inspect-nav" id="inspect-nav-single">
+    <button class="inspect-nav-btn" id="inspect-prev" title="Previous line">&#9664; Prev</button>
+    <span class="inspect-title" id="inspect-title"></span>
+    <span class="inspect-pos" id="inspect-pos"></span>
+    <button class="inspect-nav-btn" id="inspect-next" title="Next line">Next &#9654;</button>
+    <span class="nav-sep">|</span>
+    <button class="inspect-nav-btn" id="inspect-prev-stype" title="Previous same-type line">&#9664; Prev (same type)</button>
+    <button class="inspect-nav-btn" id="inspect-next-stype" title="Next same-type line">Next (same type) &#9654;</button>
+    <button class="inspect-nav-btn" id="diff-next-btn" style="display:none">Diff with next same-type line</button>
+    <span class="inspect-close" id="inspect-close-single">&#10005;</span>
+  </div>
+  <div class="inspect-nav diff-nav" id="inspect-nav-diff" style="display:none">
+    <span id="diff-controls">
+      <button class="inspect-nav-btn" id="diff-mode-sxs" title="Side-by-side diff">Side-by-side</button>
+      <button class="inspect-nav-btn" id="diff-mode-inline" title="Inline diff">Inline</button>
+    </span>
+    <span class="inspect-close" id="inspect-close-diff">&#10005;</span>
+  </div>
+  <div class="diff-pane-headers" id="diff-pane-headers" style="display:none">
+    <div class="diff-pane-header">
+      <button class="inspect-nav-btn" id="diff-left-prev" title="Previous same-type (left)">&#9664;</button>
+      <span class="diff-pane-label" id="diff-left-label">Line ?</span>
+      <button class="inspect-nav-btn" id="diff-left-next" title="Next same-type (left)">&#9654;</button>
+    </div>
+    <div class="diff-pane-header">
+      <button class="inspect-nav-btn" id="diff-right-prev" title="Previous same-type (right)">&#9664;</button>
+      <span class="diff-pane-label" id="diff-right-label">Line ?</span>
+      <button class="inspect-nav-btn" id="diff-right-next" title="Next same-type (right)">&#9654;</button>
+    </div>
+  </div>
+  <pre id="inspect-content"></pre>
+</div>
+
+<script>
+var LINES = [];       // parsed JSON objects (or null for parse failures)
+var RAW_LINES = [];   // raw text of each line
+var FILE_PATH = null;
+var selectedIdx = -1;
+var UUID_TO_LINE = {};    // uuid string → line index
+var TOOL_ID_TO_LINES = {}; // tool_use id → [line indices]
+var FIELD_INDEX = {};     // field name → [line indices]
+var activeFilter = null;
+var activeFilterMatches = [];
+var activeFilterPos = -1;
+
+var PRESET_FIELDS = [
+  'originalFile', 'structuredPatch', 'old_string', 'new_string',
+  'oldString', 'newString', 'tool_use', 'tool_result', 'toolUseResult',
+  'thinking', 'isSidechain'
+];
+var cmpSel = [];      // up to 2 selected indices for diff
+var cmpType = null;   // subtype of first selection (gates checkboxes)
+var diffMode = 'sxs'; // 'sxs' or 'inline'
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+var PREAMBLE_TYPES = { 'last-prompt':1, 'custom-title':1, 'agent-name':1, 'mode':1, 'permission-mode':1, 'bridge-session':1 };
+
+// Return subtype key for a parsed JSON line
+function subtype(obj) {
+  if (!obj || !obj.type) return 'preamble';
+  var t = obj.type;
+  if (PREAMBLE_TYPES[t]) return 'preamble';
+  if (t === 'file-history-snapshot') return 'file-history';
+  if (t === 'queue-operation') return 'queue-op';
+  if (t === 'attachment') {
+    var a = obj.attachment || {};
+    if (a.type === 'hook_success') return 'attach-hook-success';
+    if (a.type === 'hook_additional_context') return 'attach-hook-context';
+    if (a.type === 'hook_system_message') return 'attach-hook-system';
+    if (a.type === 'deferred_tools_delta') return 'attach-deferred';
+    if (a.type === 'skill_listing') return 'attach-skill';
+    if (a.type === 'queued_command') return 'attach-queued';
+    if (a.type === 'task_reminder') return 'attach-task';
+    return 'attach-other';
+  }
+  if (t === 'system') return 'system';
+  if (t === 'user') {
+    var c = obj.message && obj.message.content;
+    if (Array.isArray(c) && c.length > 0 && c[0].type === 'tool_result') return 'tool-result';
+    return 'user-prompt';
+  }
+  if (t === 'assistant') {
+    var c = obj.message && obj.message.content;
+    if (Array.isArray(c) && c.length > 0) {
+      if (c[0].type === 'tool_use') return 'tool-use';
+      if (c[0].type === 'thinking') return 'assistant-thinking';
+    }
+    return 'assistant-text';
+  }
+  return 'preamble';
+}
+
+// Render the flat line list
+function renderLines() {
+  var el = document.getElementById('line-list');
+  var html = '';
+  for (var i = 0; i < RAW_LINES.length; i++) {
+    var raw = RAW_LINES[i];
+    var preview = raw.length > 50 ? raw.slice(0, 50) + '...' : raw;
+    var st = subtype(LINES[i]);
+    html += '<div class="line-row stype-' + st + '" data-idx="' + i + '" data-stype="' + st + '">'
+         +  '<input type="checkbox" class="sel-chk" data-idx="' + i + '">'
+         +  '<span class="json-expand">{ }</span>'
+         +  '<span class="line-num">' + (i + 1) + ':</span>'
+         +  '<span class="line-text">' + esc(preview) + '</span>'
+         +  '</div>\n';
+  }
+  el.innerHTML = html;
+}
+
+// Load and parse JSONL text
+function loadJSONL(text, filePath) {
+  FILE_PATH = filePath;
+  var splits = text.split('\n');
+  LINES = [];
+  RAW_LINES = [];
+  UUID_TO_LINE = {};
+  TOOL_ID_TO_LINES = {};
+  FIELD_INDEX = {};
+
+  function collectKeys(val, lineIdx) {
+    if (!val || typeof val !== 'object') return;
+    if (Array.isArray(val)) {
+      for (var ai = 0; ai < val.length; ai++) collectKeys(val[ai], lineIdx);
+      return;
+    }
+    var ks = Object.keys(val);
+    for (var ki = 0; ki < ks.length; ki++) {
+      var k = ks[ki];
+      if (!FIELD_INDEX[k]) FIELD_INDEX[k] = [];
+      var arr = FIELD_INDEX[k];
+      if (arr.length === 0 || arr[arr.length - 1] !== lineIdx) arr.push(lineIdx);
+      collectKeys(val[k], lineIdx);
+    }
+  }
+
+  for (var i = 0; i < splits.length; i++) {
+    var ln = splits[i].trimEnd();
+    if (!ln) continue;
+    var lineIdx = RAW_LINES.length;
+    RAW_LINES.push(ln);
+    try {
+      var obj = JSON.parse(ln);
+      LINES.push(obj);
+      collectKeys(obj, lineIdx);
+      if (obj.uuid) UUID_TO_LINE[obj.uuid] = lineIdx;
+      var content = obj.message && obj.message.content;
+      if (Array.isArray(content)) {
+        for (var ci = 0; ci < content.length; ci++) {
+          var block = content[ci];
+          var tid = null;
+          if (block.type === 'tool_use' && block.id) tid = block.id;
+          else if (block.type === 'tool_result' && block.tool_use_id) tid = block.tool_use_id;
+          if (tid) {
+            if (!TOOL_ID_TO_LINES[tid]) TOOL_ID_TO_LINES[tid] = [];
+            TOOL_ID_TO_LINES[tid].push(lineIdx);
+          }
+        }
+      }
+    } catch(e) { LINES.push(null); }
+  }
+
+  document.getElementById('file-info').textContent =
+    'File: ' + filePath + ' | Lines: ' + RAW_LINES.length;
+
+  renderLines();
+  buildFilterBar();
+}
+
+function buildFilterBar() {
+  var bar = document.getElementById('filter-bar');
+  var search = document.getElementById('filter-search');
+  var chips = bar.querySelectorAll('.filter-chip');
+  for (var i = chips.length - 1; i >= 0; i--) bar.removeChild(chips[i]);
+  for (var p = 0; p < PRESET_FIELDS.length; p++) {
+    var field = PRESET_FIELDS[p];
+    var count = FIELD_INDEX[field] ? FIELD_INDEX[field].length : 0;
+    var chip = document.createElement('button');
+    chip.className = 'filter-chip';
+    chip.dataset.field = field;
+    chip.innerHTML = field + '<span class="chip-count' + (count > 0 ? ' has-matches' : '') + '">' + count + '</span>';
+    if (count === 0) chip.style.opacity = '0.35';
+    bar.insertBefore(chip, search);
+  }
+  activeFilter = null;
+  activeFilterMatches = [];
+  activeFilterPos = -1;
+  document.getElementById('filter-pos').textContent = '';
+  bar.classList.add('visible');
+}
+
+function jumpToField(field, direction) {
+  var matches = FIELD_INDEX[field];
+  if (!matches || matches.length === 0) return;
+  if (field !== activeFilter) {
+    activeFilter = field;
+    activeFilterMatches = matches;
+    activeFilterPos = -1;
+    var chips = document.querySelectorAll('.filter-chip');
+    for (var i = 0; i < chips.length; i++) chips[i].classList.toggle('active', chips[i].dataset.field === field);
+  }
+  if (direction === 'prev') {
+    activeFilterPos = activeFilterPos <= 0 ? matches.length - 1 : activeFilterPos - 1;
+  } else {
+    activeFilterPos = activeFilterPos >= matches.length - 1 ? 0 : activeFilterPos + 1;
+  }
+  var lineIdx = matches[activeFilterPos];
+  document.getElementById('filter-pos').textContent = (activeFilterPos + 1) + '/' + matches.length;
+  cmpSel = [lineIdx];
+  cmpType = subtype(LINES[lineIdx]);
+  applyTypeGate();
+  showInspect(lineIdx);
+  syncCheckboxes();
+}
+
+// Open JSONL button — sets ?file= and reloads
+document.getElementById('open-btn').addEventListener('click', async function() {
+  if (window.showOpenFilePicker) {
+    try {
+      var handles = await window.showOpenFilePicker({
+        id: 'jsonl-v2-picker',
+        types: [{ description: 'JSONL transcripts', accept: { 'application/x-jsonl': ['.jsonl'] } }],
+        multiple: false
+      });
+      var file = await handles[0].getFile();
+      var text = await file.text();
+      // Set ?file= param with the file name and reload
+      var url = new URL(window.location);
+      url.searchParams.set('file', file.name);
+      // Can't set full local path from picker for security reasons;
+      // load directly instead of reloading
+      loadJSONL(text, file.name);
+    } catch(e) { if (e.name === 'AbortError') return; }
+  }
+});
+
+// Syntax-highlight JSON string
+function syntaxHighlight(json) {
+  return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(m) {
+    var c = 'json-number';
+    if (/^"/.test(m)) { c = /:$/.test(m) ? 'json-key' : 'json-string'; }
+    else if (/true|false/.test(m)) c = 'json-boolean';
+    else if (/null/.test(m)) c = 'json-null';
+    return '<span class="' + c + '">' + esc(m) + '</span>';
+  });
+}
+
+// Add clickable jump links for UUIDs and tool_use IDs in HTML
+function addJumpLinks(html, excludeLineIdx) {
+  html = html.replace(/&quot;(toolu_[A-Za-z0-9_]+)&quot;/g, function(full, toolId) {
+    var targets = TOOL_ID_TO_LINES[toolId];
+    if (!targets) return full;
+    var targetLine = -1;
+    for (var t = 0; t < targets.length; t++) {
+      if (targets[t] !== excludeLineIdx) { targetLine = targets[t]; break; }
+    }
+    if (targetLine < 0) return full;
+    return '&quot;<span class="jump-link" data-jump="' + targetLine + '" title="Jump to paired entry (line ' + (targetLine+1) + ')">' + toolId + '</span>&quot;';
+  });
+  html = html.replace(/&quot;([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})&quot;/g, function(full, uid) {
+    var targetLine = UUID_TO_LINE[uid];
+    if (targetLine === undefined) return full;
+    return '&quot;<span class="jump-link" data-jump="' + targetLine + '" title="Jump to line ' + (targetLine+1) + '">' + uid + '</span>&quot;';
+  });
+  return html;
+}
+
+// Show inspector for line at given index (single-select mode)
+function showInspect(idx) {
+  if (idx < 0 || idx >= LINES.length) return;
+  selectedIdx = idx;
+  var panel = document.getElementById('inspect-panel');
+  var content = document.getElementById('inspect-content');
+  var obj = LINES[idx];
+  var pretty = obj ? JSON.stringify(obj, null, 4) : RAW_LINES[idx];
+  var highlighted = syntaxHighlight(pretty);
+  content.innerHTML = addJumpLinks(highlighted, idx);
+  document.getElementById('inspect-pos').textContent = 'Line ' + (idx + 1) + ' / ' + LINES.length;
+  // Show single nav, hide diff nav + pane headers
+  document.getElementById('inspect-nav-single').style.display = 'flex';
+  document.getElementById('inspect-nav-diff').style.display = 'none';
+  document.getElementById('diff-pane-headers').style.display = 'none';
+  document.getElementById('inspect-pos').style.display = '';
+  var diffNextBtn = document.getElementById('diff-next-btn');
+  diffNextBtn.style.display = (cmpSel.length === 1 && findSameType(idx, 1) >= 0) ? '' : 'none';
+  document.getElementById('inspect-prev-stype').disabled = findSameType(idx, -1) < 0;
+  document.getElementById('inspect-next-stype').disabled = findSameType(idx, 1) < 0;
+  panel.classList.add('show');
+  scrollToLine(idx);
+}
+
+// Close inspector and reset compare state
+function closeInspect() {
+  selectedIdx = -1;
+  resetCompare();
+  document.getElementById('inspect-panel').classList.remove('show');
+  document.getElementById('inspect-nav-single').style.display = 'flex';
+  document.getElementById('inspect-nav-diff').style.display = 'none';
+  document.getElementById('diff-pane-headers').style.display = 'none';
+  syncCheckboxes();
+}
+
+// Reset compare selection and type gating
+function resetCompare() {
+  cmpSel = [];
+  cmpType = null;
+  var rows = document.querySelectorAll('.line-row');
+  for (var i = 0; i < rows.length; i++) {
+    rows[i].classList.remove('cmp-disabled', 'selected');
+    var chk = rows[i].querySelector('.sel-chk');
+    if (chk) { chk.checked = false; chk.disabled = false; }
+  }
+}
+
+// Apply type gating — disable checkboxes on non-matching subtypes
+function applyTypeGate() {
+  var rows = document.querySelectorAll('.line-row');
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    var chk = row.querySelector('.sel-chk');
+    if (!chk) continue;
+    var match = row.dataset.stype === cmpType;
+    var isSelected = cmpSel.indexOf(parseInt(row.dataset.idx, 10)) >= 0;
+    chk.disabled = !match && !isSelected;
+    row.classList.toggle('cmp-disabled', !match && !isSelected);
+  }
+}
+
+// Sync checkbox checked state to cmpSel
+function syncCheckboxes() {
+  var rows = document.querySelectorAll('.line-row');
+  for (var i = 0; i < rows.length; i++) {
+    var idx = parseInt(rows[i].dataset.idx, 10);
+    var chk = rows[i].querySelector('.sel-chk');
+    if (chk) chk.checked = cmpSel.indexOf(idx) >= 0;
+    rows[i].classList.toggle('selected', cmpSel.indexOf(idx) >= 0);
+  }
+}
+
+// Find next/prev line index with the same subtype, skipping skipIdx. Returns -1 if none.
+function findSameType(fromIdx, direction, skipIdx) {
+  var st = subtype(LINES[fromIdx]);
+  var i = fromIdx + direction;
+  while (i >= 0 && i < LINES.length) {
+    if (subtype(LINES[i]) === st && i !== skipIdx) return i;
+    i += direction;
+  }
+  return -1;
+}
+
+// Scroll a line into view
+function scrollToLine(idx) {
+  var sel = document.querySelector('.line-row[data-idx="' + idx + '"]');
+  if (sel) sel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// LCS line diff
+function lineDiff(a, b) {
+  var n = a.length, m = b.length;
+  var dp = new Array(n + 1);
+  for (var i = 0; i <= n; i++) dp[i] = new Int32Array(m + 1);
+  for (var i = n - 1; i >= 0; i--)
+    for (var j = m - 1; j >= 0; j--)
+      dp[i][j] = a[i] === b[j] ? dp[i+1][j+1]+1 : Math.max(dp[i+1][j], dp[i][j+1]);
+  var ops = [], x = 0, y = 0;
+  while (x < n && y < m) {
+    if (a[x] === b[y]) { ops.push({op:'ctx',text:a[x]}); x++; y++; }
+    else if (dp[x+1][y] >= dp[x][y+1]) { ops.push({op:'del',text:a[x]}); x++; }
+    else { ops.push({op:'add',text:b[y]}); y++; }
+  }
+  while (x < n) { ops.push({op:'del',text:a[x]}); x++; }
+  while (y < m) { ops.push({op:'add',text:b[y]}); y++; }
+  return ops;
+}
+
+function renderInlineDiff(ops) {
+  var h = '<div class="diff-view"><div class="diff-hunk">';
+  for (var i = 0; i < ops.length; i++) {
+    var o = ops[i];
+    var cls = o.op === 'add' ? 'diff-add' : o.op === 'del' ? 'diff-del' : 'diff-ctx';
+    var pfx = o.op === 'add' ? '+' : o.op === 'del' ? '-' : ' ';
+    h += '<div class="diff-line ' + cls + '">' + esc(pfx + o.text) + '</div>';
+  }
+  return h + '</div></div>';
+}
+
+function renderSxsDiff(ops) {
+  var h = '<div class="diff-view"><div class="diff-sxs">', i = 0;
+  while (i < ops.length) {
+    if (ops[i].op === 'ctx') {
+      h += '<div class="diff-sxs-row ctx-row"><div class="diff-cell ctx">' + esc(' ' + ops[i].text) + '</div></div>';
+      i++;
+    } else {
+      var dels = [], adds = [];
+      while (i < ops.length && ops[i].op === 'del') { dels.push(ops[i].text); i++; }
+      while (i < ops.length && ops[i].op === 'add') { adds.push(ops[i].text); i++; }
+      var rows = Math.max(dels.length, adds.length);
+      for (var r = 0; r < rows; r++) {
+        var left = r < dels.length ? '<div class="diff-cell del">' + esc('-' + dels[r]) + '</div>' : '<div class="diff-cell empty"></div>';
+        var right = r < adds.length ? '<div class="diff-cell add">' + esc('+' + adds[r]) + '</div>' : '<div class="diff-cell empty"></div>';
+        h += '<div class="diff-sxs-row">' + left + right + '</div>';
+      }
+    }
+  }
+  return h + '</div></div>';
+}
+
+// Show diff between two selected lines
+function showDiff() {
+  var a = LINES[cmpSel[0]], b = LINES[cmpSel[1]];
+  var aLines = (a ? JSON.stringify(a, null, 4) : RAW_LINES[cmpSel[0]]).split('\n');
+  var bLines = (b ? JSON.stringify(b, null, 4) : RAW_LINES[cmpSel[1]]).split('\n');
+  var ops = lineDiff(aLines, bLines);
+  var diffHtml = diffMode === 'inline' ? renderInlineDiff(ops) : renderSxsDiff(ops);
+  document.getElementById('inspect-content').innerHTML = addJumpLinks(diffHtml, -1);
+
+  // Switch to diff nav bar + pane headers
+  document.getElementById('inspect-nav-single').style.display = 'none';
+  document.getElementById('inspect-nav-diff').style.display = 'flex';
+  document.getElementById('diff-pane-headers').style.display = 'grid';
+
+  // Labels
+  document.getElementById('diff-left-label').textContent = 'Line ' + (cmpSel[0] + 1);
+  document.getElementById('diff-right-label').textContent = 'Line ' + (cmpSel[1] + 1);
+
+  // Per-pane button enable/disable (skip the other pane's line)
+  document.getElementById('diff-left-prev').disabled = findSameType(cmpSel[0], -1, cmpSel[1]) < 0;
+  document.getElementById('diff-left-next').disabled = findSameType(cmpSel[0], 1, cmpSel[1]) < 0;
+  document.getElementById('diff-right-prev').disabled = findSameType(cmpSel[1], -1, cmpSel[0]) < 0;
+  document.getElementById('diff-right-next').disabled = findSameType(cmpSel[1], 1, cmpSel[0]) < 0;
+
+  // Mode buttons
+  document.getElementById('diff-mode-sxs').classList.toggle('active', diffMode === 'sxs');
+  document.getElementById('diff-mode-inline').classList.toggle('active', diffMode === 'inline');
+
+  var panel = document.getElementById('inspect-panel');
+  panel.classList.add('show');
+}
+
+// Checkbox change handler — supports 1 (inspect) or 2 (diff) selections
+document.getElementById('line-list').addEventListener('change', function(e) {
+  var chk = e.target.closest('.sel-chk');
+  if (!chk) return;
+  var idx = parseInt(chk.dataset.idx, 10);
+  var row = chk.closest('.line-row');
+
+  if (chk.checked) {
+    if (cmpSel.length >= 2) { chk.checked = false; return; }
+    cmpSel.push(idx);
+    if (cmpSel.length === 1) {
+      cmpType = row.dataset.stype;
+      applyTypeGate();
+      showInspect(idx);
+    } else {
+      showDiff();
+    }
+  } else {
+    var pos = cmpSel.indexOf(idx);
+    if (pos >= 0) cmpSel.splice(pos, 1);
+    if (cmpSel.length === 1) {
+      showInspect(cmpSel[0]);
+    } else {
+      closeInspect();
+    }
+  }
+  syncCheckboxes();
+});
+
+// { } expand/collapse handler for raw JSON on line rows
+document.getElementById('line-list').addEventListener('click', function(e) {
+  var btn = e.target.closest('.json-expand');
+  if (!btn) return;
+  var row = btn.closest('.line-row');
+  if (!row) return;
+  var idx = parseInt(row.dataset.idx, 10);
+  var textEl = row.querySelector('.line-text');
+  var expanded = row.classList.contains('expanded');
+  if (expanded) {
+    var raw = RAW_LINES[idx];
+    textEl.textContent = raw.length > 50 ? raw.slice(0, 50) + '...' : raw;
+    row.classList.remove('expanded');
+    btn.textContent = '{ }';
+  } else {
+    textEl.innerHTML = syntaxHighlight(RAW_LINES[idx]);
+    row.classList.add('expanded');
+    btn.textContent = '{-}';
+  }
+});
+
+// Auto-load from ?file= URL param
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var fileUrl = params.get('file');
+  if (!fileUrl) return;
+  // Strip surrounding quotes if present
+  fileUrl = fileUrl.replace(/^["']|["']$/g, '');
+  if (!fileUrl) return;
+
+  document.getElementById('line-list').innerHTML =
+    '<div class="empty-state">Loading ' + esc(fileUrl) + '...</div>';
+
+  // For absolute paths: the HTTP server only serves from its working directory.
+  // Try fetching as-is first (works for relative paths and symlinks).
+  // If it fails and the path looks absolute, show instructions.
+  fetch(fileUrl)
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + r.statusText);
+      return r.text();
+    })
+    .then(function(text) { loadJSONL(text, fileUrl); })
+    .catch(function(err) {
+      var isAbsolute = fileUrl.charAt(0) === '/' || fileUrl.charAt(0) === '~';
+      var hint = isAbsolute
+        ? '<br><br>The path is absolute but the HTTP server only serves from its working directory.' +
+          '<br>Fix: create a symlink in the server root:<br>' +
+          '<code>ln -sf "' + esc(fileUrl) + '" ' + esc(fileUrl.split('/').pop()) + '</code>' +
+          '<br>Then use: <code>?file=' + esc(fileUrl.split('/').pop()) + '</code>' +
+          '<br><br>Or click "Open JSONL..." to load from any path.'
+        : '';
+      document.getElementById('line-list').innerHTML =
+        '<div class="error-state">Failed to load <code>' + esc(fileUrl) + '</code>: ' +
+        esc(err.message) + hint + '</div>';
+    });
+})();
+
+// Single-select navigation
+function navPrev() {
+  if (selectedIdx > 0) {
+    cmpSel = [selectedIdx - 1];
+    cmpType = subtype(LINES[selectedIdx - 1]);
+    applyTypeGate();
+    showInspect(selectedIdx - 1);
+    syncCheckboxes();
+  }
+}
+function navNext() {
+  if (selectedIdx < LINES.length - 1) {
+    cmpSel = [selectedIdx + 1];
+    cmpType = subtype(LINES[selectedIdx + 1]);
+    applyTypeGate();
+    showInspect(selectedIdx + 1);
+    syncCheckboxes();
+  }
+}
+document.getElementById('inspect-prev').addEventListener('click', navPrev);
+document.getElementById('inspect-next').addEventListener('click', navNext);
+document.getElementById('inspect-prev-stype').addEventListener('click', function() {
+  var target = findSameType(selectedIdx, -1);
+  if (target < 0) return;
+  cmpSel = [target];
+  cmpType = subtype(LINES[target]);
+  applyTypeGate();
+  showInspect(target);
+  syncCheckboxes();
+});
+document.getElementById('inspect-next-stype').addEventListener('click', function() {
+  var target = findSameType(selectedIdx, 1);
+  if (target < 0) return;
+  cmpSel = [target];
+  cmpType = subtype(LINES[target]);
+  applyTypeGate();
+  showInspect(target);
+  syncCheckboxes();
+});
+document.getElementById('inspect-close-single').addEventListener('click', closeInspect);
+document.getElementById('inspect-close-diff').addEventListener('click', closeInspect);
+
+// Keyboard nav (single-select mode only)
+document.addEventListener('keydown', function(e) {
+  if (!document.getElementById('inspect-panel').classList.contains('show')) return;
+  if (e.key === 'Escape') { closeInspect(); return; }
+  if (cmpSel.length > 1) return;
+  if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); navPrev(); }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); navNext(); }
+});
+
+// Filter bar chip click handler
+document.getElementById('filter-bar').addEventListener('click', function(e) {
+  var chip = e.target.closest('.filter-chip');
+  if (!chip) return;
+  jumpToField(chip.dataset.field);
+});
+document.getElementById('filter-search').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    var field = this.value.trim();
+    if (field) jumpToField(field);
+  }
+});
+
+// Jump link click handler in inspector
+document.getElementById('inspect-content').addEventListener('click', function(e) {
+  var link = e.target.closest('.jump-link');
+  if (!link) return;
+  var targetIdx = parseInt(link.dataset.jump, 10);
+  if (isNaN(targetIdx)) return;
+  cmpSel = [targetIdx];
+  cmpType = subtype(LINES[targetIdx]);
+  applyTypeGate();
+  showInspect(targetIdx);
+  syncCheckboxes();
+});
+
+// "Diff with next same-type line" button
+document.getElementById('diff-next-btn').addEventListener('click', function() {
+  if (cmpSel.length !== 1) return;
+  var nextIdx = findSameType(cmpSel[0], 1);
+  if (nextIdx < 0) return;
+  cmpSel.push(nextIdx);
+  showDiff();
+  syncCheckboxes();
+  scrollToLine(nextIdx);
+});
+
+// Per-pane diff navigation — each pane walks same-type lines, skipping the other pane's line
+function diffNav(pane, direction) {
+  var myIdx = pane === 0 ? cmpSel[0] : cmpSel[1];
+  var otherIdx = pane === 0 ? cmpSel[1] : cmpSel[0];
+  var target = findSameType(myIdx, direction, otherIdx);
+  if (target < 0) return;
+  cmpSel[pane] = target;
+  showDiff();
+  syncCheckboxes();
+  scrollToLine(target);
+}
+document.getElementById('diff-left-prev').addEventListener('click', function() { diffNav(0, -1); });
+document.getElementById('diff-left-next').addEventListener('click', function() { diffNav(0, 1); });
+document.getElementById('diff-right-prev').addEventListener('click', function() { diffNav(1, -1); });
+document.getElementById('diff-right-next').addEventListener('click', function() { diffNav(1, 1); });
+
+// Diff mode toggles
+document.getElementById('diff-mode-sxs').addEventListener('click', function() {
+  if (cmpSel.length === 2) { diffMode = 'sxs'; showDiff(); }
+});
+document.getElementById('diff-mode-inline').addEventListener('click', function() {
+  if (cmpSel.length === 2) { diffMode = 'inline'; showDiff(); }
+});
+
+// Resize handle for inspector panel
+(function() {
+  var handle = document.getElementById('inspect-resize');
+  var panel = document.getElementById('inspect-panel');
+  var dragging = false, startY = 0, startH = 0;
+  handle.addEventListener('mousedown', function(e) {
+    dragging = true;
+    startY = e.clientY;
+    startH = panel.offsetHeight;
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    var newH = startH + (startY - e.clientY);
+    var minH = 100, maxH = window.innerHeight - 60;
+    newH = Math.max(minH, Math.min(maxH, newH));
+    panel.style.height = newH + 'px';
+  });
+  document.addEventListener('mouseup', function() {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.userSelect = '';
+  });
+})();
+</script>
+</body>
+</html>

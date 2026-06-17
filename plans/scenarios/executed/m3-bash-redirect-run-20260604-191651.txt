@@ -1,0 +1,13 @@
+tmpdir: /var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/run-scenario.2kmt12ci
+session: m3-bash-redirect
+---
+- [x] 1. Say: `Write a file called m3_mixed.txt with the text "line one".`
+- [x] 2. Say: `Use a bash command to append "line two" to m3_mixed.txt.`
+- [x] 3. Say: `Edit m3_mixed.txt. Change "line one" to "LINE ONE".`
+- [x] 4. Say: `Use a bash command to append "line three" to m3_mixed.txt.`
+- [x] 5. Say: `Thanks.`
+- [x] 6. Exit
+- [x] 7. Record: JSONL filename
+
+---
+result: {"completed": true, "jsonl_path": "/Users/matkatmusicllc/.claude/projects/-private-var-folders-fy-wg2tzrv957sg2vqjcvdkdzvm0000gn-T-run-scenario-2kmt12ci/8523ef5d-7246-43d8-a3a2-96ec21553a3c.jsonl"}

@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JSONL Viewer v2</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+}
+.top-area { padding: 20px 20px 0 20px; flex-shrink: 0; }
+h1 { color: #7ecfff; font-size: 16px; margin-bottom: 0; }
+
+/* Toolbar */
+.toolbar {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #333;
+}
+.toolbar-btn {
+  background: #2a2a4e; color: #7ecfff; border: 1px solid #444;
+  border-radius: 4px; padding: 4px 12px; font-family: inherit;
+  font-size: 12px; cursor: pointer;
+}
+.toolbar-btn:hover { background: #3a3a5e; border-color: #7ecfff; }
+.file-info { color: #888; font-size: 12px; }
+
+/* Path bar */
+.path-bar {
+  display: none; align-items: center; gap: 8px;
+  margin-bottom: 8px;
+}
+.path-bar.visible { display: flex; }
+#path-input {
+  flex: 1; background: #16162a; color: #e0e0e0; border: 1px solid #444;
+  border-radius: 4px; padding: 4px 8px; font-family: inherit; font-size: 12px;
+}
+#path-input:focus { border-color: #7ecfff; outline: none; }
+
+/* Line list */
+.line-list { flex: 1; overflow: auto; padding: 0 20px 20px 20px; }
+.line-row {
+  padding: 2px 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: 3px;
+}
+.line-row:hover { background: #2a2a4e; }
+.line-num { color: #666; display: inline-block; min-width: 36px; text-align: right; margin-right: 6px; }
+.line-text { color: #ccc; }
+.toggle { color: #7ecfff; font-weight: bold; user-select: none; cursor: pointer; display: inline-block; width: 24px; flex-shrink: 0; }
+.json-expand { color: #888; font-weight: bold; user-select: none; cursor: pointer; display: inline-block; width: 24px; font-size: 11px; }
+.json-expand:hover { color: #7ecfff; }
+.line-row.expanded { white-space: pre-wrap; word-break: break-all; }
+.line-row.expanded .line-num { display: none; }
+.line-row.expanded.stype-user-prompt .line-text,
+.line-row.expanded.stype-assistant-text .line-text,
+.line-row.expanded .line-text { font-weight: normal; }
+
+/* Subtype colors — user (green ~120°) and agent (orange ~30°) pop;
+   everything else spreads across the opposite side of the wheel (180°–360°) */
+.line-row.stype-user-prompt .line-text { color: #00ff41; font-weight: bold; }
+.line-row.stype-assistant-text .line-text { color: #ff6d00; font-weight: bold; }
+.line-row.stype-assistant-thinking .line-text { color: #90a4ae; }
+.line-row.stype-system .line-text { color: #4dd0e1; }
+.line-row[class*="stype-tool-use-"] .line-text { color: #e040fb; }
+.line-row.stype-tool-result .line-text { color: #b388ff; }
+.line-row.stype-preamble .line-text { color: #5c6bc0; }
+.line-row.stype-file-history .line-text { color: #7986cb; }
+.line-row.stype-queue-op .line-text { color: #26c6da; }
+.line-row.stype-attach-hook-success .line-text { color: #ce93d8; }
+.line-row.stype-attach-hook-context .line-text { color: #ff5252; }
+.line-row.stype-attach-hook-system .line-text { color: #448aff; }
+.line-row.stype-attach-deferred .line-text { color: #29b6f6; }
+.line-row.stype-attach-skill .line-text { color: #ab47bc; }
+.line-row.stype-attach-queued .line-text { color: #7c4dff; }
+.line-row.stype-attach-task .line-text { color: #ec407a; }
+.line-row.stype-attach-other .line-text { color: #8c9eff; }
+
+/* Checkbox selection */
+.sel-chk { appearance: none; width: 14px; height: 14px; border: 1px solid #555; border-radius: 2px; background: transparent; cursor: pointer; vertical-align: middle; margin-right: 4px; position: relative; flex-shrink: 0; }
+.sel-chk:checked { background: #7ecfff; border-color: #7ecfff; }
+.sel-chk:checked::after { content: '✓'; position: absolute; top: -2px; left: 1px; font-size: 12px; color: #1a1a2e; font-weight: bold; }
+.line-row.selected { background: #2a2a4e; outline: 1px solid #444; }
+
+/* Inspector panel */
+.inspect-panel { background: #16213e; border-top: 2px solid #444; display: none; height: 38vh; flex-shrink: 0; overflow: hidden; }
+.inspect-panel.show { display: flex; flex-direction: column; }
+.inspect-resize { height: 6px; cursor: ns-resize; background: transparent; flex-shrink: 0; }
+.inspect-resize:hover { background: rgba(126,207,255,0.3); }
+.inspect-nav { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid #333; background: #1a1a2e; position: sticky; top: 0; z-index: 1; }
+.inspect-nav-btn { background: #2a2a4e; color: #7ecfff; border: 1px solid #444; border-radius: 4px; padding: 2px 10px; font-family: inherit; font-size: 12px; cursor: pointer; }
+.inspect-nav-btn:hover:not(:disabled) { background: #3a3a5e; border-color: #7ecfff; }
+.inspect-nav-btn:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+.inspect-title { color: #aaa; font-size: 12px; }
+.inspect-pos { color: #7ecfff; font-size: 12px; }
+.inspect-close { color: #888; cursor: pointer; font-size: 16px; margin-left: 8px; }
+.inspect-close:hover { color: #fff; }
+#inspect-content { padding: 12px; font-size: 12px; white-space: pre-wrap; word-break: break-all; overflow: auto; flex: 1; }
+
+/* Right-dock: body becomes 2-column grid, inspect-panel spans full height */
+body.dock-right {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto 1fr;
+}
+body.dock-right .top-area { grid-column: 1; grid-row: 1; }
+body.dock-right .line-list { grid-column: 1; grid-row: 2; }
+body.dock-right .inspect-panel { grid-column: 2; grid-row: 1 / -1; border-top: none; border-left: 2px solid #444; height: auto !important; width: 40%; }
+body.dock-right .inspect-panel { position: relative; }
+body.dock-right .inspect-resize {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 6px; height: auto; cursor: ew-resize; z-index: 2;
+}
+body.dock-right #inspect-content { padding-left: 18px; }
+
+/* Dock toggle buttons */
+.dock-toggles { display: inline-flex; gap: 4px; margin-left: auto; }
+.dock-btn {
+  width: 22px; height: 18px; background: #2a2a4e; border: 1px solid #444;
+  border-radius: 3px; cursor: pointer; position: relative; padding: 0;
+}
+.dock-btn:hover { border-color: #7ecfff; }
+.dock-btn.active { background: #444; border-color: #888; }
+.dock-btn-inner {
+  position: absolute; background: #7ecfff; border-radius: 1px;
+}
+.dock-btn-bottom .dock-btn-inner { bottom: 2px; left: 3px; right: 3px; height: 5px; }
+.dock-btn-right .dock-btn-inner { top: 2px; right: 2px; bottom: 2px; width: 6px; }
+
+/* Resize tooltip */
+.resize-tooltip {
+  position: fixed; background: #333; color: #7ecfff; padding: 3px 8px;
+  border-radius: 4px; font-size: 12px; pointer-events: none; z-index: 9999;
+  display: none; white-space: nowrap;
+}
+
+/* Syntax highlighting */
+.json-key { color: #82aaff; font-weight: bold; }
+.json-string { color: #c3e88d; }
+.json-number { color: #f78c6c; }
+.json-boolean { color: #ffcb6b; }
+.json-null { color: #f07178; }
+
+/* Diff styles */
+.diff-view { font-size: 12px; line-height: 1.5; }
+.diff-hunk { border-bottom: 1px solid #21262d; }
+.diff-line { padding: 0 12px; white-space: pre-wrap; word-break: break-all; }
+.diff-line.diff-add { background: rgba(63,185,80,0.15); color: #7ee787; }
+.diff-line.diff-del { background: rgba(248,81,73,0.15); color: #ffa198; }
+.diff-line.diff-ctx { color: #8b949e; }
+.diff-sxs { font-size: 12px; line-height: 1.5; }
+.diff-sxs-row { display: grid; grid-template-columns: 1fr 1fr; }
+.diff-sxs-row.ctx-row { grid-template-columns: 1fr; }
+.diff-cell { padding: 0 12px; white-space: pre-wrap; word-break: break-all; border-right: 1px solid #21262d; }
+.diff-cell.empty { background: #0a0d12; }
+.diff-cell.del { background: rgba(248,81,73,0.15); color: #ffa198; }
+.diff-cell.add { background: rgba(63,185,80,0.15); color: #7ee787; }
+.diff-cell.ctx { color: #8b949e; }
+#diff-controls { display: inline-flex; gap: 6px; align-items: center; }
+#diff-controls button.active { background: #3a3a5e; border-color: #7ecfff; color: #fff; }
+.diff-nav { gap: 6px; }
+.diff-pane-headers { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #333; background: #1a1a2e; flex-shrink: 0; }
+.diff-pane-header { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 4px 12px; }
+.diff-pane-header:first-child { border-right: 1px solid #21262d; }
+.diff-pane-label { color: #7ecfff; font-size: 12px; }
+
+/* Type gating — dim non-matching rows when first diff line is selected */
+.line-row.cmp-disabled { opacity: 0.2; }
+.line-row.cmp-disabled .sel-chk { cursor: default; }
+
+/* Clickable links in inspector */
+.jump-link { color: #ffb74d; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; }
+.jump-link:hover { color: #fff; background: rgba(255,183,77,0.2); border-radius: 2px; }
+
+
+.nav-sep { color: #333; margin: 0 2px; }
+
+/* Filter bar */
+.filter-bar { display: none; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #333; }
+.filter-bar.visible { display: flex; }
+.filter-chip { background: #2a2a4e; color: #7ecfff; border: 1px solid #444; border-radius: 12px; padding: 2px 10px; font-family: inherit; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.filter-chip:hover { background: #3a3a5e; border-color: #7ecfff; }
+.filter-chip.active { background: #3a3a5e; border-color: #7ecfff; box-shadow: 0 0 4px rgba(126,207,255,0.3); }
+.chip-count { color: #666; font-size: 10px; margin-left: 4px; }
+.chip-count.has-matches { color: #7ecfff; }
+.filter-search { background: #0d1117; color: #c9d1d9; border: 1px solid #444; border-radius: 12px; padding: 2px 10px; font-family: inherit; font-size: 11px; width: 140px; }
+.filter-search:focus { border-color: #7ecfff; outline: none; }
+.filter-pos { color: #666; font-size: 11px; margin-left: 4px; }
+
+/* Conversational view */
+.conv-row { padding: 2px 4px; cursor: pointer; border-radius: 3px; white-space: nowrap; overflow: hidden; display: flex; align-items: baseline; }
+.conv-row:hover { background: #2a2a4e; }
+.conv-row.selected { background: #2a2a4e; outline: 1px solid #444; }
+.conv-label { font-weight: bold; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.conv-label-user { color: #00ff41; }
+.conv-label-agent { color: #ff6d00; }
+.conv-label-system { color: #4dd0e1; }
+.conv-label-tool { color: #e040fb; }
+.line-range { color: #555; font-size: 11px; font-weight: normal; flex-shrink: 0; margin-left: 8px; }
+.stype-color-tool-result { color: #b388ff; }
+.stype-color-thinking { color: #90a4ae; }
+.stype-color-hook-success { color: #ce93d8; }
+.stype-color-hook-context { color: #ff5252; }
+.stype-color-hook-system { color: #448aff; }
+.stype-color-deferred { color: #29b6f6; }
+.stype-color-skill { color: #ab47bc; }
+.stype-color-queued { color: #7c4dff; }
+.stype-color-task { color: #ec407a; }
+.stype-color-attach-other { color: #8c9eff; }
+.stype-color-system { color: #4dd0e1; }
+.stype-color-preamble { color: #5c6bc0; }
+.stype-color-file-history { color: #7986cb; }
+.stype-color-queue-op { color: #26c6da; }
+
+/* File edit badges */
+.edit-badge { font-size: 11px; padding: 1px 6px; border-radius: 3px; margin-left: 6px; }
+.edit-badge-kept { background: rgba(63,185,80,0.2); color: #7ee787; border: 1px solid rgba(63,185,80,0.3); }
+.edit-badge-ignored { background: rgba(248,81,73,0.2); color: #ffa198; border: 1px solid rgba(248,81,73,0.3); }
+.diff-badge { background: rgba(255,166,87,0.15); color: #ffa657; padding: 1px 6px; border-radius: 3px; font-size: 11px; margin-left: 4px; }
+.conv-children { padding-left: 24px; border-left: 1px solid #333; margin-left: 12px; }
+.toolbar-btn.active { background: #3a3a5e; border-color: #7ecfff; color: #fff; font-weight: bold; }
+
+/* Branch UI */
+.branch-point { margin: 8px 0 4px 0; padding: 4px 8px; color: #ff9800; font-size: 12px; border-top: 1px solid #333; }
+.branch-header { display: flex; align-items: center; gap: 6px; padding: 2px 4px; cursor: pointer; border-radius: 3px; color: #aaa; }
+.branch-header:hover { background: #2a2a4e; }
+.branch-header .toggle { color: #ff9800; }
+.branch-label { font-size: 12px; }
+.branch-label-active { color: #7ecfff; }
+.branch-label-inactive { color: #666; }
+.branch-type { font-size: 11px; color: #888; margin-left: 4px; }
+.branch-children { padding-left: 16px; border-left: 2px solid #333; margin-left: 8px; }
+.branch-children.inactive { opacity: 0.75; }
+
+/* Empty / error states */
+.empty-state { color: #666; margin-top: 40px; text-align: center; font-size: 14px; }
+.error-state { color: #f44336; margin-top: 40px; text-align: center; font-size: 14px; }
+</style>
+</head>
+<body class="dock-right">
+<div class="top-area">
+  <div class="toolbar">
+    <h1>JSONL Viewer v2</h1>
+    <button id="open-btn" class="toolbar-btn">Open JSONL...</button>
+    <button id="view-toggle-btn" class="toolbar-btn" disabled>Show All Lines</button>
+  </div>
+  <div class="toolbar">
+    <span class="file-info" id="file-info"></span>
+    <span class="file-info" id="file-stats"></span>
+  </div>
+  <div class="path-bar" id="path-bar">
+    <input type="text" id="path-input" placeholder="/path/to/file.jsonl" spellcheck="false">
+    <button id="load-from-btn" class="toolbar-btn">Load from</button>
+  </div>
+  <div class="filter-bar" id="filter-bar">
+    <input class="filter-search" id="filter-search" placeholder="field name..." title="Type a JSON field name and press Enter">
+    <span class="filter-pos" id="filter-pos"></span>
+  </div>
+</div>
+<div class="line-list" id="line-list">
+  <div class="empty-state">Click "Open JSONL..." or pass <code>?file=&lt;path&gt;</code> to load a transcript.</div>
+</div>
+
+<div class="inspect-panel" id="inspect-panel">
+  <div class="inspect-resize" id="inspect-resize"></div>
+  <div id="inspect-nav-single">
+    <div class="inspect-nav">
+      <button class="inspect-nav-btn" id="inspect-prev" title="Previous line">&#9664; Prev</button>
+      <button class="inspect-nav-btn" id="inspect-next" title="Next line">Next &#9654;</button>
+      <span class="inspect-pos" id="inspect-pos"></span>
+      <span class="dock-toggles">
+        <button class="dock-btn dock-btn-bottom" id="dock-bottom" title="Dock to bottom"><span class="dock-btn-inner"></span></button>
+        <button class="dock-btn dock-btn-right active" id="dock-right" title="Dock to right"><span class="dock-btn-inner"></span></button>
+      </span>
+      <span class="inspect-close" id="inspect-close-single">&#10005;</span>
+    </div>
+    <div class="inspect-nav">
+      <button class="inspect-nav-btn" id="inspect-prev-stype" title="Previous same-type line">&#9664; Prev (same type)</button>
+      <button class="inspect-nav-btn" id="inspect-next-stype" title="Next same-type line">Next (same type) &#9654;</button>
+      <button class="inspect-nav-btn" id="diff-next-btn" disabled>Diff with next same-type line</button>
+    </div>
+  </div>
+  <div class="inspect-nav diff-nav" id="inspect-nav-diff" style="display:none">
+    <span id="diff-controls">
+      <button class="inspect-nav-btn" id="diff-mode-sxs" title="Side-by-side diff">Side-by-side</button>
+      <button class="inspect-nav-btn" id="diff-mode-inline" title="Inline diff">Inline</button>
+    </span>
+    <span class="inspect-close" id="inspect-close-diff">&#10005;</span>
+  </div>
+  <div class="diff-pane-headers" id="diff-pane-headers" style="display:none">
+    <div class="diff-pane-header">
+      <button class="inspect-nav-btn" id="diff-left-prev" title="Previous same-type (left)">&#9664;</button>
+      <span class="diff-pane-label" id="diff-left-label">Line ?</span>
+      <button class="inspect-nav-btn" id="diff-left-next" title="Next same-type (left)">&#9654;</button>
+    </div>
+    <div class="diff-pane-header">
+      <button class="inspect-nav-btn" id="diff-right-prev" title="Previous same-type (right)">&#9664;</button>
+      <span class="diff-pane-label" id="diff-right-label">Line ?</span>
+      <button class="inspect-nav-btn" id="diff-right-next" title="Next same-type (right)">&#9654;</button>
+    </div>
+  </div>
+  <pre id="inspect-content"></pre>
+</div>
+<div class="resize-tooltip" id="resize-tooltip"></div>
+
+<script src="../web-shared/json-inspector.js"></script>
+<script src="../api/line-diff.js"></script>
+
+<script>
+var LINES = [];       // parsed JSON objects (or null for parse failures)
+var RAW_LINES = [];   // raw text of each line
+var FILE_PATH = null;
+var selectedIdx = -1;
+var UUID_TO_LINE = {};    // uuid string → line index
+var TOOL_ID_TO_LINES = {}; // tool_use id → [line indices]
+var FIELD_INDEX = {};     // field name → [line indices]
+var activeFilter = null;
+var activeFilterMatches = [];
+var activeFilterPos = -1;
+
+var PRESET_FIELDS = [
+  'originalFile', 'structuredPatch', 'old_string', 'new_string',
+  'oldString', 'newString', 'tool_use', 'tool_result', 'toolUseResult',
+  'thinking', 'isSidechain'
+];
+var viewMode = 'conversation'; // 'conversation' or 'all'
+var CONV_TYPES = { 'user-prompt': 1, 'assistant-text': 1 };
+var REWINDS = [];     // detected rewinds: { landingLine, parentLine, classification }
+var FILE_WRITES = []; // line indices where Claude wrote/edited a file
+var EDIT_STATUS = {}; // line index → 'kept' or 'ignored'
+var cmpSel = [];      // up to 2 selected indices for diff
+var cmpType = null;   // subtype of first selection (gates checkboxes)
+var diffMode = 'sxs'; // 'sxs' or 'inline'
+
+var PREAMBLE_TYPES = { 'last-prompt':1, 'custom-title':1, 'agent-name':1, 'mode':1, 'permission-mode':1, 'bridge-session':1 };
+
+// Return subtype key for a parsed JSON line
+function subtype(obj) {
+  if (!obj || !obj.type) {
+    return 'preamble';
+  }
+  var t = obj.type;
+  if (PREAMBLE_TYPES[t]) {
+    return 'preamble';
+  }
+  if (t === 'file-history-snapshot') {
+    return 'file-history';
+  }
+  if (t === 'queue-operation') {
+    return 'queue-op';
+  }
+  if (t === 'attachment') {
+    var a = obj.attachment || {};
+    if (a.type === 'hook_success') {
+      return 'attach-hook-success';
+    }
+    if (a.type === 'hook_additional_context') {
+      return 'attach-hook-context';
+    }
+    if (a.type === 'hook_system_message') {
+      return 'attach-hook-system';
+    }
+    if (a.type === 'deferred_tools_delta') {
+      return 'attach-deferred';
+    }
+    if (a.type === 'skill_listing') {
+      return 'attach-skill';
+    }
+    if (a.type === 'queued_command') {
+      return 'attach-queued';
+    }
+    if (a.type === 'task_reminder') {
+      return 'attach-task';
+    }
+    return 'attach-other';
+  }
+  if (t === 'system') {
+    return 'system';
+  }
+  if (t === 'user') {
+    var c = obj.message && obj.message.content;
+    if (Array.isArray(c) && c.length > 0 && c[0].type === 'tool_result') {
+      return 'tool-result';
+    }
+    return 'user-prompt';
+  }
+  if (t === 'assistant') {
+    var c = obj.message && obj.message.content;
+    if (Array.isArray(c) && c.length > 0) {
+      if (c[0].type === 'tool_use') {
+        return 'tool-use-' + (c[0].name || 'unknown').toLowerCase();
+      }
+      if (c[0].type === 'thinking') {
+        return 'assistant-thinking';
+      }
+    }
+    return 'assistant-text';
+  }
+  return 'preamble';
+}
+
+// ─── Rewind / branch detection ───────────────────────────────────────────────
+// Ported from detect-rewinds.js. Finds backward parentUuid jumps and classifies
+// each rewind as code-restoration or conversation-only.
+
+function detectRewinds() {
+  // Build snapshot index
+  var snapshots = [];
+  for (var i = 0; i < LINES.length; i++) {
+    var obj = LINES[i];
+    if (!obj || obj.type !== 'file-history-snapshot') {
+      continue;
+    }
+    var snap = obj.snapshot || {};
+    var backups = snap.trackedFileBackups || {};
+    var fileVersions = {};
+    Object.keys(backups).forEach(function(f) {
+      var b = backups[f];
+      if (b && typeof b === 'object') {
+        fileVersions[f] = { version: b.version, backup: b.backupFileName || null };
+      }
+    });
+    snapshots.push({ line: i, files: fileVersions });
+  }
+
+  function lastSnapBefore(lineIdx) {
+    var r = null;
+    for (var s = 0; s < snapshots.length; s++) {
+      if (snapshots[s].line < lineIdx) {
+        r = snapshots[s];
+      } else {
+        break;
+      }
+    }
+    return r;
+  }
+  function firstSnapAfter(lineIdx) {
+    for (var s = 0; s < snapshots.length; s++) {
+      if (snapshots[s].line >= lineIdx) {
+        return snapshots[s];
+      }
+    }
+    return null;
+  }
+  function hasWriteBetween(a, b) {
+    for (var w = 0; w < FILE_WRITES.length; w++) {
+      if (FILE_WRITES[w] > a && FILE_WRITES[w] < b) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Identify user prompts (excluding tool_results and CLI commands)
+  function isPrompt(obj) {
+    if (!obj || obj.type !== 'user' || !obj.message) {
+      return false;
+    }
+    var c = obj.message.content;
+    if (Array.isArray(c) && c.length > 0 && c[0].type === 'tool_result') {
+      return false;
+    }
+    var txt = '';
+    if (typeof c === 'string') {
+      txt = c;
+    } else if (Array.isArray(c)) {
+      for (var j = 0; j < c.length; j++) {
+        if (c[j].type === 'text' && c[j].text) {
+          txt = c[j].text;
+          break;
+        }
+      }
+    }
+    if (/^<(command-name|local-command|command-message)/.test(txt)) {
+      return false;
+    }
+    return true;
+  }
+
+  // Walk parent chain for indirect backward jumps
+  function findBackJump(lineIdx) {
+    var cur = LINES[lineIdx], visited = {};
+    while (cur && cur.parentUuid) {
+      var pLine = UUID_TO_LINE[cur.parentUuid];
+      if (pLine === undefined || visited[pLine]) {
+        break;
+      }
+      visited[pLine] = true;
+      if (pLine < lineIdx - 3) {
+        return pLine;
+      }
+      cur = LINES[pLine];
+    }
+    return -1;
+  }
+
+  var prompts = [];
+  for (var i = 0; i < LINES.length; i++) {
+    if (isPrompt(LINES[i])) {
+      var pLine = LINES[i].parentUuid ? UUID_TO_LINE[LINES[i].parentUuid] : -1;
+      prompts.push({ line: i, parentLine: pLine !== undefined ? pLine : -1, parentUuid: LINES[i].parentUuid });
+    }
+  }
+
+  var rewinds = [];
+  var highWater = 0;
+  var seenParents = {};
+
+  for (var u = 0; u < prompts.length; u++) {
+    var p = prompts[u];
+    var isJump = p.parentLine >= 0 && p.parentLine < highWater - 3;
+    var bjt = findBackJump(p.line);
+    if (!isJump && bjt >= 0 && bjt < highWater - 3) {
+      isJump = true;
+      p.parentLine = bjt;
+    }
+    if (!isJump && p.parentUuid && seenParents[p.parentUuid] !== undefined) {
+      isJump = true;
+      if (p.parentLine < 0) {
+        p.parentLine = UUID_TO_LINE[p.parentUuid] || 0;
+      }
+    }
+
+    if (isJump) {
+      var sBefore = lastSnapBefore(p.line);
+      var sAfter = firstSnapAfter(p.line);
+      var sPrev = null;
+      if (sBefore) {
+        for (var s = 0; s < snapshots.length; s++) {
+          if (snapshots[s].line < sBefore.line) {
+            sPrev = snapshots[s];
+          }
+        }
+      }
+
+      var cls = 'conversation-only';
+      // Window 1
+      if (sPrev && sBefore) {
+        var ch = JSON.stringify(sPrev.files) !== JSON.stringify(sBefore.files);
+        if (ch && !hasWriteBetween(sPrev.line, sBefore.line)) {
+          cls = 'code-restoration';
+        }
+      }
+      // Window 2
+      if (cls === 'conversation-only' && sBefore && sAfter && sBefore.line !== sAfter.line) {
+        var ch2 = JSON.stringify(sBefore.files) !== JSON.stringify(sAfter.files);
+        if (ch2 && !hasWriteBetween(sBefore.line, sAfter.line)) {
+          cls = 'code-restoration';
+        }
+      }
+      // Window 3: backup=null heuristic
+      if (cls === 'conversation-only' && sBefore) {
+        var fk = Object.keys(sBefore.files);
+        for (var fi = 0; fi < fk.length; fi++) {
+          if (sBefore.files[fk[fi]].version > 1 && sBefore.files[fk[fi]].backup === null) {
+            cls = 'code-restoration';
+            break;
+          }
+        }
+      }
+
+      rewinds.push({ landingLine: p.line, parentLine: p.parentLine, classification: cls });
+    }
+
+    if (p.parentUuid && seenParents[p.parentUuid] === undefined) {
+      seenParents[p.parentUuid] = p.line;
+    }
+    if (p.line > highWater) {
+      highWater = p.line;
+    }
+  }
+  return rewinds;
+}
+
+// Classify each file write as 'kept' or 'ignored'.
+// A write is 'ignored' if a later code-restoration rewind targets a point before it,
+// meaning the rewind reverted the file past this edit. Otherwise 'kept'.
+function classifyEdits() {
+  EDIT_STATUS = {};
+  for (var w = 0; w < FILE_WRITES.length; w++) {
+    var wLine = FILE_WRITES[w];
+    var ignored = false;
+    for (var r = 0; r < REWINDS.length; r++) {
+      if (REWINDS[r].landingLine > wLine
+          && REWINDS[r].classification === 'code-restoration'
+          && REWINDS[r].parentLine < wLine) {
+        ignored = true;
+        break;
+      }
+    }
+    EDIT_STATUS[wLine] = ignored ? 'ignored' : 'kept';
+  }
+}
+
+// Render the flat line list
+function renderLines() {
+  var el = document.getElementById('line-list');
+  var html = '';
+  for (var i = 0; i < RAW_LINES.length; i++) {
+    var raw = RAW_LINES[i];
+    var preview = raw.length > 50 ? raw.slice(0, 50) + '...' : raw;
+    var st = subtype(LINES[i]);
+    html += '<div class="line-row stype-' + st + '" data-idx="' + i + '" data-stype="' + st + '">'
+         +  '<input type="checkbox" class="sel-chk" data-idx="' + i + '">'
+         +  '<span class="json-expand">{ }</span>'
+         +  '<span class="line-num">' + (i + 1) + ':</span>'
+         +  '<span class="line-text">' + esc(preview) + '</span>'
+         +  '</div>\n';
+  }
+  el.innerHTML = html;
+  document.getElementById('file-info').textContent = 'File: ' + FILE_PATH;
+  document.getElementById('file-stats').textContent = 'Lines: ' + RAW_LINES.length;
+}
+
+// Extract a short label from a conversational line
+function contentLabel(obj) {
+  if (!obj || !obj.message) {
+    return '(empty)';
+  }
+  var c = obj.message.content;
+  var full = '';
+  if (typeof c === 'string') {
+    full = c;
+  } else if (Array.isArray(c)) {
+    for (var i = 0; i < c.length; i++) {
+      if (c[i].type === 'text' && c[i].text) {
+        full = c[i].text;
+        break;
+      }
+    }
+  }
+  if (!full) {
+    return '(empty)';
+  }
+  var clean = full.replace(/\n/g, ' ');
+  return clean;
+}
+
+// Extract tool name from a tool_use assistant message
+function toolUseName(obj) {
+  if (!obj || !obj.message) {
+    return '?';
+  }
+  var c = obj.message.content;
+  if (Array.isArray(c)) {
+    for (var i = 0; i < c.length; i++) {
+      if (c[i].type === 'tool_use' && c[i].name) {
+        return c[i].name;
+      }
+    }
+  }
+  return '?';
+}
+
+// Generate a human-readable label for any JSONL line (used in conv-children)
+function friendlyName(lineIdx) {
+  var obj = LINES[lineIdx];
+  if (!obj) {
+    return esc(RAW_LINES[lineIdx].slice(0, 50) + '...');
+  }
+  var st = subtype(obj);
+
+  if (st.indexOf('tool-use-') === 0) {
+    var tName = toolUseName(obj);
+    var label = '<span class="conv-label conv-label-tool">tool_use: ' + esc(tName) + '</span>';
+    // If this is a file-writing tool (Write/Edit), find the toolUseResult line and show file + badge
+    if (tName === 'Write' || tName === 'Edit') {
+      var c = obj.message && obj.message.content;
+      var tuId = '';
+      if (Array.isArray(c)) {
+        for (var j = 0; j < c.length; j++) {
+          if (c[j].type === 'tool_use' && c[j].id) {
+            tuId = c[j].id;
+            break;
+          }
+        }
+      }
+      if (tuId && TOOL_ID_TO_LINES[tuId]) {
+        var targets = TOOL_ID_TO_LINES[tuId];
+        for (var t = 0; t < targets.length; t++) {
+          var trObj = LINES[targets[t]];
+          if (trObj && trObj.toolUseResult && trObj.toolUseResult.filePath) {
+            var fn = trObj.toolUseResult.filePath.split('/').pop();
+            var status = EDIT_STATUS[targets[t]];
+            label += ' <span class="diff-badge">' + esc(fn) + '</span>';
+            if (status) {
+              label += ' <span class="edit-badge edit-badge-' + status + '">' + status + '</span>';
+            }
+            break;
+          }
+        }
+      }
+    }
+    return label;
+  }
+
+  // Lines with toolUseResult that wrote a file
+  if (obj.toolUseResult && (obj.toolUseResult.filePath || obj.toolUseResult.originalFile !== undefined)) {
+    var tr = obj.toolUseResult;
+    var fn = (tr.filePath || '').split('/').pop();
+    var opType = tr.type || 'edit';
+    var status = EDIT_STATUS[lineIdx];
+    var label = '<span class="stype-color-tool-result">tool_result: ' + esc(opType) + ': ' + esc(fn) + '</span>';
+    if (status) {
+      label += ' <span class="edit-badge edit-badge-' + status + '">' + status + '</span>';
+    }
+    return label;
+  }
+
+  if (st === 'tool-result') {
+    var c = obj.message && obj.message.content;
+    var toolId = '';
+    if (Array.isArray(c) && c.length > 0 && c[0].tool_use_id) {
+      toolId = c[0].tool_use_id;
+    }
+    var sourceName = '?';
+    if (toolId && TOOL_ID_TO_LINES[toolId]) {
+      var srcLines = TOOL_ID_TO_LINES[toolId];
+      for (var t = 0; t < srcLines.length; t++) {
+        if (srcLines[t] !== lineIdx) {
+          sourceName = toolUseName(LINES[srcLines[t]]) || '?';
+          break;
+        }
+      }
+    }
+    return '<span class="stype-color-tool-result">Tool Result: ' + esc(sourceName) + '</span>';
+  }
+
+  if (st === 'user-prompt') {
+    return '<span class="conv-label conv-label-user">User: ' + esc(contentLabel(obj)) + '</span>';
+  }
+  if (st === 'assistant-text') {
+    return '<span class="conv-label conv-label-agent">Agent: ' + esc(contentLabel(obj)) + '</span>';
+  }
+  if (st === 'assistant-thinking') {
+    return '<span class="stype-color-thinking">Thinking</span>';
+  }
+
+  if (st === 'attach-hook-success') {
+    var hookName = (obj.attachment && obj.attachment.hookName) || '?';
+    return '<span class="stype-color-hook-success">Hook_Success: ' + esc(hookName) + '</span>';
+  }
+  if (st === 'attach-hook-context') {
+    return '<span class="stype-color-hook-context">Hook: additional context</span>';
+  }
+  if (st === 'attach-hook-system') {
+    return '<span class="stype-color-hook-system">Hook: system message</span>';
+  }
+  if (st === 'attach-deferred') {
+    return '<span class="stype-color-deferred">Deferred tools delta</span>';
+  }
+  if (st === 'attach-skill') {
+    return '<span class="stype-color-skill">Skill listing</span>';
+  }
+  if (st === 'attach-queued') {
+    return '<span class="stype-color-queued">Queued command</span>';
+  }
+  if (st === 'attach-task') {
+    return '<span class="stype-color-task">Task reminder</span>';
+  }
+  if (st === 'attach-other') {
+    var atype = (obj.attachment && obj.attachment.type) || '';
+    return '<span class="stype-color-attach-other">Attachment: ' + esc(atype || 'unknown') + '</span>';
+  }
+
+  if (st === 'system') {
+    var sub = obj.subtype || '';
+    return '<span class="stype-color-system">System: ' + esc(sub || 'message') + '</span>';
+  }
+  if (st === 'preamble') {
+    return '<span class="stype-color-preamble">' + esc(obj.type || 'preamble') + '</span>';
+  }
+  if (st === 'file-history') {
+    return '<span class="stype-color-file-history">file-history-snapshot</span>';
+  }
+  if (st === 'queue-op') {
+    return '<span class="stype-color-queue-op">queue-operation</span>';
+  }
+
+  var raw = RAW_LINES[lineIdx];
+  return esc(raw.length > 50 ? raw.slice(0, 50) + '...' : raw);
+}
+
+// Render conversational view — groups lines into segments with branch detection.
+// Rewinds create fork points: the conversation branches from the rewind target.
+function renderConversation() {
+  var el = document.getElementById('line-list');
+
+  // Build a set of rewind landing lines for quick lookup
+  var rewindAtLine = {};
+  for (var r = 0; r < REWINDS.length; r++) {
+    rewindAtLine[REWINDS[r].landingLine] = REWINDS[r];
+  }
+
+  // Build segments: { convIdx, label, labelClass, children: [line indices] }
+  // Each segment is a conversational turn or a system preamble.
+  var allSegments = [];
+  var convIndices = [];
+  for (var i = 0; i < LINES.length; i++) {
+    if (CONV_TYPES[subtype(LINES[i])]) {
+      convIndices.push(i);
+    }
+  }
+
+  // System preamble
+  var firstConv = convIndices.length > 0 ? convIndices[0] : LINES.length;
+  var preambleChildren = [];
+  for (var i = 0; i < firstConv; i++) {
+    preambleChildren.push(i);
+  }
+  if (preambleChildren.length > 0) {
+    allSegments.push({ convIdx: -1, label: 'system', labelClass: 'conv-label-system', children: preambleChildren });
+  }
+
+  // Build segments for each conversational line
+  for (var ci = 0; ci < convIndices.length; ci++) {
+    var idx = convIndices[ci];
+    var st = subtype(LINES[idx]);
+    var lbl, lblCls;
+    if (st === 'user-prompt') {
+      lbl = 'User: ' + esc(contentLabel(LINES[idx]));
+      lblCls = 'conv-label-user';
+    } else if (st.indexOf('tool-use-') === 0) {
+      lbl = 'tool_use: ' + esc(toolUseName(LINES[idx]));
+      lblCls = 'conv-label-tool';
+    } else {
+      lbl = 'Agent: ' + esc(contentLabel(LINES[idx]));
+      lblCls = 'conv-label-agent';
+    }
+    var nextConv = ci + 1 < convIndices.length ? convIndices[ci + 1] : LINES.length;
+    var children = [];
+    for (var j = idx + 1; j < nextConv; j++) {
+      children.push(j);
+    }
+    // Scan children (and the conv line itself) for file writes — one badge per file+status
+    var editsByKey = {};
+    var scanRange = [idx].concat(children);
+    for (var sc = 0; sc < scanRange.length; sc++) {
+      var scObj = LINES[scanRange[sc]];
+      if (!scObj) {
+        continue;
+      }
+      var tr = scObj.toolUseResult;
+      if (tr && (tr.type === 'create' || tr.type === 'update' || tr.type === 'edit'
+          || tr.originalFile !== undefined || tr.oldString !== undefined || tr.old_string !== undefined)) {
+        var fn = (tr.filePath || '').split('/').pop();
+        var status = EDIT_STATUS[scanRange[sc]] || 'kept';
+        var key = fn + ':' + status;
+        if (!editsByKey[key]) {
+          editsByKey[key] = { file: fn, status: status, count: 0 };
+        }
+        editsByKey[key].count++;
+      }
+    }
+    var editKeys = Object.keys(editsByKey);
+    for (var ek = 0; ek < editKeys.length; ek++) {
+      var ed = editsByKey[editKeys[ek]];
+      var countStr = ed.count > 1 ? ' ×' + ed.count : '';
+      lbl += ' <span class="diff-badge">' + esc(ed.file) + countStr + '</span>';
+      lbl += ' <span class="edit-badge edit-badge-' + ed.status + '">' + ed.status + '</span>';
+    }
+    var rw = rewindAtLine[idx] || null;
+    allSegments.push({ convIdx: idx, label: lbl, labelClass: lblCls, children: children, rewind: rw });
+  }
+
+  // Group segments into branches. A rewind landing starts a new branch.
+  var branchGroups = [];
+  var branchStarts = [];
+  for (var s = 0; s < allSegments.length; s++) {
+    if (allSegments[s].rewind) {
+      branchStarts.push(s);
+    }
+  }
+
+  if (branchStarts.length === 0) {
+    // No rewinds — render flat
+    var html = renderSegments(allSegments);
+    el.innerHTML = html;
+    document.getElementById('file-info').textContent = 'File: ' + FILE_PATH;
+    document.getElementById('file-stats').textContent = 'Lines: ' + RAW_LINES.length + ' | Visible: ' + allSegments.length;
+    return;
+  }
+
+  var html = '';
+  var branchCount = 0;
+  var cursor = 0;
+
+  for (var b = 0; b < branchStarts.length; b++) {
+    var rewindSegIdx = branchStarts[b];
+    var rw = allSegments[rewindSegIdx].rewind;
+
+    // Find the fork point
+    var forkSegIdx = -1;
+    for (var f = 0; f < rewindSegIdx; f++) {
+      if (allSegments[f].convIdx >= 0 && allSegments[f].convIdx <= rw.parentLine) {
+        forkSegIdx = f;
+      }
+    }
+    if (forkSegIdx < 0) {
+      forkSegIdx = 0;
+    }
+
+    // Render shared segments
+    if (forkSegIdx >= cursor) {
+      html += renderSegments(allSegments.slice(cursor, forkSegIdx + 1));
+      cursor = forkSegIdx + 1;
+    }
+
+    // Old branch: segments from cursor to the rewind landing
+    var oldBranch = allSegments.slice(cursor, rewindSegIdx);
+
+    // New branch: segments from rewind landing to the next rewind (or end)
+    var nextRewind = b + 1 < branchStarts.length ? branchStarts[b + 1] : allSegments.length;
+    var newBranch = allSegments.slice(rewindSegIdx, nextRewind);
+
+    branchCount++;
+    var restoreLabel = rw.classification === 'code-restoration' ? 'code restored' : 'conversation only';
+
+    html += '<div class="branch-point">Branches (rewind — ' + restoreLabel + ')</div>';
+
+    // Old branch (inactive, collapsed)
+    if (oldBranch.length > 0) {
+      html += '<div class="branch-header">'
+           +  '<span class="toggle branch-toggle">[+]</span>'
+           +  '<span class="branch-label branch-label-inactive">&lt;branch ' + (branchCount * 2 - 1) + ' : inactive&gt;</span>'
+           +  '<span class="branch-type">' + oldBranch.length + ' turns</span>'
+           +  '</div>';
+      html += '<div class="branch-children inactive" style="display:none">'
+           +  renderSegments(oldBranch) + '</div>\n';
+    }
+
+    // New branch (active, expanded)
+    html += '<div class="branch-header">'
+         +  '<span class="toggle branch-toggle">[-]</span>'
+         +  '<span class="branch-label branch-label-active">&lt;branch ' + (branchCount * 2) + ' : active&gt;</span>'
+         +  '<span class="branch-type">' + newBranch.length + ' turns</span>'
+         +  '</div>';
+    html += '<div class="branch-children" style="display:block">'
+         +  renderSegments(newBranch) + '</div>\n';
+
+    cursor = nextRewind;
+  }
+
+  // Remaining segments after last rewind
+  if (cursor < allSegments.length) {
+    html += renderSegments(allSegments.slice(cursor));
+  }
+
+  el.innerHTML = html;
+  document.getElementById('file-info').textContent = 'File: ' + FILE_PATH;
+  document.getElementById('file-stats').textContent = 'Lines: ' + RAW_LINES.length +
+    ' | Visible: ' + allSegments.length + ' | Branches: ' + branchCount;
+}
+
+// Render an array of segments as HTML (used by renderConversation)
+function renderSegments(segments) {
+  var html = '';
+  for (var s = 0; s < segments.length; s++) {
+    var seg = segments[s];
+    var chkHtml = seg.convIdx >= 0
+      ? '<input type="checkbox" class="sel-chk" data-idx="' + seg.convIdx + '">'
+      : '';
+    var allChildren = [];
+    if (seg.convIdx >= 0) {
+      allChildren.push(seg.convIdx);
+    }
+    for (var c = 0; c < seg.children.length; c++) {
+      allChildren.push(seg.children[c]);
+    }
+    var hasExpandable = allChildren.length > 0;
+    var toggleHtml = hasExpandable ? '<span class="toggle conv-toggle">[+]</span>' : '';
+
+    // Line range: first..last line numbers covered by this segment
+    var rangeStart = seg.convIdx >= 0 ? seg.convIdx + 1 : (seg.children.length > 0 ? seg.children[0] + 1 : 0);
+    var rangeEnd = seg.children.length > 0 ? seg.children[seg.children.length - 1] + 1 : rangeStart;
+    var rangeHtml = hasExpandable && rangeStart > 0
+      ? ' <span class="line-range">[L' + rangeStart + (rangeEnd > rangeStart ? '–' + rangeEnd : '') + ']</span>'
+      : '';
+
+    html += '<div class="conv-row' + (seg.convIdx >= 0 ? ' stype-' + subtype(LINES[seg.convIdx]) : '') + '"'
+         + (seg.convIdx >= 0 ? ' data-idx="' + seg.convIdx + '" data-stype="' + subtype(LINES[seg.convIdx]) + '"' : '')
+         + '>'
+         + chkHtml + toggleHtml
+         + '<span class="conv-label ' + seg.labelClass + '">' + seg.label + '</span>'
+         + rangeHtml
+         + '</div>\n';
+
+    if (hasExpandable) {
+      html += '<div class="conv-children" style="display:none">';
+      for (var c = 0; c < allChildren.length; c++) {
+        var ci = allChildren[c];
+        var cst = subtype(LINES[ci]);
+        var friendlyLabel = friendlyName(ci);
+        html += '<div class="line-row stype-' + cst + '" data-idx="' + ci + '" data-stype="' + cst + '">'
+             +  '<input type="checkbox" class="sel-chk" data-idx="' + ci + '">'
+             +  '<span class="json-expand">{ }</span>'
+             +  '<span class="line-num">' + (ci + 1) + ':</span>'
+             +  '<span class="line-text">' + friendlyLabel + '</span>'
+             +  '</div>\n';
+      }
+      html += '</div>\n';
+    }
+  }
+  return html;
+}
+
+// Render based on current view mode
+function renderView() {
+  if (viewMode === 'all') {
+    renderLines();
+  } else {
+    renderConversation();
+  }
+}
+
+// Load and parse JSONL text
+function loadJSONL(text, filePath) {
+  closeInspect();
+  FILE_PATH = filePath;
+  var splits = text.split('\n');
+  LINES = [];
+  RAW_LINES = [];
+  UUID_TO_LINE = {};
+  TOOL_ID_TO_LINES = {};
+  FIELD_INDEX = {};
+  FILE_WRITES = [];
+
+  function collectKeys(val, lineIdx) {
+    if (!val || typeof val !== 'object') {
+      return;
+    }
+    if (Array.isArray(val)) {
+      for (var ai = 0; ai < val.length; ai++) {
+        collectKeys(val[ai], lineIdx);
+      }
+      return;
+    }
+    var ks = Object.keys(val);
+    for (var ki = 0; ki < ks.length; ki++) {
+      var k = ks[ki];
+      if (!FIELD_INDEX[k]) {
+        FIELD_INDEX[k] = [];
+      }
+      var arr = FIELD_INDEX[k];
+      if (arr.length === 0 || arr[arr.length - 1] !== lineIdx) {
+        arr.push(lineIdx);
+      }
+      collectKeys(val[k], lineIdx);
+    }
+  }
+
+  for (var i = 0; i < splits.length; i++) {
+    var ln = splits[i].trimEnd();
+    if (!ln) {
+      continue;
+    }
+    var lineIdx = RAW_LINES.length;
+    RAW_LINES.push(ln);
+    try {
+      var obj = JSON.parse(ln);
+      LINES.push(obj);
+      collectKeys(obj, lineIdx);
+      if (obj.uuid) {
+        UUID_TO_LINE[obj.uuid] = lineIdx;
+      }
+      var content = obj.message && obj.message.content;
+      if (Array.isArray(content)) {
+        for (var ci = 0; ci < content.length; ci++) {
+          var block = content[ci];
+          var tid = null;
+          if (block.type === 'tool_use' && block.id) {
+            tid = block.id;
+          } else if (block.type === 'tool_result' && block.tool_use_id) {
+            tid = block.tool_use_id;
+          }
+          if (tid) {
+            if (!TOOL_ID_TO_LINES[tid]) {
+              TOOL_ID_TO_LINES[tid] = [];
+            }
+            TOOL_ID_TO_LINES[tid].push(lineIdx);
+          }
+        }
+      }
+      // Track file writes
+      var tr2 = obj.toolUseResult;
+      if (tr2 && (tr2.type === 'create' || tr2.type === 'update' || tr2.type === 'edit'
+          || tr2.originalFile !== undefined || tr2.oldString !== undefined
+          || tr2.old_string !== undefined)) {
+        FILE_WRITES.push(lineIdx);
+      }
+    } catch(e) {
+      LINES.push(null);
+    }
+  }
+
+  REWINDS = detectRewinds();
+  classifyEdits();
+  document.getElementById('view-toggle-btn').disabled = false;
+
+  renderView();
+  buildFilterBar();
+}
+
+function buildFilterBar() {
+  var bar = document.getElementById('filter-bar');
+  var search = document.getElementById('filter-search');
+  var chips = bar.querySelectorAll('.filter-chip');
+  for (var i = chips.length - 1; i >= 0; i--) {
+    bar.removeChild(chips[i]);
+  }
+  for (var p = 0; p < PRESET_FIELDS.length; p++) {
+    var field = PRESET_FIELDS[p];
+    var count = FIELD_INDEX[field] ? FIELD_INDEX[field].length : 0;
+    var chip = document.createElement('button');
+    chip.className = 'filter-chip';
+    chip.dataset.field = field;
+    chip.innerHTML = field + '<span class="chip-count' + (count > 0 ? ' has-matches' : '') + '">' + count + '</span>';
+    if (count === 0) {
+      chip.style.opacity = '0.35';
+    }
+    bar.insertBefore(chip, search);
+  }
+  activeFilter = null;
+  activeFilterMatches = [];
+  activeFilterPos = -1;
+  document.getElementById('filter-pos').textContent = '';
+  bar.classList.add('visible');
+}
+
+function jumpToField(field, direction) {
+  var matches = FIELD_INDEX[field];
+  if (!matches || matches.length === 0) {
+    return;
+  }
+  if (field !== activeFilter) {
+    activeFilter = field;
+    activeFilterMatches = matches;
+    activeFilterPos = -1;
+    var chips = document.querySelectorAll('.filter-chip');
+    for (var i = 0; i < chips.length; i++) {
+      chips[i].classList.toggle('active', chips[i].dataset.field === field);
+    }
+  }
+  if (direction === 'prev') {
+    activeFilterPos = activeFilterPos <= 0 ? matches.length - 1 : activeFilterPos - 1;
+  } else {
+    activeFilterPos = activeFilterPos >= matches.length - 1 ? 0 : activeFilterPos + 1;
+  }
+  var lineIdx = matches[activeFilterPos];
+  document.getElementById('filter-pos').textContent = (activeFilterPos + 1) + '/' + matches.length;
+  cmpSel = [lineIdx];
+  cmpType = subtype(LINES[lineIdx]);
+  applyTypeGate();
+  showInspect(lineIdx);
+  syncCheckboxes();
+}
+
+// Open JSONL button — sets ?file= and reloads
+document.getElementById('open-btn').addEventListener('click', async function() {
+  if (window.showOpenFilePicker) {
+    try {
+      var handles = await window.showOpenFilePicker({
+        id: 'jsonl-v2-picker',
+        types: [{ description: 'JSONL transcripts', accept: { 'application/x-jsonl': ['.jsonl'] } }],
+        multiple: false
+      });
+      var file = await handles[0].getFile();
+      var text = await file.text();
+      // Set ?file= param with the file name and reload
+      var url = new URL(window.location);
+      url.searchParams.set('file', file.name);
+      // Can't set full local path from picker for security reasons;
+      // load directly instead of reloading
+      loadJSONL(text, file.name);
+    } catch(e) {
+      if (e.name === 'AbortError') {
+        return;
+      }
+    }
+  }
+});
+
+// "Load from" button — try XHR to load the path directly, fall back to file picker
+function loadFromPath() {
+  var path = document.getElementById('path-input').value.trim();
+  if (!path) {
+    return;
+  }
+  var fetchUrl = rewritePath(path);
+  fetch(fetchUrl)
+    .then(function(r) {
+      if (!r.ok) {
+        throw new Error('HTTP ' + r.status + ' ' + r.statusText);
+      }
+      return r.text();
+    })
+    .then(function(text) { loadJSONL(text, path); })
+    .catch(function() { fallbackToPicker(); });
+}
+function fallbackToPicker() {
+  if (!window.showOpenFilePicker) {
+    return;
+  }
+  window.showOpenFilePicker({
+    id: 'jsonl-v2-picker',
+    types: [{ description: 'JSONL transcripts', accept: { 'application/x-jsonl': ['.jsonl'] } }],
+    multiple: false
+  }).then(function(handles) {
+    return handles[0].getFile();
+  }).then(function(file) {
+    return file.text().then(function(text) { loadJSONL(text, file.name); });
+  }).catch(function(e) {
+    if (e.name !== 'AbortError') {
+      console.error(e);
+    }
+  });
+}
+document.getElementById('load-from-btn').addEventListener('click', loadFromPath);
+document.getElementById('path-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    loadFromPath();
+  }
+});
+
+// Viewer-specific wrapper for the shared addJumpLinks.
+function viewerJumpLinks(html, selfIdx) {
+  return addJumpLinks(html, { toolIdMap: TOOL_ID_TO_LINES, uuidMap: UUID_TO_LINE, selfIdx: selfIdx });
+}
+
+// Show inspector for line at given index (single-select mode)
+function showInspect(idx) {
+  if (idx < 0 || idx >= LINES.length) {
+    return;
+  }
+  selectedIdx = idx;
+  var panel = document.getElementById('inspect-panel');
+  var content = document.getElementById('inspect-content');
+  var obj = LINES[idx];
+  var pretty = obj ? JSON.stringify(obj, null, 4) : RAW_LINES[idx];
+  var highlighted = syntaxHighlight(pretty);
+  content.innerHTML = viewerJumpLinks(highlighted, idx);
+  document.getElementById('inspect-pos').textContent = 'Line ' + (idx + 1) + ' / ' + LINES.length;
+  // Show single nav, hide diff nav + pane headers
+  document.getElementById('inspect-nav-single').style.display = 'block';
+  document.getElementById('inspect-nav-diff').style.display = 'none';
+  document.getElementById('diff-pane-headers').style.display = 'none';
+  document.getElementById('inspect-pos').style.display = '';
+  var diffNextBtn = document.getElementById('diff-next-btn');
+  diffNextBtn.disabled = !(cmpSel.length === 1 && findSameType(idx, 1) >= 0);
+  document.getElementById('inspect-prev-stype').disabled = findSameType(idx, -1) < 0;
+  document.getElementById('inspect-next-stype').disabled = findSameType(idx, 1) < 0;
+  panel.classList.add('show');
+  scrollToLine(idx);
+}
+
+// Close inspector and reset compare state
+function closeInspect() {
+  selectedIdx = -1;
+  resetCompare();
+  document.getElementById('inspect-panel').classList.remove('show');
+  document.getElementById('inspect-nav-single').style.display = 'block';
+  document.getElementById('inspect-nav-diff').style.display = 'none';
+  document.getElementById('diff-pane-headers').style.display = 'none';
+  syncCheckboxes();
+}
+
+// Reset compare selection and type gating
+function resetCompare() {
+  cmpSel = [];
+  cmpType = null;
+  var rows = document.querySelectorAll('.line-row, .conv-row');
+  for (var i = 0; i < rows.length; i++) {
+    rows[i].classList.remove('cmp-disabled', 'selected');
+    var chk = rows[i].querySelector('.sel-chk');
+    if (chk) {
+      chk.checked = false;
+      chk.disabled = false;
+    }
+  }
+}
+
+// Apply type gating — disable checkboxes on non-matching subtypes
+function applyTypeGate() {
+  var rows = document.querySelectorAll('.line-row, .conv-row');
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    var chk = row.querySelector('.sel-chk');
+    if (!chk) {
+      continue;
+    }
+    var match = row.dataset.stype === cmpType;
+    var isSelected = cmpSel.indexOf(parseInt(row.dataset.idx, 10)) >= 0;
+    chk.disabled = !match && !isSelected;
+    row.classList.toggle('cmp-disabled', !match && !isSelected);
+  }
+}
+
+// Sync checkbox checked state to cmpSel
+function syncCheckboxes() {
+  var rows = document.querySelectorAll('.line-row, .conv-row');
+  for (var i = 0; i < rows.length; i++) {
+    var idx = parseInt(rows[i].dataset.idx, 10);
+    if (isNaN(idx)) {
+      continue;
+    }
+    var chk = rows[i].querySelector('.sel-chk');
+    if (chk) {
+      chk.checked = cmpSel.indexOf(idx) >= 0;
+    }
+    rows[i].classList.toggle('selected', cmpSel.indexOf(idx) >= 0);
+  }
+}
+
+// Find next/prev line index with the same subtype, skipping skipIdx. Returns -1 if none.
+function findSameType(fromIdx, direction, skipIdx) {
+  var st = subtype(LINES[fromIdx]);
+  var i = fromIdx + direction;
+  while (i >= 0 && i < LINES.length) {
+    if (subtype(LINES[i]) === st && i !== skipIdx) {
+      return i;
+    }
+    i += direction;
+  }
+  return -1;
+}
+
+// Scroll a line into view
+function scrollToLine(idx) {
+  var sel = document.querySelector('.line-row[data-idx="' + idx + '"], .conv-row[data-idx="' + idx + '"]');
+  if (!sel) {
+    return;
+  }
+  var el = sel.parentElement;
+  while (el && el.id !== 'line-list') {
+    if ((el.classList.contains('conv-children') || el.classList.contains('branch-children')) && el.style.display === 'none') {
+      el.style.display = 'block';
+      var toggle = el.previousElementSibling && el.previousElementSibling.querySelector('.conv-toggle, .branch-toggle');
+      if (toggle) {
+        toggle.textContent = '[-]';
+      }
+    }
+    el = el.parentElement;
+  }
+  sel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// Show diff between two selected lines
+function showDiff() {
+  var a = LINES[cmpSel[0]], b = LINES[cmpSel[1]];
+  var aLines = (a ? JSON.stringify(a, null, 4) : RAW_LINES[cmpSel[0]]).split('\n');
+  var bLines = (b ? JSON.stringify(b, null, 4) : RAW_LINES[cmpSel[1]]).split('\n');
+  var ops = lineDiff(aLines, bLines);
+  var diffHtml = diffMode === 'inline' ? renderInlineDiff(ops) : renderSxsDiff(ops);
+  document.getElementById('inspect-content').innerHTML = viewerJumpLinks(diffHtml, -1);
+
+  // Switch to diff nav bar + pane headers
+  document.getElementById('inspect-nav-single').style.display = 'none';
+  document.getElementById('inspect-nav-diff').style.display = 'flex';
+  document.getElementById('diff-pane-headers').style.display = 'grid';
+
+  // Labels
+  document.getElementById('diff-left-label').textContent = 'Line ' + (cmpSel[0] + 1);
+  document.getElementById('diff-right-label').textContent = 'Line ' + (cmpSel[1] + 1);
+
+  // Per-pane button enable/disable (skip the other pane's line)
+  document.getElementById('diff-left-prev').disabled = findSameType(cmpSel[0], -1, cmpSel[1]) < 0;
+  document.getElementById('diff-left-next').disabled = findSameType(cmpSel[0], 1, cmpSel[1]) < 0;
+  document.getElementById('diff-right-prev').disabled = findSameType(cmpSel[1], -1, cmpSel[0]) < 0;
+  document.getElementById('diff-right-next').disabled = findSameType(cmpSel[1], 1, cmpSel[0]) < 0;
+
+  // Mode buttons
+  document.getElementById('diff-mode-sxs').classList.toggle('active', diffMode === 'sxs');
+  document.getElementById('diff-mode-inline').classList.toggle('active', diffMode === 'inline');
+
+  var panel = document.getElementById('inspect-panel');
+  panel.classList.add('show');
+}
+
+// Checkbox change handler — supports 1 (inspect) or 2 (diff) selections
+document.getElementById('line-list').addEventListener('change', function(e) {
+  var chk = e.target.closest('.sel-chk');
+  if (!chk) {
+    return;
+  }
+  var idx = parseInt(chk.dataset.idx, 10);
+  var row = chk.closest('.line-row') || chk.closest('.conv-row');
+
+  if (chk.checked) {
+    if (cmpSel.length >= 2) {
+      chk.checked = false;
+      return;
+    }
+    cmpSel.push(idx);
+    if (cmpSel.length === 1) {
+      cmpType = row.dataset.stype;
+      applyTypeGate();
+      showInspect(idx);
+    } else {
+      showDiff();
+    }
+  } else {
+    var pos = cmpSel.indexOf(idx);
+    if (pos >= 0) {
+      cmpSel.splice(pos, 1);
+    }
+    if (cmpSel.length === 1) {
+      showInspect(cmpSel[0]);
+    } else {
+      closeInspect();
+    }
+  }
+  syncCheckboxes();
+});
+
+// { } expand/collapse handler for raw JSON on line rows
+document.getElementById('line-list').addEventListener('click', function(e) {
+  var btn = e.target.closest('.json-expand');
+  if (!btn) {
+    return;
+  }
+  var row = btn.closest('.line-row');
+  if (!row) {
+    return;
+  }
+  var idx = parseInt(row.dataset.idx, 10);
+  var textEl = row.querySelector('.line-text');
+  var expanded = row.classList.contains('expanded');
+  if (expanded) {
+    textEl.innerHTML = friendlyName(idx);
+    row.classList.remove('expanded');
+    btn.textContent = '{ }';
+  } else {
+    textEl.innerHTML = friendlyName(idx) + ' ' + syntaxHighlight(RAW_LINES[idx]);
+    row.classList.add('expanded');
+    btn.textContent = '{-}';
+  }
+});
+
+// Symlinked directories: absolute prefix -> relative path under the server root
+var PATH_REWRITES = [
+  { prefix: '/Users/matkatmusicllc/.claude/projects/', local: '../projects/' }
+];
+
+function rewritePath(filePath) {
+  for (var i = 0; i < PATH_REWRITES.length; i++) {
+    if (filePath.startsWith(PATH_REWRITES[i].prefix)) {
+      return PATH_REWRITES[i].local + filePath.slice(PATH_REWRITES[i].prefix.length);
+    }
+  }
+  return filePath;
+}
+
+// Auto-load from ?file= URL param
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var fileUrl = params.get('file');
+  if (!fileUrl) {
+    return;
+  }
+  fileUrl = fileUrl.replace(/^["']|["']$/g, '');
+  if (!fileUrl) {
+    return;
+  }
+
+  document.getElementById('path-input').value = fileUrl;
+  document.getElementById('path-bar').classList.add('visible');
+
+  var fetchUrl = rewritePath(fileUrl);
+
+  document.getElementById('line-list').innerHTML =
+    '<div class="empty-state">Loading ' + esc(fileUrl) + '...</div>';
+
+  fetch(fetchUrl)
+    .then(function(r) {
+      if (!r.ok) {
+        throw new Error('HTTP ' + r.status + ' ' + r.statusText);
+      }
+      return r.text();
+    })
+    .then(function(text) { loadJSONL(text, fileUrl); })
+    .catch(function() {
+      document.getElementById('line-list').innerHTML =
+        '<div class="empty-state">Click <b>Load from</b> above and select the file to load it.</div>';
+    });
+})();
+
+// Single-select navigation
+function navPrev() {
+  if (selectedIdx > 0) {
+    cmpSel = [selectedIdx - 1];
+    cmpType = subtype(LINES[selectedIdx - 1]);
+    applyTypeGate();
+    showInspect(selectedIdx - 1);
+    syncCheckboxes();
+  }
+}
+function navNext() {
+  if (selectedIdx < LINES.length - 1) {
+    cmpSel = [selectedIdx + 1];
+    cmpType = subtype(LINES[selectedIdx + 1]);
+    applyTypeGate();
+    showInspect(selectedIdx + 1);
+    syncCheckboxes();
+  }
+}
+document.getElementById('inspect-prev').addEventListener('click', navPrev);
+document.getElementById('inspect-next').addEventListener('click', navNext);
+document.getElementById('inspect-prev-stype').addEventListener('click', function() {
+  var target = findSameType(selectedIdx, -1);
+  if (target < 0) {
+    return;
+  }
+  cmpSel = [target];
+  cmpType = subtype(LINES[target]);
+  applyTypeGate();
+  showInspect(target);
+  syncCheckboxes();
+});
+document.getElementById('inspect-next-stype').addEventListener('click', function() {
+  var target = findSameType(selectedIdx, 1);
+  if (target < 0) {
+    return;
+  }
+  cmpSel = [target];
+  cmpType = subtype(LINES[target]);
+  applyTypeGate();
+  showInspect(target);
+  syncCheckboxes();
+});
+document.getElementById('inspect-close-single').addEventListener('click', closeInspect);
+document.getElementById('inspect-close-diff').addEventListener('click', closeInspect);
+
+// Keyboard nav (single-select mode only)
+document.addEventListener('keydown', function(e) {
+  if (!document.getElementById('inspect-panel').classList.contains('show')) {
+    return;
+  }
+  if (e.key === 'Escape') {
+    closeInspect();
+    return;
+  }
+  if (cmpSel.length > 1) {
+    return;
+  }
+  if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+    e.preventDefault();
+    navPrev();
+  }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    navNext();
+  }
+});
+
+// Filter bar chip click handler
+document.getElementById('filter-bar').addEventListener('click', function(e) {
+  var chip = e.target.closest('.filter-chip');
+  if (!chip) {
+    return;
+  }
+  jumpToField(chip.dataset.field);
+});
+document.getElementById('filter-search').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    var field = this.value.trim();
+    if (field) {
+      jumpToField(field);
+    }
+  }
+});
+
+// Jump link click handler in inspector
+document.getElementById('inspect-content').addEventListener('click', function(e) {
+  var link = e.target.closest('.jump-link');
+  if (!link) {
+    return;
+  }
+  var targetIdx = parseInt(link.dataset.jump, 10);
+  if (isNaN(targetIdx)) {
+    return;
+  }
+  cmpSel = [targetIdx];
+  cmpType = subtype(LINES[targetIdx]);
+  applyTypeGate();
+  showInspect(targetIdx);
+  syncCheckboxes();
+});
+
+// "Diff with next same-type line" button
+document.getElementById('diff-next-btn').addEventListener('click', function() {
+  if (cmpSel.length !== 1) {
+    return;
+  }
+  var nextIdx = findSameType(cmpSel[0], 1);
+  if (nextIdx < 0) {
+    return;
+  }
+  cmpSel.push(nextIdx);
+  showDiff();
+  syncCheckboxes();
+  scrollToLine(nextIdx);
+});
+
+// Per-pane diff navigation — each pane walks same-type lines, skipping the other pane's line
+function diffNav(pane, direction) {
+  var myIdx = pane === 0 ? cmpSel[0] : cmpSel[1];
+  var otherIdx = pane === 0 ? cmpSel[1] : cmpSel[0];
+  var target = findSameType(myIdx, direction, otherIdx);
+  if (target < 0) {
+    return;
+  }
+  cmpSel[pane] = target;
+  showDiff();
+  syncCheckboxes();
+  scrollToLine(target);
+}
+document.getElementById('diff-left-prev').addEventListener('click', function() { diffNav(0, -1); });
+document.getElementById('diff-left-next').addEventListener('click', function() { diffNav(0, 1); });
+document.getElementById('diff-right-prev').addEventListener('click', function() { diffNav(1, -1); });
+document.getElementById('diff-right-next').addEventListener('click', function() { diffNav(1, 1); });
+
+// Diff mode toggles
+document.getElementById('diff-mode-sxs').addEventListener('click', function() {
+  if (cmpSel.length === 2) {
+    diffMode = 'sxs';
+    showDiff();
+  }
+});
+document.getElementById('diff-mode-inline').addEventListener('click', function() {
+  if (cmpSel.length === 2) {
+    diffMode = 'inline';
+    showDiff();
+  }
+});
+
+// View mode toggle
+document.getElementById('view-toggle-btn').addEventListener('click', function() {
+  viewMode = viewMode === 'conversation' ? 'all' : 'conversation';
+  this.textContent = viewMode === 'conversation' ? 'Show All Lines' : 'Conversation View';
+  this.classList.toggle('active', viewMode === 'all');
+  closeInspect();
+  renderView();
+});
+
+// Toggle click handler for conv-rows and branch headers
+document.getElementById('line-list').addEventListener('click', function(e) {
+  var toggle = e.target.closest('.conv-toggle, .branch-toggle');
+  if (!toggle) {
+    return;
+  }
+  var parent = toggle.closest('.conv-row') || toggle.closest('.branch-header');
+  if (!parent) {
+    return;
+  }
+  var children = parent.nextElementSibling;
+  if (children && (children.classList.contains('conv-children') || children.classList.contains('branch-children'))) {
+    var open = children.style.display !== 'none';
+    children.style.display = open ? 'none' : 'block';
+    toggle.textContent = open ? '[+]' : '[-]';
+  }
+});
+
+// Dock position toggle
+var dockMode = 'right';
+document.getElementById('dock-bottom').addEventListener('click', function() {
+  if (dockMode === 'bottom') {
+    return;
+  }
+  dockMode = 'bottom';
+  var panel = document.getElementById('inspect-panel');
+  document.body.classList.remove('dock-right');
+  panel.style.width = '';
+  panel.style.height = '38vh';
+  document.getElementById('dock-bottom').classList.add('active');
+  document.getElementById('dock-right').classList.remove('active');
+});
+document.getElementById('dock-right').addEventListener('click', function() {
+  if (dockMode === 'right') {
+    return;
+  }
+  dockMode = 'right';
+  var panel = document.getElementById('inspect-panel');
+  document.body.classList.add('dock-right');
+  panel.style.height = '';
+  panel.style.width = '45vw';
+  document.getElementById('dock-right').classList.add('active');
+  document.getElementById('dock-bottom').classList.remove('active');
+});
+
+// Resize handle for inspector panel
+(function() {
+  var handle = document.getElementById('inspect-resize');
+  var panel = document.getElementById('inspect-panel');
+  var tooltip = document.getElementById('resize-tooltip');
+  var dragging = false, startPos = 0, startSize = 0;
+  handle.addEventListener('mousedown', function(e) {
+    dragging = true;
+    if (dockMode === 'right') {
+      startPos = e.clientX;
+      startSize = panel.offsetWidth;
+    } else {
+      startPos = e.clientY;
+      startSize = panel.offsetHeight;
+    }
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) {
+      return;
+    }
+    if (dockMode === 'right') {
+      var newW = startSize + (startPos - e.clientX);
+      var minW = 200, maxW = window.innerWidth - 200;
+      newW = Math.max(minW, Math.min(maxW, newW));
+      panel.style.width = newW + 'px';
+      var pct = (newW / window.innerWidth * 100).toFixed(1);
+      tooltip.textContent = pct + '%';
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX - 50) + 'px';
+      tooltip.style.top = (e.clientY - 30) + 'px';
+    } else {
+      var newH = startSize + (startPos - e.clientY);
+      var minH = 100, maxH = window.innerHeight - 60;
+      newH = Math.max(minH, Math.min(maxH, newH));
+      panel.style.height = newH + 'px';
+      var pct = (newH / window.innerHeight * 100).toFixed(1);
+      tooltip.textContent = pct + '%';
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 10) + 'px';
+      tooltip.style.top = (e.clientY - 30) + 'px';
+    }
+  });
+  document.addEventListener('mouseup', function() {
+    if (!dragging) {
+      return;
+    }
+    dragging = false;
+    document.body.style.userSelect = '';
+    tooltip.style.display = 'none';
+  });
+})();
+</script>
+</body>
+</html>

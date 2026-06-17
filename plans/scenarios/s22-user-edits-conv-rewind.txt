@@ -1,0 +1,12 @@
+session: s22-user-edits-conv-rewind
+---
+- [ ] 1. Say: `Write a file called scenario22.py with a class called Stack with an __init__ that sets self.items = [], and write tests/test_scenario22.py that tests Stack().items == [].`
+- [ ] 2. Edit: scenario22.py — after `self.items = []` insert `    def push(self, item): self.items.append(item)`
+- [ ] 3. Say: `Edit scenario22.py. Add a method called pop that removes and returns the last item.`
+- [ ] 4. Say: `Good.`
+- [ ] 5. Rewind: 2
+- [ ] 6. Edit: scenario22.py — after `self.items.pop()` insert `    def peek(self): return self.items[-1] if self.items else None`
+- [ ] 7. Say: `Edit scenario22.py. Add a method called is_empty that returns len(self.items) == 0.`
+- [ ] 8. Say: `Thanks.`
+- [ ] 9. Exit
+- [ ] 10. Record: JSONL filename

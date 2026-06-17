@@ -1,0 +1,14 @@
+tmpdir: /var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/run-scenario.do0nuk57
+session: m1-cp-fork
+---
+- [x] 1. Say: `Write a file called m1_base.py with a class called Config with __init__ that sets self.debug = False and self.verbose = False, and write tests/test_m1_base.py that tests Config().debug == False.`
+- [x] 2. Say: `Edit m1_base.py. Add a method called enable_debug that sets self.debug = True.`
+- [x] 3. Say: `Copy m1_base.py to m1_fork.py.`
+- [x] 4. Say: `Edit m1_fork.py. Add a method called enable_verbose that sets self.verbose = True.`
+- [x] 5. Say: `Edit m1_base.py. Add a method called disable_all that sets both to False.`
+- [x] 6. Say: `Thanks.`
+- [x] 7. Exit
+- [x] 8. Record: JSONL filename
+
+---
+result: {"completed": true, "jsonl_path": "/Users/matkatmusicllc/.claude/projects/-private-var-folders-fy-wg2tzrv957sg2vqjcvdkdzvm0000gn-T-run-scenario-do0nuk57/30519bf0-c94f-47b2-a2c6-1ef8ac83e534.jsonl"}

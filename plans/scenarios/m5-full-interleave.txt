@@ -1,0 +1,13 @@
+session: m5-full-interleave
+---
+- [ ] 1. Say: `Write a file called m5_interleave.py with a function called base() that returns "base", and write tests/test_m5_interleave.py that tests base() returns "base".`
+- [ ] 2. Edit: m5_interleave.py — append `def user_add_1(): return "user1"`
+- [ ] 3. Say: `Edit m5_interleave.py. Add a function called agent_add_1() that returns "agent1".`
+- [ ] 4. Say: `Looks good.`
+- [ ] 5. Rewind: 2, code
+- [ ] 6. Say: `Read m5_interleave.py and show me the contents.`
+- [ ] 7. Edit: m5_interleave.py — append `def user_add_2(): return "user2"`
+- [ ] 8. Say: `Edit m5_interleave.py. Add a function called agent_add_2() that returns "agent2".`
+- [ ] 9. Say: `Thanks.`
+- [ ] 10. Exit
+- [ ] 11. Record: JSONL filename

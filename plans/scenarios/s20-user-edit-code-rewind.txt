@@ -1,0 +1,12 @@
+session: s20-user-edit-code-rewind
+---
+- [ ] 1. Say: `Write a file called scenario20.py with a function called add(a, b) that returns a + b, and write tests/test_scenario20.py that tests add(1, 2) returns 3.`
+- [ ] 2. Edit: scenario20.py — after `return a + b` insert `# user tweak`
+- [ ] 3. Say: `Edit scenario20.py. Add a function called subtract(a, b) that returns a - b.`
+- [ ] 4. Say: `Looks good.`
+- [ ] 5. Rewind: 2, code
+- [ ] 6. Say: `Read scenario20.py and show me the contents.`
+- [ ] 7. Say: `Edit scenario20.py. Add a function called multiply(a, b) that returns a * b.`
+- [ ] 8. Say: `Thanks.`
+- [ ] 9. Exit
+- [ ] 10. Record: JSONL filename
