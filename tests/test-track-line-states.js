@@ -1,61 +1,19 @@
+// Tracker belief-mechanics: beacons (write/snapshot/absence), edit splice +
+// floating, read-chunk corroboration, EOF fixing, and same-ms ordering. The
+// conflict-record + final-verdict + report tests live in the sibling suite
+// test-track-line-states-verdict.js (this file is at the 250-line write cap).
+// Shared fixtures: ./track-line-states-fixtures.
+
 var assert = require('assert');
 var h = require('./test-helpers');
 var runWithContext = h.runWithContext;
-var efe = require('../tools/extract-file-events');
-var tls = require('../tools/track-line-states');
-
-var TS1 = '2026-05-22T03:00:00.000Z';
-var TS2 = '2026-05-22T03:10:00.000Z';
-var TS3 = '2026-05-22T03:20:00.000Z';
-var MS1 = Date.parse(TS1);
-var MS2 = Date.parse(TS2);
-
-function withTimestamp(lineJson, iso) {
-  var record = JSON.parse(lineJson);
-  record.timestamp = iso;
-  return JSON.stringify(record);
-}
-
-function makeReadUseWithGeometry(toolUseId, filePath, offset, limit) {
-  var record = JSON.parse(h.makeReadToolUse(toolUseId, filePath));
-  var input = record.message.content[0].input;
-  if (offset !== null) { input.offset = offset; }
-  if (limit !== null) { input.limit = limit; }
-  return JSON.stringify(record);
-}
-
-// An edit record with a populated structuredPatch (helpers leave it empty).
-function makeEditLineWithPatch(filePath, oldString, newString, patchLines, iso) {
-  var record = JSON.parse(h.makeEditLine(filePath, oldString, newString));
-  record.toolUseResult.structuredPatch = [{ lines: patchLines }];
-  record.timestamp = iso;
-  return JSON.stringify(record);
-}
-
-function makeSnapshotLine(messageId, snapTimestamp, isSnapshotUpdate, trackedFileBackups) {
-  var snapshot = { messageId: messageId, timestamp: snapTimestamp, trackedFileBackups: trackedFileBackups };
-  return JSON.stringify({ type: 'file-history-snapshot', messageId: messageId, isSnapshotUpdate: isSnapshotUpdate, snapshot: snapshot });
-}
-
-// Write a fixture transcript, extract its events, and run the tracker.
-// targetPath defaults to /repo/t.py; snapshot fixtures pass a LONGER path
-// (/work/repo/t.py) because shortened snapshot keys ('repo/t.py') match by
-// strict full-path suffix — an equal-length key never matches.
-function trackFixture(ctx, lines, snapshotsDir, reference, targetPath) {
-  var fs = require('fs'), path = require('path');
-  var target = targetPath ? targetPath : '/repo/t.py';
-  var dir = ctx.tempDir('rev-tls-');
-  var jsonlPath = path.join(dir, 'sess.jsonl');
-  fs.writeFileSync(jsonlPath, lines.join('\n'));
-  var events = efe.extractFileEvents(jsonlPath, [target], snapshotsDir);
-  var options = {
-    filePath: target,
-    aliasPaths: [target],
-    jsonlsScanned: [jsonlPath],
-    reference: reference ? reference : { via: 'none', content: null }
-  };
-  return tls.trackLineStates(events, options);
-}
+var f = require('./track-line-states-fixtures');
+var TS1 = f.TS1, TS2 = f.TS2, TS3 = f.TS3, MS1 = f.MS1, MS2 = f.MS2;
+var withTimestamp = f.withTimestamp;
+var makeReadUseWithGeometry = f.makeReadUseWithGeometry;
+var makeEditLineWithPatch = f.makeEditLineWithPatch;
+var makeSnapshotLine = f.makeSnapshotLine;
+var trackFixture = f.trackFixture;
 
 runWithContext('test_trackLineStates_writeProducesBeaconEntryWithLinesAll', function (ctx) {
   // Behavior: a success-confirmed Write is a Tier-1 beacon — its timeline
@@ -151,30 +109,6 @@ runWithContext('test_trackLineStates_readChunkCorroborationUpgradesPresumedToObs
   assert.deepStrictEqual(result.conflicts, []);
 });
 
-runWithContext('test_trackLineStates_readChunkDisagreementCreatesConflictRecord', function (ctx) {
-  // Behavior: a chunk contradicting belief wins the line and leaves a
-  // conflict carrying both evidenceRefs, the excerpt, the timeline join key,
-  // and the beacon-bounded window.
-  var result = trackFixture(ctx, [
-    h.makeSystemLine('s1', 'main', '/repo'),
-    withTimestamp(h.makeCreateLine('/repo/t.py', 'a\nb\n'), TS1),
-    makeReadUseWithGeometry('t1', '/repo/t.py', 1, 1),
-    withTimestamp(h.makeReadToolResult('t1', '1\tX\n'), TS2)
-  ]);
-  assert.strictEqual(result.conflicts.length, 1);
-  var conflict = result.conflicts[0];
-  assert.strictEqual(conflict.timestampOfContradictingRecord, MS2);
-  assert.ok(result.timeline[String(MS2)]);
-  assert.strictEqual(conflict.line, 1);
-  // Step: both sides are auditable evidence references.
-  assert.strictEqual(conflict.presumed.textProperty.property, 'toolUseResult.content');
-  assert.strictEqual(conflict.observed.textProperty.property, 'message.content[0].content');
-  assert.deepStrictEqual(conflict.excerpt, { presumedText: 'a', observedText: 'X' });
-  assert.deepStrictEqual(conflict.window, { fromBeaconMs: MS1, toBeaconMs: MS2 });
-  // Step: the observation won the line.
-  assert.strictEqual(result.timeline[String(MS2)].lines['1'].state, 'observed');
-});
-
 runWithContext('test_trackLineStates_fileAbsentZeroesBelief', function (ctx) {
   // Behavior: an absence beacon resets belief to "no lines exist" with EOF
   // (the zero-length extent) known.
@@ -232,40 +166,23 @@ runWithContext('test_trackLineStates_sameMsEventsShareOneEntryAppliedInDetermini
   assert.strictEqual(entry.summary.knownLines, 2);
 });
 
-runWithContext('test_trackLineStates_finalVerdictCountsAndMismatchedLineEvidence', function (ctx) {
-  // Behavior: the final verdict compares final belief per line against the
-  // reference: corroborated lines count as matchedObserved, carry-forward
-  // matches as matchedPresumed, divergences land in mismatchedLines with the
-  // line's evidenceRef and excerpts of both sides.
-  var reference = { via: 'on-disk', content: 'a\nB\nc\n' };
+runWithContext('test_extractFileEvents_includes_grepMatches_for_the_target_file', function (ctx) {
+  // Behavior: a native Grep (output_mode content, -n) that matched the target file is
+  // extracted as a grepMatches event and reaches the tracker, corroborating the witnessed
+  // line at the grep instant (the file's extent is left untouched — grep is a sparse overlay).
   var result = trackFixture(ctx, [
     h.makeSystemLine('s1', 'main', '/repo'),
     withTimestamp(h.makeCreateLine('/repo/t.py', 'a\nb\nc\n'), TS1),
-    makeReadUseWithGeometry('t1', '/repo/t.py', 1, 1),
-    withTimestamp(h.makeReadToolResult('t1', '1\ta\n'), TS2)
-  ], null, reference);
-  var verdict = result.finalVerdict;
-  assert.strictEqual(verdict.comparedVia, 'on-disk');
-  assert.deepStrictEqual(verdict.perLineStats, { matchedObserved: 1, matchedPresumed: 1, mismatched: 1, neverObserved: 0 });
-  assert.strictEqual(verdict.mismatchedLines.length, 1);
-  var mismatch = verdict.mismatchedLines[0];
-  assert.strictEqual(mismatch.line, 2);
-  assert.strictEqual(mismatch.lastState, 'presumed');
-  assert.strictEqual(mismatch.evidence.textProperty.property, 'toolUseResult.content');
-  assert.deepStrictEqual(mismatch.excerpt, { reconstructed: 'b', reference: 'B' });
-  assert.strictEqual(verdict.tailUncertain, false);
-});
-
-runWithContext('test_trackLineStates_reportIsSelfContained', function (ctx) {
-  // Behavior: the report carries filePath, aliasPaths, and every transcript
-  // scanned, so reference + list = dereferenceable without outside context.
-  var result = trackFixture(ctx, [
-    h.makeSystemLine('s1', 'main', '/repo'),
-    withTimestamp(h.makeCreateLine('/repo/t.py', 'a\n'), TS1)
+    withTimestamp(h.makeGrepToolUse('g1', 'b'), TS2),
+    withTimestamp(h.makeGrepToolResult('g1', 't.py:2:b', 1, 1), TS2)
   ]);
-  assert.strictEqual(result.filePath, '/repo/t.py');
-  assert.deepStrictEqual(result.aliasPaths, ['/repo/t.py']);
-  assert.strictEqual(result.jsonlsScanned.length, 1);
+  var entry = result.timeline[String(MS2)];
+  // Step: the grep instant produced a timeline entry carrying a grepMatches event.
+  assert.ok(entry);
+  assert.ok(entry.events.some(function (e) { return e.grepMatches; }));
+  // Step: the witnessed line is upgraded to observed at the grep instant.
+  assert.strictEqual(entry.lines['2'].state, 'observed');
+  assert.strictEqual(entry.lines['2'].confirmedAtMs, MS2);
 });
 
 h.summary();

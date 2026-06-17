@@ -1,8 +1,8 @@
 var assert = require('assert');
 var h = require('./test-helpers');
 var run = h.run;
-var lb = require('../common/line-belief');
-var es = require('../common/edit-splice');
+var lb = require('../api/line-belief');
+var es = require('../api/edit-splice');
 
 var MS1 = 1000;
 var MS2 = 2000;

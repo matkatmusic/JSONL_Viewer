@@ -6,7 +6,7 @@ var assert = require('assert');
 var h = require('./test-helpers');
 var run = h.run;
 
-var v2 = require('../tools/probe-projects-v2');
+var assembly = require('../tools/probe-v2-assembly');
 
 run('test_orderTranscriptsByFirstTouch_earlierTimestampSortsFirstDespiteFilename', function () {
   // Behavior: a transcript whose filename sorts LATER but whose first touch of
@@ -15,7 +15,7 @@ run('test_orderTranscriptsByFirstTouch_earlierTimestampSortsFirstDespiteFilename
     { file: '/t/a.jsonl', touches: [{ kind: 'write', path: '/repo/f.js', line: 5, timestamp: '2026-02-01T00:00:00.000Z' }], ops: [] },
     { file: '/t/z.jsonl', touches: [{ kind: 'write', path: '/repo/f.js', line: 9, timestamp: '2026-01-01T00:00:00.000Z' }], ops: [] }
   ];
-  var ordered = v2.orderTranscriptsByFirstTouch(['/t/a.jsonl', '/t/z.jsonl'], allJsonlFiles, new Set(['/repo/f.js']));
+  var ordered = assembly.orderTranscriptsByFirstTouch(['/t/a.jsonl', '/t/z.jsonl'], allJsonlFiles, new Set(['/repo/f.js']));
   assert.deepStrictEqual(
     ordered.map(function (o) { return o.transcriptPath; }),
     ['/t/z.jsonl', '/t/a.jsonl']
@@ -31,7 +31,7 @@ run('test_orderTranscriptsByFirstTouch_missingTimestampTieBreaksByLine', functio
     { file: '/t/a.jsonl', touches: [{ kind: 'write', path: '/repo/f.js', line: 3, timestamp: null }], ops: [] },
     { file: '/t/b.jsonl', touches: [{ kind: 'write', path: '/repo/f.js', line: 1, timestamp: null }], ops: [] }
   ];
-  var ordered = v2.orderTranscriptsByFirstTouch(['/t/a.jsonl', '/t/b.jsonl'], allJsonlFiles, new Set(['/repo/f.js']));
+  var ordered = assembly.orderTranscriptsByFirstTouch(['/t/a.jsonl', '/t/b.jsonl'], allJsonlFiles, new Set(['/repo/f.js']));
   assert.deepStrictEqual(
     ordered.map(function (o) { return o.transcriptPath; }),
     ['/t/b.jsonl', '/t/a.jsonl']
@@ -48,7 +48,7 @@ run('test_orderTranscriptsByFirstTouch_usesOnlyTouchesOfTheFileItself', function
     ], ops: [] },
     { file: '/t/b.jsonl', touches: [{ kind: 'write', path: '/repo/f.js', line: 2, timestamp: '2026-01-15T00:00:00.000Z' }], ops: [] }
   ];
-  var ordered = v2.orderTranscriptsByFirstTouch(['/t/a.jsonl', '/t/b.jsonl'], allJsonlFiles, new Set(['/repo/f.js']));
+  var ordered = assembly.orderTranscriptsByFirstTouch(['/t/a.jsonl', '/t/b.jsonl'], allJsonlFiles, new Set(['/repo/f.js']));
   assert.deepStrictEqual(
     ordered.map(function (o) { return o.transcriptPath; }),
     ['/t/b.jsonl', '/t/a.jsonl']

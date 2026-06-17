@@ -1,12 +1,12 @@
 // JFReD Unified: Loading, file selection, engine toggle, event wiring.
 
-import { state } from '../common/jfred-state.js';
-import { renderAllLines, bindBranchViewEvents } from '../common/jfred-alllines.js';
-import { clearPanes, updatePanes } from '../common/jfred-panes.js';
-import { adaptUnifiedSteps } from '../common/jfred-adapter.js';
-import { updateCurrentState, updateStepInspector, showNonStepLine } from '../common/jfred-viewer-panes.js';
-import { onJsonlLoaded, bindFilterEvents } from '../common/jfred-filter.js';
-import { parseAllLines, groupEditsByFile, buildStepLineMap, openFilePicker, loadFromPath } from '../common/jfred-load-helpers.js';
+import { state } from '../web-shared/jfred-state.js';
+import { renderAllLines, bindBranchViewEvents } from '../web-shared/jfred-alllines.js';
+import { clearPanes, updatePanes } from '../web-shared/jfred-panes.js';
+import { adaptUnifiedSteps } from '../web-shared/jfred-adapter.js';
+import { updateCurrentState, updateStepInspector, showNonStepLine } from '../web-shared/jfred-viewer-panes.js';
+import { onJsonlLoaded, bindFilterEvents } from '../web-shared/jfred-filter.js';
+import { parseAllLines, groupEditsByFile, buildStepLineMap, openFilePicker, loadFromPath } from '../web-shared/jfred-load-helpers.js';
 
 function populateFileSelect(fileMap) {
   var sel = document.getElementById('file-select');

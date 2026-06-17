@@ -1,7 +1,7 @@
 // JFReD Diff: Filter mode for JSON lines view — show all, file only, edits only.
 // In edits-only mode, lines get toggle buttons for multi-select + patch export.
 
-import { state } from '../common/jfred-state.js';
+import { state } from '../web-shared/jfred-state.js';
 
 var selectedEdits = {};
 

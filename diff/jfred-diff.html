@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>JFReD Diff Viewer</title>
-  <link rel="stylesheet" href="../common/jfred-styles.css">
+  <link rel="stylesheet" href="../web-shared/jfred-styles.css">
   <link rel="stylesheet" href="jfred-diff-styles.css">
 </head>
 <body>
@@ -99,18 +99,19 @@
     </div>
   </div>
 
-  <!-- Global scripts (non-module) -->
-  <script src="../common/json-inspector.js"></script>
-  <script src="../common/diff-engine.js"></script>
-  <script src="../common/jsonl-parse.js"></script>
-  <script src="../common/extract-file-state.js"></script>
-  <script src="../common/git-file-state.js"></script>
-  <script src="../common/classify-edits.js"></script>
-  <script src="../common/replay-edits.js"></script>
-  <script src="../common/file-state-history.js"></script>
-  <script src="../common/unified-reconstruct.js"></script>
-  <script src="../common/unified-reconstruct-steps.js"></script>
-  <script src="../common/unified-reconstruct-patch.js"></script>
+  <!-- Global scripts (api/ engine + web-shared UI, non-module; dependency order) -->
+  <script src="../web-shared/json-inspector.js"></script>
+  <script src="../api/transcript-parsers.js"></script>
+  <script src="../api/extract-bash-file-ops.js"></script>
+  <script src="../api/snapshot-store-io.js"></script>
+  <script src="../api/edit-replay.js"></script>
+  <script src="../api/line-diff.js"></script>
+  <script src="../api/rewind-classification.js"></script>
+  <script src="../api/file-event-observations.js"></script>
+  <script src="../api/edit-stream-extraction.js"></script>
+  <script src="../api/unified-reconstruct-patch.js"></script>
+  <script src="../api/unified-reconstruct-steps.js"></script>
+  <script src="../api/unified-reconstruct.js"></script>
 
   <!-- ES modules -->
   <script type="module" src="jfred-diff-tree.js"></script>

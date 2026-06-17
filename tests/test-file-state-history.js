@@ -9,14 +9,14 @@ console.log('\nbuildFileStateHistory:');
 
 run('test_buildFileStateHistory_emptyEditsReturnsEmptyArray', function() {
   // Behavior: given no edits, the history should be empty.
-  var buildFileStateHistory = require('../common/file-state-history').buildFileStateHistory;
+  var buildFileStateHistory = require('../api/file-state-history').buildFileStateHistory;
   var result = buildFileStateHistory([]);
   assert.deepStrictEqual(result, []);
 });
 
 run('test_buildFileStateHistory_singleCreateProducesOneStep', function() {
   // Behavior: a single create edit produces one step with correct contents and edit.content.
-  var buildFileStateHistory = require('../common/file-state-history').buildFileStateHistory;
+  var buildFileStateHistory = require('../api/file-state-history').buildFileStateHistory;
   var edits = [{ line: 5, filePath: '/tmp/foo.txt', file: 'foo.txt', type: 'create', content: 'hello world' }];
   var steps = buildFileStateHistory(edits);
   assert.strictEqual(steps.length, 1);
@@ -31,7 +31,7 @@ run('test_buildFileStateHistory_singleCreateProducesOneStep', function() {
 run('test_buildFileStateHistory_editChainCapturesIntermediateContents', function() {
   // Behavior: a create followed by two edits produces 3 steps,
   // each with contents reflecting the state AFTER that edit.
-  var buildFileStateHistory = require('../common/file-state-history').buildFileStateHistory;
+  var buildFileStateHistory = require('../api/file-state-history').buildFileStateHistory;
   var edits = [
     { line: 1, filePath: '/tmp/f.txt', file: 'f.txt', type: 'create', content: 'A B C' },
     { line: 2, filePath: '/tmp/f.txt', file: 'f.txt', type: 'edit', oldString: 'A', newString: 'X' },
@@ -47,7 +47,7 @@ run('test_buildFileStateHistory_editChainCapturesIntermediateContents', function
 run('test_buildFileStateHistory_expectedStateFromPreviousStep', function() {
   // Behavior: expectedState on step N comes from step N-1's contents.
   // On the first step, expectedState is '' (empty — no prior state).
-  var buildFileStateHistory = require('../common/file-state-history').buildFileStateHistory;
+  var buildFileStateHistory = require('../api/file-state-history').buildFileStateHistory;
   var edits = [
     { line: 1, filePath: '/tmp/f.txt', file: 'f.txt', type: 'create', content: 'AAA' },
     { line: 2, filePath: '/tmp/f.txt', file: 'f.txt', type: 'edit', oldString: 'AAA', newString: 'BBB' }
@@ -60,7 +60,7 @@ run('test_buildFileStateHistory_expectedStateFromPreviousStep', function() {
 run('test_buildFileStateHistory_originalFileSetsActualState', function() {
   // Behavior: when an edit has originalFile (non-null, non-empty),
   // actualState is populated with that originalFile content.
-  var buildFileStateHistory = require('../common/file-state-history').buildFileStateHistory;
+  var buildFileStateHistory = require('../api/file-state-history').buildFileStateHistory;
   var edits = [
     { line: 1, filePath: '/tmp/f.txt', file: 'f.txt', type: 'create', content: 'original' },
     { line: 2, filePath: '/tmp/f.txt', file: 'f.txt', type: 'edit',
@@ -75,7 +75,7 @@ run('test_buildFileStateHistory_originalFileMismatchEmitsUserEditStep', function
   // Behavior: when originalFile differs from previous step's contents,
   // a separate isUserEdit step is emitted BEFORE the agent step.
   // The user-edit step's contents is the originalFile value.
-  var buildFileStateHistory = require('../common/file-state-history').buildFileStateHistory;
+  var buildFileStateHistory = require('../api/file-state-history').buildFileStateHistory;
   var edits = [
     { line: 1, filePath: '/tmp/f.txt', file: 'f.txt', type: 'create', content: 'version1' },
     { line: 5, filePath: '/tmp/f.txt', file: 'f.txt', type: 'edit',
@@ -97,7 +97,7 @@ run('test_buildFileStateHistory_originalFileMismatchEmitsUserEditStep', function
 
 run('test_buildFileStateHistory_noUserEditWhenOriginalFileMatchesPrevious', function() {
   // Behavior: when originalFile matches previous contents, no user-edit step is emitted.
-  var buildFileStateHistory = require('../common/file-state-history').buildFileStateHistory;
+  var buildFileStateHistory = require('../api/file-state-history').buildFileStateHistory;
   var edits = [
     { line: 1, filePath: '/tmp/f.txt', file: 'f.txt', type: 'create', content: 'same' },
     { line: 2, filePath: '/tmp/f.txt', file: 'f.txt', type: 'edit',
@@ -111,7 +111,7 @@ run('test_buildFileStateHistory_noUserEditWhenOriginalFileMatchesPrevious', func
 
 run('test_buildFileStateHistory_editSubObjectCarriesOldNewStrings', function() {
   // Behavior: for edit-type steps, the edit sub-object has oldString and newString.
-  var buildFileStateHistory = require('../common/file-state-history').buildFileStateHistory;
+  var buildFileStateHistory = require('../api/file-state-history').buildFileStateHistory;
   var edits = [
     { line: 1, filePath: '/tmp/f.txt', file: 'f.txt', type: 'create', content: 'abc' },
     { line: 2, filePath: '/tmp/f.txt', file: 'f.txt', type: 'edit', oldString: 'abc', newString: 'xyz' }
@@ -123,7 +123,7 @@ run('test_buildFileStateHistory_editSubObjectCarriesOldNewStrings', function() {
 
 run('test_buildFileStateHistory_jsonlLinePopulatedCorrectly', function() {
   // Behavior: each step's jsonl.line matches the edit's line number.
-  var buildFileStateHistory = require('../common/file-state-history').buildFileStateHistory;
+  var buildFileStateHistory = require('../api/file-state-history').buildFileStateHistory;
   var edits = [
     { line: 42, filePath: '/tmp/f.txt', file: 'f.txt', type: 'create', content: 'x' }
   ];
@@ -133,7 +133,7 @@ run('test_buildFileStateHistory_jsonlLinePopulatedCorrectly', function() {
 
 run('test_buildFileStateHistory_nullOriginalFileDoesNotSetActualState', function() {
   // Behavior: null or empty originalFile means no independent actual state.
-  var buildFileStateHistory = require('../common/file-state-history').buildFileStateHistory;
+  var buildFileStateHistory = require('../api/file-state-history').buildFileStateHistory;
   var edits = [
     { line: 1, filePath: '/tmp/f.txt', file: 'f.txt', type: 'create', content: 'data' },
     { line: 2, filePath: '/tmp/f.txt', file: 'f.txt', type: 'edit',
@@ -145,7 +145,7 @@ run('test_buildFileStateHistory_nullOriginalFileDoesNotSetActualState', function
 
 run('test_buildFileStateHistory_emptyStringOriginalFileDoesNotTriggerUserEdit', function() {
   // Behavior: empty string originalFile (default) is not treated as user-edit signal.
-  var buildFileStateHistory = require('../common/file-state-history').buildFileStateHistory;
+  var buildFileStateHistory = require('../api/file-state-history').buildFileStateHistory;
   var edits = [
     { line: 1, filePath: '/tmp/f.txt', file: 'f.txt', type: 'create', content: 'content' },
     { line: 2, filePath: '/tmp/f.txt', file: 'f.txt', type: 'edit',
@@ -158,7 +158,7 @@ run('test_buildFileStateHistory_emptyStringOriginalFileDoesNotTriggerUserEdit', 
 
 run('test_buildFileStateHistory_updateTypeSetsEditContent', function() {
   // Behavior: update-type steps have edit.content set to the full content.
-  var buildFileStateHistory = require('../common/file-state-history').buildFileStateHistory;
+  var buildFileStateHistory = require('../api/file-state-history').buildFileStateHistory;
   var edits = [
     { line: 1, filePath: '/tmp/f.txt', file: 'f.txt', type: 'create', content: 'old' },
     { line: 2, filePath: '/tmp/f.txt', file: 'f.txt', type: 'update', content: 'replaced' }

@@ -9,15 +9,17 @@
 
 var fs = require('fs');
 var path = require('path');
-var probe = require('./probe-projects');
-var ct = require('../common/collect-touches');
-var fph = require('../common/file-path-history');
-var replay = require('../common/replay-edits');
-var classify = require('../common/classify-edits');
-var refSources = require('./probe-reference-sources');
+var shared = require('./probe-v2-shared');
+var td = require('../api/transcript-discovery');
+var ct = require('../api/file-historical-lineage');
+var fph = require('../api/file-path-history');
+var editStream = require('../api/edit-stream-extraction');
+var editReplay = require('../api/edit-replay');
+var classify = require('../api/rewind-classification');
+var refSources = require('../api/reconstruction-reference-sources');
 var report = require('./probe-v2-report');
 var assembly = require('./probe-v2-assembly');
-var gitState = require('../common/git-file-state');
+var parsers = require('../api/transcript-parsers');
 
 // ─── Phase A: scan the projects folder ONCE ─────────────────────────────────
 
@@ -26,7 +28,7 @@ var gitState = require('../common/git-file-state');
 function rootFromTranscripts(transcriptPaths) {
   var sorted = transcriptPaths.slice().sort();
   for (var i = 0; i < sorted.length; i++) {
-    var cwd = gitState.extractSessionMetadata(fs.readFileSync(sorted[i], 'utf8')).cwd;
+    var cwd = parsers.extractSessionMetadata(fs.readFileSync(sorted[i], 'utf8')).cwd;
     if (cwd !== null) { return cwd; }
   }
   return null;
@@ -37,12 +39,12 @@ function rootFromTranscripts(transcriptPaths) {
 // name decode remains ONLY as the fallback for projects whose transcripts
 // carry no cwd. Deduped: folders can share a cwd.
 function deriveProjectRoots(projectsDir, allJsonlFiles) {
-  var filesByFolder = report.groupFilesByFolder(allJsonlFiles);
-  var projects = probe.discoverProjects(projectsDir);
+  var filesByFolder = td.groupFilesByFolder(allJsonlFiles);
+  var projects = td.discoverProjects(projectsDir);
   var roots = [];
   for (var p = 0; p < projects.length; p++) {
     var root = rootFromTranscripts(filesByFolder[projects[p].dir] || []);
-    if (root === null) { root = probe.cwdFromFolderName(projects[p].name); }
+    if (root === null) { root = td.cwdFromFolderName(projects[p].name); }
     if (roots.indexOf(root) < 0) { roots.push(root); }
   }
   return roots;
@@ -55,7 +57,7 @@ function deriveProjectRoots(projectsDir, allJsonlFiles) {
 //   pathHistoryIndex— path-history index for earliest/current path resolution
 //   projectRoots    — session-cwd root of every project folder (see above)
 function scanProjectsFolderOnce(projectsDir) {
-  var allJsonlFiles = ct.loadAllJsonlFilesInProjectsFolder(projectsDir);
+  var allJsonlFiles = td.loadAllJsonlFilesInProjectsFolder(projectsDir);
   return {
     allJsonlFiles: allJsonlFiles,
     samePathGraph: ct.buildLineageGraph(ct.gatherAllOps(allJsonlFiles)),
@@ -79,7 +81,7 @@ function collectAuthoredPaths(allJsonlFiles) {
     var touches = allJsonlFiles[i].touches;
     for (var t = 0; t < touches.length; t++) {
       if (!AUTHORING_TOUCH_KINDS[touches[t].kind]) { continue; }
-      if (probe.isTempFilePath(touches[t].path)) { continue; }
+      if (shared.isTempFilePath(touches[t].path)) { continue; }
       seen[touches[t].path] = true;
     }
   }
@@ -131,7 +133,7 @@ function buildPerTranscriptEdits(allJsonlFiles) {
   for (var i = 0; i < allJsonlFiles.length; i++) {
     var text = fs.readFileSync(allJsonlFiles[i].file, 'utf8');
     perTranscript[allJsonlFiles[i].file] = {
-      edits: replay.extractEditsFromJSONL(text),
+      edits: editStream.extractEditsFromJSONL(text),
       statusByLine: report.buildStatusLookup(classify.analyzeJSONL(text))
     };
   }
@@ -147,7 +149,7 @@ function buildPerTranscriptEdits(allJsonlFiles) {
 function retryWithoutTrailingObservations(keptEdits, sources) {
   var trimmed = assembly.dropTrailingObservationEdits(keptEdits);
   if (trimmed.droppedCount === 0) { return null; }
-  var trimmedContent = replay.replayEdits(trimmed.edits);
+  var trimmedContent = editReplay.replayEdits(trimmed.edits);
   var trimmedDecision = refSources.chooseReferenceSource(trimmedContent, sources);
   if (trimmedDecision.status !== 'PASS') { return null; }
   return { decision: trimmedDecision, content: trimmedContent };
@@ -173,11 +175,11 @@ function retryWithTrailingNewlineRestored(keptEdits, replayedContent, sources) {
 // assemble kept edits (full-path filtered), replay, probe every reference
 // source, decide, and record provenance.
 function probeOneFileIdentity(identity, scan, perTranscriptEdits, projectsDir, snapshotBaseDir) {
-  var referencingJsonls = ct.findReferencingJsonls(identity.aliasPaths, projectsDir, scan.allJsonlFiles);
+  var referencingJsonls = td.findReferencingJsonls(identity.aliasPaths, projectsDir, scan.allJsonlFiles);
   var aliasSet = new Set(identity.aliasPaths);
   var ordered = assembly.orderTranscriptsByFirstTouch(referencingJsonls, scan.allJsonlFiles, aliasSet);
   var assembled = assembly.assembleKeptEdits(identity.aliasPaths, perTranscriptEdits, ordered);
-  var replayedContent = replay.replayEdits(assembled.keptEdits);
+  var replayedContent = editReplay.replayEdits(assembled.keptEdits);
   var earliestSeenFullPath = fph.findEarliestFilePath(identity.aliasPaths, scan.pathHistoryIndex);
   var lastSeenFullPath = fph.findCurrentOnDiskPath(identity.aliasPaths, scan.pathHistoryIndex);
   var sources = refSources.gatherReferenceSources(
@@ -206,7 +208,7 @@ function probeOneFileIdentity(identity, scan, perTranscriptEdits, projectsDir, s
 
 // Per-list summary bound to the v1 probe's counting helpers.
 function summarizeList(records) {
-  return report.summarizeList(records, probe.countByStatus, probe.computeActionablePassRate);
+  return report.summarizeList(records, shared.countByStatus, shared.computeActionablePassRate);
 }
 
 // Write a report payload as pretty JSON next to this script.
@@ -234,7 +236,7 @@ function readExistingMismatches(filePath) {
 // classified into the two lists; writes probe-results-v2.json and the
 // probe-mismatches-v2.json skeleton.
 function runProbeV2(opts) {
-  var snapshotBaseDir = probe.resolveSnapshotDir(opts);
+  var snapshotBaseDir = shared.resolveSnapshotDir(opts);
   var scan = scanProjectsFolderOnce(opts.projectsDir);
   var identities = enumerateFileIdentities(scan.allJsonlFiles, scan.samePathGraph);
   var perTranscriptEdits = buildPerTranscriptEdits(scan.allJsonlFiles);
@@ -259,7 +261,7 @@ function runProbeV2(opts) {
 }
 
 function main() {
-  var opts = probe.parseProbeArgs(process.argv.slice(2));
+  var opts = shared.parseProbeArgs(process.argv.slice(2));
   if (!opts.projectsDir) {
     console.error('Usage: node probe-projects-v2.js --projects-dir <path> [--snapshots <path>]');
     process.exit(1);
@@ -270,27 +272,18 @@ function main() {
 }
 
 // ─── Exports ────────────────────────────────────────────────────────────────
-// Assigned BEFORE the require.main guard (same circular-require rule as v1:
-// collect-touches lazily requires probe-projects during the run).
+// Only this module's own functions are exported; phase-C/D/E helpers live in
+// their real homes (probe-v2-assembly, api/reconstruction-reference-sources,
+// probe-v2-report) and are imported directly by callers and tests.
 
 module.exports = {
   scanProjectsFolderOnce: scanProjectsFolderOnce,
   enumerateFileIdentities: enumerateFileIdentities,
   buildPerTranscriptEdits: buildPerTranscriptEdits,
-  // Phase C lives in probe-v2-assembly.js; re-exported for one-stop use.
-  orderTranscriptsByFirstTouch: assembly.orderTranscriptsByFirstTouch,
-  assembleKeptEdits: assembly.assembleKeptEdits,
-  dropTrailingObservationEdits: assembly.dropTrailingObservationEdits,
   probeOneFileIdentity: probeOneFileIdentity,
   summarizeList: summarizeList,
   readExistingMismatches: readExistingMismatches,
-  runProbeV2: runProbeV2,
-  // Phase D lives in probe-reference-sources.js; re-exported for one-stop use.
-  chooseReferenceSource: refSources.chooseReferenceSource,
-  gatherReferenceSources: refSources.gatherReferenceSources,
-  // Phase E classification lives in probe-v2-report.js; re-exported likewise.
-  isInProject: report.isInProject,
-  groupRecordsIntoLists: report.groupRecordsIntoLists
+  runProbeV2: runProbeV2
 };
 
 if (require.main === module) { main(); }

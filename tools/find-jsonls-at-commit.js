@@ -8,93 +8,23 @@
 // Output (JSON to stdout):
 //   { filename, currentPath, onDisk, referencedIn:[<jsonl abs path>, ...] }
 
-var fs, path, os, cp, resolveRepoRootWalkingUp, findReferencingJsonls;
+// The git-rename lineage helpers (parseRenameHistory, pickCurrentPath,
+// gitFollowHistory, computeOnDisk + their classifiers) and resolveRepoRootWalkingUp
+// moved to api/git-file-state.js (Phase 5); imported here. This file is now a
+// thin CLI that orchestrates them with findReferencingJsonls.
+var path, os, cp, findReferencingJsonls;
+var parseRenameHistory, pickCurrentPath, gitFollowHistory, computeOnDisk, resolveRepoRootWalkingUp;
 if (typeof module !== 'undefined' && typeof require === 'function') {
-  fs = require('fs');
   path = require('path');
   os = require('os');
   cp = require('child_process');
-  resolveRepoRootWalkingUp = require('../common/git-file-state').resolveRepoRootWalkingUp;
-  findReferencingJsonls = require('../common/collect-touches').findReferencingJsonls;
-}
-
-// ─── Pure parsing / decision logic (unit-tested without fixtures) ────────────
-
-// True when a git --name-status code marks a rename (R) or copy (C).
-function isRenameOrCopy(status) {
-  if (!status) { return false; }
-  if (status.charAt(0) === 'R') { return true; }
-  if (status.charAt(0) === 'C') { return true; }
-  return false;
-}
-
-// True when a status code marks a single-path change (add/modify/delete).
-function isSinglePathStatus(status) {
-  if (!status) { return false; }
-  var c = status.charAt(0);
-  if (c === 'A') { return true; }
-  if (c === 'M') { return true; }
-  if (c === 'D') { return true; }
-  return false;
-}
-
-// Record a rename/copy line's old+new names into pairs and the names set.
-function addRenamePair(fields, pairs, names) {
-  if (fields.length < 3) { return; }
-  pairs.push({ old: fields[1], new: fields[2] });
-  names.add(fields[1]);
-  names.add(fields[2]);
-}
-
-// Classify one --name-status line, mutating pairs/names accordingly.
-function classifyHistoryLine(line, pairs, names) {
-  var fields = line.split('\t');
-  var status = fields[0];
-  if (isRenameOrCopy(status)) { addRenamePair(fields, pairs, names); return; }
-  if (fields.length < 2) { return; }
-  if (!isSinglePathStatus(status)) { return; }
-  names.add(fields[1]);
-}
-
-// Parse `git log --follow --name-status` stdout into rename history.
-// Returns { pairs:[{old,new}] newest-first, names:Set<repo-relative path> }.
-function parseRenameHistory(stdout) {
-  var pairs = [];
-  var names = new Set();
-  var lines = (stdout || '').split('\n');
-  for (var i = 0; i < lines.length; i++) {
-    classifyHistoryLine(lines[i], pairs, names);
-  }
-  return { pairs: pairs, names: names };
-}
-
-// The file's current (newest) name: the most-recent rename target, or — when
-// there were no renames — the input path unchanged. History is newest-first.
-function pickCurrentPath(hist, inputRelPath) {
-  if (hist.pairs.length === 0) { return inputRelPath; }
-  return hist.pairs[0].new;
-}
-
-// ─── Impure I/O wrappers (isolated) ─────────────────────────────────────────
-
-// Run `git log --all --follow --name-status` for relPath, returning raw stdout.
-// execFileSync (not a shell string) so odd path characters cannot inject.
-// Returns '' on any failure (e.g. not a repo) rather than throwing.
-function gitFollowHistory(repoRoot, relPath) {
-  try {
-    return cp.execFileSync(
-      'git',
-      ['-C', repoRoot, 'log', '--all', '--follow', '--name-status', '--format=%H', '--', relPath],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
-    );
-  } catch (e) {
-    return '';
-  }
-}
-
-// True when absPath currently exists on disk.
-function computeOnDisk(absPath) {
-  return fs.existsSync(absPath);
+  var gfs = require('../api/git-file-state');
+  parseRenameHistory = gfs.parseRenameHistory;
+  pickCurrentPath = gfs.pickCurrentPath;
+  gitFollowHistory = gfs.gitFollowHistory;
+  computeOnDisk = gfs.computeOnDisk;
+  resolveRepoRootWalkingUp = gfs.resolveRepoRootWalkingUp;
+  findReferencingJsonls = require('../api/transcript-discovery').findReferencingJsonls;
 }
 
 // Validate that a commit resolves in the repo. Returns true/false.
@@ -186,13 +116,5 @@ if (typeof require !== 'undefined' && require.main === module) {
   main();
 }
 
-// ─── Exports ────────────────────────────────────────────────────────────────
-
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    parseRenameHistory: parseRenameHistory,
-    pickCurrentPath: pickCurrentPath,
-    gitFollowHistory: gitFollowHistory,
-    computeOnDisk: computeOnDisk
-  };
-}
+// No exports: the git-rename lineage helpers' canonical home is
+// api/git-file-state.js (Phase 5). This file is a thin CLI (no re-export).

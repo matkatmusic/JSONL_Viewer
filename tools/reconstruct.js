@@ -9,8 +9,8 @@
 // transcripts apply their kept "edit" operations on top.
 
 var fs = require('fs');
-var replay = require('../common/replay-edits');
-var classify = require('../common/classify-edits');
+var extractKeptEditsForFile = require('../api/edit-stream-extraction').extractKeptEditsForFile;
+var replayEdits = require('../api/edit-replay').replayEdits;
 
 // Map of flags that take a value to their opts property name.
 var VALUE_FLAGS = { '--file': 'file', '--output': 'output', '--verify': 'verify' };
@@ -52,39 +52,8 @@ function parseArgs(argv) {
   return opts;
 }
 
-// Build a status lookup from classification edits.
-function buildStatusLookup(classification) {
-  var statusByLine = {};
-  for (var c = 0; c < classification.edits.length; c++) {
-    statusByLine[classification.edits[c].line] = classification.edits[c].status;
-  }
-  return statusByLine;
-}
-
-// Filter edits for a target file into kept/ignored buckets.
-function filterEditsForFile(allEdits, statusByLine, targetFile) {
-  var kept = [];
-  var ignored = 0;
-  for (var i = 0; i < allEdits.length; i++) {
-    if (allEdits[i].file !== targetFile) {
-      continue;
-    }
-    if (statusByLine[allEdits[i].line + 1] === 'ignored') {
-      ignored++;
-    } else {
-      kept.push(allEdits[i]);
-    }
-  }
-  return { kept: kept, ignored: ignored, total: kept.length + ignored };
-}
-
-function extractKeptEditsForFile(jsonlPath, targetFile) {
-  var text = fs.readFileSync(jsonlPath, 'utf8');
-  var allEdits = replay.extractEditsFromJSONL(text);
-  var classification = classify.analyzeJSONL(text);
-  var statusByLine = buildStatusLookup(classification);
-  return filterEditsForFile(allEdits, statusByLine, targetFile);
-}
+// extractKeptEditsForFile (+ buildStatusLookup / filterEditsForFile) moved to
+// api/edit-stream-extraction.js (Phase 5); imported above. This CLI just calls it.
 
 // Collect kept edits and summaries across all JSONL files.
 function collectEditsFromTranscripts(jsonlFiles, targetFile) {
@@ -174,7 +143,7 @@ function main() {
   var opts = parseArgs(process.argv.slice(2));
   validateArgs(opts);
   var collected = collectEditsFromTranscripts(opts.jsonlFiles, opts.file);
-  var content = replay.replayEdits(collected.allKept);
+  var content = replayEdits(collected.allKept);
   var lines = content.split('\n').length;
   if (opts.json) {
     outputJson(opts, content, collected.summary, collected.allKept, lines);
@@ -187,4 +156,5 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { extractKeptEditsForFile: extractKeptEditsForFile };
+// No exports: extractKeptEditsForFile's canonical home is api/edit-stream-extraction.js
+// (Phase 5); this file is a thin CLI over it (no re-export — no forwarding layer).

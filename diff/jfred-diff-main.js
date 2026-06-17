@@ -1,12 +1,12 @@
 // JFReD Diff: Main wiring — load, file select, step nav, diff panes.
 
-import { state } from '../common/jfred-state.js';
-import { parseAllLines, groupEditsByFile, buildStepLineMap, openFilePicker, loadFromPath } from '../common/jfred-load-helpers.js';
-import { adaptUnifiedSteps } from '../common/jfred-adapter.js';
-import { updateCurrentState, findNearestPrevStep, findNearestNextStep } from '../common/jfred-viewer-panes.js';
-import { renderFileContent } from '../common/jfred-panes.js';
-import { onJsonlLoaded, bindFilterEvents } from '../common/jfred-filter.js';
-import { renderAllLines, bindBranchViewEvents } from '../common/jfred-alllines.js';
+import { state } from '../web-shared/jfred-state.js';
+import { parseAllLines, groupEditsByFile, buildStepLineMap, openFilePicker, loadFromPath } from '../web-shared/jfred-load-helpers.js';
+import { adaptUnifiedSteps } from '../web-shared/jfred-adapter.js';
+import { updateCurrentState, findNearestPrevStep, findNearestNextStep } from '../web-shared/jfred-viewer-panes.js';
+import { renderFileContent } from '../web-shared/jfred-panes.js';
+import { onJsonlLoaded, bindFilterEvents } from '../web-shared/jfred-filter.js';
+import { renderAllLines, bindBranchViewEvents } from '../web-shared/jfred-alllines.js';
 import { renderFileTree, highlightTreeFile } from './jfred-diff-tree.js';
 import { resolveBaseState } from './jfred-diff-base.js';
 import { applyFilterMode, onFilterModeChange, exportPatch, copyPatch } from './jfred-diff-filter-mode.js';

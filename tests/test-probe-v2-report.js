@@ -97,17 +97,7 @@ run('test_mergeExistingFindings_freshFieldsWin', function () {
   assert.strictEqual(merged[0].findings, 'root cause text');
 });
 
-run('test_groupFilesByFolder_groupsByDirname', function () {
-  // Behavior: loaded transcripts group by their containing project folder.
-  var grouped = report.groupFilesByFolder([
-    { file: '/projects/-repo/a.jsonl' },
-    { file: '/projects/-repo/b.jsonl' },
-    { file: '/projects/-other/c.jsonl' }
-  ]);
-  assert.deepStrictEqual(grouped, {
-    '/projects/-repo': ['/projects/-repo/a.jsonl', '/projects/-repo/b.jsonl'],
-    '/projects/-other': ['/projects/-other/c.jsonl']
-  });
-});
+// groupFilesByFolder test MOVED to tests/test-transcript-discovery.js with the
+// function (phase 2).
 
 h.summary();

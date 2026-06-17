@@ -3,7 +3,8 @@
 // timestamp per transcript; edits are filtered by FULL absolute path (the
 // alias set), which is what kills the basename-collision bug.
 
-var fph = require('../common/file-path-history');
+var fph = require('../api/file-path-history');
+var editBelongsToFile = require('../api/file-historical-lineage').editBelongsToFile;
 
 // ─── Transcript ordering ─────────────────────────────────────────────────────
 
@@ -40,28 +41,29 @@ function orderTranscriptsByFirstTouch(transcriptPaths, allJsonlFiles, aliasSet) 
 }
 
 // ─── Kept-edit assembly ──────────────────────────────────────────────────────
+// editBelongsToFile / anyAliasPathEndsWith MOVED to api/file-historical-lineage.js (phase 3).
 
-// True when some alias path ends with "/<relativePath>" — the full relative
-// path must match, so a mere shared basename is rejected.
-function anyAliasPathEndsWith(aliasPaths, relativePath) {
-  var suffix = '/' + relativePath;
-  for (var i = 0; i < aliasPaths.length; i++) {
-    if (aliasPaths[i].length <= suffix.length) { continue; }
-    if (aliasPaths[i].lastIndexOf(suffix) === aliasPaths[i].length - suffix.length) { return true; }
-  }
-  return false;
-}
+// // True when some alias path ends with "/<relativePath>" — the full relative
+// // path must match, so a mere shared basename is rejected.
+// function anyAliasPathEndsWith(aliasPaths, relativePath) {
+//   var suffix = '/' + relativePath;
+//   for (var i = 0; i < aliasPaths.length; i++) {
+//     if (aliasPaths[i].length <= suffix.length) { continue; }
+//     if (aliasPaths[i].lastIndexOf(suffix) === aliasPaths[i].length - suffix.length) { return true; }
+//   }
+//   return false;
+// }
 
-// True when an edit belongs to this file: its FULL absolute path is in the
-// alias set. Basename matching is exactly the collision bug v2 exists to kill.
-// One exception: snapshot-sourced edits record REPO-RELATIVE paths, so they
-// match by full path-suffix against the alias paths instead.
-function editBelongsToFile(edit, aliasSet, aliasPaths) {
-  if (!edit.filePath) { return false; }
-  if (aliasSet.has(edit.filePath)) { return true; }
-  if (edit.source !== 'snapshot') { return false; }
-  return anyAliasPathEndsWith(aliasPaths, edit.filePath);
-}
+// // True when an edit belongs to this file: its FULL absolute path is in the
+// // alias set. Basename matching is exactly the collision bug v2 exists to kill.
+// // One exception: snapshot-sourced edits record REPO-RELATIVE paths, so they
+// // match by full path-suffix against the alias paths instead.
+// function editBelongsToFile(edit, aliasSet, aliasPaths) {
+//   if (!edit.filePath) { return false; }
+//   if (aliasSet.has(edit.filePath)) { return true; }
+//   if (edit.source !== 'snapshot') { return false; }
+//   return anyAliasPathEndsWith(aliasPaths, edit.filePath);
+// }
 
 // True when the classification kept this edit (classification lines are
 // 1-indexed, so edit.line+1 keys the lookup).
@@ -131,8 +133,5 @@ module.exports = {
   orderTranscriptsByFirstTouch: orderTranscriptsByFirstTouch,
   assembleKeptEdits: assembleKeptEdits,
   dropTrailingObservationEdits: dropTrailingObservationEdits,
-  isObservationEdit: isObservationEdit,
-  // Reused by the per-line sidecar's event extraction so path matching
-  // (full path; snapshot keys by suffix) has exactly one implementation.
-  editBelongsToFile: editBelongsToFile
+  isObservationEdit: isObservationEdit
 };

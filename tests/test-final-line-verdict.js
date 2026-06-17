@@ -1,8 +1,8 @@
 var assert = require('assert');
 var h = require('./test-helpers');
 var run = h.run;
-var lb = require('../common/line-belief');
-var flv = require('../common/final-line-verdict');
+var lb = require('../api/line-belief');
+var flv = require('../api/final-line-verdict');
 
 var MS1 = 1000;
 

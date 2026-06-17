@@ -18,10 +18,10 @@
 // Usage: node detect-rewinds.js <path-to-jsonl>
 
 var fs = require('fs');
-var jsonlParse = require('../common/jsonl-parse');
-var parseJSONLLines = jsonlParse.parseJSONLLines;
-var collectUserPrompts = jsonlParse.collectUserPrompts;
-var detectRewinds = jsonlParse.detectRewinds;
+var parsers = require('../api/transcript-parsers');
+var parseJSONLLines = parsers.parseJSONLLines;
+var collectUserPrompts = parsers.collectUserPrompts;
+var detectRewinds = require('../api/rewind-classification').detectRewinds;
 
 // Build a lookup from line number to rewind classification.
 function buildRewindLineMap(rewinds) {

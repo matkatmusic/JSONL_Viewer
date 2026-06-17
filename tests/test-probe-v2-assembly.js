@@ -6,22 +6,10 @@ var assert = require('assert');
 var h = require('./test-helpers');
 var run = h.run;
 
-var v2 = require('../tools/probe-projects-v2');
 var assembly = require('../tools/probe-v2-assembly');
 
-run('test_editBelongsToFile_isExportedForReuseBySidecarExtraction', function () {
-  // Behavior: editBelongsToFile is part of the module's public surface so the
-  // per-line sidecar's event extraction reuses the SAME path-matching rules
-  // (full absolute path; snapshot keys by full path-suffix, never basename).
-  var aliasPaths = ['/repo/scripts/t.py'];
-  var aliasSet = new Set(aliasPaths);
-  // Step: a snapshot-sourced edit with a shortened key matches by path suffix.
-  var shortened = { filePath: 'scripts/t.py', source: 'snapshot' };
-  assert.strictEqual(assembly.editBelongsToFile(shortened, aliasSet, aliasPaths), true);
-  // Step: a same-basename key under a DIFFERENT directory does not match.
-  var collision = { filePath: 'foo/t.py', source: 'snapshot' };
-  assert.strictEqual(assembly.editBelongsToFile(collision, aliasSet, aliasPaths), false);
-});
+// editBelongsToFile's direct test MOVED to tests/test-file-historical-lineage.js
+// with the function (phase 3).
 
 run('test_assembleKeptEdits_separatesTwoFilesSharingBasename', function () {
   // Behavior: two DIFFERENT launch.json files (distinct absolute paths) in one
@@ -39,11 +27,11 @@ run('test_assembleKeptEdits_separatesTwoFilesSharingBasename', function () {
   };
   var orderedTranscripts = [{ transcriptPath: '/t/a.jsonl', earliestTimestamp: null }];
   // Step: assembling for projA keeps ONLY the projA edit.
-  var resultA = v2.assembleKeptEdits(['/projA/.vscode/launch.json'], perTranscriptEdits, orderedTranscripts);
+  var resultA = assembly.assembleKeptEdits(['/projA/.vscode/launch.json'], perTranscriptEdits, orderedTranscripts);
   assert.strictEqual(resultA.keptEdits.length, 1);
   assert.strictEqual(resultA.keptEdits[0].filePath, '/projA/.vscode/launch.json');
   // Step: assembling for projB keeps ONLY the projB edit.
-  var resultB = v2.assembleKeptEdits(['/projB/.vscode/launch.json'], perTranscriptEdits, orderedTranscripts);
+  var resultB = assembly.assembleKeptEdits(['/projB/.vscode/launch.json'], perTranscriptEdits, orderedTranscripts);
   assert.strictEqual(resultB.keptEdits.length, 1);
   assert.strictEqual(resultB.keptEdits[0].filePath, '/projB/.vscode/launch.json');
 });
@@ -63,7 +51,7 @@ run('test_assembleKeptEdits_dropsIgnoredClassifiedEdit', function () {
     }
   };
   var orderedTranscripts = [{ transcriptPath: '/t/a.jsonl', earliestTimestamp: null }];
-  var result = v2.assembleKeptEdits(['/repo/f.js'], perTranscriptEdits, orderedTranscripts);
+  var result = assembly.assembleKeptEdits(['/repo/f.js'], perTranscriptEdits, orderedTranscripts);
   // Step: only the create survives; the summary counts 1 kept, 1 ignored of 2.
   assert.strictEqual(result.keptEdits.length, 1);
   assert.strictEqual(result.keptEdits[0].type, 'create');
@@ -86,7 +74,7 @@ run('test_assembleKeptEdits_keepsSnapshotEditWithRepoRelativePath', function () 
     }
   };
   var orderedTranscripts = [{ transcriptPath: '/t/a.jsonl', earliestTimestamp: null }];
-  var result = v2.assembleKeptEdits(['/repo/common/scripts/f.js'], perTranscriptEdits, orderedTranscripts);
+  var result = assembly.assembleKeptEdits(['/repo/common/scripts/f.js'], perTranscriptEdits, orderedTranscripts);
   assert.strictEqual(result.keptEdits.length, 2);
   assert.strictEqual(result.keptEdits[1].source, 'snapshot');
 });
@@ -103,7 +91,7 @@ run('test_assembleKeptEdits_dropsSnapshotEditOfDifferentFileWithSameBasename', f
     }
   };
   var orderedTranscripts = [{ transcriptPath: '/t/a.jsonl', earliestTimestamp: null }];
-  var result = v2.assembleKeptEdits(['/repo/common/scripts/f.js'], perTranscriptEdits, orderedTranscripts);
+  var result = assembly.assembleKeptEdits(['/repo/common/scripts/f.js'], perTranscriptEdits, orderedTranscripts);
   assert.strictEqual(result.keptEdits.length, 0);
 });
 
@@ -124,7 +112,7 @@ run('test_assembleKeptEdits_concatenatesTranscriptsInGivenOrder', function () {
     { transcriptPath: '/t/earlier.jsonl', earliestTimestamp: '2026-01-01T00:00:00.000Z' },
     { transcriptPath: '/t/later.jsonl', earliestTimestamp: '2026-02-01T00:00:00.000Z' }
   ];
-  var result = v2.assembleKeptEdits(['/repo/f.js'], perTranscriptEdits, orderedTranscripts);
+  var result = assembly.assembleKeptEdits(['/repo/f.js'], perTranscriptEdits, orderedTranscripts);
   assert.strictEqual(result.keptEdits.length, 2);
   assert.strictEqual(result.keptEdits[0].type, 'create');
   assert.strictEqual(result.keptEdits[1].type, 'edit');
@@ -140,7 +128,7 @@ run('test_dropTrailingObservationEdits_dropsTrailingCatAndReadRun', function () 
     { type: 'update', source: 'read', content: 'x', line: 5 },
     { type: 'update', source: 'cat', content: 'y', line: 9 }
   ];
-  var result = v2.dropTrailingObservationEdits(edits);
+  var result = assembly.dropTrailingObservationEdits(edits);
   assert.strictEqual(result.edits.length, 1);
   assert.strictEqual(result.edits[0].type, 'create');
   assert.strictEqual(result.droppedCount, 2);
@@ -152,7 +140,7 @@ run('test_dropTrailingObservationEdits_keepsMidStreamObservations', function () 
     { type: 'update', source: 'read', content: 'seed', line: 0 },
     { type: 'edit', oldString: 'seed', newString: 'final', line: 5 }
   ];
-  var result = v2.dropTrailingObservationEdits(edits);
+  var result = assembly.dropTrailingObservationEdits(edits);
   assert.strictEqual(result.edits.length, 2);
   assert.strictEqual(result.droppedCount, 0);
 });

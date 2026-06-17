@@ -4,7 +4,7 @@
 
 var fs = require('fs');
 var path = require('path');
-var unified = require('../common/unified-reconstruct');
+var unified = require('../api/unified-reconstruct');
 
 var execDir = path.join(__dirname, '..', 'plans', 'scenarios', 'executed');
 

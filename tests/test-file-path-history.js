@@ -1,11 +1,11 @@
-// Tests for common/file-path-history.js — the per-run path-history index and the
+// Tests for api/file-path-history.js — the per-run path-history index and the
 // earliest/current-path resolvers that back the probe's earliestSeenFullPath
 // (first-known path) and lastSeenFullPath (current on-disk path) fields.
 
 var assert = require('assert');
 var h = require('./test-helpers');
 var runWithContext = h.runWithContext;
-var fph = require('../common/file-path-history');
+var fph = require('../api/file-path-history');
 
 runWithContext('test_buildFilePathHistoryIndex_returnsGraphAndTouchesByPath', function (ctx) {
   // Behavior: the once-per-run index exposes a rename graph and a path→touches map.
@@ -77,7 +77,7 @@ runWithContext('test_buildFilePathHistoryIndex_acceptsPreloadedJsonlCache', func
   // yields the SAME index as letting the function scan the folder itself —
   // the cache only skips the repeated disk read.
   var fs = require('fs'), path = require('path');
-  var ct = require('../common/collect-touches');
+  var td = require('../api/transcript-discovery');
   var dir = ctx.tempDir('rev-');
   var proj = path.join(dir, 'proj'); fs.mkdirSync(proj);
   // Step: a session creates a file and renames it, so the index has both a
@@ -89,7 +89,7 @@ runWithContext('test_buildFilePathHistoryIndex_acceptsPreloadedJsonlCache', func
   ].join('\n'));
   // Step: both call forms resolve the same earliest path and same touch map.
   var withoutCache = fph.buildFilePathHistoryIndex(dir);
-  var withCache = fph.buildFilePathHistoryIndex(dir, ct.loadAllJsonlFilesInProjectsFolder(dir));
+  var withCache = fph.buildFilePathHistoryIndex(dir, td.loadAllJsonlFilesInProjectsFolder(dir));
   assert.deepStrictEqual(Object.keys(withCache.touchesByPath), Object.keys(withoutCache.touchesByPath));
   assert.strictEqual(
     fph.findEarliestFilePath(['/repo/new.js'], withCache),
@@ -98,7 +98,7 @@ runWithContext('test_buildFilePathHistoryIndex_acceptsPreloadedJsonlCache', func
   // Step: PROOF the cache is used, not re-scanned — an EMPTY projects folder
   // plus the populated cache still yields the populated index.
   var emptyDir = ctx.tempDir('rev-empty-');
-  var fromCacheOnly = fph.buildFilePathHistoryIndex(emptyDir, ct.loadAllJsonlFilesInProjectsFolder(dir));
+  var fromCacheOnly = fph.buildFilePathHistoryIndex(emptyDir, td.loadAllJsonlFilesInProjectsFolder(dir));
   assert.ok(Array.isArray(fromCacheOnly.touchesByPath['/repo/old.js']));
 });
 

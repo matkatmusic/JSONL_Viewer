@@ -1,7 +1,7 @@
 var assert = require('assert');
 var h = require('./test-helpers');
 var run = h.run;
-var lb = require('../common/line-belief');
+var lb = require('../api/line-belief');
 
 var MS1 = 1000;
 var MS2 = 2000;
@@ -106,6 +106,27 @@ run('test_applyFileAbsent_zeroesBeliefWithEofKnown', function () {
   // Behavior: the absence beacon resets to "no lines exist", extent known.
   var belief = beliefWithLines(['a']);
   lb.applyFileAbsent(belief, MS2);
+  assert.deepStrictEqual(belief.entries, {});
+  assert.strictEqual(belief.lastLine, 0);
+  assert.strictEqual(belief.eofConfirmed, true);
+});
+
+run('test_applyAbsenceObservation_clearsBeliefAndReturnsConflictPerKnownLine', function () {
+  // Behavior: a Tier-2 absence observation (a Bash `rm`) contradicts every
+  // KNOWN line — one conflict each carrying the displaced text + the rm ref and
+  // observedText null — then clears belief to "no lines exist", EOF known.
+  // Unlike the Tier-1 fileAbsent BEACON it RETURNS the conflicts; a line we
+  // only know EXISTS (text null) is not contradicted.
+  var belief = beliefWithLines(['a', 'b']);
+  belief.entries[3] = lb.makeUnknownEntry();
+  var rmRef = ref('rm');
+  var conflicts = lb.applyAbsenceObservation(belief, MS2, rmRef);
+  assert.strictEqual(conflicts.length, 2);
+  assert.strictEqual(conflicts[0].line, 1);
+  assert.strictEqual(conflicts[0].presumedText, 'a');
+  assert.strictEqual(conflicts[0].presumedEvidence.textProperty.property, 'seed');
+  assert.strictEqual(conflicts[0].observedText, null);
+  assert.strictEqual(conflicts[0].observedRef, rmRef);
   assert.deepStrictEqual(belief.entries, {});
   assert.strictEqual(belief.lastLine, 0);
   assert.strictEqual(belief.eofConfirmed, true);

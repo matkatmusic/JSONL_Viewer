@@ -2,14 +2,14 @@ var assert = require('assert');
 var h = require('./test-helpers');
 var run = h.run;
 var runWithContext = h.runWithContext;
-var ev = require('../common/line-state-evidence');
+var ev = require('../api/line-state-evidence');
 
 var TS = '2026-05-22T03:38:27.174Z';
 
 // An extract-file-events-shaped event with one kind sub-object set.
 function makeKindEvent(jsonlPath, jsonlLine, kindName, kindFields) {
   var event = { jsonl: jsonlPath, jsonlLine: jsonlLine, unixMs: Date.parse(TS), timestamp: TS };
-  var kinds = ['snapshot', 'fileAbsent', 'write', 'edit', 'readFull', 'readChunk', 'cat'];
+  var kinds = ['snapshot', 'fileAbsent', 'write', 'edit', 'readFull', 'readChunk', 'cat', 'originalFile'];
   for (var i = 0; i < kinds.length; i++) { event[kinds[i]] = null; }
   event[kindName] = kindFields;
   return event;
@@ -84,18 +84,6 @@ run('test_buildTextPropertyRef_hasExactlyOneNonNullLocator', function () {
   assert.deepStrictEqual(ref.textProperty, { property: 'toolUseResult.content', startIndex: 3, endIndex: 9 });
   assert.strictEqual(ref.structuredPatch, null);
   assert.strictEqual(ref.blobFile, null);
-});
-
-run('test_findStructuredPatchLine_locatesAddedLineByHunkAndIndex', function () {
-  // Behavior: a spliced result line exists verbatim in the record's
-  // structuredPatch as a '+' (or context) line; the locator is index-based.
-  var hunk0 = { lines: [' keep', '-old line', '+new line'] };
-  var hunk1 = { lines: ['+other'] };
-  var record = { toolUseResult: { structuredPatch: [hunk0, hunk1] } };
-  assert.deepStrictEqual(ev.findStructuredPatchLine(record, 'new line'), { hunkIndex: 0, lineIndex: 2 });
-  assert.deepStrictEqual(ev.findStructuredPatchLine(record, 'other'), { hunkIndex: 1, lineIndex: 0 });
-  // Step: a '-' (removed) line is NOT result content.
-  assert.strictEqual(ev.findStructuredPatchLine(record, 'old line'), null);
 });
 
 runWithContext('test_materializeEvent_writeYieldsPerLineTextWithContentRefs', function (ctx) {
@@ -185,6 +173,69 @@ runWithContext('test_materializeEvent_editCarriesSpliceStrings', function (ctx) 
   assert.strictEqual(m.oldString, 'aaa');
   assert.strictEqual(m.newString, 'bbb');
   assert.strictEqual(m.replaceAll, true);
+});
+
+runWithContext('test_materializeEvent_originalFileYieldsWholeFileByLineWithOriginalFileRefs', function (ctx) {
+  // Behavior: an originalFile event derefs toolUseResult.originalFile into
+  // per-line text numbered from 1, each line carrying a textProperty ref into
+  // that property whose span slices the exact line out of the pre-edit content.
+  var jsonlPath = writeJsonlFixture(ctx, [
+    h.makeSystemLine('s1', 'main', '/repo'),
+    h.makeEditLine('/repo/t.py', 'a', 'b', false, 'a\nb\n')
+  ]);
+  var event = makeKindEvent(jsonlPath, 2, 'originalFile', {});
+  var m = ev.materializeEvent(event);
+  assert.strictEqual(m.kind, 'originalFile');
+  assert.strictEqual(m.byLine.length, 2);
+  assert.strictEqual(m.byLine[0].lineNum, 1);
+  assert.strictEqual(m.byLine[0].text, 'a');
+  assert.strictEqual(m.byLine[1].lineNum, 2);
+  assert.strictEqual(m.byLine[1].text, 'b');
+  var ref = m.byLine[1].ref;
+  assert.strictEqual(ref.textProperty.property, 'toolUseResult.originalFile');
+  assert.strictEqual('a\nb\n'.slice(ref.textProperty.startIndex, ref.textProperty.endIndex), 'b');
+});
+
+runWithContext('test_materializeEvent_bashReadChunkNumbersFromFirstLine', function (ctx) {
+  // Behavior: a bashReadChunk event routes to the bash-read materializer, which
+  // numbers raw head/sed/tail stdout from the event's firstLine (no N\t prefixes).
+  var jsonlPath = writeJsonlFixture(ctx, [h.makeBashCatToolResult('u1', 'alpha\nbeta\n')]);
+  var event = makeKindEvent(jsonlPath, 1, 'bashReadChunk', { firstLine: 7, lineCount: 2, hitEof: true });
+  var m = ev.materializeEvent(event);
+  assert.strictEqual(m.kind, 'bashReadChunk');
+  assert.deepStrictEqual(m.byLine.map(function (e) { return e.lineNum; }), [7, 8]);
+  assert.strictEqual(m.byLine[0].text, 'alpha');
+  assert.strictEqual(m.byLine[0].ref.textProperty.property, 'message.content[0].content');
+});
+
+runWithContext('test_materializeEvent_bashExtentParsesLineCount', function (ctx) {
+  // Behavior: a bashExtent event routes to the wc -l materializer, which parses
+  // the leading integer of stdout into a ref-less {kind, lineCount}.
+  var jsonlPath = writeJsonlFixture(ctx, [h.makeBashCatToolResult('u1', '     207 /repo/t.py')]);
+  var event = makeKindEvent(jsonlPath, 1, 'bashExtent', {});
+  assert.deepStrictEqual(ev.materializeEvent(event), { kind: 'bashExtent', lineCount: 207 });
+});
+
+runWithContext('test_materializeEvent_bashGrepParsesNumberedRows', function (ctx) {
+  // Behavior: a bashGrep event routes to the grep -n materializer, numbering each
+  // N:/N- row by its explicit line number.
+  var jsonlPath = writeJsonlFixture(ctx, [h.makeBashCatToolResult('u1', '3:gamma\n9:iota')]);
+  var m = ev.materializeEvent(makeKindEvent(jsonlPath, 1, 'bashGrep', {}));
+  assert.strictEqual(m.kind, 'bashGrep');
+  assert.deepStrictEqual(m.byLine.map(function (e) { return e.lineNum; }), [3, 9]);
+  assert.strictEqual(m.byLine[1].text, 'iota');
+});
+
+runWithContext('test_materializeEvent_routes_a_grepMatches_event_to_its_materializer', function (ctx) {
+  // Behavior: a grepMatches event routes to the native-Grep materializer, which keeps only
+  // the rows for the event's filePath and numbers them by their grep-reported line numbers.
+  var jsonlPath = writeJsonlFixture(ctx, [h.makeGrepToolResult('g1', 'a.js:4:delta\nb.js:9:other', 2, 2)]);
+  var event = makeKindEvent(jsonlPath, 1, 'grepMatches', { filePath: '/repo/a.js', cwd: '/repo' });
+  var m = ev.materializeEvent(event);
+  assert.strictEqual(m.kind, 'grepMatches');
+  // Step: only the a.js row survives, at its grep-reported absolute line number.
+  assert.deepStrictEqual(m.byLine.map(function (e) { return e.lineNum; }), [4]);
+  assert.strictEqual(m.byLine[0].text, 'delta');
 });
 
 h.summary();

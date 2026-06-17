@@ -6,11 +6,9 @@ var cp = require('child_process');
 var path = require('path');
 
 var testFiles = [
-  'test-extract.js',
-  'test-replay.js',
-  'test-verify.js',
-  'test-cat.js',
-  'test-read.js',
+  'test-edit-stream-extraction.js',
+  'test-edit-replay.js',
+  'test-replay-verification.js',
   'test-file-state-history.js',
   'test-git-file-state.js'
 ];

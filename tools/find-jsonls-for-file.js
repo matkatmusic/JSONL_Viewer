@@ -13,7 +13,7 @@ if (typeof module !== 'undefined' && typeof require === 'function') {
   path = require('path');
   os = require('os');
   findReferencingJsonlsIncludingSubagents =
-    require('../common/subagent-jsonls').findReferencingJsonlsIncludingSubagents;
+    require('../api/subagent-transcript-discovery').findReferencingJsonlsIncludingSubagents;
 }
 
 var ARG_MAP = { '--path': 'path', '--projects-dir': 'projectsDir' };

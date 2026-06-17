@@ -1,10 +1,10 @@
 // JFReD: JSONL loading, file picker, dropdown population.
 
-import { state } from '../common/jfred-state.js';
-import { renderSteps, showStep } from '../common/jfred-steps.js';
-import { clearPanes } from '../common/jfred-panes.js';
-import { renderAllLines, bindBranchViewEvents } from '../common/jfred-alllines.js';
-import { parseAllLines, groupEditsByFile, buildStepLineMap, openFilePicker, loadFromPath } from '../common/jfred-load-helpers.js';
+import { state } from '../web-shared/jfred-state.js';
+import { renderSteps, showStep } from '../web-shared/jfred-steps.js';
+import { clearPanes } from '../web-shared/jfred-panes.js';
+import { renderAllLines, bindBranchViewEvents } from '../web-shared/jfred-alllines.js';
+import { parseAllLines, groupEditsByFile, buildStepLineMap, openFilePicker, loadFromPath } from '../web-shared/jfred-load-helpers.js';
 
 function populateFileSelect(fileMap) {
   var sel = document.getElementById('file-select');

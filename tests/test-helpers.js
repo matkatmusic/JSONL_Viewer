@@ -108,14 +108,7 @@ function makeBashCatToolUse(toolUseId, filePath) {
   return JSON.stringify({
     uuid: 'uuid-' + Math.random().toString(36).slice(2, 8),
     type: 'assistant',
-    message: {
-      content: [{
-        type: 'tool_use',
-        id: toolUseId,
-        name: 'Bash',
-        input: { command: 'cat -n ' + filePath }
-      }]
-    }
+    message: { content: [{ type: 'tool_use', id: toolUseId, name: 'Bash', input: { command: 'cat -n ' + filePath } }] }
   });
 }
 
@@ -124,13 +117,7 @@ function makeBashCatToolResult(toolUseId, stdout) {
     uuid: 'uuid-' + Math.random().toString(36).slice(2, 8),
     type: 'user',
     toolUseResult: { stdout: stdout, stderr: '' },
-    message: {
-      content: [{
-        type: 'tool_result',
-        tool_use_id: toolUseId,
-        content: stdout
-      }]
-    }
+    message: { content: [{ type: 'tool_result', tool_use_id: toolUseId, content: stdout }] }
   });
 }
 
@@ -138,14 +125,7 @@ function makeBashPipedCatToolUse(toolUseId, filePath) {
   return JSON.stringify({
     uuid: 'uuid-' + Math.random().toString(36).slice(2, 8),
     type: 'assistant',
-    message: {
-      content: [{
-        type: 'tool_use',
-        id: toolUseId,
-        name: 'Bash',
-        input: { command: 'cat ' + filePath + ' | grep hello' }
-      }]
-    }
+    message: { content: [{ type: 'tool_use', id: toolUseId, name: 'Bash', input: { command: 'cat ' + filePath + ' | grep hello' } }] }
   });
 }
 
@@ -154,14 +134,7 @@ function makeReadToolUse(toolUseId, filePath) {
   return JSON.stringify({
     uuid: 'uuid-' + Math.random().toString(36).slice(2, 8),
     type: 'assistant',
-    message: {
-      content: [{
-        type: 'tool_use',
-        id: toolUseId,
-        name: 'Read',
-        input: { file_path: filePath }
-      }]
-    }
+    message: { content: [{ type: 'tool_use', id: toolUseId, name: 'Read', input: { file_path: filePath } }] }
   });
 }
 
@@ -172,13 +145,7 @@ function makeReadToolResult(toolUseId, content) {
     uuid: 'uuid-' + Math.random().toString(36).slice(2, 8),
     type: 'user',
     toolUseResult: { type: 'file', file: content },
-    message: {
-      content: [{
-        type: 'tool_result',
-        tool_use_id: toolUseId,
-        content: content
-      }]
-    }
+    message: { content: [{ type: 'tool_result', tool_use_id: toolUseId, content: content }] }
   });
 }
 
@@ -201,6 +168,26 @@ function makeBashCommandLine(toolUseId, command) {
   });
 }
 
+// Native Grep tool_use: a content-mode, line-numbered grep (output_mode:'content', -n:true).
+function makeGrepToolUse(toolUseId, pattern) {
+  return JSON.stringify({
+    uuid: 'uuid-' + Math.random().toString(36).slice(2, 8),
+    type: 'assistant',
+    message: { content: [{ type: 'tool_use', id: toolUseId, name: 'Grep', input: { pattern: pattern, output_mode: 'content', '-n': true } }] }
+  });
+}
+
+// Native Grep tool_result: content is the `relpath:line:text` block. The tool_result
+// block's string content mirrors toolUseResult.content (so findToolResultText returns it).
+function makeGrepToolResult(toolUseId, content, numFiles, numLines) {
+  return JSON.stringify({
+    uuid: 'uuid-' + Math.random().toString(36).slice(2, 8),
+    type: 'user',
+    toolUseResult: { content: content, filenames: [], mode: 'content', numFiles: numFiles, numLines: numLines },
+    message: { content: [{ type: 'tool_result', tool_use_id: toolUseId, content: content }] }
+  });
+}
+
 module.exports = {
   run: run,
   runWithContext: runWithContext,
@@ -215,5 +202,7 @@ module.exports = {
   makeBashPipedCatToolUse: makeBashPipedCatToolUse,
   makeReadToolUse: makeReadToolUse,
   makeReadToolResult: makeReadToolResult,
+  makeGrepToolUse: makeGrepToolUse,
+  makeGrepToolResult: makeGrepToolResult,
   makeSystemLine: makeSystemLine
 };

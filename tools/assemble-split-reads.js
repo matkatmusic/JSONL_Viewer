@@ -1,16 +1,21 @@
 #!/usr/bin/env node
-// assemble-split-reads: stitch chunked Read events (offset/limit) from ONE
-// transcript into a complete per-file copy. A subagent reading a large file
-// in chunks leaves no single event holding the whole file; inserting each
-// result line at its absolute line number and checking contiguity from line 1
-// recovers a truthful full copy at the moment of the last chunk.
+// assemble-split-reads CLI: thin wrapper over api/split-read-assembly.js.
+// The library logic moved to api/split-read-assembly.js in Phase 4; this file
+// keeps only the command-line interface.
 // Usage: node assemble-split-reads.js --jsonl <path> [--write-dir <dir>]
 
 var fs = require('fs');
 var path = require('path');
+var sra = require('../api/split-read-assembly');
+var extractReadEvents = sra.extractReadEvents;
+var assembleSplitReads = sra.assembleSplitReads;
 
-// Read results number every content line "N\tcontent". Lines without the
-// prefix (system reminders, truncation notices) are not file content.
+/* ─── MOVED to api/split-read-assembly.js (Phase 4) ──────────────────────────
+// extractReadEvents, assembleSplitReads, and their helpers (parseJsonLine,
+// messageContent, toolResultText, parseNumberedContent, registerReadUse,
+// confirmReadResult, computeGaps, eofConfirmedAt, assembleOneFile) now live in
+// api/split-read-assembly.js. Commented-out originals preserved below.
+
 var NUMBERED_LINE_PATTERN = /^(\d+)\t/;
 
 function parseJsonLine(line) {
@@ -28,7 +33,6 @@ function messageContent(record) {
   return record.message.content;
 }
 
-// The text of a tool_result, whether recorded as a string or as text blocks.
 function toolResultText(item) {
   if (typeof item.content === 'string') { return item.content; }
   if (!Array.isArray(item.content)) { return ''; }
@@ -36,9 +40,6 @@ function toolResultText(item) {
   return texts.map(function (c) { return c.text; }).join('\n');
 }
 
-// Split a Read result into {firstLineNumber, contentLines}: each numbered
-// line contributes its content (prefix stripped); unnumbered lines are
-// skipped. Returns null when no numbered line exists (errors, empty files).
 function parseNumberedContent(resultText) {
   var rawLines = resultText.split('\n');
   var firstLineNumber = null;
@@ -78,8 +79,6 @@ function confirmReadResult(item, record, pendingByToolUseId, events, lineIndex) 
   });
 }
 
-// Every Read tool_use/tool_result pair in the transcript, in order, with the
-// chunk geometry today's pipeline throws away.
 function extractReadEvents(jsonlText) {
   var lines = jsonlText.split('\n').filter(Boolean);
   var pendingByToolUseId = {};
@@ -96,8 +95,6 @@ function extractReadEvents(jsonlText) {
   return events;
 }
 
-// Missing ranges in the sorted line-number keys, including a missing head
-// (the copy must start at line 1).
 function computeGaps(sortedLineNumbers) {
   var gaps = [];
   if (sortedLineNumbers.length === 0) { return gaps; }
@@ -109,9 +106,6 @@ function computeGaps(sortedLineNumbers) {
   return gaps;
 }
 
-// True when some event covering the final assembled line returned fewer lines
-// than it asked for (or asked for everything) — i.e. the read hit EOF, so the
-// copy is not silently truncated at the tail.
 function eofConfirmedAt(lastLine, fileEvents) {
   for (var i = 0; i < fileEvents.length; i++) {
     var e = fileEvents[i];
@@ -122,9 +116,6 @@ function eofConfirmedAt(lastLine, fileEvents) {
   return false;
 }
 
-// The split-read assembly algorithm: insert every event's lines into a dict
-// at [firstLineNumber + index] (later reads overwrite earlier ones), then the
-// copy is complete when the keys run contiguously from line 1.
 function assembleOneFile(filePath, fileEvents) {
   var lineByNumber = {};
   for (var i = 0; i < fileEvents.length; i++) {
@@ -151,7 +142,6 @@ function assembleOneFile(filePath, fileEvents) {
   };
 }
 
-// One assembly per file that has at least one Read event, in first-seen order.
 function assembleSplitReads(events) {
   var eventsByFile = {};
   var fileOrder = [];
@@ -166,6 +156,7 @@ function assembleSplitReads(events) {
     return assembleOneFile(filePath, eventsByFile[filePath]);
   });
 }
+─── end MOVED ────────────────────────────────────────────────────────────── */
 
 // ─── CLI ─────────────────────────────────────────────────────────────────────
 
@@ -217,10 +208,5 @@ function main() {
   assemblies.forEach(describeAssembly);
   if (opts.writeDir) { writeCompleteAssemblies(assemblies, opts.writeDir); }
 }
-
-module.exports = {
-  extractReadEvents: extractReadEvents,
-  assembleSplitReads: assembleSplitReads
-};
 
 if (require.main === module) { main(); }

@@ -6,8 +6,7 @@
 // Usage: node turn-analyzer.js <path-to-jsonl>
 
 var fs = require('fs');
-var jsonlParse = require('../common/jsonl-parse');
-var isUserPrompt = jsonlParse.isUserPrompt;
+var isUserPrompt = require('../api/transcript-parsers').isUserPrompt;
 
 function tryParse(line) {
   try { return JSON.parse(line); } catch (e) { return null; }

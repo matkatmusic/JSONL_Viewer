@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>JFReD Unified — Branch View + File Debugger</title>
-<link rel="stylesheet" href="../common/jfred-styles.css">
+<link rel="stylesheet" href="../web-shared/jfred-styles.css">
 </head>
 <body>
 
@@ -72,27 +72,26 @@
   </div>
 </div>
 
-<!-- Shared reusable components -->
-<script src="../common/json-inspector.js"></script>
-<script src="../common/diff-engine.js"></script>
+<!-- Shared browser-UI component (web-shared/) -->
+<script src="../web-shared/json-inspector.js"></script>
 
-<!-- Engine modules (browser-compatible, global scope) -->
-<script src="../common/jsonl-parse.js"></script>
-<script src="../common/extract-file-state.js"></script>
-<script src="../common/git-file-state.js"></script>
-<script src="../common/classify-edits.js"></script>
-<script src="../common/replay-edits.js"></script>
-<script src="../common/file-state-history.js"></script>
-<script src="../common/unified-reconstruct-patch.js"></script>
-<script src="../common/unified-reconstruct-steps.js"></script>
-<script src="../common/unified-reconstruct.js"></script>
+<!-- Engine modules (api/, browser-compatible classic scripts; dependency order) -->
+<script src="../api/transcript-parsers.js"></script>
+<script src="../api/extract-bash-file-ops.js"></script>
+<script src="../api/snapshot-store-io.js"></script>
+<script src="../api/edit-replay.js"></script>
+<script src="../api/line-diff.js"></script>
+<script src="../api/rewind-classification.js"></script>
+<script src="../api/file-event-observations.js"></script>
+<script src="../api/file-state-history.js"></script>
+<script src="../api/edit-stream-extraction.js"></script>
+<script src="../api/unified-reconstruct-patch.js"></script>
+<script src="../api/unified-reconstruct-steps.js"></script>
+<script src="../api/unified-reconstruct.js"></script>
 
 <!-- JFReD Unified modules (ES modules) -->
-<script type="module" src="jfred-adapter.js"></script>
-<script type="module" src="../common/jfred-alllines.js"></script>
-<script type="module" src="jfred-unified-panes.js"></script>
-<script type="module" src="jfred-unified-filter.js"></script>
+<script type="module" src="../web-shared/jfred-alllines.js"></script>
 <script type="module" src="jfred-unified-load.js"></script>
-<script type="module" src="../common/jfred-layout.js"></script>
+<script type="module" src="../web-shared/jfred-layout.js"></script>
 </body>
 </html>

@@ -10,8 +10,9 @@
 
 var fs = require('fs');
 var path = require('path');
-var mod = require('../common/replay-edits');
-var classifyModule = require('../common/classify-edits');
+var extractEditsFromJSONL = require('../api/edit-stream-extraction').extractEditsFromJSONL;
+var replayEdits = require('../api/edit-replay').replayEdits;
+var classifyModule = require('../api/rewind-classification');
 
 var execDir = path.join(__dirname, '..', 'plans', 'scenarios', 'executed');
 
@@ -108,7 +109,7 @@ for (var fi = 0; fi < executedFiles.length; fi++) {
   }
 
   var jsonlText = fs.readFileSync(info.jsonlPath, 'utf8');
-  var allEdits = mod.extractEditsFromJSONL(jsonlText);
+  var allEdits = extractEditsFromJSONL(jsonlText);
   var classification = classifyModule.analyzeJSONL(jsonlText);
 
   // Build kept/ignored lookup.
@@ -139,7 +140,7 @@ for (var fi = 0; fi < executedFiles.length; fi++) {
     }
 
     var onDisk = fs.readFileSync(path.join(filesDir, py), 'utf8');
-    var replayed = mod.replayEdits(keptEdits);
+    var replayed = replayEdits(keptEdits);
     var match = replayed === onDisk;
 
     var result = {

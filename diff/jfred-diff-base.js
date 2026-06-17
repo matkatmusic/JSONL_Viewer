@@ -1,6 +1,6 @@
 // JFReD Diff: Base state resolution — cascading: snapshot → Read → first-step → empty.
 
-import { state } from '../common/jfred-state.js';
+import { state } from '../web-shared/jfred-state.js';
 
 function findSnapshotMatch(snapshotObj, targetFile, basename) {
   var snapFiles = Object.keys(snapshotObj.files);
