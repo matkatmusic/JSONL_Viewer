@@ -31,14 +31,18 @@ export enum BlockType {
 
 export const KNOWN_CONTENT_BLOCK_TYPES: BlockType[] = Object.values(BlockType);
 
-// The 2 tool names that occur in s1 (recon/06-s1-vocabulary.md).
+// Tool names observed across scenarios: Bash/Write in s1; Read/Edit added by
+// s2-move-file (a move done as Read -> Edit -> Write -> Bash `mv`).
 export enum ToolName {
     Bash = "Bash",
     Write = "Write",
+    Read = "Read",
+    Edit = "Edit",
 }
 
-// The 6 attachment payload kinds observed in s1 (session-meta attachment record).
-// Modeled as discriminant only; per-kind payload fields are deferred.
+// Attachment payload kinds observed across scenarios: 6 in s1; s2-move-file adds
+// opened_file_in_ide, task_reminder, diagnostics. Modeled as discriminant only;
+// per-kind payload fields are deferred.
 export enum AttachmentPayloadType {
     hook_success = "hook_success",
     hook_system_message = "hook_system_message",
@@ -46,6 +50,9 @@ export enum AttachmentPayloadType {
     deferred_tools_delta = "deferred_tools_delta",
     agent_listing_delta = "agent_listing_delta",
     skill_listing = "skill_listing",
+    opened_file_in_ide = "opened_file_in_ide",
+    task_reminder = "task_reminder",
+    diagnostics = "diagnostics",
 }
 
 export const ATTACHMENT_PAYLOAD_TYPES: AttachmentPayloadType[] =
@@ -74,3 +81,14 @@ export const ENVELOPE_KEYS = [
     "userType",
     "entrypoint",
 ] as const;
+
+// --- Engine-side discriminants -----------------------------------------------
+// Not a wire string: this names the reconstruction engine's own event kinds. It
+// lives here so every enum has a single canonical home (coding-requirements §2).
+
+// The evidence kinds the reconstruction engine replays. s1: write (create) and
+// delete (Bash rm). Later scenarios add edit, read, etc.
+export enum EventKind {
+    write = "write",
+    delete = "delete",
+}

@@ -1,5 +1,6 @@
 [x] S1 -> [x] fix types (no primitives) -> [x] commit
-[ ] S2 ->
+[x] S2 -> [x] Read/Edit tools + StructuredPatchHunk + 3 attachment kinds + isMeta gate
+[~] Per-line reconstruction engine -> [x] S1 slice (Write create -> rm delete, --verbose/--diff); [ ] Edit/observation/verdict
 [ ] S3 ->
 [ ] S4 ->
 [ ] S5 ->

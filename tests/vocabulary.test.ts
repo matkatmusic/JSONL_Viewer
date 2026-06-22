@@ -36,20 +36,30 @@ test("test_block_type_enum_holds_the_s1_wire_strings", () => {
     ]);
 });
 
-test("test_tool_name_enum_holds_the_s1_wire_strings", () => {
-    // Scenario: ToolName's member values are the 2 tool names used in s1.
-    assert.deepEqual(Object.values(ToolName).sort(), ["Bash", "Write"]);
+test("test_tool_name_enum_holds_the_observed_wire_strings", () => {
+    // Scenario: ToolName's member values are the tool names used so far —
+    // Bash/Write (s1) plus Read/Edit (s2-move-file).
+    assert.deepEqual(Object.values(ToolName).sort(), [
+        "Bash",
+        "Edit",
+        "Read",
+        "Write",
+    ]);
 });
 
-test("test_attachment_payload_type_enum_holds_the_s1_wire_strings", () => {
-    // Scenario: AttachmentPayloadType's member values are the 6 payload kinds.
+test("test_attachment_payload_type_enum_holds_the_observed_wire_strings", () => {
+    // Scenario: AttachmentPayloadType's member values are the payload kinds seen
+    // so far — the 6 from s1 plus the 3 added by s2-move-file.
     assert.deepEqual(Object.values(AttachmentPayloadType).sort(), [
         "agent_listing_delta",
         "deferred_tools_delta",
+        "diagnostics",
         "hook_additional_context",
         "hook_success",
         "hook_system_message",
+        "opened_file_in_ide",
         "skill_listing",
+        "task_reminder",
     ]);
 });
 

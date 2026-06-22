@@ -40,7 +40,7 @@ export const ALLOWED_TOP_LEVEL_KEYS: Record<RecordType, ReadonlySet<string>> = {
     [RecordType.user]: keys(
         ENVELOPE_KEYS,
         "message", "promptId", "origin", "permissionMode", "promptSource",
-        "sourceToolAssistantUUID", "toolUseResult",
+        "sourceToolAssistantUUID", "toolUseResult", "isMeta",
     ),
 };
 
