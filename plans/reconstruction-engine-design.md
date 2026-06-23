@@ -132,8 +132,19 @@ The engine is split by concern, one paired test each (files kept well under the
 - `src/reconstruction_branch.ts` — the conversation-branch model: `findConversationBranches`,
   `selectBranchRecords` / `selectLiveBranch` (a branch's records = its tip's `parentUuid` ancestor
   chain + uuid-less meta), `collectSurvivingUuids`, and the canonical tip short-id `shortUuid` +
-  `findBranchById`. Imports only `envelope`/`session-meta`/`domain` (engine types are type-only),
-  so the graph stays acyclic.
+  `findBranchById`. Imports the generic walkers from `reconstruction_tree.ts` and
+  `findWorkingTreeOwner` from `reconstruction_worktree.ts` (engine types are type-only), so the
+  graph stays acyclic.
+- `src/reconstruction_tree.ts` — the generic conversation-tree walkers over the `parentUuid` forest
+  and the `last-prompt` heads (`indexRecordsByUuid`, `collectHeadUuids`, `collectAncestorUuids`, and
+  `findHeadAtOrAbove` = the first head at-or-above a record). Their canonical home, moved out of
+  `reconstruction_branch.ts` in S8 (cap-driven split). A leaf — imports only
+  `envelope`/`session-meta`/`domain`.
+- `src/reconstruction_worktree.ts` — `findWorkingTreeOwner`: which working-tree state survived.
+  Scans the `file-history-snapshot` records and returns the `messageId` of the LAST snapshot whose
+  `{path → version}` tracked set changed vs. the previous (a conversation-only rewind appends a
+  trailing snapshot with an unchanged set, so it is ignored). A leaf — imports only
+  `file-history`/`envelope`/`domain`; does not walk the tree, so no cycle. Added in S8.
 - `src/reconstruction_branches.ts` — the branch-agnostic reconstruction CORE
   (`reconstructFileOver` / `reconstructFilesOver`) that reconstructs over EXACTLY the records given
   (no branch selection), plus the cycle-guarded copy-seed recursion (`seedOneCopy` seeds each copy
@@ -191,12 +202,15 @@ file each: extraction in `tests/reconstruction_extract.test.ts`, replay in
 `tests/reconstruction_replay.test.ts`, lineage in
 `tests/reconstruction_lineage.test.ts`, the public reconstruct API in
 `tests/reconstruction_engine.test.ts`, `tests/reconstruction_engine_s4.test.ts`,
-`tests/reconstruction_engine_s5.test.ts`, `tests/reconstruction_engine_s6.test.ts`, and
-`tests/reconstruction_engine_s7.test.ts`
+`tests/reconstruction_engine_s5.test.ts`, `tests/reconstruction_engine_s6.test.ts`,
+`tests/reconstruction_engine_s7.test.ts`, and
+`tests/reconstruction_engine_s8.test.ts`
 (driven off the real
-`S1_JSONL`/`S2_JSONL`/`S3_JSONL`/`S4_JSONL`/`S5_JSONL`/`S6_JSONL`/`S7_JSONL`; the S4–S7 engine
-specs are in their own files to stay under the 250-line cap), the conversation-branch model in
-`tests/reconstruction_branch.test.ts` (synthetic rewind records), the sidecar resolver in
+`S1_JSONL`/`S2_JSONL`/`S3_JSONL`/`S4_JSONL`/`S5_JSONL`/`S6_JSONL`/`S7_JSONL`/`S8_JSONL`; the S4–S8
+engine specs are in their own files to stay under the 250-line cap), the conversation-branch model
+(plus S8's working-tree-survival walkers) in
+`tests/reconstruction_branch.test.ts` (synthetic rewind + conversation-only-rewind records), the
+sidecar resolver in
 `tests/reconstruction_sidecar.test.ts` (synthetic snapshots + an in-memory reader),
 verbose/diff rendering in `tests/reconstruction_render.test.ts` and the default list
 view in `tests/reconstruction_render_list.test.ts` (pure, literal revisions), CLI
@@ -390,6 +404,30 @@ in `tests/reconstruction_cli.test.ts`. Red→green, each spec one test.
     `test_branch_id_retrieves_one_specific_branch`,
     `test_branch_id_with_target_narrows_to_one_file`,
     `test_branch_id_unknown_throws_with_available_ids`.)
+
+### S8 — implemented now
+
+35. **working-tree-survival** — a `code` rewind restores the working tree (the abandoned branch's
+    files leave disk); a conversation-only rewind does NOT (the files written on the abandoned
+    conversation branch stay on disk). So the surviving files are not always reachable from the final
+    `last-prompt` head. `findSurvivingHead` therefore picks the surviving branch from the
+    `file-history-snapshot` records: `findWorkingTreeOwner` (in `reconstruction_worktree.ts`) returns
+    the `messageId` of the LAST snapshot whose `{path → version}` tracked set changed vs. the
+    previous snapshot (the working-tree owner); the surviving head is the final head when the owner is
+    on its ancestor chain (every non-rewind and `code`-rewind-ending transcript — S1–S7, a strict
+    no-op), otherwise the `last-prompt` head at-or-above the owner (`findHeadAtOrAbove` in
+    `reconstruction_tree.ts` — the S8 case, where the conversation-only ending diverges the working
+    tree from the final head). Fallback to the final head when there is no snapshot / no tracked-set
+    change. `reconstructAll(S8)` is v_c (the last code written); `reconstructBranches(S8)`
+    additionally retains the v_a/v_b `code`-rewound branches; the file-less final `Hello` head is no
+    branch. No new `EventKind`/per-line/container type — only which records are selected as surviving.
+    (Proved: `test_find_conversation_branches_survives_working_tree_not_final_head`,
+    `test_select_live_branch_follows_working_tree_after_conversation_rewind`,
+    `test_default_reconstruction_is_the_last_written_code_after_conversation_rewind`,
+    `test_reconstruct_branches_retains_two_code_rewound_branches`,
+    `test_default_view_shows_surviving_vc_plus_two_rewound`, `test_surviving_flag_shows_only_vc`,
+    `test_list_branches_lists_surviving_vc_and_two_rewound`,
+    `test_branch_id_retrieves_one_rewound_version`.)
 
 ### Deferred to later scenarios
 

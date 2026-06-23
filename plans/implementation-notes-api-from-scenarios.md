@@ -1,3 +1,55 @@
+## 2026-06-23:12:40:00 — S8 reconstruction (repeated code-restore rewinds + a final conversation-only rewind — surviving working tree from file-history snapshots, not the final conversation head)
+Chat title: api-from-scenarios — S8 (repeated-code-restore-rewinds) implement plan
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/b4c30907-c6d8-4cd5-92f3-319980aa7fbf.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s8/s8-reconstruction-plan.md
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1220.md
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1152.md (S7, the architecture this builds on)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/reconstruction-engine-design.md (spec 35 added)
+
+### Design decisions
+- **Surviving working tree comes from the `file-history-snapshot` records, not the final conversation
+  head.** A `code` rewind restores the working tree; a conversation-only rewind does not. S8 ends with
+  a conversation-only rewind, so v_c (the last code written) stays on disk while the final `last-prompt`
+  head (step-12 `Hello`) wrote nothing. `findWorkingTreeOwner` returns the `messageId` of the LAST
+  snapshot whose `{path → version}` tracked set changed; `findSurvivingHead` maps that owner up to its
+  conversation head. (Confirmed with the user before coding — the principled, S9-ready choice over the
+  rejected "abandoned branch with the latest write" heuristic.)
+- **No-op-for-S1–S7 guard kept as written.** When the working-tree owner is on the final head's
+  ancestor chain (every non-rewind and `code`-rewind-ending transcript), keep the final head. Only S8's
+  conversation-only divergence takes the new branch. Verified: S7 surviving tip stays `#77494da3`,
+  S1–S6 byte-identical (109 tests green, the 105 pre-CLI run included the S7/S1 sanity specs).
+- **Change detection keys on `version`, not `backupFileName`.** `version` is always present and
+  monotonic; `backupFileName` is null for a file's first tracked version (would compare equal-to-absent).
+
+### Deviations
+- **`findHeadAtOrAbove` parent guard split into two single-condition `if`s** instead of the plan's
+  literal `if (parent === undefined || parent === null)`. Reason: the project's mandatory
+  single-condition-branching rule, and the sibling walkers (`collectAncestorUuids`, `findRewindPoint`)
+  already split them this way. Behaviorally identical.
+- **`tests/reconstruction_engine_s8.test.ts` helper params typed `FileHistory[]`** (the plan's literal
+  `scriptOf(histories)`/`testFileOf(histories)` were untyped). Reason: `noImplicitAny` makes an untyped
+  param a hard `tsc` error; the verify gate requires `tsc` clean. Imported `FileHistory` type-only.
+- **No CLI source change** (as the plan predicted). The S7 all-branches renderer already produces the
+  correct surviving-v_c + two-rewound output once `findSurvivingHead` is working-tree-aware; Task 2 only
+  added the four regression tests that lock it in.
+
+### Tradeoffs
+- **Two new leaf modules (`reconstruction_tree.ts`, `reconstruction_worktree.ts`) rather than inlining
+  into `reconstruction_branch.ts`.** Forced by the 250-line cap (`reconstruction_branch.ts` was 241/250)
+  and the acyclic-import constraint: the snapshot/tree helpers depend only on `structures/*`, never the
+  engine/extract. Mirrors S7's `reconstruction_branches.ts` split. The walkers moved to their canonical
+  home (`reconstruction_tree.ts`) and `reconstruction_branch.ts` imports them back — no re-export shim.
+
+### Open questions
+- None blocking. Flagged for S9 (`s9-code-restore-no-post-edit`): the final action is a `code` restore
+  to OLDER code with no new write; the snapshot tracked-set still CHANGES at the restore, so this same
+  mechanism should point the surviving head at the restored code. Validate against the S9 transcript when
+  planning it. (The rejected "latest write wins" shortcut would fail S9.)
+- Carried-forward, not S8: `parseRedirect` mis-parses `2>&1` / `>/dev/null` (S5 regression). S8 never
+  triggers it; track as a separate `parseRedirect` hardening slice.
+
 ## 2026-06-23:11:50:00 — S7 reconstruction (conversation rewind / code restore — branch-aware, rewound branches preserved)
 Chat title: api-from-scenarios — S7 (minimal-code-restore) implement plan
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/f58fac66-0c73-4855-977e-f82fd5c7fa82.jsonl

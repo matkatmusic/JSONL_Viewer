@@ -62,3 +62,53 @@ test("test_select_live_branch_returns_all_when_no_head", () => {
     const records = buildRewindRecords().filter((r) => r.type !== RecordType.lastPrompt);
     assert.equal(selectLiveBranch(records).length, records.length);
 });
+
+// A file-history-snapshot record in parsed/wire shape; getFileHistorySnapshot hydrates messageId
+// and backupTime. version is what drives tracked-set change detection.
+function snapshotRec(messageId: string, tracked: Record<string, number>): TranscriptRecord {
+    const trackedFileBackups: Record<string, unknown> = {};
+    for (const [path, version] of Object.entries(tracked)) {
+        trackedFileBackups[path] = {
+            backupFileName: null,
+            version,
+            backupTime: "2026-01-01T00:00:00.000Z",
+        };
+    }
+    return {
+        type: RecordType.fileHistorySnapshot,
+        messageId,
+        snapshot: { messageId, timestamp: "2026-01-01T00:00:00.000Z", trackedFileBackups },
+        isSnapshotUpdate: true,
+    } as unknown as TranscriptRecord;
+}
+
+// R = root checkpoint; Wa = the write turn's head (working tree changes to file@2 here);
+// Hc = a conversation-only rewind back to R that writes nothing (working tree stays file@2).
+function buildConversationRewindRecords(): TranscriptRecord[] {
+    return [
+        rec(RecordType.user, "R", null),
+        rec(RecordType.assistant, "Wa", "R"),       // the write turn's tail
+        lastPrompt("Wa"),                            // head: the code branch
+        snapshotRec("Wa", { "file.py": 2 }),         // working tree changed -> file@2
+        rec(RecordType.user, "Hc", "R"),             // conversation-only rewind to root: a new Hello
+        lastPrompt("Hc"),                            // final head, but it wrote nothing
+        snapshotRec("Hc", { "file.py": 2 }),         // working tree UNCHANGED (still file@2)
+    ];
+}
+
+// The surviving branch is the one that produced the on-disk files (Wa), even though Hc is the final
+// conversation head — because the final rewind was conversation-only (the snapshot is unchanged).
+test("test_find_conversation_branches_survives_working_tree_not_final_head", () => {
+    const branches = findConversationBranches(buildConversationRewindRecords());
+    const surviving = branches.find((b) => b.isSurviving)!;
+    assert.equal(surviving.tip.toString(), "Wa");
+    // Hc is not surviving (it is the file-less conversation head).
+    assert.ok(!branches.some((b) => b.isSurviving && b.tip.toString() === "Hc"));
+});
+
+// selectLiveBranch follows the same decision: it keeps Wa's chain (R, Wa), not Hc.
+test("test_select_live_branch_follows_working_tree_after_conversation_rewind", () => {
+    const kept = selectLiveBranch(buildConversationRewindRecords());
+    const uuids = kept.filter((r) => r.uuid).map((r) => r.uuid!.toString()).sort();
+    assert.deepEqual(uuids, ["R", "Wa"]);
+});

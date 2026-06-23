@@ -22,3 +22,6 @@ export const S6_JSONL =
 
 export const S7_JSONL =
     "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s7-minimal-code-restore/d0d14660-4477-40fa-824c-e7f0bb91cd66.jsonl";
+
+export const S8_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s8-repeated-code-restore-rewinds/ac304418-47fe-4c2b-be86-ea62783110e0.jsonl";

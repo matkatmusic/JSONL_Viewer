@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseArgs, runCli } from "../src/reconstruction_cli.ts";
-import { S1_JSONL, S2_JSONL, S3_JSONL, S4_JSONL, S5_JSONL, S6_JSONL, S7_JSONL } from "./fixtures.ts";
+import { S1_JSONL, S2_JSONL, S3_JSONL, S4_JSONL, S5_JSONL, S6_JSONL, S7_JSONL, S8_JSONL } from "./fixtures.ts";
 
 // The append entry's whole list line (matched by its short change id).
 function entryLineWith(out: string, shortChangeId: string): string {
@@ -174,4 +174,44 @@ test("test_default_view_lists_s4_overwrite_entries", () => {
     assert.ok(out.includes("overwrite"));
     // The overwrite of s4_overwrite.py carries its short change id.
     assert.ok(out.includes("#012vJCJs"));
+});
+
+// Default (no flag): the surviving section is v_c's real files (NOT "no files touched"), plus the
+// two code-rewound branches v_a and v_b. The file-less step-12 Hello head is not a branch.
+test("test_default_view_shows_surviving_vc_plus_two_rewound", () => {
+    const out = runCli([S8_JSONL]);
+    assert.ok(out.includes("surviving"));
+    assert.ok(!out.includes("no files touched"));
+    assert.ok(out.includes("#01WWP6tD"));            // surviving v_c scenario8.py
+    assert.ok(out.includes("#01Jn7kgw"));            // surviving v_c test
+    assert.ok(out.includes("#014hpZNH"));            // rewound v_a
+    assert.ok(out.includes("#014Yd3uL"));            // rewound v_b
+    assert.ok(out.includes("#04c69f8b"));            // rewind point (root)
+    assert.ok(!out.includes("overwrite"));           // each write is a create on its own branch
+});
+
+// --surviving: only v_c (the on-disk files), no rewound ids, no branch headers.
+test("test_surviving_flag_shows_only_vc", () => {
+    const out = runCli([S8_JSONL, "--surviving"]);
+    assert.ok(out.includes("#01WWP6tD"));
+    assert.ok(!out.includes("#014hpZNH"));           // v_a not shown
+    assert.ok(!out.includes("#014Yd3uL"));           // v_b not shown
+    assert.ok(!out.includes("## rewound"));
+});
+
+// --list-branches: one surviving line (tip #2988ac8f) and exactly two rewound summary lines.
+test("test_list_branches_lists_surviving_vc_and_two_rewound", () => {
+    const out = runCli([S8_JSONL, "--list-branches"]);
+    assert.ok(out.includes("#2988ac8f"));            // surviving tip = v_c
+    assert.ok(out.includes("#546718c1"));            // v_a tip
+    assert.ok(out.includes("#84d669da"));            // v_b tip
+    assert.equal((out.match(/rewound/g) ?? []).length, 2);
+});
+
+// --branch <v_a tip short id>: retrieves exactly v_a's writes, not v_b/v_c.
+test("test_branch_id_retrieves_one_rewound_version", () => {
+    const out = runCli([S8_JSONL, "--branch", "546718c1"]);
+    assert.ok(out.includes("#014hpZNH"));            // v_a shown
+    assert.ok(!out.includes("#014Yd3uL"));           // v_b not shown
+    assert.ok(!out.includes("#01WWP6tD"));           // surviving v_c not shown
 });

@@ -1,11 +1,20 @@
 // Conversation-branch model. A rewind forks the parentUuid tree; each `last-prompt` record's
-// `leafUuid` names a conversation head. The final head is the surviving branch; abandoned heads
-// (deduped to maximal tips) are rewound branches that forked at a rewind point. Selecting a branch
-// keeps its tip's ancestor chain plus uuid-less meta records. See plans/s7/s7-reconstruction-plan.md.
+// `leafUuid` names a conversation head. The surviving branch is the one holding the on-disk working
+// tree (usually the final head; see findSurvivingHead); abandoned heads (deduped to maximal tips)
+// are rewound branches that forked at a rewind point. Selecting a branch keeps its tip's ancestor
+// chain plus uuid-less meta records. The generic parentUuid/head walkers live in
+// reconstruction_tree.ts; working-tree-owner detection in reconstruction_worktree.ts. See
+// plans/s7/s7-reconstruction-plan.md and plans/s8/s8-reconstruction-plan.md.
 
 import type { TranscriptRecord } from "./structures/envelope.ts";
-import { getLastPromptEntry } from "./structures/session-meta.ts";
 import { Uuid } from "./structures/domain.ts";
+import {
+    collectAncestorUuids,
+    collectHeadUuids,
+    findHeadAtOrAbove,
+    indexRecordsByUuid,
+} from "./reconstruction_tree.ts";
+import { findWorkingTreeOwner } from "./reconstruction_worktree.ts";
 import type {
     BranchedReconstruction,
     FileHistory,
@@ -20,66 +29,28 @@ export type ConversationBranch = {
     isSurviving: boolean;
 };
 
-// Index the records that carry a uuid by that uuid string, for ancestor-chain walks.
-function indexRecordsByUuid(
-    records: TranscriptRecord[],
-): Map<string, TranscriptRecord> {
-    const byUuid = new Map<string, TranscriptRecord>();
-    for (const record of records) {
-        if (record.uuid !== undefined) {
-            byUuid.set(record.uuid.toString(), record);
-        }
-    }
-    return byUuid;
-}
-
-// In file order, the leafUuid of each last-prompt record — the conversation heads.
-function collectHeadUuids(records: TranscriptRecord[]): Uuid[] {
-    const heads: Uuid[] = [];
-    for (const record of records) {
-        const entry = getLastPromptEntry(record);
-        if (entry !== undefined) {
-            heads.push(entry.leafUuid);
-        }
-    }
-    return heads;
-}
-
-// The uuid strings on `tip`'s parentUuid ancestor chain, including the tip itself. Empty when the
-// tip resolves to no record (the caller reads that as "cannot identify"). Stops at a null or
-// unresolvable parent, or when a uuid repeats (cycle guard).
-function collectAncestorUuids(
-    records: TranscriptRecord[],
-    tip: Uuid,
-): Set<string> {
-    const byUuid = indexRecordsByUuid(records);
-    const ancestors = new Set<string>();
-    let current = byUuid.get(tip.toString());
-    while (current !== undefined) {
-        const key = current.uuid!.toString();
-        if (ancestors.has(key)) {
-            break;
-        }
-        ancestors.add(key);
-        const parent = current.parentUuid;
-        if (parent === undefined) {
-            break;
-        }
-        if (parent === null) {
-            break;
-        }
-        current = byUuid.get(parent.toString());
-    }
-    return ancestors;
-}
-
-// The surviving head: the last last-prompt head in file order, or undefined when there is none.
+// The surviving head: normally the final last-prompt head, but when a conversation-only rewind left
+// the working tree on a branch the final head can't reach, the head at-or-above the working-tree
+// owner instead. Falls back to the final head when there is no snapshot / no tracked-set change.
 function findSurvivingHead(records: TranscriptRecord[]): Uuid | undefined {
     const heads = collectHeadUuids(records);
     if (heads.length === 0) {
         return undefined;
     }
-    return heads[heads.length - 1];
+    const finalHead = heads[heads.length - 1]!;
+    const owner = findWorkingTreeOwner(records);
+    if (owner === undefined) {
+        return finalHead;
+    }
+    const finalChain = collectAncestorUuids(records, finalHead);
+    if (finalChain.has(owner.toString())) {
+        return finalHead;
+    }
+    const workingTreeHead = findHeadAtOrAbove(records, owner);
+    if (workingTreeHead === undefined) {
+        return finalHead;
+    }
+    return workingTreeHead;
 }
 
 // The rewind point of an abandoned tip: the deepest record on the tip's path that also lies on the
