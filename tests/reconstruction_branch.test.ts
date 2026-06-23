@@ -148,3 +148,38 @@ test("test_select_live_branch_follows_restored_code_after_code_rewind", () => {
     const uuids = kept.filter((r) => r.uuid).map((r) => r.uuid!.toString()).sort();
     assert.deepEqual(uuids, ["R", "Wb"]);
 });
+
+// R  = root checkpoint.
+// Wa = the write turn's head; its snapshot gives file.py a REAL backup (v2, non-null backupFileName).
+// Hc = a CONVERSATION-ONLY rewind back to R that only reads. Because the rewind did NOT restore the
+//      working tree, file.py stays on disk and is re-snapshotted with the SAME version (still v2) and
+//      the SAME real backupFileName — no churn (this is what distinguishes a conv-only rewind from a
+//      code restore, whose refresh would bump the version with a null backupFileName).
+function buildConversationOnlyRewindRealBackupRecords(): TranscriptRecord[] {
+    return [
+        rec(RecordType.user, "R", null),
+        rec(RecordType.assistant, "Wa", "R"),                              // the write turn's tail
+        lastPrompt("Wa"),                                                  // head: the write branch
+        snapshotRec("Wa", { "file.py": 2 }, { "file.py": "backup-A@v2" }), // real content backup
+        rec(RecordType.user, "Hc", "R"),                                   // conv-only rewind to root: a read-only turn
+        lastPrompt("Hc"),                                                  // final head, but it wrote nothing
+        snapshotRec("Hc", { "file.py": 2 }, { "file.py": "backup-A@v2" }), // SAME version, SAME real backup
+    ];
+}
+
+// Scenario: a conversation-only rewind with no post-edit keeps the surviving branch on the write turn
+// (Wa), not the final read head (Hc), even when the post-rewind snapshot repeats a REAL (non-null)
+// backupFileName at an unbumped version.
+// Steps:
+//   - Build the records: a write turn Wa (file.py@2 with a real backup) and a conversation-only
+//     rewind Hc to root that only reads and re-snapshots file.py@2 with the SAME real backup.
+//   - Enumerate the conversation branches.
+//   - The surviving branch's tip must be Wa (the branch that produced the on-disk file), because the
+//     repeated identical content signature must NOT move the working-tree owner to Hc.
+//   - No surviving branch may be tipped at Hc (it is the file-less final conversation head).
+test("test_find_conversation_branches_survives_working_tree_when_conv_only_refresh_repeats_real_backup", () => {
+    const branches = findConversationBranches(buildConversationOnlyRewindRealBackupRecords());
+    const surviving = branches.find((b) => b.isSurviving)!;
+    assert.equal(surviving.tip.toString(), "Wa");
+    assert.ok(!branches.some((b) => b.isSurviving && b.tip.toString() === "Hc"));
+});

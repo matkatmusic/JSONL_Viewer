@@ -28,3 +28,6 @@ export const S8_JSONL =
 
 export const S9_JSONL =
     "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s9-code-restore-no-post-edit/b381c39b-e81e-45e8-b400-03edc4ee4be3.jsonl";
+
+export const S10_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s10-conv-only-no-post-edit/517dcc05-8809-43cd-86d4-7f6907b9ee76.jsonl";

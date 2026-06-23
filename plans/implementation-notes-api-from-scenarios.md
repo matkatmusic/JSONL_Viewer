@@ -1,3 +1,121 @@
+## 2026-06-23:13:52:00 — S10 reconstruction (conversation-only rewind with no post-edit — the kept files ARE the surviving working tree; NO production-code change, the engine was already correct)
+Chat title: api-from-scenarios — implement S10 (conv-only-no-post-edit) [autonomous monitor session]
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/8150bb15-5769-46bb-98dc-a0fed57d2fe2.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s10/s10-reconstruction-plan.md (THE plan executed)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1342.md (S10 planning handoff — input to this session)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1322.md (S9 implementation handoff — predecessor)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/reconstruction-engine-design.md (spec 37 added; specs 35 and 36 cross-referenced)
+
+### Design decisions
+- **No production-code change — S10 is locked with characterization tests, not a fix.** Verified
+  before coding (end-to-end CLI + direct `reconstructAll`/`reconstructBranches` drive on the real
+  transcript): the engine already reports the two kept files as the surviving working tree (surviving
+  tip `bfd9d428`), with zero rewound branches. S10 is the *isolated* instance of spec 35 (the
+  conversation-only case with no accompanying `code` rewind) and a *strict no-op* for spec 36.
+- **Why S10 is a no-op for the spec-36 content signature (the crux for spec 37):** a conversation-only
+  rewind never touches disk, so the post-rewind `file-history-snapshot` records repeat the SAME
+  `version` (`v2`) AND the SAME non-null `backupFileName`. There is no version bump and no `null`-bfn
+  refresh (the opposite of S9's `code`-restore churn `v3→v4→v5`/null). So the working-tree owner is
+  stable under BOTH the old `{path → version}` rule and the spec-36 signature — it settles at
+  `bfd9d428` and never moves. S10 confirms the S9 fix in isolation.
+- **The new synthetic branch test exercises the real-backup carry-forward path** that S8's existing
+  `buildConversationRewindRecords` (null bfn) does not: `buildConversationOnlyRewindRealBackupRecords`
+  repeats a non-null `backupFileName` (`backup-A@v2`) across the conv-only refresh, driving
+  `resolveContentId`'s carried `set` path. The null-bfn conv-only variant is already locked by S8's
+  `test_find_conversation_branches_survives_working_tree_not_final_head` — not duplicated.
+
+### Deviations
+- **The 3 CLI regression tests went into a NEW file `tests/reconstruction_cli_s10.test.ts`, not into
+  `tests/reconstruction_cli.test.ts` as the plan's Task 2a literally said.** Reason: adding them inline
+  pushed `reconstruction_cli.test.ts` to 276 lines, over the project's hard 250-line cap (PostToolUse
+  hook + verify-gate filesize check both enforce it). A per-scenario CLI test file mirrors the existing
+  per-scenario engine-test split (`reconstruction_engine_s9.test.ts`, `reconstruction_engine_s10.test.ts`).
+  The main CLI test file is back at 246 lines; the new file is 39. Test names, assertions, and the
+  `runCli` invocation style are exactly as the plan specified.
+- **No RED phase.** Strict red-green TDD writes a failing test first, but S10 has no failing behavior to
+  fix — the engine is already correct. Per the plan's "On the absence of a RED phase", the 6 new tests
+  are characterization/regression locks expected GREEN on arrival; each was run and confirmed GREEN on
+  the unchanged `src/`. This is the project's established no-op-slice pattern (S9 Task 2). No
+  production-code change was fabricated to manufacture a RED→GREEN cycle.
+
+### Tradeoffs
+- **Per-scenario CLI test file vs. splitting the rewind-family (S7–S10) CLI tests into one shared
+  file.** Chose the per-scenario file: it is the minimal/surgical change (touches no existing green
+  tests) and matches the engine-test precedent. The shared-rewind-family split would be a larger
+  refactor of unrelated passing tests; deferred. Note: `reconstruction_cli.test.ts` at 246 lines is
+  near the cap, so S11's CLI tests will likely also need their own file (or a family split then).
+
+### Open questions
+- **None blocking.** The plan's locked decisions (1–5) are confirmed by the verified ground truth and
+  the green suite; they mirror S7–S9's accepted conventions. Two pre-existing, out-of-scope items
+  carried from the S8/S9 handoffs remain open and unrelated to S10: the default view does not visually
+  flag that a (file-history-invisible) rewind occurred, and `parseRedirect` mis-parses `2>&1` /
+  `>/dev/null` (its own future hardening slice).
+
+## 2026-06-23:13:21:00 — S9 reconstruction (code restore to older code with no post-edit — surviving working tree is the restored code; working-tree change detected by content identity, not the version counter)
+Chat title: api-from-scenarios — implement S9 (code-restore-no-post-edit) [autonomous monitor session]
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/172cf527-ac51-430c-bd3f-0a0c47b3cd85.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s9/s9-reconstruction-plan.md (THE plan executed)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1313.md (S9 planning handoff — input to this session)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1243.md (S8 implementation handoff — predecessor)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/reconstruction-engine-design.md (spec 36 added; spec 35 cross-referenced as refined)
+
+### Design decisions
+- **Working-tree change is detected by content identity (carried-forward `backupFileName`), not the
+  `version` counter.** This REVISES S8's locked decision #3. A `code` restore with no post-edit emits
+  trailing "refresh" snapshots that bump each file's `version` (v3→v4→v5 on S9) while content is
+  unchanged (their `backupFileName` is `null`). The S8 `{path → version}` key changed on every refresh,
+  so it wrongly named the last refresh (`b71764ed`, on the read-only branch) as the working-tree owner.
+  `findWorkingTreeOwner` now builds a per-snapshot content signature: per path, the last-known non-null
+  `backupFileName` carried forward across null-bfn refreshes. Refreshes keep the same signature → the
+  owner stays at `f1b8dede` (the restored-code write turn).
+- **The freshly-written-file concern (why S8 chose `version`) is handled by the PATH SET.** A file's
+  first tracked version reports `backupFileName: null`; carried forward that is the `NEVER_BACKED_UP`
+  placeholder. But a brand-new file ALSO changes the tracked PATH SET, and the signature keys on the
+  path set too, so the write is still detected. The carry-forward only collapses *refresh* snapshots
+  (same paths, null bfn, bumped version).
+- **Reconstruct the restored files from the Write events already on `f1b8dede`'s branch — no synthetic
+  backup-sourced revision.** The restored bytes ARE those Writes restored to disk, so reconstructing
+  from the events preserves the real `changeId`s (`scenario9.py` #01PZ3yAw, test #012EzSkd) and line
+  history. The final snapshot's `backupFileName` is `null` anyway, so there is nothing on disk to read.
+- **Strict no-op for S1–S8.** The change is confined to `findWorkingTreeOwner`'s comparison key;
+  `findSurvivingHead`'s "keep the final head when the owner is on its ancestor chain" guard is
+  untouched. Verified: S8's owner is unchanged (its trailing conversation-only snapshot repeats the
+  prior content id), and the full suite stayed green with S8/S7/S1 output identical.
+
+### Deviations
+- **None from the plan's GREEN code.** `src/reconstruction_worktree.ts` was rewritten verbatim to the
+  plan's literal code (`NEVER_BACKED_UP`, `resolveContentId`, `buildContentSignature`,
+  `findWorkingTreeOwner`), and the test files match the plan's literal RED. No CLI source change was
+  needed (the plan predicted this; the S7 all-branches renderer already produces correct S9 output once
+  the owner is content-aware).
+- **The 3 CLI regression test assertions were written against the captured real-transcript output**
+  rather than transcribed from the plan's prose, then confirmed to match the plan's prediction (plain
+  list, `--list-branches` single `surviving tip #f1b8dede`, `--surviving` both files). Same behavior,
+  evidence-based assertions.
+
+### Tradeoffs
+- **`version` is retained in the data but no longer used for change detection.** Considered keeping a
+  combined version+content key; rejected — version is precisely the field the harness bumps on refresh,
+  so including it reintroduces the bug. Content identity alone is the correct discriminator.
+- **The default S9 view does not visually flag that a rewind/restore occurred** (it renders like a
+  plain S1-style session). Surfacing "a code restore happened" would touch the renderer for ALL
+  scenarios — out of scope (plan decision #5; see Open questions / Risks).
+
+### Open questions
+- **Default-view rewind indicator (out of scope, decision #5).** Should the default output flag that a
+  `code` restore produced the surviving tree, even when the abandoned branch has no distinct file
+  history? Today S9 is indistinguishable from a plain session in the default view.
+- **Entirely-null-backup transcripts.** The fix tolerates a null final `backupFileName` via
+  carry-forward, but a transcript whose snapshots are *entirely* null-bfn would degrade to
+  path-set-only detection. No such scenario is in scope; flag if one appears.
+- **`parseRedirect` `2>&1` / `>/dev/null` mis-parse (S5 regression)** carried forward from the S8
+  handoff — still open, unrelated to S9, track as its own hardening slice.
+
 ## 2026-06-23:12:40:00 — S8 reconstruction (repeated code-restore rewinds + a final conversation-only rewind — surviving working tree from file-history snapshots, not the final conversation head)
 Chat title: api-from-scenarios — S8 (repeated-code-restore-rewinds) implement plan
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/b4c30907-c6d8-4cd5-92f3-319980aa7fbf.jsonl

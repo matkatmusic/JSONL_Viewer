@@ -142,9 +142,12 @@ The engine is split by concern, one paired test each (files kept well under the
   `envelope`/`session-meta`/`domain`.
 - `src/reconstruction_worktree.ts` — `findWorkingTreeOwner`: which working-tree state survived.
   Scans the `file-history-snapshot` records and returns the `messageId` of the LAST snapshot whose
-  `{path → version}` tracked set changed vs. the previous (a conversation-only rewind appends a
-  trailing snapshot with an unchanged set, so it is ignored). A leaf — imports only
-  `file-history`/`envelope`/`domain`; does not walk the tree, so no cycle. Added in S8.
+  CONTENT signature changed vs. the previous. Content identity is the carried-forward `backupFileName`
+  per path (refined from `{path → version}` in S9), NOT the `version` counter — a conversation-only
+  rewind appends a trailing snapshot with an unchanged set, and a `code`-restore-with-no-post-edit
+  appends "refresh" snapshots that bump `version` while leaving content unchanged; both keep the same
+  signature, so both are ignored. A leaf — imports only `file-history`/`envelope`/`domain`; does not
+  walk the tree, so no cycle. Added in S8, refined in S9.
 - `src/reconstruction_branches.ts` — the branch-agnostic reconstruction CORE
   (`reconstructFileOver` / `reconstructFilesOver`) that reconstructs over EXACTLY the records given
   (no branch selection), plus the cycle-guarded copy-seed recursion (`seedOneCopy` seeds each copy
@@ -203,13 +206,15 @@ file each: extraction in `tests/reconstruction_extract.test.ts`, replay in
 `tests/reconstruction_lineage.test.ts`, the public reconstruct API in
 `tests/reconstruction_engine.test.ts`, `tests/reconstruction_engine_s4.test.ts`,
 `tests/reconstruction_engine_s5.test.ts`, `tests/reconstruction_engine_s6.test.ts`,
-`tests/reconstruction_engine_s7.test.ts`, and
-`tests/reconstruction_engine_s8.test.ts`
+`tests/reconstruction_engine_s7.test.ts`,
+`tests/reconstruction_engine_s8.test.ts`, and
+`tests/reconstruction_engine_s9.test.ts`
 (driven off the real
-`S1_JSONL`/`S2_JSONL`/`S3_JSONL`/`S4_JSONL`/`S5_JSONL`/`S6_JSONL`/`S7_JSONL`/`S8_JSONL`; the S4–S8
-engine specs are in their own files to stay under the 250-line cap), the conversation-branch model
-(plus S8's working-tree-survival walkers) in
-`tests/reconstruction_branch.test.ts` (synthetic rewind + conversation-only-rewind records), the
+`S1_JSONL`/`S2_JSONL`/`S3_JSONL`/`S4_JSONL`/`S5_JSONL`/`S6_JSONL`/`S7_JSONL`/`S8_JSONL`/`S9_JSONL`; the
+S4–S9 engine specs are in their own files to stay under the 250-line cap), the conversation-branch
+model (plus S8's working-tree-survival walkers, refined in S9) in
+`tests/reconstruction_branch.test.ts` (synthetic rewind + conversation-only-rewind +
+code-restore-no-post-edit records), the
 sidecar resolver in
 `tests/reconstruction_sidecar.test.ts` (synthetic snapshots + an in-memory reader),
 verbose/diff rendering in `tests/reconstruction_render.test.ts` and the default list
@@ -412,8 +417,10 @@ in `tests/reconstruction_cli.test.ts`. Red→green, each spec one test.
     conversation branch stay on disk). So the surviving files are not always reachable from the final
     `last-prompt` head. `findSurvivingHead` therefore picks the surviving branch from the
     `file-history-snapshot` records: `findWorkingTreeOwner` (in `reconstruction_worktree.ts`) returns
-    the `messageId` of the LAST snapshot whose `{path → version}` tracked set changed vs. the
-    previous snapshot (the working-tree owner); the surviving head is the final head when the owner is
+    the `messageId` of the LAST snapshot whose tracked set changed vs. the previous snapshot (the
+    working-tree owner — the `{path → version}` change-detection described here is **refined by spec 36
+    to a content signature**, which is the form actually in the code); the surviving head is the final
+    head when the owner is
     on its ancestor chain (every non-rewind and `code`-rewind-ending transcript — S1–S7, a strict
     no-op), otherwise the `last-prompt` head at-or-above the owner (`findHeadAtOrAbove` in
     `reconstruction_tree.ts` — the S8 case, where the conversation-only ending diverges the working
@@ -428,6 +435,62 @@ in `tests/reconstruction_cli.test.ts`. Red→green, each spec one test.
     `test_default_view_shows_surviving_vc_plus_two_rewound`, `test_surviving_flag_shows_only_vc`,
     `test_list_branches_lists_surviving_vc_and_two_rewound`,
     `test_branch_id_retrieves_one_rewound_version`.)
+
+### S9 — implemented now
+
+36. **code-restore-no-post-edit** — a `code` restore to OLDER code with no subsequent write makes the
+    surviving working tree the *restored* code, even though the final conversation head is a later
+    read-only branch that wrote nothing. This **refines spec 35**: after a `code` restore the harness
+    emits trailing "refresh" `file-history-snapshot` records that bump each file's `version` counter
+    while the on-disk content is unchanged (their `backupFileName` is `null`). Spec 35's `{path →
+    version}` change key would mark the LAST refresh (on the read-only branch) as the working-tree
+    owner — wrong. So `findWorkingTreeOwner` detects change by a **content signature** instead: per
+    path, the carried-forward last-known non-null `backupFileName` (refresh snapshots reporting `null`
+    carry the previous content id forward); the signature changes only when the tracked PATH SET
+    changes OR a path's content id changes. A freshly written file is still detected because it changes
+    the PATH SET (its first `backupFileName` may be `null`). With this, S9's owner is `f1b8dede` (the
+    restored-code write turn), so `findSurvivingHead` switches the surviving head there (the read-only
+    head forks at root, off that chain); `reconstructAll(S9)` reconstructs the restored files from the
+    Write events already on that branch (the restored bytes ARE those Writes restored to disk — no
+    synthetic backup-sourced revision; the final snapshot's `backupFileName` is `null` anyway).
+    `reconstructBranches(S9)` has ZERO rewound branches — the read-only head touched no files, so it is
+    a file-less tangent (dropped, like S7's read tangent / S8's `Hello`), and the CLI renders S9 as a
+    plain single-branch list (no `## headers`), like S1–S6. Strict no-op for S1–S8: the carried rule
+    leaves every prior scenario's owner unchanged (S8's owner stays `2267781c` = v_c; its trailing
+    conversation-only snapshot repeats the same content id). No new `EventKind`/per-line/container
+    type, no new module, no CLI change — only which records are selected as surviving.
+    (Proved: `test_find_conversation_branches_survives_restored_code_not_final_refresh`,
+    `test_select_live_branch_follows_restored_code_after_code_rewind`,
+    `test_default_reconstruction_is_the_restored_code_after_code_rewind`,
+    `test_code_restore_with_no_post_edit_has_no_rewound_branches`,
+    `test_s9_default_view_is_a_plain_list_of_the_restored_files`,
+    `test_s9_list_branches_shows_only_the_surviving_restored_branch`,
+    `test_s9_surviving_flag_shows_the_restored_files`.)
+
+### S10 — implemented now
+
+37. **conversation-only-rewind-no-post-edit** — a single conversation-only rewind back to root whose
+    post-rewind branch only reads keeps the written files on disk; they are the surviving working
+    tree, recovered from the Write events on the write-turn branch; `reconstructBranches(S10)` has
+    ZERO rewound branches (the read-only head is a file-less tangent, dropped like S7's read tangent /
+    S8's `Hello` / S9's read head), so the CLI renders S10 as a plain single-branch list (no `##
+    headers`), like S1–S6 and S9. This is the **isolated instance of spec 35** — the
+    conversation-only case with no accompanying `code` rewind, which spec 35 (S8) exercised only
+    *combined* with two `code` rewinds. It is also a **strict no-op for spec 36**: a conversation-only
+    rewind never touches disk, so the post-rewind `file-history-snapshot` records repeat the SAME
+    `version` (`v2`) AND the SAME non-null `backupFileName` — there is no version bump and no `null`-bfn
+    refresh (the opposite of S9's `code`-restore churn `v3→v4→v5`/null). So S10's working-tree owner is
+    stable under BOTH the old `{path → version}` rule and the spec-36 content signature: it settles at
+    `bfd9d428` (the write turn) and never moves. `findSurvivingHead` switches the surviving head there
+    (the read head forks at root, off that chain); `reconstructAll(S10)` recovers both files from the
+    Write events on that branch. **No production-code change was needed** — spec 35 + spec 36 already
+    cover S10; this slice adds only characterization/regression tests and this spec. (Proved:
+    `test_find_conversation_branches_survives_working_tree_when_conv_only_refresh_repeats_real_backup`,
+    `test_default_reconstruction_is_the_files_kept_by_a_conversation_only_rewind`,
+    `test_conversation_only_rewind_with_no_post_edit_has_no_rewound_branches`,
+    `test_s10_default_view_is_a_plain_list_of_the_kept_files`,
+    `test_s10_list_branches_shows_only_the_surviving_branch`,
+    `test_s10_surviving_flag_shows_the_kept_files`.)
 
 ### Deferred to later scenarios
 
