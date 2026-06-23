@@ -215,3 +215,32 @@ test("test_branch_id_retrieves_one_rewound_version", () => {
     assert.ok(!out.includes("#014Yd3uL"));           // v_b not shown
     assert.ok(!out.includes("#01WWP6tD"));           // surviving v_c not shown
 });
+
+// Default (no flag): S9 has one surviving branch and zero rewound branches (the read-only head is a
+// file-less tangent), so it renders as a plain list like S1–S6 — no branch headers, no "no files
+// touched". Both restored files appear with their real create change ids.
+test("test_s9_default_view_is_a_plain_list_of_the_restored_files", () => {
+    const out = runCli([S9_JSONL]);
+    assert.ok(out.includes("scenario9.py"));
+    assert.ok(out.includes("tests/test_scenario9.py"));
+    assert.ok(out.includes("#01PZ3yAw"));            // scenario9.py create
+    assert.ok(out.includes("#012EzSkd"));            // test create
+    assert.ok(!out.includes("## "));                 // no branch headers
+    assert.ok(!out.includes("no files touched"));
+});
+
+// --list-branches: a single surviving line naming the restored-code tip #f1b8dede; no rewound line.
+test("test_s9_list_branches_shows_only_the_surviving_restored_branch", () => {
+    const out = runCli([S9_JSONL, "--list-branches"]);
+    assert.ok(out.includes("surviving"));
+    assert.ok(out.includes("#f1b8dede"));            // restored-code tip
+    assert.ok(!out.includes("rewound"));
+});
+
+// --surviving: the two restored files, no headers.
+test("test_s9_surviving_flag_shows_the_restored_files", () => {
+    const out = runCli([S9_JSONL, "--surviving"]);
+    assert.ok(out.includes("scenario9.py"));
+    assert.ok(out.includes("tests/test_scenario9.py"));
+    assert.ok(!out.includes("## "));
+});
