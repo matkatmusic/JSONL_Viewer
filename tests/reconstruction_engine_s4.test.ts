@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { reconstructFile, reconstructAll } from "../src/reconstruction_engine.ts";
 import { extractFileEvents } from "../src/reconstruction_extract.ts";
 import { EventKind } from "../src/structures/vocabulary.ts";
+import { DOES_NOT_EXIST_YET } from "../src/structures/line-model.ts";
 import { Path } from "../src/structures/domain.ts";
 import { loadRecords } from "./utilities.ts";
 import { S4_JSONL } from "./fixtures.ts";
@@ -29,7 +30,7 @@ test("test_overwrite_file_history_is_create_then_overwrite", () => {
     assert.equal(revisions[1]!.lines.length, 2);
     assert.equal(revisions[1]!.lines[0]!.values[0]!.line, "def version2():");
     // Every overwrite line is genesis (a wholesale replacement, not a splice).
-    assert.ok(revisions[1]!.lines.every((entry) => entry.oldLineNum === -1));
+    assert.ok(revisions[1]!.lines.every((entry) => entry.oldLineNum === DOES_NOT_EXIST_YET));
 });
 
 test("test_reconstruct_all_returns_two_independent_s4_histories", () => {

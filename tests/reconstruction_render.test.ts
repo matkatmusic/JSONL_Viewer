@@ -6,6 +6,7 @@ import {
 } from "../src/reconstruction_render.ts";
 import type { FileRevision, LineEntry } from "../src/reconstruction_engine.ts";
 import { EventKind } from "../src/structures/vocabulary.ts";
+import { DOES_NOT_EXIST_YET } from "../src/structures/line-model.ts";
 import { Path, Uuid } from "../src/structures/domain.ts";
 
 // A minimal two-revision history (create 2 lines, then delete) to render against,
@@ -14,7 +15,7 @@ function createThenDelete(): FileRevision[] {
     const created = new Date("2026-01-01T00:00:00Z");
     const deleted = new Date("2026-01-01T00:01:00Z");
     const lines = ["def hello():", '    print("hello")'].map((line) => ({
-        oldLineNum: -1,
+        oldLineNum: DOES_NOT_EXIST_YET,
         values: [{ line, timestamp: created }],
     }));
     return [
@@ -48,6 +49,32 @@ test("test_diff_shows_additions_then_removals", () => {
     assert.ok(out.includes("deleted"));
 });
 
+// A create of one line, then a `>>` append carrying that line and adding a tail.
+function createThenAppendRevs(): FileRevision[] {
+    const t0 = new Date("2026-01-01T00:00:00Z");
+    const t1 = new Date("2026-01-01T00:01:00Z");
+    return [
+        { kind: EventKind.write, changeId: new Uuid("w1"), timestamp: t0, lines: [born("line one", t0)] },
+        { kind: EventKind.append, changeId: new Uuid("a1"), timestamp: t1, lines: [carried(0, "line one", t0), born("line two", t1)] },
+    ];
+}
+
+// The diff block headed `@@ appended …`, isolated from the full multi-block diff.
+function appendedBlockOf(diff: string): string {
+    const blocks = diff.split(/(?=@@ )/);
+    return blocks.find((block) => block.startsWith("@@ appended"))!;
+}
+
+// --diff heads an append "appended" and shows only the new tail line (prefix unchanged).
+test("test_diff_shows_append_as_added_tail_only", () => {
+    const block = appendedBlockOf(renderDiff(createThenAppendRevs()));
+    assert.ok(block.includes("appended"));
+    assert.ok(block.includes("+ line two"));
+    // Within the append block the carried prefix is not re-emitted as an add or a remove.
+    assert.ok(!block.includes("+ line one"));
+    assert.ok(!block.includes("- line one"));
+});
+
 // --- s2-move-file: rename entry + oldLineNum-driven edit diffs ----------------
 
 const FROM = new Path("/abs/s2_original.py");
@@ -60,7 +87,7 @@ function carried(i: number, line: string, when: Date): LineEntry {
 
 // A line born here (no predecessor).
 function born(line: string, when: Date): LineEntry {
-    return { oldLineNum: -1, values: [{ line, timestamp: when }] };
+    return { oldLineNum: DOES_NOT_EXIST_YET, values: [{ line, timestamp: when }] };
 }
 
 // A create -> rename -> edit(add goodbye) history for the moved file, from
@@ -135,8 +162,8 @@ const copyRevisionFixture: FileRevision = {
     changeId: new Uuid("toolu_01JD5DoUCPtnnQrnJpSDmHwf"),
     timestamp: new Date("2026-06-18T16:16:27.224Z"),
     lines: [
-        { oldLineNum: -1, values: [{ line: "def hello():", timestamp: new Date("2026-06-18T16:16:27.224Z") }] },
-        { oldLineNum: -1, values: [{ line: '    print("hello")', timestamp: new Date("2026-06-18T16:16:27.224Z") }] },
+        { oldLineNum: DOES_NOT_EXIST_YET, values: [{ line: "def hello():", timestamp: new Date("2026-06-18T16:16:27.224Z") }] },
+        { oldLineNum: DOES_NOT_EXIST_YET, values: [{ line: '    print("hello")', timestamp: new Date("2026-06-18T16:16:27.224Z") }] },
     ],
     copy: { from: new Path("/x/s3_source.py"), to: new Path("/x/s3_copy.py") },
 };

@@ -1,9 +1,22 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { replayEvents, splitLines } from "../src/reconstruction_replay.ts";
+import { replayEvents } from "../src/reconstruction_replay.ts";
+// The shared replay helpers now live in their own module (Task 1 split).
+import { splitLines } from "../src/reconstruction_replay_edit.ts";
+import { DOES_NOT_EXIST_YET } from "../src/structures/line-model.ts";
 import type { CopyEvent, FileEvent } from "../src/reconstruction_engine.ts";
 import { EventKind } from "../src/structures/vocabulary.ts";
 import { Path, Uuid } from "../src/structures/domain.ts";
+
+// splitLines drops a single trailing newline, so "a\nb\n" is two lines, not three.
+test("test_split_lines_module_is_importable_and_drops_trailing_newline", () => {
+    assert.deepEqual(splitLines("a\nb\n"), ["a", "b"]);
+});
+
+// The genesis sentinel is a named constant standing in for the old bare -1.
+test("test_genesis_sentinel_constant_is_defined", () => {
+    assert.equal(DOES_NOT_EXIST_YET, -1);
+});
 
 // A trailing newline does not add a phantom empty line (was engine spec 7).
 test("test_trailing_newline_does_not_add_phantom_line", () => {
@@ -29,7 +42,7 @@ test("test_replay_of_a_write_event_yields_one_genesis_revision", () => {
     assert.equal(revisions.length, 1);
     assert.equal(revisions[0]!.kind, EventKind.write);
     assert.equal(revisions[0]!.lines.length, 2);
-    assert.equal(revisions[0]!.lines[0]!.oldLineNum, -1);
+    assert.equal(revisions[0]!.lines[0]!.oldLineNum, DOES_NOT_EXIST_YET);
     assert.equal(revisions[0]!.lines[1]!.values[0]!.line, "y");
 });
 
@@ -51,10 +64,51 @@ test("test_second_write_to_a_present_file_is_an_overwrite", () => {
     // The second write is an overwrite (the file was present), carrying version2 as genesis.
     assert.equal(revisions[1]!.kind, EventKind.overwrite);
     assert.equal(revisions[1]!.lines.length, 2);
-    assert.equal(revisions[1]!.lines[0]!.oldLineNum, -1);
+    assert.equal(revisions[1]!.lines[0]!.oldLineNum, DOES_NOT_EXIST_YET);
     assert.equal(revisions[1]!.lines[0]!.values[0]!.line, "def version2():");
     // The two revisions come from different writes, so their change ids differ.
     assert.ok(!revisions[0]!.changeId.equals(revisions[1]!.changeId));
+});
+
+// A write then a `>>` append to the same path: create then a content-preserving append.
+test("test_append_event_carries_prior_lines_and_adds_a_genesis_tail", () => {
+    // A create of one line, then an append whose full content is both lines.
+    const t0 = new Date("2026-01-01T00:00:00Z");
+    const t1 = new Date("2026-01-01T00:01:00Z");
+    const target = new Path("/a/s5_redirect.txt");
+    const events: FileEvent[] = [
+        { kind: EventKind.write, changeId: new Uuid("w1"), target, content: "line one\n", timestamp: t0 },
+        { kind: EventKind.append, changeId: new Uuid("a1"), target, content: "line one\nline two\n", timestamp: t1 },
+    ];
+    const revisions = replayEvents(events);
+    // Two revisions: the create, then the append.
+    assert.equal(revisions.length, 2);
+    assert.equal(revisions[0]!.kind, EventKind.write);
+    // The append is its own kind, two lines long.
+    assert.equal(revisions[1]!.kind, EventKind.append);
+    assert.equal(revisions[1]!.lines.length, 2);
+    // Line 0 is carried from the create (a back-pointer to old index 0, not genesis).
+    assert.equal(revisions[1]!.lines[0]!.oldLineNum, 0);
+    assert.equal(revisions[1]!.lines[0]!.values[0]!.line, "line one");
+    // Line 1 is the appended tail, born here.
+    assert.equal(revisions[1]!.lines[1]!.oldLineNum, DOES_NOT_EXIST_YET);
+    assert.equal(revisions[1]!.lines[1]!.values[0]!.line, "line two");
+});
+
+// A `>` overwrite event against a present file is a full-content overwrite (S4 reuse).
+test("test_overwrite_event_against_present_file_is_an_overwrite", () => {
+    const t0 = new Date("2026-01-01T00:00:00Z");
+    const t1 = new Date("2026-01-01T00:01:00Z");
+    const target = new Path("/a/s5_redirect.txt");
+    const events: FileEvent[] = [
+        { kind: EventKind.write, changeId: new Uuid("w1"), target, content: "line one\n", timestamp: t0 },
+        { kind: EventKind.overwrite, changeId: new Uuid("o1"), target, content: "replaced content\n", timestamp: t1 },
+    ];
+    const revisions = replayEvents(events);
+    // The second revision is an overwrite, all genesis (a wholesale replace).
+    assert.equal(revisions[1]!.kind, EventKind.overwrite);
+    assert.ok(revisions[1]!.lines.every((entry) => entry.oldLineNum === DOES_NOT_EXIST_YET));
+    assert.equal(revisions[1]!.lines[0]!.values[0]!.line, "replaced content");
 });
 
 // A copy event with known seed lines replays into one genesis revision.
@@ -78,7 +132,7 @@ test("test_replay_appends_copy_genesis_revision_from_seed_lines", () => {
     // Its lines are the seed content, every line born here (genesis).
     assert.equal(revisions[0]!.lines.length, 2);
     assert.equal(revisions[0]!.lines[0]!.values[0]!.line, "def hello():");
-    assert.equal(revisions[0]!.lines[0]!.oldLineNum, -1);
+    assert.equal(revisions[0]!.lines[0]!.oldLineNum, DOES_NOT_EXIST_YET);
     // The genesis lines are stamped at the copy time.
     assert.equal(
         revisions[0]!.lines[0]!.values[0]!.timestamp.toISOString(),

@@ -1,9 +1,51 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { extractFileEvents } from "../src/reconstruction_extract.ts";
-import { EventKind } from "../src/structures/vocabulary.ts";
+import { BlockType, EventKind, RecordType, ToolName } from "../src/structures/vocabulary.ts";
+import type { AppendEvent, OverwriteEvent } from "../src/reconstruction_engine.ts";
+import type { TranscriptRecord } from "../src/structures/envelope.ts";
 import { loadRecords } from "./utilities.ts";
 import { S1_JSONL, S2_JSONL, S3_JSONL, S4_JSONL } from "./fixtures.ts";
+
+// A synthetic Bash tool_use content block running `command`.
+function buildBashBlock(id: string, command: string): Record<string, unknown> {
+    return {
+        type: BlockType.tool_use,
+        id,
+        name: ToolName.Bash,
+        input: { command },
+        caller: { type: "direct" },
+    };
+}
+
+// A synthetic assistant record carrying one Bash tool_use whose command is `command`.
+function buildBashRecord(id: string, command: string, timestamp: string): TranscriptRecord {
+    return {
+        type: RecordType.assistant,
+        timestamp: new Date(timestamp),
+        message: { content: [buildBashBlock(id, command)] },
+    } as unknown as TranscriptRecord;
+}
+
+// One `>>` then one `>` redirect to /a/f.txt, in timestamp order.
+function buildRedirectRecords(): TranscriptRecord[] {
+    return [
+        buildBashRecord("toolu_app", 'echo "line two" >> /a/f.txt', "2026-01-01T00:00:10Z"),
+        buildBashRecord("toolu_ovr", 'echo "replaced content" > /a/f.txt', "2026-01-01T00:00:20Z"),
+    ];
+}
+
+// `>>` extracts an append event; `>` an overwrite event — both with empty content and the redirect target.
+test("test_extract_maps_redirects_to_append_and_overwrite_events", () => {
+    const events = extractFileEvents(buildRedirectRecords());
+    const append = events.find((event) => event.kind === EventKind.append)!;
+    const overwrite = events.find((event) => event.kind === EventKind.overwrite)!;
+    // Both target the redirected file; neither carries content yet (the sidecar fills it).
+    assert.equal(append.target.toString(), "/a/f.txt");
+    assert.equal((append as AppendEvent).content, "");
+    assert.equal(overwrite.target.toString(), "/a/f.txt");
+    assert.equal((overwrite as OverwriteEvent).content, "");
+});
 
 // s1 — extraction finds the file events, time-ordered, with one delete.
 test("test_extract_finds_writes_and_one_time_ordered_delete", () => {

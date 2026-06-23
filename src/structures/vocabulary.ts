@@ -91,7 +91,8 @@ export const ENVELOPE_KEYS = [
 // The evidence kinds the reconstruction engine replays. s1: write (create) and
 // delete (Bash rm). s2-move-file adds edit (in-place splice) and rename (Bash
 // mv). s3-copy-file adds copy (Bash cp). s4-overwrite-file adds overwrite (a
-// second Write to a present file). Later scenarios add read, etc.
+// second Write to a present file). s5-bash-redirect adds append (a >> redirect to
+// a present file). Later scenarios add read, etc.
 export enum EventKind {
     write = "write",
     delete = "delete",
@@ -99,4 +100,5 @@ export enum EventKind {
     rename = "rename",
     copy = "copy",
     overwrite = "overwrite",
+    append = "append",
 }

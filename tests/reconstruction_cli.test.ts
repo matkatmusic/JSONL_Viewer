@@ -1,7 +1,30 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseArgs, runCli } from "../src/reconstruction_cli.ts";
-import { S1_JSONL, S2_JSONL, S3_JSONL, S4_JSONL } from "./fixtures.ts";
+import { S1_JSONL, S2_JSONL, S3_JSONL, S4_JSONL, S5_JSONL } from "./fixtures.ts";
+
+// The append entry's whole list line (matched by its short change id).
+function entryLineWith(out: string, shortChangeId: string): string {
+    return out.split("\n").find((line) => line.includes(shortChangeId))!;
+}
+
+// The default view of the real S5 transcript lists create -> append -> overwrite, with the
+// redirect line counts recovered from the file-history sidecar (append 1->2, overwrite ->1).
+test("test_default_view_lists_s5_redirect_entries", () => {
+    const out = runCli([S5_JSONL]);
+    assert.ok(out.includes("s5_redirect.txt"));
+    assert.ok(out.includes("create"));
+    assert.ok(out.includes("append"));
+    assert.ok(out.includes("overwrite"));
+    // The append entry recovered its appended tail from the sidecar: two lines now.
+    const appendLine = entryLineWith(out, "#01PDv4Df");
+    assert.ok(appendLine.includes("append"));
+    assert.ok(appendLine.includes("2 lines"));
+    // The overwrite entry recovered its replacement content: one line.
+    const overwriteLine = entryLineWith(out, "#01UB1SvL");
+    assert.ok(overwriteLine.includes("overwrite"));
+    assert.ok(overwriteLine.includes("1 lines"));
+});
 
 // A transcript path is required; without one, parseArgs reports usage.
 test("test_parse_args_requires_a_transcript_path", () => {

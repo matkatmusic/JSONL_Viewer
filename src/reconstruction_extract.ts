@@ -60,6 +60,28 @@ function parseCpPaths(command: string): CopyInfo | undefined {
     return { from: new Path(match[1]!), to: new Path(match[2]!) };
 }
 
+// A parsed bash output redirection: the target file and whether it appends (`>>`)
+// rather than overwrites (`>`).
+type ParsedRedirect = {
+    target: Path;
+    appends: boolean;
+};
+
+// Parse a bash output redirection target: `>>` appends, `>` overwrites/creates. Returns the
+// target and whether it appends, or undefined when there is no redirect. The content is NOT
+// parsed from the command — it is recovered from the file-history sidecar (locked decision 3).
+function parseRedirect(command: string): ParsedRedirect | undefined {
+    const appended = command.match(/>>\s*(\S+)\s*$/);
+    if (appended) {
+        return { target: new Path(appended[1]!), appends: true };
+    }
+    const overwritten = command.match(/(?<!>)>\s*(\S+)\s*$/);
+    if (overwritten) {
+        return { target: new Path(overwritten[1]!), appends: false };
+    }
+    return undefined;
+}
+
 // Turn a Bash tool_use into a file event: `rm` -> delete, `mv` -> rename, `cp` ->
 // copy, else undefined (s1 uses rm; s2 uses mv; s3 uses cp).
 function bashEventFrom(
@@ -91,6 +113,11 @@ function bashEventFrom(
             seedLines: [],
             timestamp,
         };
+    }
+    const redirected = parseRedirect(input.command);
+    if (redirected) {
+        const kind = redirected.appends ? EventKind.append : EventKind.overwrite;
+        return { kind, changeId: block.id, target: redirected.target, content: "", timestamp };
     }
     return undefined;
 }

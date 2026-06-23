@@ -127,22 +127,41 @@ The engine is split by concern, one paired test each (files kept well under the
   cycle-guarded copy-seed recursion (`reconstructLineage` seeds each copy from its
   source as of the copy time); it lives here because it needs `reconstructFile` as
   a value, preserving the type-only import direction from the mechanics modules.
+  `reconstructFile`/`reconstructAll` take an optional `BackupReader` (transcript +
+  sidecar): with one, `fillRedirectContent` recovers bash-redirect content before
+  replay; S1–S4 pass none, so it is a no-op for them.
 - `src/reconstruction_extract.ts` — extraction (records → ordered `FileEvent`s):
-  Write→create, Bash `rm`→delete / `mv`→rename / `cp`→copy, Edit→splice
-  (+ hunk indexing).
-- `src/reconstruction_replay.ts` — replay (events → revisions): the left-fold,
-  the write/delete/edit/rename/copy appenders, and the hunk splice helpers.
+  Write→create, Bash `rm`→delete / `mv`→rename / `cp`→copy / `>>`→append / `>`→overwrite
+  (`parseRedirect`, empty content — the sidecar fills it), Edit→splice (+ hunk indexing).
+- `src/reconstruction_replay.ts` — replay (events → revisions): the left-fold and the
+  write/delete/rename/copy/overwrite/append appenders.
+- `src/reconstruction_replay_edit.ts` — the per-line primitives (`splitLines`,
+  `genesisLine`, `carryAt`, `lastLinesOf`, `fileIsPresent`), the `appendRevision`
+  builder, and the whole Edit splice (`applyEdit` + privates). Imports nothing from
+  `reconstruction_replay.ts`, so the dependency runs one way (replay → here). Split out
+  in S5 (replay was 247/250 lines).
+- `src/reconstruction_sidecar.ts` — `fillRedirectContent` recovers a `>`/`>>`'s
+  resulting content from the file-history backups beside the transcript (the snapshot
+  taken next after the redirect names the blob), through an injected `BackupReader`;
+  `createSidecarReader`/`getDefaultFileHistoryRoot`/`findSessionId` build the real
+  on-disk reader (`~/.claude/file-history/<sessionId>/`). Snapshot paths are resolved
+  against the transcript `cwd` (they are cwd-relative).
+- `src/structures/line-model.ts` — the genesis sentinel `DOES_NOT_EXIST_YET` (= -1),
+  a leaf module so engine/replay/render import it as a value without a runtime cycle.
 - `src/reconstruction_lineage.ts` — following a file across renames (rename chain,
   `resolveFinalPath`, lineage membership, distinct final paths). A copy's
   `contentPathOf` is its destination, but a copy never enters the rename chain, so
   source and destination stay distinct lineages.
 - `src/reconstruction_render.ts` — `renderVerbose` / `renderDiff` (pure). The diff
-  heads an overwrite `@@ overwritten @ … @@` (full remove-all / add-all). Split in
-  S4 (was 249/250 lines): the default list view moved out (now ~128 lines).
+  heads an overwrite `@@ overwritten @ … @@` (full remove-all / add-all) and an append
+  `@@ appended @ … @@` (added-tail-only). Split in S4 (was 249/250 lines): the default
+  list view moved out (now ~128 lines).
 - `src/reconstruction_render_list.ts` — the default list view `renderHistoryList`
-  and its helpers (`entryLabel`/`entryDetail`/`renderHistoryBlock`/…), split out in
-  S4 so `reconstruction_render.ts` could grow. `entryLabel` maps `overwrite`.
-- `src/reconstruction_cli.ts` — arg parsing + `runCli` + entry point.
+  and its helpers (`getEntryLabel`/`getEntryDetail`/`renderHistoryBlock`/…, verb-renamed
+  in S5), split out in S4 so `reconstruction_render.ts` could grow. `getEntryLabel` maps
+  `overwrite` and `append`.
+- `src/reconstruction_cli.ts` — arg parsing + `runCli` + entry point; builds the real
+  sidecar `BackupReader` from the transcript's session and threads it into reconstruction.
   Run: `tsx src/reconstruction_cli.ts <transcript.jsonl> [--target <p>] [--verbose|--diff]`.
 
 ## TDD specs
@@ -151,11 +170,13 @@ Tests (`node:test` + `node:assert`) split to match the modules, one paired test
 file each: extraction in `tests/reconstruction_extract.test.ts`, replay in
 `tests/reconstruction_replay.test.ts`, lineage in
 `tests/reconstruction_lineage.test.ts`, the public reconstruct API in
-`tests/reconstruction_engine.test.ts` and `tests/reconstruction_engine_s4.test.ts`
-(driven off the real `S1_JSONL`/`S2_JSONL`/`S3_JSONL`/`S4_JSONL`; the S4 engine
-specs are in their own file to stay under the 250-line cap), verbose/diff rendering
-in `tests/reconstruction_render.test.ts` and the default list view in
-`tests/reconstruction_render_list.test.ts` (pure, literal revisions), CLI
+`tests/reconstruction_engine.test.ts`, `tests/reconstruction_engine_s4.test.ts`, and
+`tests/reconstruction_engine_s5.test.ts` (driven off the real
+`S1_JSONL`/`S2_JSONL`/`S3_JSONL`/`S4_JSONL`/`S5_JSONL`; the S4 and S5 engine specs are
+in their own files to stay under the 250-line cap), the sidecar resolver in
+`tests/reconstruction_sidecar.test.ts` (synthetic snapshots + an in-memory reader),
+verbose/diff rendering in `tests/reconstruction_render.test.ts` and the default list
+view in `tests/reconstruction_render_list.test.ts` (pure, literal revisions), CLI
 in `tests/reconstruction_cli.test.ts`. Red→green, each spec one test.
 
 ### S1 — implemented now
@@ -255,6 +276,39 @@ in `tests/reconstruction_cli.test.ts`. Red→green, each spec one test.
     `test_list_labels_overwrite_entry`, `test_diff_shows_overwrite_as_full_replace`,
     `test_verbose_shows_overwrite_full_state`,
     `test_default_view_lists_s4_overwrite_entries`.)
+
+### S5 — implemented now
+
+24. **Append replay** — a write then an append event replay into a create then an
+    `append`: the append carries the prior lines forward unchanged (identity
+    back-pointers, `oldLineNum` = previous index) and adds the redirect's tail lines as
+    genesis (`oldLineNum DOES_NOT_EXIST_YET`); an overwrite event against a present file
+    is an `overwrite`, and an append/overwrite to an absent file is a create (kind
+    `write`). (Proved: `test_append_event_carries_prior_lines_and_adds_a_genesis_tail`,
+    `test_overwrite_event_against_present_file_is_an_overwrite`.)
+25. **Sidecar resolution** — a bash `>`/`>>` leaves no content in the JSONL, so
+    `fillRedirectContent` fills a redirect event's content from the backup blob named by
+    the first `file-history-snapshot` taken strictly after the event whose backup is
+    non-null, read through an injected `BackupReader`. Snapshots key their backups by the
+    path **relative to cwd**, so the snapshot path is resolved against the transcript's
+    `cwd` to match the event's absolute target. (Proved:
+    `test_fill_resolves_redirect_content_from_the_next_snapshot_blob`,
+    `test_fill_matches_a_cwd_relative_snapshot_path_to_an_absolute_target`.)
+26. **Redirect extraction** — `bashEventFrom` maps `echo … >> path`→`AppendEvent` and
+    `echo … > path`→`OverwriteEvent`, both with **empty** content (the sidecar fills it,
+    decision 3 — the `echo` argument is never parsed); non-redirect Bash still yields
+    nothing. (Proved: `test_extract_maps_redirects_to_append_and_overwrite_events`.)
+27. **Redirect reconstruction** — `reconstructAll(S5, reader)` returns one history,
+    create → append → overwrite, with the literal line shapes (append carries `line one`
+    at `oldLineNum 0` and adds `line two` as genesis; overwrite is one genesis line
+    `replaced content`). (Proved:
+    `test_redirect_file_history_is_create_then_append_then_overwrite`.)
+28. **Append render** — the list view labels it `append` (with a `2 lines  (+1)` delta);
+    the diff heads it `@@ appended @ … @@` with added-tail-only (the carried prefix
+    produces neither `+` nor `-`); verbose shows the full numbered state through the
+    default body. The CLI builds the real on-disk reader from the transcript's session id.
+    (Proved: `test_list_labels_append_entry`, `test_diff_shows_append_as_added_tail_only`,
+    `test_default_view_lists_s5_redirect_entries`.)
 
 ### Deferred to later scenarios
 

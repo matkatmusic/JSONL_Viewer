@@ -15,6 +15,12 @@ import {
 } from "./reconstruction_engine.ts";
 import { renderDiff, renderVerbose } from "./reconstruction_render.ts";
 import { renderHistoryList } from "./reconstruction_render_list.ts";
+import {
+    createSidecarReader,
+    getDefaultFileHistoryRoot,
+    findSessionId,
+    type BackupReader,
+} from "./reconstruction_sidecar.ts";
 
 const USAGE =
     "usage: reconstruction_cli <transcript.jsonl> [--target <path>] [--verbose|--diff]";
@@ -44,16 +50,28 @@ export function parseArgs(argv: string[]): CliOptions {
     };
 }
 
-// One file's history (--target), else every file the transcript touches.
+// The on-disk file-history reader for this transcript's session, or undefined when the
+// session id can't be determined (then redirects resolve to empty content).
+function buildSidecarReader(records: TranscriptRecord[]): BackupReader | undefined {
+    const sessionId = findSessionId(records);
+    if (!sessionId) {
+        return undefined;
+    }
+    return createSidecarReader(sessionId, getDefaultFileHistoryRoot());
+}
+
+// One file's history (--target), else every file the transcript touches. A bash-redirect's
+// content is recovered through the sidecar reader built from the transcript's session.
 function selectHistories(
     options: CliOptions,
     records: TranscriptRecord[],
 ): FileHistory[] {
+    const reader = buildSidecarReader(records);
     if (options.target) {
-        const revisions = reconstructFile(records, options.target);
+        const revisions = reconstructFile(records, options.target, reader);
         return [{ target: options.target, revisions }];
     }
-    return reconstructAll(records);
+    return reconstructAll(records, reader);
 }
 
 function renderHistories(

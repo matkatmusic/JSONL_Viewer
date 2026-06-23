@@ -4,6 +4,7 @@
 
 import type { FileRevision, LineEntry } from "./reconstruction_engine.ts";
 import { EventKind } from "./structures/vocabulary.ts";
+import { DOES_NOT_EXIST_YET } from "./structures/line-model.ts";
 import type { Path } from "./structures/domain.ts";
 
 // A line's believed content right now is the last value in its history.
@@ -85,16 +86,16 @@ function removedLines(
     return removed;
 }
 
-// Current entries born here (oldLineNum -1) are the real additions.
+// Current entries born here (oldLineNum DOES_NOT_EXIST_YET) are the real additions.
 function addedLines(revision: FileRevision): string[] {
     return revision.lines
-        .filter((entry) => entry.oldLineNum === -1)
+        .filter((entry) => entry.oldLineNum === DOES_NOT_EXIST_YET)
         .map((entry) => `+ ${currentText(entry)}`);
 }
 
 // Render one revision as a diff against the previous one. Real changes only: a
 // removal is a previous line no current entry points back to; an addition is a
-// line born here (oldLineNum -1). A rename is its own block with no line churn.
+// line born here (oldLineNum DOES_NOT_EXIST_YET). A rename is its own block with no line churn.
 function diffBlock(
     previous: FileRevision | undefined,
     revision: FileRevision,
@@ -113,6 +114,11 @@ function diffBlock(
         const removed = removedLines(previous, revision);
         const added = addedLines(revision);
         return [header, ...removed, ...added].join("\n");
+    }
+    if (revision.kind === EventKind.append) {
+        const header = `@@ appended @ ${stamp} @@`;
+        const added = addedLines(revision);
+        return [header, ...added].join("\n");
     }
     const before = previous ? previous.lines.map(currentText) : [];
     const after = revision.lines.map(currentText);

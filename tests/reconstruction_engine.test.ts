@@ -9,6 +9,7 @@ import {
 } from "../src/reconstruction_engine.ts";
 import { extractFileEvents } from "../src/reconstruction_extract.ts";
 import { EventKind } from "../src/structures/vocabulary.ts";
+import { DOES_NOT_EXIST_YET } from "../src/structures/line-model.ts";
 import { Uuid } from "../src/structures/domain.ts";
 import { Path } from "../src/structures/domain.ts";
 import { loadRecords } from "./utilities.ts";
@@ -61,7 +62,7 @@ test("test_create_revision_has_genesis_lines", () => {
     assert.equal(create.lines[1]!.values[0]!.line, '    print("hello")');
     assert.equal(create.timestamp.getTime(), write.timestamp.getTime());
     for (const entry of create.lines) {
-        assert.equal(entry.oldLineNum, -1);
+        assert.equal(entry.oldLineNum, DOES_NOT_EXIST_YET);
         assert.equal(entry.values.length, 1);
     }
 });
@@ -110,7 +111,7 @@ test("test_edit_splices_into_paired_removal_and_addition_revisions", () => {
     assert.equal(revisions[1]!.lines[0]!.oldLineNum, 1);
     // Entry 2 is the addition: the new import is born at index 0, total back to 6 lines.
     assert.equal(revisions[2]!.lines.length, 6);
-    assert.equal(revisions[2]!.lines[0]!.oldLineNum, -1);
+    assert.equal(revisions[2]!.lines[0]!.oldLineNum, DOES_NOT_EXIST_YET);
     assert.equal(revisions[2]!.lines[0]!.values[0]!.line, "from s2_moved import hello");
     // The removal and addition came from one Edit, so they share a changeId.
     assert.ok(revisions[1]!.changeId.equals(revisions[2]!.changeId));
@@ -137,7 +138,7 @@ test("test_moved_file_history_spans_create_rename_edit", () => {
     // The edit adds goodbye(), ending at 6 lines with the new lines born.
     assert.equal(revisions[2]!.lines.length, 6);
     assert.equal(revisions[2]!.lines[4]!.values[0]!.line, "def goodbye():");
-    assert.equal(revisions[2]!.lines[4]!.oldLineNum, -1);
+    assert.equal(revisions[2]!.lines[4]!.oldLineNum, DOES_NOT_EXIST_YET);
 });
 
 // reconstructAll returns exactly two lineages: the test file and the moved file
@@ -184,7 +185,7 @@ test("test_copied_file_history_spans_copy_then_paired_edit", () => {
     assert.equal(revisions[0]!.kind, EventKind.copy);
     assert.equal(revisions[0]!.lines.length, 2);
     assert.equal(revisions[0]!.lines[0]!.values[0]!.line, "def hello():");
-    assert.equal(revisions[0]!.lines[0]!.oldLineNum, -1);
+    assert.equal(revisions[0]!.lines[0]!.oldLineNum, DOES_NOT_EXIST_YET);
     assert.ok(revisions[0]!.copy!.from.toString().endsWith("/s3_source.py"));
     // Entry 1 is the edit removal: def hello() dropped, leaving 1 line.
     assert.equal(revisions[1]!.kind, EventKind.edit);
@@ -192,7 +193,7 @@ test("test_copied_file_history_spans_copy_then_paired_edit", () => {
     assert.equal(revisions[1]!.lines[0]!.oldLineNum, 1);
     // Entry 2 is the edit addition: def greet() born at index 0, back to 2 lines.
     assert.equal(revisions[2]!.lines.length, 2);
-    assert.equal(revisions[2]!.lines[0]!.oldLineNum, -1);
+    assert.equal(revisions[2]!.lines[0]!.oldLineNum, DOES_NOT_EXIST_YET);
     assert.equal(revisions[2]!.lines[0]!.values[0]!.line, "def greet():");
     // The removal and addition came from one Edit, so they share a changeId.
     assert.ok(revisions[1]!.changeId.equals(revisions[2]!.changeId));

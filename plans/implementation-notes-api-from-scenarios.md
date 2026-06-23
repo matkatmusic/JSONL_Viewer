@@ -354,3 +354,34 @@ S2 JSONL: /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/e
    scenario JSONLs via the in-worktree `scenarios/` symlink (verified). The
    handoff's "subagents cannot read the Desktop path" is outdated. (Per your
    decision, fixtures still use absolute Desktop paths to match s1.)
+
+## 2026-06-23:09:15:00 — S5 bash-redirect (`>>` append, `>` overwrite) via the file-history sidecar
+Chat title: api-from-scenarios — S5 implementation
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/575b1aed-bd52-478e-a7ac-faf407c18225.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s5/s5-reconstruction-plan.md
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/reconstruction-engine-design.md (specs 24–28, Code-layout)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/coding-requirements.md
+
+### Design decisions
+- **Implemented the plan's 9 tasks in order, RED→GREEN, verify gate after each.** Final: 84 tests green (was 73), `tsc --noEmit` clean, every file ≤250 lines.
+- **`>>` append = carried-prefix + genesis-suffix revision** (`EventKind.append`): prior lines carry forward with identity back-pointers (`carryAt`), the appended tail is genesis (`DOES_NOT_EXIST_YET`). `appendRevision` lives in the new `reconstruction_replay_edit.ts`. Append-to-absent creates the file (kind `write`).
+- **`>` overwrite reuses the S4 overwrite path** — `OverwriteEvent` routes through `writeRevision(event, fileIsPresent(...))`; no new line logic.
+- **Redirect content comes from the file-history sidecar, never the `echo` command** — `fillRedirectContent` reads the backup blob named by the first non-null `file-history-snapshot` taken strictly after the redirect, through an injected `BackupReader`. Tests use an in-memory map; the CLI builds the real on-disk reader (`~/.claude/file-history/<sessionId>/`).
+- **Split `reconstruction_replay.ts` (247→127 lines)** into `reconstruction_replay_edit.ts` (primitives + Edit splice + `appendRevision`); one-directional import (replay → edit), no cycle.
+- **`DOES_NOT_EXIST_YET` (= -1) sentinel** extracted to the leaf module `src/structures/line-model.ts`, replacing every genesis `-1` across src and tests.
+- **Verb-renamed the 8 list-view helpers** (`baseName`→`getBaseName`, `entryLabel`→`getEntryLabel`, …) per coding-requirements rule 5.
+
+### Deviations
+- **DEVIATION (load-bearing): snapshot paths are cwd-relative, not absolute.** The plan's sidecar assumed `trackedFileBackups` keys matched the event's absolute target. They do not — Claude Code keys backups by the path **relative to the session cwd** (e.g. `s5_redirect.txt`), while events carry the absolute path. Without handling this, every redirect resolved to empty content (append showed 1 line, overwrite 0). Fix: `findCwd(records)` + `resolveAgainstCwd` resolve each snapshot path against the transcript `cwd` before matching; `resolve()` leaves an already-absolute path unchanged, so the rule stays correct if a future transcript stores absolute keys. Locked with `test_fill_matches_a_cwd_relative_snapshot_path_to_an_absolute_target` (Task 5) and end-to-end by the real-transcript Task 7/9 tests.
+- **DEVIATION (test strengthening, Task 9):** the plan's CLI test only asserted the `append`/`overwrite` labels + a change id — these appear even with **no** reader wired (the event *kind* is set at extraction), so the test was green before the GREEN step and did not drive the reader. Strengthened it to assert the recovered line counts (`append … 2 lines`, `overwrite … 1 lines`), which require the real sidecar reader — a true RED that drives the wiring.
+- **DEVIATION (test scoping, Task 8):** the plan's diff test asserted `!out.includes("+ line one")` over the whole multi-block diff, but the create revision legitimately emits `+ line one`. Scoped the negative assertions to the `@@ appended …@@` block (`appendedBlockOf`) — the actual intent ("the carried prefix is not re-emitted *in the append block*").
+
+### Tradeoffs
+- **cwd resolution via `path.resolve` over basename-matching:** basename matching would also pass S5 (one file) but collides when two files share a name in different dirs; resolving against cwd is correct and general. Cost: a `findCwd` scan of the records.
+- **`reconstruction_engine.ts` is at 248/250 lines** after threading the optional `BackupReader` through `reconstructFile`/`reconstructLineage`/`seedCopyEvents`/`seedOneCopy`/`reconstructAll`. The next engine change will likely need a split (precedent: replay/render splits).
+
+### Open questions
+1. **The sidecar alignment rule assumes ≤1 mutation to a path between two non-null snapshots.** S5 satisfies it (one mutation per turn). A future scenario that mutates one file twice between snapshots would leave the intermediate state unrecoverable from the sidecar — flag it then.
+2. **`reconstruction_engine.ts` at 248/250** — pre-emptively split (e.g. move the copy-seed recursion) before S6, or wait until a change forces it?

@@ -12,6 +12,8 @@ import { EventKind } from "./structures/vocabulary.ts";
 import { Path, Uuid } from "./structures/domain.ts";
 import { extractFileEvents } from "./reconstruction_extract.ts";
 import { replayEvents } from "./reconstruction_replay.ts";
+import { fillRedirectContent } from "./reconstruction_sidecar.ts";
+import type { BackupReader } from "./reconstruction_sidecar.ts";
 import {
     buildRenameChain,
     distinctFinalPaths,
@@ -25,7 +27,7 @@ import {
 export type LineValue = { line: string; timestamp: Date };
 
 // A line within a revision: its content history at this position, plus a
-// back-pointer to the index it held in the previous revision (-1 = born here).
+// back-pointer to the index it held in the previous revision (DOES_NOT_EXIST_YET = born here).
 export type LineEntry = { oldLineNum: number; values: LineValue[] };
 
 // The source and destination of a rename (the two paths an mv connects).
@@ -99,12 +101,36 @@ export type CopyEvent = {
     timestamp: Date;
 };
 
+// A bash `>>` append: prior lines survive, the new tail is genesis. content is the
+// file's full post-append text, recovered from the file-history sidecar (the redirect
+// leaves no content in the JSONL); it is empty from extraction and filled during
+// reconstruction. See plans/s5/s5-reconstruction-plan.md.
+export type AppendEvent = {
+    kind: EventKind.append;
+    changeId: Uuid;
+    target: Path;
+    content: string;
+    timestamp: Date;
+};
+
+// A bash `>` overwrite: a wholesale full-content revision (S4 overwrite, produced by a
+// redirect). content is recovered from the sidecar like AppendEvent.
+export type OverwriteEvent = {
+    kind: EventKind.overwrite;
+    changeId: Uuid;
+    target: Path;
+    content: string;
+    timestamp: Date;
+};
+
 export type FileEvent =
     | WriteEvent
     | DeleteEvent
     | EditEvent
     | RenameEvent
-    | CopyEvent;
+    | CopyEvent
+    | AppendEvent
+    | OverwriteEvent;
 
 // --- Reconstruction: the public API ------------------------------------------
 
@@ -114,16 +140,19 @@ export type FileEvent =
 export function reconstructFile(
     records: TranscriptRecord[],
     target: Path,
+    reader?: BackupReader,
 ): FileRevision[] {
-    return reconstructLineage(records, target, new Set<string>());
+    return reconstructLineage(records, target, new Set<string>(), reader);
 }
 
 // resolving holds the destination paths currently being seeded, so a copy cycle
-// (cp a b; cp b a) breaks instead of recursing forever.
+// (cp a b; cp b a) breaks instead of recursing forever. reader fills bash-redirect
+// content from the file-history sidecar before replay (undefined for S1-S4).
 function reconstructLineage(
     records: TranscriptRecord[],
     target: Path,
     resolving: Set<string>,
+    reader?: BackupReader,
 ): FileRevision[] {
     const events = extractFileEvents(records);
     const renameChain = buildRenameChain(events);
@@ -131,8 +160,9 @@ function reconstructLineage(
     const lineage = events.filter((event) =>
         eventBelongsToLineage(event, finalTarget, renameChain),
     );
-    const seeded = seedCopyEvents(records, lineage, resolving);
-    return replayEvents(seeded);
+    const seeded = seedCopyEvents(records, lineage, resolving, reader);
+    const filled = reader ? fillRedirectContent(records, seeded, reader) : seeded;
+    return replayEvents(filled);
 }
 
 // Fill each copy event's seedLines from its source; pass other events through.
@@ -140,10 +170,11 @@ function seedCopyEvents(
     records: TranscriptRecord[],
     lineage: FileEvent[],
     resolving: Set<string>,
+    reader?: BackupReader,
 ): FileEvent[] {
     return lineage.map((event) => {
         if (event.kind === EventKind.copy) {
-            return seedOneCopy(records, event, resolving);
+            return seedOneCopy(records, event, resolving, reader);
         }
         return event;
     });
@@ -154,6 +185,7 @@ function seedOneCopy(
     records: TranscriptRecord[],
     event: CopyEvent,
     resolving: Set<string>,
+    reader?: BackupReader,
 ): CopyEvent {
     const destination = event.to.toString();
     if (resolving.has(destination)) {
@@ -161,7 +193,7 @@ function seedOneCopy(
     }
     const next = new Set(resolving);
     next.add(destination);
-    const sourceRevisions = reconstructLineage(records, event.from, next);
+    const sourceRevisions = reconstructLineage(records, event.from, next, reader);
     const atCopy = lastRevisionAtOrBefore(sourceRevisions, event.timestamp);
     if (!atCopy) {
         return { ...event, seedLines: [] };
@@ -192,12 +224,15 @@ function linesTextOf(revision: FileRevision): string[] {
 
 // Reconstruct every file the transcript touches — each with its own history,
 // keyed by the path it ends life at (a renamed file is one history, not two).
-export function reconstructAll(records: TranscriptRecord[]): FileHistory[] {
+export function reconstructAll(
+    records: TranscriptRecord[],
+    reader?: BackupReader,
+): FileHistory[] {
     const events = extractFileEvents(records);
     const renameChain = buildRenameChain(events);
     return distinctFinalPaths(events, renameChain).map((target) => ({
         target,
-        revisions: reconstructFile(records, target),
+        revisions: reconstructFile(records, target, reader),
     }));
 }
 

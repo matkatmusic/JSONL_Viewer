@@ -7,23 +7,23 @@ import { EventKind } from "./structures/vocabulary.ts";
 import type { Path, Uuid } from "./structures/domain.ts";
 
 // The tail component of a path (its file name).
-function baseName(path: Path): string {
+function getBaseName(path: Path): string {
     const parts = path.toString().split("/");
     return parts[parts.length - 1]!;
 }
 
 // A change id, shortened for display: drop a leading `toolu_`, keep 8 chars.
-function shortChangeId(id: Uuid): string {
+function shortenChangeId(id: Uuid): string {
     return id.toString().replace(/^toolu_/, "").slice(0, 8);
 }
 
 // The clock portion of a timestamp (HH:MM:SSZ).
-function shortTime(date: Date): string {
+function formatShortTime(date: Date): string {
     return `${date.toISOString().slice(11, 19)}Z`;
 }
 
 // A short label for the kind that produced an entry.
-function entryLabel(kind: EventKind): string {
+function getEntryLabel(kind: EventKind): string {
     if (kind === EventKind.write) {
         return "create";
     }
@@ -39,11 +39,14 @@ function entryLabel(kind: EventKind): string {
     if (kind === EventKind.overwrite) {
         return "overwrite";
     }
+    if (kind === EventKind.append) {
+        return "append";
+    }
     return "delete";
 }
 
 // The line-count change versus the previous entry, e.g. `  (+4)` / `  (−1)`.
-function entryDelta(
+function getEntryDelta(
     previous: FileRevision | undefined,
     revision: FileRevision,
 ): string {
@@ -58,17 +61,17 @@ function entryDelta(
 }
 
 // The middle column: a rename shows its from -> to; others show their line count.
-function entryDetail(
+function getEntryDetail(
     previous: FileRevision | undefined,
     revision: FileRevision,
 ): string {
     if (revision.kind === EventKind.rename && revision.rename) {
-        return `${baseName(revision.rename.from)} → ${baseName(revision.rename.to)}`;
+        return `${getBaseName(revision.rename.from)} → ${getBaseName(revision.rename.to)}`;
     }
     if (revision.kind === EventKind.copy && revision.copy) {
-        return `${revision.lines.length} lines  (copied from ${baseName(revision.copy.from)})`;
+        return `${revision.lines.length} lines  (copied from ${getBaseName(revision.copy.from)})`;
     }
-    return `${revision.lines.length} lines${entryDelta(previous, revision)}`;
+    return `${revision.lines.length} lines${getEntryDelta(previous, revision)}`;
 }
 
 function renderEntry(
@@ -76,13 +79,13 @@ function renderEntry(
     index: number,
     previous: FileRevision | undefined,
 ): string {
-    const label = entryLabel(revision.kind).padEnd(6);
-    const detail = entryDetail(previous, revision);
-    return `  ${index}  ${label}  ${detail}   ${shortTime(revision.timestamp)}  #${shortChangeId(revision.changeId)}`;
+    const label = getEntryLabel(revision.kind).padEnd(6);
+    const detail = getEntryDetail(previous, revision);
+    return `  ${index}  ${label}  ${detail}   ${formatShortTime(revision.timestamp)}  #${shortenChangeId(revision.changeId)}`;
 }
 
 // The pre-rename path a history started life at, if it was ever renamed.
-function originalPathOf(revisions: FileRevision[]): Path | undefined {
+function findOriginalPath(revisions: FileRevision[]): Path | undefined {
     const renamed = revisions.find(
         (revision) => revision.kind === EventKind.rename && revision.rename,
     );
@@ -90,7 +93,7 @@ function originalPathOf(revisions: FileRevision[]): Path | undefined {
 }
 
 // The source path a copied history was born from, if it began as a copy.
-function copyOriginOf(revisions: FileRevision[]): Path | undefined {
+function findCopyOrigin(revisions: FileRevision[]): Path | undefined {
     const copied = revisions.find(
         (revision) => revision.kind === EventKind.copy && revision.copy,
     );
@@ -98,13 +101,13 @@ function copyOriginOf(revisions: FileRevision[]): Path | undefined {
 }
 
 function renderHistoryBlock(history: FileHistory): string {
-    const was = originalPathOf(history.revisions);
-    const copiedFrom = copyOriginOf(history.revisions);
+    const was = findOriginalPath(history.revisions);
+    const copiedFrom = findCopyOrigin(history.revisions);
     let header = `${history.target}`;
     if (was) {
-        header = `${history.target}   (was ${baseName(was)})`;
+        header = `${history.target}   (was ${getBaseName(was)})`;
     } else if (copiedFrom) {
-        header = `${history.target}   (copy of ${baseName(copiedFrom)})`;
+        header = `${history.target}   (copy of ${getBaseName(copiedFrom)})`;
     }
     const entries: string[] = [];
     let previous: FileRevision | undefined;
