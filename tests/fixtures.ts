@@ -31,3 +31,6 @@ export const S9_JSONL =
 
 export const S10_JSONL =
     "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s10-conv-only-no-post-edit/517dcc05-8809-43cd-86d4-7f6907b9ee76.jsonl";
+
+export const S11_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s11-write-code-restore-rewrite/a26b3dcb-cf00-4b17-a595-86dd57d4df83.jsonl";

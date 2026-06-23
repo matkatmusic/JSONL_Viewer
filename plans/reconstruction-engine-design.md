@@ -492,6 +492,38 @@ in `tests/reconstruction_cli.test.ts`. Red→green, each spec one test.
     `test_s10_list_branches_shows_only_the_surviving_branch`,
     `test_s10_surviving_flag_shows_the_kept_files`.)
 
+### S11 — implemented now
+
+38. **code-restore-then-rewrite** — a `code` restore to root followed by a post-rewind REWRITE of the
+    same files makes the surviving working tree the *rewritten* code (here the `multiply` version),
+    while the abandoned pre-restore turn (the `add` version) — which DID write files — is preserved as
+    ONE rewound branch forked at the root checkpoint (`#742f44f2`). Because that abandoned turn wrote
+    files (unlike S9/S10's file-less read tangents), the CLI default view shows `## surviving` +
+    `## rewound` headers like S7/S8, NOT a plain list. This is the **complement of spec 36 (S9)**: S9
+    proved a `code`-restore *refresh* (a bumped `version` with a `null` `backupFileName`) must NOT move
+    the working-tree owner; S11 proves a real *rewrite* after the restore (a NEW non-null
+    `backupFileName` at a NEW `version`) MUST move it — together the two pin both directions of the
+    spec-36 content signature (refresh ⇒ no move; real rewrite ⇒ move). The load-bearing verified
+    detail: the harness names each backup `<path-hash>@v<version>` where `<path-hash>` derives from the
+    file PATH, not its content, so the `add` and `multiply` versions of `scenario11.py` carry the
+    IDENTICAL path-hash `ef7eb2c33a0c873b`, differing ONLY in the version suffix (`@v2` for `add`, `@v4`
+    for `multiply`). `resolveContentId` (`src/reconstruction_worktree.ts`) returns the FULL
+    `backupFileName` string (suffix included), so `ef7eb2c33a0c873b@v4 ≠ ef7eb2c33a0c873b@v2` and the
+    signature changes — the working-tree owner advances to the `multiply` head (`ccc4a78e`),
+    `findSurvivingHead` switches the surviving head to the conversation tip `d03f0078`, and
+    `reconstructAll(S11)` recovers both `multiply` files from the Write events on that branch. A refactor
+    that compared only the hash component (mistaking it for a content hash) would regress S11 (owner
+    would stay at the `add` head, surviving tree WRONGLY the `add` code) while S9/S10 still passed — the
+    S11 regression tests guard exactly that. **No production-code change was needed** — spec 35 + spec 36
+    already cover S11; this slice adds only characterization/regression tests and this spec. (Proved:
+    `test_find_conversation_branches_advances_owner_to_post_restore_rewrite`,
+    `test_default_reconstruction_is_the_post_restore_rewrite`,
+    `test_reconstruct_branches_retains_the_code_rewound_add_branch`,
+    `test_s11_default_view_shows_surviving_multiply_and_rewound_add`,
+    `test_s11_surviving_flag_shows_only_the_multiply_rewrite`,
+    `test_s11_list_branches_summarizes_surviving_and_rewound`,
+    `test_s11_branch_id_retrieves_the_rewound_add_branch`.)
+
 ### Deferred to later scenarios
 
 - **Fine-grained sub-diff** linking a `-`→`+` pair as one modified line (Rule 2's

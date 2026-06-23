@@ -183,3 +183,44 @@ test("test_find_conversation_branches_survives_working_tree_when_conv_only_refre
     assert.equal(surviving.tip.toString(), "Wa");
     assert.ok(!branches.some((b) => b.isSurviving && b.tip.toString() === "Hc"));
 });
+
+// R  = root checkpoint.
+// Wa = the FIRST (abandoned) write turn — the "add"; its snapshot gives file.py a REAL backup
+//      (v2, "backup-A@v2").
+// Wb = a CODE rewind back to R, then a post-restore REWRITE — the "multiply". The code restore first
+//      emits a refresh snapshot (v3, NULL backupFileName: content wiped back toward root); the rewrite
+//      then writes new content, producing a NEW real backup at a NEW version ("backup-A@v4"). The
+//      path-hash component ("backup-A") is identical to Wa's backup — only the @v4 suffix differs from
+//      the carried-forward @v2 — so the content signature CHANGES and the working-tree owner must
+//      ADVANCE from Wa to Wb. (Contrast buildCodeRestoreNoPostEditRecords, whose refresh leaves the
+//      signature unchanged so the owner stays put.)
+function buildCodeRestoreThenRewriteRecords(): TranscriptRecord[] {
+    return [
+        rec(RecordType.user, "R", null),
+        rec(RecordType.assistant, "Wa", "R"),                              // first write turn (add)
+        lastPrompt("Wa"),                                                  // head: the abandoned write branch
+        snapshotRec("Wa", { "file.py": 2 }, { "file.py": "backup-A@v2" }), // add head: real backup @v2
+        rec(RecordType.user, "Wb", "R"),                                   // code rewind to root, then rewrite
+        lastPrompt("Wb"),                                                  // head: the surviving (rewrite) branch
+        snapshotRec("Wb", { "file.py": 3 }),                               // code-restore refresh: v3, null bfn
+        snapshotRec("Wb", { "file.py": 4 }, { "file.py": "backup-A@v4" }), // rewrite: NEW real backup @v4
+    ];
+}
+
+// Scenario: a code restore followed by a post-rewind rewrite ADVANCES the surviving branch from the
+// abandoned first write (Wa) to the rewrite (Wb) — the complement of the no-post-edit case, where the
+// owner must NOT move.
+// Steps:
+//   - Build the records: an abandoned write turn Wa (file.py@2, real backup @v2), then a code rewind to
+//     root whose refresh re-versions file.py@3 with a NULL backup, then a rewrite Wb re-backing file.py
+//     up at @v4 with a NEW real backup.
+//   - Enumerate the conversation branches.
+//   - The surviving branch's tip must be Wb (the rewrite), because the new real backup @v4 differs from
+//     the carried-forward @v2 and so moves the working-tree owner forward.
+//   - No surviving branch may be tipped at Wa (it is the abandoned pre-restore write).
+test("test_find_conversation_branches_advances_owner_to_post_restore_rewrite", () => {
+    const branches = findConversationBranches(buildCodeRestoreThenRewriteRecords());
+    const surviving = branches.find((b) => b.isSurviving)!;
+    assert.equal(surviving.tip.toString(), "Wb");
+    assert.ok(!branches.some((b) => b.isSurviving && b.tip.toString() === "Wa"));
+});

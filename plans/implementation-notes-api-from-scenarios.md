@@ -1,3 +1,63 @@
+## 2026-06-23:14:21:00 — S11 reconstruction (code restore then post-rewind rewrite — surviving working tree is the REWRITTEN code, abandoned pre-restore write preserved as a rewound branch; NO production-code change, the engine was already correct)
+Chat title: api-from-scenarios — implement S11 (write-code-restore-rewrite) [autonomous monitor session]
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/89dc8e9e-295c-4cbd-8411-271183003dc6.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s11/s11-reconstruction-plan.md (THE plan executed)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1352.md (S10 implementation handoff — predecessor; names S11 as next)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/reconstruction-engine-design.md (spec 38 added; specs 35 and 36 cross-referenced)
+
+### Design decisions
+- **No production-code change — S11 is locked with characterization tests, not a fix.** Verified before
+  coding (end-to-end CLI + direct `reconstructAll`/`reconstructBranches` drive on the real transcript):
+  the engine already reports the two `multiply` (rewrite) files as the surviving working tree (surviving
+  tip `d03f0078`) and preserves the abandoned `add` turn as ONE rewound branch (tip `a7ceb7ae`,
+  rewindPoint `742f44f2`). The new tests are characterization/regression locks expected GREEN on arrival;
+  all confirmed GREEN on the unchanged `src/`.
+- **S11 is the complement of S9 — the "owner advances on a real rewrite" half of spec 36.** S9 proved a
+  `code`-restore *refresh* (bumped `version`, `null` `backupFileName`) must NOT move the working-tree
+  owner; S11 proves a real *rewrite* after the restore (a NEW non-null `backupFileName` at a NEW
+  `version`) MUST move it. The synthetic `buildCodeRestoreThenRewriteRecords` test is the direct
+  complement of S9's `buildCodeRestoreNoPostEditRecords`: same refresh (v3, null bfn), then a real rewrite
+  (v4, `backup-A@v4`) that advances the owner from Wa to Wb.
+- **The `@v<version>` suffix is the load-bearing distinguisher (verified).** The harness names backups
+  `<path-hash>@v<version>` where `<path-hash>` derives from the file PATH, not its content; the `add` and
+  `multiply` `scenario11.py` carry the IDENTICAL path-hash `ef7eb2c33a0c873b`, differing only as
+  `@v2`→`@v4`. `resolveContentId` returns the FULL `backupFileName` string (suffix included), so the
+  signature changes and the owner advances. A refactor comparing only the hash component would regress
+  S11 (owner stuck at the `add` head) while S9/S10 still passed — the S11 tests guard exactly that.
+- **S11 is the first rewind-family scenario where two branches write the SAME paths with DIFFERENT
+  content.** Branch-aware reconstruction keeps them fully separate (each branch reconstructs its own
+  create), so there is no cross-branch line bleed; the surviving `scenario11.py` has exactly one revision
+  (the `multiply` create), the rewound one has the `add` create.
+
+### Deviations
+- **The 4 CLI regression tests went into a NEW file `tests/reconstruction_cli_s11.test.ts`, as the plan's
+  Task 2a directed** — `tests/reconstruction_cli.test.ts` is at 246/250 and four more tests would breach
+  the hard 250-line cap. This follows the per-scenario split S10 established
+  (`tests/reconstruction_cli_s10.test.ts`). The assertions are modelled on the S7 CLI tests (the existing
+  single-surviving-plus-single-rewound shape, identical in structure to S11).
+- **No RED phase.** Per the plan's "On the absence of a RED phase", S11 has no failing behavior to fix —
+  the engine is already correct. Each of the 7 new tests was run and confirmed GREEN on the unchanged
+  `src/`. No production-code change was fabricated to manufacture a RED→GREEN cycle (doing so would risk
+  regressing S1–S10).
+
+### Tradeoffs
+- **Per-scenario CLI test file vs. splitting the rewind-family (S7–S11) CLI tests into one shared file.**
+  Chose the per-scenario file again: minimal/surgical (touches no existing green tests), matches the S10
+  precedent. The shared-rewind-family split is a larger refactor of unrelated passing tests; still
+  deferred. `reconstruction_cli.test.ts` remains at 246 — future rewind scenarios will keep needing their
+  own files until a family split is done.
+
+### Open questions
+- **None blocking.** The plan's locked decisions (1–5) are confirmed by the verified ground truth and the
+  green suite; they mirror S7–S10's accepted conventions. Carried-forward, out-of-scope items (flagged in
+  the plan's Risks, unrelated to S11): (1) a rewrite that *edits* rather than fully overwrites a restored
+  file (multi-revision surviving history) is not in scope — note for a future slice; (2) the
+  `@v<version>`-only distinction is lightly guarded — a future transcript rewriting a file to its
+  pre-restore content (same path-hash AND version) would not advance the owner; track if it appears; (3)
+  `parseRedirect` mis-parses `2>&1` / `>/dev/null` (its own future hardening slice).
+
 ## 2026-06-23:13:52:00 — S10 reconstruction (conversation-only rewind with no post-edit — the kept files ARE the surviving working tree; NO production-code change, the engine was already correct)
 Chat title: api-from-scenarios — implement S10 (conv-only-no-post-edit) [autonomous monitor session]
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/8150bb15-5769-46bb-98dc-a0fed57d2fe2.jsonl
