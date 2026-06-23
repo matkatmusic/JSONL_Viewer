@@ -63,13 +63,17 @@ test("test_select_live_branch_returns_all_when_no_head", () => {
     assert.equal(selectLiveBranch(records).length, records.length);
 });
 
-// A file-history-snapshot record in parsed/wire shape; getFileHistorySnapshot hydrates messageId
-// and backupTime. version is what drives tracked-set change detection.
-function snapshotRec(messageId: string, tracked: Record<string, number>): TranscriptRecord {
+// A file-history-snapshot record in parsed/wire shape; getFileHistorySnapshot hydrates messageId and
+// backupTime. `backups` gives a non-null backupFileName per path (default null = a refresh snapshot).
+function snapshotRec(
+    messageId: string,
+    tracked: Record<string, number>,
+    backups: Record<string, string> = {},
+): TranscriptRecord {
     const trackedFileBackups: Record<string, unknown> = {};
     for (const [path, version] of Object.entries(tracked)) {
         trackedFileBackups[path] = {
-            backupFileName: null,
+            backupFileName: backups[path] ?? null,
             version,
             backupTime: "2026-01-01T00:00:00.000Z",
         };
@@ -111,4 +115,36 @@ test("test_select_live_branch_follows_working_tree_after_conversation_rewind", (
     const kept = selectLiveBranch(buildConversationRewindRecords());
     const uuids = kept.filter((r) => r.uuid).map((r) => r.uuid!.toString()).sort();
     assert.deepEqual(uuids, ["R", "Wa"]);
+});
+
+// R = root checkpoint; Wb = the write turn's head (working tree gets a real backup: file@2 with a
+// backupFileName); Hr = a `code` rewind back to R that only reads — its refresh snapshot re-versions
+// the SAME on-disk content (file@3) with a NULL backupFileName.
+function buildCodeRestoreNoPostEditRecords(): TranscriptRecord[] {
+    return [
+        rec(RecordType.user, "R", null),
+        rec(RecordType.assistant, "Wb", "R"),                          // the write turn's tail
+        lastPrompt("Wb"),                                              // head: the code (write) branch
+        snapshotRec("Wb", { "file.py": 2 }, { "file.py": "backup-A@v2" }), // real content backup
+        rec(RecordType.user, "Hr", "R"),                              // code rewind to root: a read-only turn
+        lastPrompt("Hr"),                                              // final head, but it wrote nothing
+        snapshotRec("Hr", { "file.py": 3 }),                          // refresh: version bumped, content unchanged (null bfn)
+    ];
+}
+
+// The surviving branch is the one that produced the on-disk files (Wb), even though Hr is the final
+// conversation head — a code restore with no post-edit re-versions the SAME content with a null
+// backupFileName, so the version bump must NOT move the working-tree owner.
+test("test_find_conversation_branches_survives_restored_code_not_final_refresh", () => {
+    const branches = findConversationBranches(buildCodeRestoreNoPostEditRecords());
+    const surviving = branches.find((b) => b.isSurviving)!;
+    assert.equal(surviving.tip.toString(), "Wb");
+    assert.ok(!branches.some((b) => b.isSurviving && b.tip.toString() === "Hr"));
+});
+
+// selectLiveBranch follows the same decision: it keeps Wb's chain (R, Wb), not Hr.
+test("test_select_live_branch_follows_restored_code_after_code_rewind", () => {
+    const kept = selectLiveBranch(buildCodeRestoreNoPostEditRecords());
+    const uuids = kept.filter((r) => r.uuid).map((r) => r.uuid!.toString()).sort();
+    assert.deepEqual(uuids, ["R", "Wb"]);
 });

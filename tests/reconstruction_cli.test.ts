@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseArgs, runCli } from "../src/reconstruction_cli.ts";
-import { S1_JSONL, S2_JSONL, S3_JSONL, S4_JSONL, S5_JSONL, S6_JSONL, S7_JSONL, S8_JSONL } from "./fixtures.ts";
+import { S1_JSONL, S2_JSONL, S3_JSONL, S4_JSONL, S5_JSONL, S6_JSONL, S7_JSONL, S8_JSONL, S9_JSONL } from "./fixtures.ts";
 
 // The append entry's whole list line (matched by its short change id).
 function entryLineWith(out: string, shortChangeId: string): string {
