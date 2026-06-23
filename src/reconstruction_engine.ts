@@ -1,13 +1,23 @@
-// Per-line reconstruction engine (clean-room rebuild of "Engine B"): the core
-// logic that turns a transcript into each touched file's history. Rendering lives
-// in reconstruction_render.ts; the runnable entry in reconstruction_cli.ts.
+// Per-line reconstruction engine (clean-room rebuild of "Engine B"): the model
+// and the public reconstruction API that turns a transcript into each touched
+// file's history. Extraction (records -> events) lives in reconstruction_extract.ts,
+// replay (events -> revisions) in reconstruction_replay.ts, lineage (following a
+// file across renames) in reconstruction_lineage.ts; rendering in
+// reconstruction_render.ts; the runnable entry in reconstruction_cli.ts.
 // Design: plans/reconstruction-engine-design.md.
 
-import { getContentBlocks } from "./structures/content-blocks.ts";
-import type { ToolUseBlock } from "./structures/content-blocks.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
-import { BlockType, EventKind, ToolName } from "./structures/vocabulary.ts";
+import type { StructuredPatchHunk } from "./structures/tool-results.ts";
+import { EventKind } from "./structures/vocabulary.ts";
 import { Path, Uuid } from "./structures/domain.ts";
+import { extractFileEvents } from "./reconstruction_extract.ts";
+import { replayEvents } from "./reconstruction_replay.ts";
+import {
+    buildRenameChain,
+    distinctFinalPaths,
+    eventBelongsToLineage,
+    resolveFinalPath,
+} from "./reconstruction_lineage.ts";
 
 // --- The per-line model ------------------------------------------------------
 
@@ -18,12 +28,24 @@ export type LineValue = { line: string; timestamp: Date };
 // back-pointer to the index it held in the previous revision (-1 = born here).
 export type LineEntry = { oldLineNum: number; values: LineValue[] };
 
-// A whole-file snapshot at a timestamp. changeId identifies the source operation
-// that produced it (derived from that operation's tool_use id).
+// The source and destination of a rename (the two paths an mv connects).
+export type RenameInfo = { from: Path; to: Path };
+
+// The source and destination of a copy (the two paths a cp connects). Same shape
+// as RenameInfo but a distinct concept: a copy duplicates, a rename moves.
+export type CopyInfo = { from: Path; to: Path };
+
+// A whole-file snapshot at a timestamp. kind records which evidence kind produced
+// it; changeId identifies the source operation (derived from its tool_use id).
+// rename is set only on a rename revision (its from/to paths); copy is set only
+// on a copy (genesis) revision.
 export type FileRevision = {
+    kind: EventKind;
     changeId: Uuid;
     timestamp: Date;
     lines: LineEntry[];
+    rename?: RenameInfo;
+    copy?: CopyInfo;
 };
 
 // One file's reconstructed history.
@@ -46,141 +68,134 @@ export type DeleteEvent = {
     timestamp: Date;
 };
 
-export type FileEvent = WriteEvent | DeleteEvent;
+// An in-place Edit; its structuredPatch hunks drive the line splice.
+export type EditEvent = {
+    kind: EventKind.edit;
+    changeId: Uuid;
+    target: Path;
+    hunks: StructuredPatchHunk[];
+    timestamp: Date;
+};
 
-// Turn a Write tool_use into a write event (file_path/content live in its input).
-function writeEventFrom(block: ToolUseBlock, timestamp: Date): WriteEvent {
-    const input = block.input as { file_path: string; content: string };
-    return {
-        kind: EventKind.write,
-        changeId: block.id,
-        target: new Path(input.file_path),
-        content: input.content,
-        timestamp,
-    };
-}
+// A rename (Bash mv): the file's history continues at `to`, carrying its lines.
+export type RenameEvent = {
+    kind: EventKind.rename;
+    changeId: Uuid;
+    from: Path;
+    to: Path;
+    timestamp: Date;
+};
 
-// Parse the target path out of an `rm <path>` Bash command (s1 has no flags).
-function parseRmTarget(command: string): Path | undefined {
-    const match = command.trim().match(/^rm\s+(.+)$/);
-    if (!match) {
-        return undefined;
-    }
-    return new Path(match[1]!.trim());
-}
+// A copy (Bash cp): a NEW file whose genesis content is the source's content as
+// of the copy. seedLines holds those source line texts; it is empty from
+// extraction and filled during reconstruction (the cp result carries no
+// content). The source file lives on as its own history — a copy is not a move.
+export type CopyEvent = {
+    kind: EventKind.copy;
+    changeId: Uuid;
+    from: Path;
+    to: Path;
+    seedLines: string[];
+    timestamp: Date;
+};
 
-// Turn a Bash `rm` tool_use into a delete event, or undefined for other commands.
-function deleteEventFrom(
-    block: ToolUseBlock,
-    timestamp: Date,
-): DeleteEvent | undefined {
-    const input = block.input as { command: string };
-    const target = parseRmTarget(input.command);
-    if (!target) {
-        return undefined;
-    }
-    return { kind: EventKind.delete, changeId: block.id, target, timestamp };
-}
+export type FileEvent =
+    | WriteEvent
+    | DeleteEvent
+    | EditEvent
+    | RenameEvent
+    | CopyEvent;
 
-// Map a tool_use block to a file event (Write -> create, Bash rm -> delete).
-function toFileEvent(
-    block: ToolUseBlock,
-    timestamp: Date,
-): FileEvent | undefined {
-    if (block.name === ToolName.Write) {
-        return writeEventFrom(block, timestamp);
-    }
-    if (block.name === ToolName.Bash) {
-        return deleteEventFrom(block, timestamp);
-    }
-    return undefined;
-}
+// --- Reconstruction: the public API ------------------------------------------
 
-function collectEventsFromRecord(
-    record: TranscriptRecord,
-    events: FileEvent[],
-): void {
-    const timestamp = record.timestamp;
-    if (!(timestamp instanceof Date)) {
-        return;
-    }
-    for (const block of getContentBlocks(record)) {
-        if (block.type !== BlockType.tool_use) {
-            continue;
-        }
-        const event = toFileEvent(block, timestamp);
-        if (event) {
-            events.push(event);
-        }
-    }
-}
-
-// Extract every file event across the transcript, ordered by timestamp.
-export function extractFileEvents(records: TranscriptRecord[]): FileEvent[] {
-    const events: FileEvent[] = [];
-    for (const record of records) {
-        collectEventsFromRecord(record, events);
-    }
-    return events.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-}
-
-// --- Replay: events -> revisions ---------------------------------------------
-
-// Split file content into lines; a single trailing newline is not a phantom line.
-export function splitLines(content: string): string[] {
-    const parts = content.split("\n");
-    if (parts.length > 0 && parts[parts.length - 1] === "") {
-        parts.pop();
-    }
-    return parts;
-}
-
-// A genesis line: born at this revision (no predecessor), one authored value.
-function genesisLine(line: string, timestamp: Date): LineEntry {
-    return { oldLineNum: -1, values: [{ line, timestamp }] };
-}
-
-function writeRevision(event: WriteEvent): FileRevision {
-    const lines = splitLines(event.content).map((line) =>
-        genesisLine(line, event.timestamp),
-    );
-    return { changeId: event.changeId, timestamp: event.timestamp, lines };
-}
-
-function deleteRevision(event: DeleteEvent): FileRevision {
-    return { changeId: event.changeId, timestamp: event.timestamp, lines: [] };
-}
-
-function toRevision(event: FileEvent): FileRevision {
-    if (event.kind === EventKind.write) {
-        return writeRevision(event);
-    }
-    return deleteRevision(event);
-}
-
-// Reconstruct one file's history: keep only its events and replay them into
-// revisions. Generic over the target; supports whatever event kinds are modeled.
+// Reconstruct one file's history: follow any rename to its final path, keep only
+// that lineage's events, seed any copy from its source, then replay. Generic over
+// the target; supports whatever event kinds extraction and replay model.
 export function reconstructFile(
     records: TranscriptRecord[],
     target: Path,
 ): FileRevision[] {
-    return extractFileEvents(records)
-        .filter((event) => event.target.equals(target))
-        .map(toRevision);
+    return reconstructLineage(records, target, new Set<string>());
 }
 
-// The distinct file paths touched by a set of events (deduped by path value).
-function distinctTargets(events: FileEvent[]): Path[] {
-    const byValue = new Map<string, Path>();
-    for (const event of events) {
-        byValue.set(event.target.toString(), event.target);
+// resolving holds the destination paths currently being seeded, so a copy cycle
+// (cp a b; cp b a) breaks instead of recursing forever.
+function reconstructLineage(
+    records: TranscriptRecord[],
+    target: Path,
+    resolving: Set<string>,
+): FileRevision[] {
+    const events = extractFileEvents(records);
+    const renameChain = buildRenameChain(events);
+    const finalTarget = resolveFinalPath(target, renameChain);
+    const lineage = events.filter((event) =>
+        eventBelongsToLineage(event, finalTarget, renameChain),
+    );
+    const seeded = seedCopyEvents(records, lineage, resolving);
+    return replayEvents(seeded);
+}
+
+// Fill each copy event's seedLines from its source; pass other events through.
+function seedCopyEvents(
+    records: TranscriptRecord[],
+    lineage: FileEvent[],
+    resolving: Set<string>,
+): FileEvent[] {
+    return lineage.map((event) => {
+        if (event.kind === EventKind.copy) {
+            return seedOneCopy(records, event, resolving);
+        }
+        return event;
+    });
+}
+
+// Seed one copy with the source file's content as of the copy timestamp.
+function seedOneCopy(
+    records: TranscriptRecord[],
+    event: CopyEvent,
+    resolving: Set<string>,
+): CopyEvent {
+    const destination = event.to.toString();
+    if (resolving.has(destination)) {
+        return { ...event, seedLines: [] };
     }
-    return [...byValue.values()];
+    const next = new Set(resolving);
+    next.add(destination);
+    const sourceRevisions = reconstructLineage(records, event.from, next);
+    const atCopy = lastRevisionAtOrBefore(sourceRevisions, event.timestamp);
+    if (!atCopy) {
+        return { ...event, seedLines: [] };
+    }
+    return { ...event, seedLines: linesTextOf(atCopy) };
 }
 
-// Reconstruct every file the transcript touches — each with its own history.
+// The latest revision whose timestamp is at or before `when`, or undefined.
+function lastRevisionAtOrBefore(
+    revisions: FileRevision[],
+    when: Date,
+): FileRevision | undefined {
+    let chosen: FileRevision | undefined;
+    for (const revision of revisions) {
+        if (revision.timestamp.getTime() <= when.getTime()) {
+            chosen = revision;
+        }
+    }
+    return chosen;
+}
+
+// The believed text of each line in a revision (its latest value).
+function linesTextOf(revision: FileRevision): string[] {
+    return revision.lines.map(
+        (entry) => entry.values[entry.values.length - 1]!.line,
+    );
+}
+
+// Reconstruct every file the transcript touches — each with its own history,
+// keyed by the path it ends life at (a renamed file is one history, not two).
 export function reconstructAll(records: TranscriptRecord[]): FileHistory[] {
-    return distinctTargets(extractFileEvents(records)).map((target) => ({
+    const events = extractFileEvents(records);
+    const renameChain = buildRenameChain(events);
+    return distinctFinalPaths(events, renameChain).map((target) => ({
         target,
         revisions: reconstructFile(records, target),
     }));
@@ -194,5 +209,5 @@ export function findDeletedTarget(
     const deletion = extractFileEvents(records).find(
         (event) => event.kind === EventKind.delete,
     );
-    return deletion?.target;
+    return deletion?.kind === EventKind.delete ? deletion.target : undefined;
 }

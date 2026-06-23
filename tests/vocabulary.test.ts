@@ -10,8 +10,9 @@ import {
 } from "../src/structures/vocabulary.ts";
 
 test("test_record_type_enum_holds_the_s1_wire_strings", () => {
-    // Scenario: RecordType's member values are exactly the 10 record-type wire
-    // strings of s1 (recon/06-s1-vocabulary.md).
+    // Scenario: RecordType's member values are the record-type wire strings seen
+    // so far — the 10 from s1 (recon/06-s1-vocabulary.md) plus queue-operation
+    // added by s4-overwrite-file.
     assert.deepEqual(Object.values(RecordType).sort(), [
         "ai-title",
         "assistant",
@@ -21,6 +22,7 @@ test("test_record_type_enum_holds_the_s1_wire_strings", () => {
         "last-prompt",
         "mode",
         "permission-mode",
+        "queue-operation",
         "system",
         "user",
     ]);

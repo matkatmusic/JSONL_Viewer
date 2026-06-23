@@ -3,6 +3,8 @@
 // Pure functions over FileRevision[]; no IO. Design: reconstruction_engine.ts.
 
 import type { FileRevision, LineEntry } from "./reconstruction_engine.ts";
+import { EventKind } from "./structures/vocabulary.ts";
+import type { Path } from "./structures/domain.ts";
 
 // A line's believed content right now is the last value in its history.
 function currentText(entry: LineEntry): string {
@@ -13,9 +15,24 @@ function renderNumberedLine(entry: LineEntry, index: number): string {
     return `  ${String(index + 1).padStart(4)} | ${currentText(entry)}`;
 }
 
+// Describe a path transition as `from → to` (the two paths a rename or copy
+// connects, joined by an arrow).
+function renderPathArrow(transition: { from: Path; to: Path }): string {
+    return `${transition.from} → ${transition.to}`;
+}
+
 function renderRevisionState(revision: FileRevision, index: number): string {
-    const count = revision.lines.length;
     const stamp = revision.timestamp.toISOString();
+    if (revision.kind === EventKind.rename && revision.rename) {
+        return `revision ${index}  rename  ${renderPathArrow(revision.rename)}  @ ${stamp}`;
+    }
+    if (revision.kind === EventKind.copy && revision.copy) {
+        const count = revision.lines.length;
+        const header = `revision ${index}  copy  ${renderPathArrow(revision.copy)}  @ ${stamp}  (${count} lines)`;
+        const body = revision.lines.map(renderNumberedLine).join("\n");
+        return `${header}\n${body}`;
+    }
+    const count = revision.lines.length;
     const header = `revision ${index}  @ ${stamp}  (${count} lines)`;
     if (count === 0) {
         return `${header}\n  (file absent — 0 lines)`;
@@ -39,18 +56,69 @@ function diffLabel(before: string[], after: string[]): string {
     return "changed";
 }
 
-// Render one revision as a diff against the previous one. s1's transitions are
-// genesis (empty -> N) and delete (N -> empty), which never partially overlap, so
-// a remove-all/add-all diff is exact; an LCS line-diff arrives with s2's Edits.
+// The previous-revision indices a current revision still keeps (via back-pointer).
+function keptOldIndices(revision: FileRevision): Set<number> {
+    const indices = new Set<number>();
+    for (const entry of revision.lines) {
+        if (entry.oldLineNum >= 0) {
+            indices.add(entry.oldLineNum);
+        }
+    }
+    return indices;
+}
+
+// Previous lines whose index no current entry points back to (a real removal).
+function removedLines(
+    previous: FileRevision | undefined,
+    revision: FileRevision,
+): string[] {
+    if (!previous) {
+        return [];
+    }
+    const kept = keptOldIndices(revision);
+    const removed: string[] = [];
+    previous.lines.forEach((entry, index) => {
+        if (!kept.has(index)) {
+            removed.push(`- ${currentText(entry)}`);
+        }
+    });
+    return removed;
+}
+
+// Current entries born here (oldLineNum -1) are the real additions.
+function addedLines(revision: FileRevision): string[] {
+    return revision.lines
+        .filter((entry) => entry.oldLineNum === -1)
+        .map((entry) => `+ ${currentText(entry)}`);
+}
+
+// Render one revision as a diff against the previous one. Real changes only: a
+// removal is a previous line no current entry points back to; an addition is a
+// line born here (oldLineNum -1). A rename is its own block with no line churn.
 function diffBlock(
     previous: FileRevision | undefined,
     revision: FileRevision,
 ): string {
+    const stamp = revision.timestamp.toISOString();
+    if (revision.kind === EventKind.rename && revision.rename) {
+        return `@@ renamed ${renderPathArrow(revision.rename)} @ ${stamp} @@`;
+    }
+    if (revision.kind === EventKind.copy && revision.copy) {
+        const header = `@@ copied ${renderPathArrow(revision.copy)} @ ${stamp} @@`;
+        const added = addedLines(revision);
+        return [header, ...added].join("\n");
+    }
+    if (revision.kind === EventKind.overwrite) {
+        const header = `@@ overwritten @ ${stamp} @@`;
+        const removed = removedLines(previous, revision);
+        const added = addedLines(revision);
+        return [header, ...removed, ...added].join("\n");
+    }
     const before = previous ? previous.lines.map(currentText) : [];
     const after = revision.lines.map(currentText);
-    const header = `@@ ${diffLabel(before, after)} @ ${revision.timestamp.toISOString()} @@`;
-    const removed = before.map((line) => `- ${line}`);
-    const added = after.map((line) => `+ ${line}`);
+    const header = `@@ ${diffLabel(before, after)} @ ${stamp} @@`;
+    const removed = removedLines(previous, revision);
+    const added = addedLines(revision);
     return [header, ...removed, ...added].join("\n");
 }
 

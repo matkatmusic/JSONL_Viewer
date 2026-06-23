@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseArgs, runCli } from "../src/reconstruction_cli.ts";
-import { S1_JSONL } from "./fixtures.ts";
+import { S1_JSONL, S2_JSONL, S3_JSONL, S4_JSONL } from "./fixtures.ts";
 
 // A transcript path is required; without one, parseArgs reports usage.
 test("test_parse_args_requires_a_transcript_path", () => {
@@ -25,9 +25,55 @@ test("test_run_cli_renders_every_touched_file_for_s1", () => {
     assert.ok(out.includes("def hello():"));
 });
 
-// The default (no view flag) lists each touched file with its revision count.
+// The default (no view flag) lists each touched file with its numbered entries.
 test("test_run_cli_default_lists_touched_files", () => {
     const out = runCli([S1_JSONL]);
-    assert.ok(out.includes("s1_delete.py  (2 revisions)"));
-    assert.ok(out.includes("test_s1_delete.py  (1 revision)"));
+    assert.ok(out.includes("s1_delete.py"));
+    assert.ok(out.includes("test_s1_delete.py"));
+    // s1_delete.py is created then deleted: a create entry and a delete entry.
+    assert.ok(out.includes("create"));
+    assert.ok(out.includes("delete"));
+});
+
+// The default view lists s2's entries, including a first-class rename line and
+// the short change id shared by the test file's two edits.
+test("test_default_view_lists_s2_entries_with_rename", () => {
+    const out = runCli([S2_JSONL]);
+    assert.ok(out.includes("s2_moved.py"));
+    // The rename is its own entry naming both the old and new file.
+    const renameLine = out
+        .split("\n")
+        .find((line) => line.includes("rename"))!;
+    assert.ok(renameLine.includes("s2_original.py"));
+    assert.ok(renameLine.includes("s2_moved.py"));
+    // The test file's two edits share the change id 015b59mN.
+    assert.ok(out.includes("015b59mN"));
+});
+
+// The default view lists s3's three files, marks the copied file, and shows the
+// copy entry plus the short change id shared by its two edits.
+test("test_default_view_lists_s3_with_copy_entry", () => {
+    const out = runCli([S3_JSONL]);
+    // All three touched files appear.
+    assert.ok(out.includes("s3_source.py"));
+    assert.ok(out.includes("s3_copy.py"));
+    assert.ok(out.includes("test_s3_source.py"));
+    // The copied file is marked a copy of the source and carries a copy entry.
+    assert.ok(out.includes("(copy of s3_source.py)"));
+    assert.ok(out.includes("copy"));
+    // The copied file's edits share the Edit's short changeId.
+    assert.ok(out.includes("#012rscwP"));
+});
+
+// The default view lists S4's two files, each created then overwritten.
+test("test_default_view_lists_s4_overwrite_entries", () => {
+    const out = runCli([S4_JSONL]);
+    // Both touched files appear.
+    assert.ok(out.includes("s4_overwrite.py"));
+    assert.ok(out.includes("test_s4_overwrite.py"));
+    // Each carries a create entry and an overwrite entry.
+    assert.ok(out.includes("create"));
+    assert.ok(out.includes("overwrite"));
+    // The overwrite of s4_overwrite.py carries its short change id.
+    assert.ok(out.includes("#012vJCJs"));
 });

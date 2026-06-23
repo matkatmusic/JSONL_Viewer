@@ -14,6 +14,7 @@ import {
     type FileRevision,
 } from "./reconstruction_engine.ts";
 import { renderDiff, renderVerbose } from "./reconstruction_render.ts";
+import { renderHistoryList } from "./reconstruction_render_list.ts";
 
 const USAGE =
     "usage: reconstruction_cli <transcript.jsonl> [--target <path>] [--verbose|--diff]";
@@ -64,20 +65,6 @@ function renderHistories(
         .join("\n\n");
 }
 
-// One line per touched file: its path and how many revisions it went through.
-function describeHistory(history: FileHistory): string {
-    const count = history.revisions.length;
-    return `${history.target}  (${count} revision${count === 1 ? "" : "s"})`;
-}
-
-// The default view: list every touched file (path + revision count).
-function renderList(histories: FileHistory[]): string {
-    if (histories.length === 0) {
-        return "no files touched";
-    }
-    return histories.map(describeHistory).join("\n");
-}
-
 // Load the transcript, reconstruct, and render per the chosen view.
 export function runCli(argv: string[]): string {
     const options = parseArgs(argv);
@@ -89,7 +76,7 @@ export function runCli(argv: string[]): string {
     if (options.verbose) {
         return renderHistories(histories, renderVerbose);
     }
-    return renderList(histories);
+    return renderHistoryList(histories);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

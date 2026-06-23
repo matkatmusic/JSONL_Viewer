@@ -5,7 +5,8 @@
 // discriminants it needs from here.
 
 // The 10 record `type` values that occur in the s1-delete-file transcript
-// (recon/06-s1-vocabulary.md). A later scenario extends this.
+// (recon/06-s1-vocabulary.md). Later scenarios extend this: s4-overwrite-file
+// adds queue-operation (a queued user prompt, modeled as discriminant only).
 export enum RecordType {
     attachment = "attachment",
     assistant = "assistant",
@@ -17,6 +18,7 @@ export enum RecordType {
     permissionMode = "permission-mode",
     bridgeSession = "bridge-session",
     aiTitle = "ai-title",
+    queueOperation = "queue-operation",
 }
 
 export const KNOWN_RECORD_TYPES: RecordType[] = Object.values(RecordType);
@@ -87,8 +89,14 @@ export const ENVELOPE_KEYS = [
 // lives here so every enum has a single canonical home (coding-requirements §2).
 
 // The evidence kinds the reconstruction engine replays. s1: write (create) and
-// delete (Bash rm). Later scenarios add edit, read, etc.
+// delete (Bash rm). s2-move-file adds edit (in-place splice) and rename (Bash
+// mv). s3-copy-file adds copy (Bash cp). s4-overwrite-file adds overwrite (a
+// second Write to a present file). Later scenarios add read, etc.
 export enum EventKind {
     write = "write",
     delete = "delete",
+    edit = "edit",
+    rename = "rename",
+    copy = "copy",
+    overwrite = "overwrite",
 }

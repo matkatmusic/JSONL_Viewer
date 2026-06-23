@@ -11,10 +11,14 @@ A reconstructed file is an ordered list of **revisions**. Each revision is a
 whole-file snapshot at a timestamp:
 
 ```
-FileRevision = { changeId, timestamp, lines: LineEntry[] }
+FileRevision = { kind, changeId, timestamp, lines: LineEntry[], rename?, copy? }
 LineEntry    = { oldLineNum, values: { line, timestamp }[] }
 ```
 
+- `kind` is the `EventKind` that produced this revision (`write`, `delete`,
+  `edit`, `rename`, `copy`), so render and callers can label an entry without
+  re-deriving it. `rename` (`{ from, to }`) is set only on a rename revision;
+  `copy` (`{ from, to }`) is set only on a copy (genesis) revision.
 - `changeId` is a `Uuid` identifying the **source operation** that produced this
   revision. When one operation produces more than one revision (a `-`/`+` edit —
   see Rule 2), every revision it emits shares the same `changeId`, so a paired
@@ -68,25 +72,91 @@ in our parse layer) — deterministic, reproducible runs, and doubles as provena
   `tests/test_s1_delete.py` (create only). `reconstructFile`/`reconstructAll` are
   generic over the target; only the *evidence kinds* (write/delete) are fog-of-war
   limited. `--verbose` prints line state per revision; `--diff` prints the changes.
-- Later scenarios add `Edit` (splice + `oldLineNum` mapping), `mv`/`cp` lineage,
-  reads/observations, and the verdict/coverage layer.
+- **S2 (`s2-move-file`)** — adds `Edit` (hunk-driven splice + `oldLineNum`
+  mapping) and `mv` lineage. Reconstructs two histories: the moved file (keyed by
+  its **final** path `s2_moved.py`, spanning create → rename → edit) and the test
+  file (create → edit-removal → edit-addition). Two locked decisions drive the
+  shape:
+  - **Merge by lineage.** A renamed file is **one** history keyed by its
+    surviving/final path; the pre-rename path (`s2_original.py`) is never a
+    separate history. `resolveFinalPath` follows the `mv` chain.
+  - **Rename is a first-class entry.** The `mv` is its own numbered revision (kind
+    `rename`, `from → to`, the mv's `changeId`) that carries the prior line
+    snapshot forward unchanged (identity `oldLineNum`) and mints no line change.
+- **S3 (`s3-copy-file`)** — adds `cp` lineage. The scenario is Write `s3_source.py`
+  → Write `tests/test_s3_source.py` → `cp s3_source.py s3_copy.py` → Read (ignored)
+  → Edit `s3_copy.py` (`hello`→`greet`). Reconstructs **three** independent
+  histories. Three locked decisions drive the shape:
+  - **A copy yields two histories, not one.** The source lives on as its own
+    history; the destination is new. A copy is the **opposite of a rename** —
+    deliberately kept out of the rename chain — so `reconstructAll(S3)` returns
+    `s3_source.py`, `tests/test_s3_source.py`, and `s3_copy.py` (never a merge).
+  - **Copy is a first-class genesis entry.** The destination's revision 0 has kind
+    `copy`, every line born (`oldLineNum -1`) at the `cp` time, recording its
+    `from`/`to` provenance (mirrors the first-class rename entry).
+  - **Genesis content is the reconstructed source as of the copy time.** The copy
+    is seeded by reconstructing the *source's* lineage up to the `cp` timestamp —
+    **not** from the destination Edit's `originalFile` field (unreliable across
+    transcripts, and it would couple a file's genesis to a later edit). This is the
+    clean-room, evidence-based path and generalizes to a source edited after copy.
+- **S4 (`s4-overwrite-file`)** — adds **overwrite** (a second `Write` to a file
+  that already exists, replacing all its content). The scenario is Write
+  `s4_overwrite.py` → Write `tests/test_s4_overwrite.py` → rewrite each with a fresh
+  Write (`version1`→`version2`). Reconstructs **two** independent histories, each
+  create → overwrite. Three locked decisions drive the shape:
+  - **An overwrite is a fresh full-content revision** — every line genesis
+    (`oldLineNum -1`), content from the Write's `content`, NOT an Edit-style splice;
+    the diff is a wholesale remove-all / add-all headed `overwritten`.
+  - **Overwrite is detected at replay time by file presence, not at extraction.** A
+    write whose file is present (latest revision exists and is not a delete) is an
+    overwrite; the first write is a create. Extraction keeps emitting plain `write`
+    events; the overwrite Write's `structuredPatch`/`originalFile` are not read.
+  - **Overwrite is its own revision `kind` (`EventKind.overwrite`), not a new event
+    type.** `WriteEvent` covers both; a write-after-delete stays a create (file
+    absent). Also: S4's transcript introduced the `queue-operation` record type (a
+    queued user prompt), now modeled as a discriminant-only `RecordType`.
+- Later scenarios add reads/observations and the verdict/coverage layer.
 
 ## Code layout
 
 The engine is split by concern, one paired test each (files kept well under the
 250-line cap with full comments, not crammed):
 
-- `src/reconstruction_engine.ts` — model types + event extraction + reconstruct.
-- `src/reconstruction_render.ts` — `renderVerbose` / `renderDiff` (pure).
+- `src/reconstruction_engine.ts` — the per-line model types + the public
+  `reconstructFile` / `reconstructAll` / `findDeletedTarget` API. Also owns the
+  cycle-guarded copy-seed recursion (`reconstructLineage` seeds each copy from its
+  source as of the copy time); it lives here because it needs `reconstructFile` as
+  a value, preserving the type-only import direction from the mechanics modules.
+- `src/reconstruction_extract.ts` — extraction (records → ordered `FileEvent`s):
+  Write→create, Bash `rm`→delete / `mv`→rename / `cp`→copy, Edit→splice
+  (+ hunk indexing).
+- `src/reconstruction_replay.ts` — replay (events → revisions): the left-fold,
+  the write/delete/edit/rename/copy appenders, and the hunk splice helpers.
+- `src/reconstruction_lineage.ts` — following a file across renames (rename chain,
+  `resolveFinalPath`, lineage membership, distinct final paths). A copy's
+  `contentPathOf` is its destination, but a copy never enters the rename chain, so
+  source and destination stay distinct lineages.
+- `src/reconstruction_render.ts` — `renderVerbose` / `renderDiff` (pure). The diff
+  heads an overwrite `@@ overwritten @ … @@` (full remove-all / add-all). Split in
+  S4 (was 249/250 lines): the default list view moved out (now ~128 lines).
+- `src/reconstruction_render_list.ts` — the default list view `renderHistoryList`
+  and its helpers (`entryLabel`/`entryDetail`/`renderHistoryBlock`/…), split out in
+  S4 so `reconstruction_render.ts` could grow. `entryLabel` maps `overwrite`.
 - `src/reconstruction_cli.ts` — arg parsing + `runCli` + entry point.
   Run: `tsx src/reconstruction_cli.ts <transcript.jsonl> [--target <p>] [--verbose|--diff]`.
 
 ## TDD specs
 
-Tests (`node:test` + `node:assert`) split to match: extraction/reconstruct in
-`tests/reconstruction_engine.test.ts` (driven off the real `S1_JSONL`), rendering
-in `tests/reconstruction_render.test.ts` (pure, literal revisions), CLI in
-`tests/reconstruction_cli.test.ts`. Red→green, each spec one test.
+Tests (`node:test` + `node:assert`) split to match the modules, one paired test
+file each: extraction in `tests/reconstruction_extract.test.ts`, replay in
+`tests/reconstruction_replay.test.ts`, lineage in
+`tests/reconstruction_lineage.test.ts`, the public reconstruct API in
+`tests/reconstruction_engine.test.ts` and `tests/reconstruction_engine_s4.test.ts`
+(driven off the real `S1_JSONL`/`S2_JSONL`/`S3_JSONL`/`S4_JSONL`; the S4 engine
+specs are in their own file to stay under the 250-line cap), verbose/diff rendering
+in `tests/reconstruction_render.test.ts` and the default list view in
+`tests/reconstruction_render_list.test.ts` (pure, literal revisions), CLI
+in `tests/reconstruction_cli.test.ts`. Red→green, each spec one test.
 
 ### S1 — implemented now
 
@@ -112,11 +182,84 @@ in `tests/reconstruction_render.test.ts` (pure, literal revisions), CLI in
 9. **`--diff` render** — output shows revision 0's lines as additions (`+`) and
    revision 1 as removals (`-`) of those same lines.
 
-### Deferred to S2+ (specs to write when those features land)
+### S2 — implemented now
 
-10. **Paired remove/add share `changeId`** — a `-`/`+` Edit emits a removal and an
-    addition revision with the *same* `changeId`.
-11. **`oldLineNum` chaining** — after an insert, forward/backward chaining tracks a
-    line's number across the renumber (proved against S2's real Edit hunks).
-12. **New revision ⇔ insert/remove**; same-position replacement appends to
-    `values[]` instead.
+10. **Paired remove/add share `changeId`** — the import-swap Edit (`015b59mN`)
+    emits a removal revision (5 lines) then an addition revision (6 lines) with the
+    *same* `changeId`. (Proved: `test_edit_splices_into_paired_removal_and_addition_revisions`,
+    `test_reconstruct_all_returns_two_s2_lineages`.)
+11. **`oldLineNum` chaining** — the splice records each survivor's previous index
+    as its `oldLineNum` back-pointer and births inserted lines at `-1`, against
+    S2's real Edit hunks. Render's `--diff` uses these back-pointers to show only
+    the real `+`/`-` lines, not a remove-all/add-all.
+12. **New revision ⇔ insert/remove** — every S2 Edit hunk with a `-` and/or `+`
+    mints new revision(s); the pure-insertion Edit (`016L3mk1`) mints one. (Same-
+    position replacement appending to `values[]` still awaits a read/observation
+    scenario.)
+13. **Rename lineage** — `mv` collapses source and destination into one history
+    keyed by the final path; `reconstructAll(S2)` returns exactly two histories,
+    none keyed by `s2_original.py`. (`test_moved_file_history_spans_create_rename_edit`,
+    `test_distinct_final_paths_collapses_rename_source`.)
+14. **First-class rename entry** — the `mv` is its own revision (kind `rename`,
+    carrying the prior lines forward, `from`/`to` + the mv's `changeId`); render
+    shows it as `renamed A → B` (verbose) / `@@ renamed A → B @@` (diff) with no
+    line churn.
+
+### S3 — implemented now
+
+15. **Copy extraction** — `extractFileEvents(S3)` finds exactly one `copy` event
+    from the `cp`, carrying `from`/`to` paths and the `cp` tool_use's `changeId`;
+    `contentPathOf` of a copy is its destination. (Proved:
+    `test_extract_finds_copy_from_cp`, `test_content_path_of_copy_is_its_destination`.)
+16. **Copy as a first-class genesis entry** — replaying a copy with known
+    `seedLines` appends one revision (kind `copy`, one genesis line per seed line at
+    `-1`, stamped at the copy time, carrying `from`/`to`). (Proved:
+    `test_replay_appends_copy_genesis_revision_from_seed_lines`.)
+17. **Seed from source at copy time** — `reconstructFile(S3, s3_copy.py)` yields
+    copy → edit-removal → edit-addition; revision 0 is seeded with the source's
+    content reconstructed *as of the copy timestamp*, and the two edit revisions
+    share one `changeId`. (Proved: `test_copied_file_history_spans_copy_then_paired_edit`.)
+18. **Copy does not collapse the source** — a copy stays out of the rename chain,
+    so both `from` and `to` survive as distinct final paths; `reconstructAll(S3)`
+    returns three histories (`s3_source.py`, `tests/test_s3_source.py`,
+    `s3_copy.py`). (Proved:
+    `test_distinct_final_paths_keeps_copy_source_and_destination`,
+    `test_reconstruct_all_returns_three_s3_histories`.)
+19. **Copy render** — verbose labels the entry `copy` with its `from → to` arrow and
+    numbered body; diff shows `@@ copied A → B @@` with genesis lines as additions;
+    the list view marks the file `(copy of X)` and the entry `(copied from X)`.
+    (Proved: `test_list_shows_copy_entry_with_provenance`,
+    `test_diff_shows_copy_as_its_own_block_with_added_lines`,
+    `test_verbose_labels_copy_entry_with_arrow_and_body`,
+    `test_default_view_lists_s3_with_copy_entry`.)
+
+### S4 — implemented now
+
+20. **Overwrite replay** — replaying two write events to one path yields a create
+    (kind `write`) then an overwrite (kind `overwrite`), the second carrying its own
+    content as genesis lines (`oldLineNum -1`) and its own `changeId`; presence is
+    decided by `fileIsPresent`. (Proved:
+    `test_second_write_to_a_present_file_is_an_overwrite`.)
+21. **Overwrite extraction is event-agnostic** — `extractFileEvents(S4)` finds four
+    plain `write` events (two per file, create then overwrite); the interleaved
+    `ls`/`pytest` Bash calls and the `queue-operation` record yield no events. No
+    extraction code change. (Proved: `test_extract_finds_four_writes_two_per_file`.)
+22. **Overwrite reconstruction** — `reconstructFile(S4, s4_overwrite.py)` yields
+    create → overwrite, every overwrite line genesis; `reconstructAll(S4)` returns
+    **two** independent histories, each create → overwrite, neither collapsing into
+    the other. (Proved: `test_overwrite_file_history_is_create_then_overwrite`,
+    `test_reconstruct_all_returns_two_independent_s4_histories`.)
+23. **Overwrite render** — the list view labels the entry `overwrite` (not `create`
+    or `delete`); the diff heads it `@@ overwritten @ … @@` with a full remove-all /
+    add-all; verbose shows the overwrite's full new line state. (Proved:
+    `test_list_labels_overwrite_entry`, `test_diff_shows_overwrite_as_full_replace`,
+    `test_verbose_shows_overwrite_full_state`,
+    `test_default_view_lists_s4_overwrite_entries`.)
+
+### Deferred to later scenarios
+
+- **Fine-grained sub-diff** linking a `-`→`+` pair as one modified line (Rule 2's
+  deferred half) — awaits a scenario that needs it.
+- **Reads/observations** appending to a line's `values[]` (multi-entry history) —
+  the S3 `Read` of `s3_copy.py` is intentionally ignored for now.
+- **The verdict/coverage layer.**

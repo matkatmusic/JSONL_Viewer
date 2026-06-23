@@ -31,6 +31,7 @@ export const ALLOWED_TOP_LEVEL_KEYS: Record<RecordType, ReadonlySet<string>> = {
     [RecordType.lastPrompt]: keys(META_KEYS, "leafUuid", "lastPrompt"),
     [RecordType.mode]: keys(META_KEYS, "mode"),
     [RecordType.permissionMode]: keys(META_KEYS, "permissionMode"),
+    [RecordType.queueOperation]: keys(META_KEYS, "operation", "timestamp", "content"),
     [RecordType.system]: keys(
         ENVELOPE_KEYS,
         "subtype", "level", "content", "isMeta", "durationMs", "messageCount",
