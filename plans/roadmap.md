@@ -5,7 +5,7 @@
 [x] S4 -> [x] overwrite (2nd Write to a present file = replay-time presence distinction; first-class overwrite revision kind; render-list split; queue-operation record type added)
 [x] S5 -> [x] bash redirect (`>>` append = carried-prefix + genesis-suffix revision; `>` overwrite = S4 reuse; content recovered from the file-history sidecar via injected BackupReader, snapshot paths resolved against cwd; replay-edit split; DOES_NOT_EXIST_YET sentinel; render-list verb renames)
 [x] S6 -> [x] git mv rename (generalized parseMvPaths to accept `git mv`; cwd-relative rename paths resolved absolute via shared resolveAgainstCwd in new structures/path-resolve.ts leaf module; reuses S2 rename lineage + edit splice; no new event kind, no sidecar)
-[ ] S7 ->
+[x] S7 -> [x] conversation rewind / code restore (branch-aware reconstruction; rewind = a parentUuid fork named by the final last-prompt leafUuid; surviving branch is the engine default, rewound branches PRESERVED & retrievable like unmerged git branches; new reconstruction_branch.ts model + reconstruction_branches.ts core split off engine; reconstructBranches + CLI default-all-branches with --surviving/--list-branches/--branch; no new event/revision/per-line kind)
 [ ] S8 ->
 [ ] S9 ->
 [ ] S10 ->

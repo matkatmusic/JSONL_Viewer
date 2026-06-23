@@ -1,3 +1,80 @@
+## 2026-06-23:11:50:00 — S7 reconstruction (conversation rewind / code restore — branch-aware, rewound branches preserved)
+Chat title: api-from-scenarios — S7 (minimal-code-restore) implement plan
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/f58fac66-0c73-4855-977e-f82fd5c7fa82.jsonl
+
+### References
+
+/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s7/s7-reconstruction-plan.md
+/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1119.md
+/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/reconstruction-engine-design.md
+S7 JSONL: /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s7-minimal-code-restore/d0d14660-4477-40fa-824c-e7f0bb91cd66.jsonl
+
+### Design decisions
+
+- **A rewind is a `parentUuid` fork; the surviving branch is named by the FINAL `last-prompt`'s
+  `leafUuid`.** Not by counting fork points (attachments are routine siblings of user records, so
+  fork-counting yields false positives and never says which child survived). `last-prompt` heads in
+  file order are the conversation's branch tips; the last one is the surviving head. A branch's
+  records = its tip's `parentUuid` ancestor chain + every uuid-less meta/header record (meta records
+  carry no `uuid`, so keeping them preserves what the sidecar/session lookup needs while the
+  ancestor test drops abandoned messages).
+- **Rewound branches are PRESERVED and retrievable, never discarded (user directive, reversed
+  mid-plan).** A rewind is an unmerged git branch; its file changes stay reconstructable like
+  `git log <unmerged-branch>`. `reconstructBranches` returns `surviving` + one `RewoundBranchHistory`
+  per rewound branch (rewind point + tip + the histories of files changed AFTER the rewind). The
+  engine's `reconstructAll`/`reconstructFile` still return the surviving branch only (the "current
+  files" API); the all-branches view is the CLI's default rendering.
+- **The engine was split into a branch-agnostic core + a surviving-default public API.**
+  `reconstructFileOver`/`reconstructFilesOver` reconstruct over EXACTLY the records given (no
+  filtering); `extractFileEvents` does no filtering either. Branch selection happens only in the
+  public API (`selectLiveBranch`) and in `reconstructBranches` (`selectBranchRecords` per branch).
+  This is what makes reconstructing a NON-surviving branch possible — the whole point of S7.
+- **Rewound-branch scoping by diverging changeId.** A rewound branch is reported only if its
+  diverging records (past the rewind point) carry ≥1 file event, and its histories are filtered to
+  those files (changes "after the rewind"). On S7 this excludes the `#72` Read/`ls` tangent (no file
+  change) and keeps the v1 branch (two Writes born post-fork).
+- **CLI default = all branches**, with a no-rewound passthrough (byte-identical to the old plain
+  list, so S1–S6 are unchanged). `--surviving` (kept files only), `--list-branches` (one summary
+  line per branch), `--branch <tip-short-id>` (one branch; composes with `--target`/`--diff`/
+  `--verbose`; unknown id throws the usage message + available ids). `shortUuid` (first 8 chars of a
+  tip uuid) is the one canonical branch short-id, distinct from the renderer's `toolu_`-trimming
+  changeId shortener.
+
+### Deviations
+
+- **Two filesize-cap-driven deviations from the plan's literal module placement (split, never
+  condense).** (1) The plan named `reconstruction_branches.ts` only for Task 3; but Task 2's core
+  alone pushed `reconstruction_engine.ts` to 261/250, so the branch-agnostic CORE
+  (`reconstructFileOver`/`reconstructFilesOver` + copy-seed helpers) moved there too. Engine.ts is
+  now 224 lines, branches.ts 120. (2) `reconstructBranches` + its types stayed IN
+  `reconstruction_engine.ts` (the plan's stated home and the test's import path) — engine.ts had
+  room (224) and re-exporting would violate the no-forwarding-layers rule.
+- **`BranchedReconstruction` gained a `survivingTip: Uuid | undefined` field** not in the plan's
+  literal type. The `--list-branches` summary and the `## surviving` header both need the surviving
+  tip; the type symmetrically already carries each rewound tip, so the surviving tip belongs there.
+  `undefined` only for an unmarked transcript with no `last-prompt` head (the defensive fallback).
+- **`reconstruction_branches.ts` has no paired test file** (a PostToolBatch warning). Its two
+  exported core functions are exercised transitively by every existing engine/CLI test plus the new
+  `reconstruction_engine_s7.test.ts`; the split was behavior-preserving (all 88 prior tests stayed
+  green across it), so a dedicated unit test would duplicate coverage. The branch *model* logic that
+  is genuinely new (`reconstruction_branch.ts`) does have its own paired test.
+
+### Tradeoffs
+
+- **`--target` now filters reconstructed histories by exact final path** rather than re-running
+  `reconstructFile` for that one path. Equivalent for non-renamed files and for renamed files
+  addressed by their final path (every existing case); it would differ only if a caller addressed a
+  renamed file by its PRE-rename name, which no test or scenario does. Chosen for uniform branch
+  composition (one `renderChosen` shared by every branch view) per the plan's design.
+- **Maximal-tip dedup walks each abandoned head's ancestor set** (O(heads²) ancestor walks). Fine
+  for the handful of heads a real transcript has; not optimized for pathological head counts.
+
+### Open questions
+
+- None blocking. Confirm at S8 planning: the leaf-ancestor walk + maximal-tip dedup is built to
+  handle multiple independent rewinds, but a rewind nested INSIDE an already-rewound branch (a tree
+  deeper than two levels) is untested — `s8-repeated-code-restore-rewinds` is where to verify/extend.
+
 ## 2026-06-23:10:56:00 — S6 reconstruction (`git mv` rename with cwd-relative path resolution)
 Chat title: api-from-scenarios — S6 (`git mv`) implement plan
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/4361c956-98cb-4629-8055-39e5bd522860.jsonl

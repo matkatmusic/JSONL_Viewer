@@ -11,15 +11,18 @@ import type { StructuredPatchHunk } from "./structures/tool-results.ts";
 import { EventKind } from "./structures/vocabulary.ts";
 import { Path, Uuid } from "./structures/domain.ts";
 import { extractFileEvents } from "./reconstruction_extract.ts";
-import { replayEvents } from "./reconstruction_replay.ts";
-import { fillRedirectContent } from "./reconstruction_sidecar.ts";
-import type { BackupReader } from "./reconstruction_sidecar.ts";
 import {
-    buildRenameChain,
-    distinctFinalPaths,
-    eventBelongsToLineage,
-    resolveFinalPath,
-} from "./reconstruction_lineage.ts";
+    collectSurvivingUuids,
+    findConversationBranches,
+    selectBranchRecords,
+    selectLiveBranch,
+    type ConversationBranch,
+} from "./reconstruction_branch.ts";
+import {
+    reconstructFileOver,
+    reconstructFilesOver,
+} from "./reconstruction_branches.ts";
+import type { BackupReader } from "./reconstruction_sidecar.ts";
 
 // --- The per-line model ------------------------------------------------------
 
@@ -134,115 +137,92 @@ export type FileEvent =
 
 // --- Reconstruction: the public API ------------------------------------------
 
-// Reconstruct one file's history: follow any rename to its final path, keep only
-// that lineage's events, seed any copy from its source, then replay. Generic over
-// the target; supports whatever event kinds extraction and replay model.
+// Reconstruct one file's history on the surviving branch: pre-select the surviving conversation
+// branch (a no-op when the transcript has no rewind), then reconstruct over those records via the
+// branch-agnostic core in reconstruction_branches.ts. Generic over the target.
 export function reconstructFile(
     records: TranscriptRecord[],
     target: Path,
     reader?: BackupReader,
 ): FileRevision[] {
-    return reconstructLineage(records, target, new Set<string>(), reader);
+    return reconstructFileOver(selectLiveBranch(records), target, new Set<string>(), reader);
 }
 
-// resolving holds the destination paths currently being seeded, so a copy cycle
-// (cp a b; cp b a) breaks instead of recursing forever. reader fills bash-redirect
-// content from the file-history sidecar before replay (undefined for S1-S4).
-function reconstructLineage(
-    records: TranscriptRecord[],
-    target: Path,
-    resolving: Set<string>,
-    reader?: BackupReader,
-): FileRevision[] {
-    const events = extractFileEvents(records);
-    const renameChain = buildRenameChain(events);
-    const finalTarget = resolveFinalPath(target, renameChain);
-    const lineage = events.filter((event) =>
-        eventBelongsToLineage(event, finalTarget, renameChain),
-    );
-    const seeded = seedCopyEvents(records, lineage, resolving, reader);
-    const filled = reader ? fillRedirectContent(records, seeded, reader) : seeded;
-    return replayEvents(filled);
-}
-
-// Fill each copy event's seedLines from its source; pass other events through.
-function seedCopyEvents(
-    records: TranscriptRecord[],
-    lineage: FileEvent[],
-    resolving: Set<string>,
-    reader?: BackupReader,
-): FileEvent[] {
-    return lineage.map((event) => {
-        if (event.kind === EventKind.copy) {
-            return seedOneCopy(records, event, resolving, reader);
-        }
-        return event;
-    });
-}
-
-// Seed one copy with the source file's content as of the copy timestamp.
-function seedOneCopy(
-    records: TranscriptRecord[],
-    event: CopyEvent,
-    resolving: Set<string>,
-    reader?: BackupReader,
-): CopyEvent {
-    const destination = event.to.toString();
-    if (resolving.has(destination)) {
-        return { ...event, seedLines: [] };
-    }
-    const next = new Set(resolving);
-    next.add(destination);
-    const sourceRevisions = reconstructLineage(records, event.from, next, reader);
-    const atCopy = lastRevisionAtOrBefore(sourceRevisions, event.timestamp);
-    if (!atCopy) {
-        return { ...event, seedLines: [] };
-    }
-    return { ...event, seedLines: linesTextOf(atCopy) };
-}
-
-// The latest revision whose timestamp is at or before `when`, or undefined.
-function lastRevisionAtOrBefore(
-    revisions: FileRevision[],
-    when: Date,
-): FileRevision | undefined {
-    let chosen: FileRevision | undefined;
-    for (const revision of revisions) {
-        if (revision.timestamp.getTime() <= when.getTime()) {
-            chosen = revision;
-        }
-    }
-    return chosen;
-}
-
-// The believed text of each line in a revision (its latest value).
-function linesTextOf(revision: FileRevision): string[] {
-    return revision.lines.map(
-        (entry) => entry.values[entry.values.length - 1]!.line,
-    );
-}
-
-// Reconstruct every file the transcript touches — each with its own history,
-// keyed by the path it ends life at (a renamed file is one history, not two).
+// Reconstruct every file the transcript touches on the surviving branch (pre-select, then
+// reconstruct over those records — a no-op when there is no rewind).
 export function reconstructAll(
     records: TranscriptRecord[],
     reader?: BackupReader,
 ): FileHistory[] {
-    const events = extractFileEvents(records);
-    const renameChain = buildRenameChain(events);
-    return distinctFinalPaths(events, renameChain).map((target) => ({
-        target,
-        revisions: reconstructFile(records, target, reader),
-    }));
+    return reconstructFilesOver(selectLiveBranch(records), reader);
 }
 
-// Find a file the transcript deletes (its rm target), if any — lets a caller
+// Find a file the surviving branch deletes (its rm target), if any — lets a caller
 // default the target when one isn't named explicitly.
 export function findDeletedTarget(
     records: TranscriptRecord[],
 ): Path | undefined {
-    const deletion = extractFileEvents(records).find(
+    const deletion = extractFileEvents(selectLiveBranch(records)).find(
         (event) => event.kind === EventKind.delete,
     );
     return deletion?.kind === EventKind.delete ? deletion.target : undefined;
+}
+
+// --- Branch-aware reconstruction: surviving + retrievable rewound branches -----
+
+// One rewound branch's file changes: the histories of files it changed after its rewind point,
+// tagged with where it forked (rewindPoint) and its tip (its identity, like a branch name).
+export type RewoundBranchHistory = {
+    rewindPoint: Uuid;
+    tip: Uuid;
+    histories: FileHistory[];
+};
+
+// The full branch-aware reconstruction: the surviving files plus every rewound branch's changes.
+// survivingTip names the surviving branch's tip (its identity, for the branch listing / headers);
+// it is undefined only for an unmarked transcript with no last-prompt head.
+export type BranchedReconstruction = {
+    survivingTip: Uuid | undefined;
+    surviving: FileHistory[];
+    rewound: RewoundBranchHistory[];
+};
+
+// Reconstruct the surviving files plus every rewound (unmerged) branch's changes, so a rewound
+// branch's file history stays retrievable like `git log` on a branch that was never merged.
+export function reconstructBranches(
+    records: TranscriptRecord[],
+    reader?: BackupReader,
+): BranchedReconstruction {
+    const branches = findConversationBranches(records);
+    const survivingBranch = branches.find((branch) => branch.isSurviving);
+    const surviving = reconstructAll(records, reader);
+    const rewound = branches
+        .filter((branch) => !branch.isSurviving)
+        .map((branch) => buildRewoundBranchHistory(records, branch, reader))
+        .filter((entry): entry is RewoundBranchHistory => entry !== undefined);
+    return { survivingTip: survivingBranch?.tip, surviving, rewound };
+}
+
+// Reconstruct one rewound branch, scoped to the files it changed after its rewind point. Returns
+// undefined when the branch's diverging portion changed no file (a trivial tangent like a Read/ls).
+function buildRewoundBranchHistory(
+    records: TranscriptRecord[],
+    branch: ConversationBranch,
+    reader?: BackupReader,
+): RewoundBranchHistory | undefined {
+    const branchRecords = selectBranchRecords(records, branch.tip);
+    const survivingUuids = collectSurvivingUuids(records);
+    const divergingRecords = branchRecords.filter(
+        (record) => record.uuid !== undefined && !survivingUuids.has(record.uuid.toString()),
+    );
+    const divergingIds = new Set(
+        extractFileEvents(divergingRecords).map((event) => event.changeId.toString()),
+    );
+    if (divergingIds.size === 0) {
+        return undefined;
+    }
+    const histories = reconstructFilesOver(branchRecords, reader).filter((history) =>
+        history.revisions.some((revision) => divergingIds.has(revision.changeId.toString())),
+    );
+    return { rewindPoint: branch.rewindPoint!, tip: branch.tip, histories };
 }

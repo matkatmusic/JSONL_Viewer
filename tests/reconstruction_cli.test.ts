@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseArgs, runCli } from "../src/reconstruction_cli.ts";
-import { S1_JSONL, S2_JSONL, S3_JSONL, S4_JSONL, S5_JSONL, S6_JSONL } from "./fixtures.ts";
+import { S1_JSONL, S2_JSONL, S3_JSONL, S4_JSONL, S5_JSONL, S6_JSONL, S7_JSONL } from "./fixtures.ts";
 
 // The append entry's whole list line (matched by its short change id).
 function entryLineWith(out: string, shortChangeId: string): string {
@@ -38,6 +38,67 @@ test("test_default_view_lists_s6_git_mv_lineage", () => {
     assert.ok(out.includes("#01CVhCVD")); // the goodbye edit
     // The test file is listed as its own create.
     assert.ok(out.includes("tests/test_s6_git.py"));
+});
+
+// Default (no flag): ALL branches — both the surviving v2 writes and the rewound v1 writes appear,
+// under branch headers naming the rewind point. (No "overwrite": the v2 write is a create on its
+// own branch, not an overwrite of v1.)
+test("test_default_view_shows_all_branches", () => {
+    const out = runCli([S7_JSONL]);
+    assert.ok(out.includes("surviving"));
+    assert.ok(out.includes("rewound"));
+    assert.ok(out.includes("#2e47efbe")); // rewind point
+    assert.ok(out.includes("#01JWycFr")); // surviving v2 scenario7.py
+    assert.ok(out.includes("#012jN7F9")); // rewound v1 scenario7.py
+    assert.ok(out.includes("#015eug6V")); // rewound v1 test
+    assert.ok(!out.includes("overwrite"));
+});
+
+// A transcript with no rewound branch (S1) renders exactly as before — no branch headers added.
+test("test_default_view_unchanged_when_no_rewound_branches", () => {
+    const out = runCli([S1_JSONL]);
+    assert.ok(!out.includes("## surviving"));
+    assert.ok(!out.includes("## rewound"));
+});
+
+// --surviving: only the surviving branch (the v2 creates); no rewound v1 ids, no headers.
+test("test_surviving_flag_shows_only_surviving_branch", () => {
+    const out = runCli([S7_JSONL, "--surviving"]);
+    assert.ok(out.includes("#01JWycFr"));
+    assert.ok(!out.includes("#012jN7F9")); // rewound v1 not shown
+    assert.ok(!out.includes("## rewound"));
+});
+
+// --list-branches: one summary line per branch, naming the surviving and rewound tips + rewind pt.
+test("test_list_branches_summarizes_surviving_and_rewound", () => {
+    const out = runCli([S7_JSONL, "--list-branches"]);
+    assert.ok(out.includes("surviving"));
+    assert.ok(out.includes("#77494da3")); // surviving tip
+    assert.ok(out.includes("rewound"));
+    assert.ok(out.includes("#55ee424f")); // rewound tip
+    assert.ok(out.includes("#2e47efbe")); // rewind point
+    assert.ok(!out.includes("create  2 lines")); // a summary, not the full per-revision listing
+});
+
+// --branch <id>: render exactly one branch (the rewound v1), selected by tip short id.
+test("test_branch_id_retrieves_one_specific_branch", () => {
+    const out = runCli([S7_JSONL, "--branch", "55ee424f"]);
+    assert.ok(out.includes("#012jN7F9")); // the rewound v1 writes are shown
+    assert.ok(out.includes("#015eug6V"));
+    assert.ok(!out.includes("#01JWycFr")); // the surviving branch is NOT shown
+});
+
+// --branch <id> with --target narrows to one file on that branch.
+test("test_branch_id_with_target_narrows_to_one_file", () => {
+    const target = "/private/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/run-scenario.daizis4h/scenario7.py";
+    const out = runCli([S7_JSONL, "--branch", "55ee424f", "--target", target]);
+    assert.ok(out.includes("#012jN7F9"));            // the v1 scenario7.py
+    assert.ok(!out.includes("tests/test_scenario7.py")); // the test file is filtered out
+});
+
+// An unknown branch id is rejected with a message that lists the available ids.
+test("test_branch_id_unknown_throws_with_available_ids", () => {
+    assert.throws(() => runCli([S7_JSONL, "--branch", "deadbeef"]), /55ee424f|77494da3/);
 });
 
 // A transcript path is required; without one, parseArgs reports usage.

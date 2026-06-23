@@ -122,14 +122,24 @@ in our parse layer) — deterministic, reproducible runs, and doubles as provena
 The engine is split by concern, one paired test each (files kept well under the
 250-line cap with full comments, not crammed):
 
-- `src/reconstruction_engine.ts` — the per-line model types + the public
-  `reconstructFile` / `reconstructAll` / `findDeletedTarget` API. Also owns the
-  cycle-guarded copy-seed recursion (`reconstructLineage` seeds each copy from its
-  source as of the copy time); it lives here because it needs `reconstructFile` as
-  a value, preserving the type-only import direction from the mechanics modules.
-  `reconstructFile`/`reconstructAll` take an optional `BackupReader` (transcript +
-  sidecar): with one, `fillRedirectContent` recovers bash-redirect content before
-  replay; S1–S4 pass none, so it is a no-op for them.
+- `src/reconstruction_engine.ts` — the per-line model types + the event types + the public
+  `reconstructFile` / `reconstructAll` / `findDeletedTarget` API (each pre-selects the surviving
+  conversation branch via `selectLiveBranch`, then delegates to the branch-agnostic core), and the
+  branch-aware `reconstructBranches` (+ `RewoundBranchHistory` / `BranchedReconstruction` types).
+  `reconstructFile`/`reconstructAll` take an optional `BackupReader` (transcript + sidecar): with
+  one, `fillRedirectContent` recovers bash-redirect content before replay; S1–S4 pass none, so it
+  is a no-op for them.
+- `src/reconstruction_branch.ts` — the conversation-branch model: `findConversationBranches`,
+  `selectBranchRecords` / `selectLiveBranch` (a branch's records = its tip's `parentUuid` ancestor
+  chain + uuid-less meta), `collectSurvivingUuids`, and the canonical tip short-id `shortUuid` +
+  `findBranchById`. Imports only `envelope`/`session-meta`/`domain` (engine types are type-only),
+  so the graph stays acyclic.
+- `src/reconstruction_branches.ts` — the branch-agnostic reconstruction CORE
+  (`reconstructFileOver` / `reconstructFilesOver`) that reconstructs over EXACTLY the records given
+  (no branch selection), plus the cycle-guarded copy-seed recursion (`seedOneCopy` seeds each copy
+  from its source as of the copy time). Split out of `reconstruction_engine.ts` in S7 to keep both
+  files under the 250-line cap (split, never condense); the public surviving-branch API in
+  `reconstruction_engine.ts` calls this core.
 - `src/reconstruction_extract.ts` — extraction (records → ordered `FileEvent`s):
   Write→create, Bash `rm`→delete / `mv`+`git mv`→rename / `cp`→copy / `>>`→append / `>`→overwrite
   (`parseRedirect`, empty content — the sidecar fills it), Edit→splice (+ hunk indexing). A
@@ -169,7 +179,10 @@ The engine is split by concern, one paired test each (files kept well under the
   `overwrite` and `append`.
 - `src/reconstruction_cli.ts` — arg parsing + `runCli` + entry point; builds the real
   sidecar `BackupReader` from the transcript's session and threads it into reconstruction.
-  Run: `tsx src/reconstruction_cli.ts <transcript.jsonl> [--target <p>] [--verbose|--diff]`.
+  Reconstructs all branches once, then renders per the chosen branch view (default = all branches
+  with the no-rewound passthrough; `--surviving` / `--list-branches` / `--branch <id>`). Run:
+  `tsx src/reconstruction_cli.ts <transcript.jsonl> [--target <p>] [--verbose|--diff]
+  [--surviving|--list-branches|--branch <id>]`.
 
 ## TDD specs
 
@@ -178,10 +191,12 @@ file each: extraction in `tests/reconstruction_extract.test.ts`, replay in
 `tests/reconstruction_replay.test.ts`, lineage in
 `tests/reconstruction_lineage.test.ts`, the public reconstruct API in
 `tests/reconstruction_engine.test.ts`, `tests/reconstruction_engine_s4.test.ts`,
-`tests/reconstruction_engine_s5.test.ts`, and `tests/reconstruction_engine_s6.test.ts`
+`tests/reconstruction_engine_s5.test.ts`, `tests/reconstruction_engine_s6.test.ts`, and
+`tests/reconstruction_engine_s7.test.ts`
 (driven off the real
-`S1_JSONL`/`S2_JSONL`/`S3_JSONL`/`S4_JSONL`/`S5_JSONL`/`S6_JSONL`; the S4, S5, and S6 engine
-specs are in their own files to stay under the 250-line cap), the sidecar resolver in
+`S1_JSONL`/`S2_JSONL`/`S3_JSONL`/`S4_JSONL`/`S5_JSONL`/`S6_JSONL`/`S7_JSONL`; the S4–S7 engine
+specs are in their own files to stay under the 250-line cap), the conversation-branch model in
+`tests/reconstruction_branch.test.ts` (synthetic rewind records), the sidecar resolver in
 `tests/reconstruction_sidecar.test.ts` (synthetic snapshots + an in-memory reader),
 verbose/diff rendering in `tests/reconstruction_render.test.ts` and the default list
 view in `tests/reconstruction_render_list.test.ts` (pure, literal revisions), CLI
@@ -337,6 +352,44 @@ in `tests/reconstruction_cli.test.ts`. Red→green, each spec one test.
     `create`/`rename`/`edit` (no render change — S2 already heads `rename` and `edit`).
     (Proved: `test_git_mv_links_rename_lineage_and_applies_later_edit`,
     `test_default_view_lists_s6_git_mv_lineage`.)
+
+### S7 — implemented now
+
+32. **conversation-branch model** — a rewind forks the `parentUuid` tree; each `last-prompt`
+    record's `leafUuid` is a conversation head. `findConversationBranches` returns the
+    surviving branch (the final head) and the rewound branches (abandoned heads, deduped to
+    maximal tips, each tagged with the rewind point = the deepest record shared with the
+    surviving path). `selectBranchRecords(records, tip)` keeps a branch's records (the tip's
+    ancestor chain + every uuid-less meta record); `selectLiveBranch` is that for the surviving
+    head. A no-op (kept records == all records) when there is no rewind, so S1–S6 are unchanged.
+    (Proved: `test_find_conversation_branches_identifies_surviving_and_rewound`,
+    `test_select_branch_records_keeps_tip_chain_and_meta`,
+    `test_select_live_branch_keeps_surviving_chain`,
+    `test_select_live_branch_returns_all_when_no_head`.)
+33. **branch-agnostic reconstruction core** — `reconstructFileOver` / `reconstructFilesOver`
+    (in `reconstruction_branches.ts`) reconstruct over EXACTLY the records given, with no branch
+    filtering; the public `reconstructAll` / `reconstructFile` / `findDeletedTarget` pre-select
+    the surviving branch via `selectLiveBranch` and call the core. `extractFileEvents` does no
+    filtering. So default reconstruction follows the surviving branch only — `reconstructAll(S7)`
+    is one v2 `create` per file, not a v1 create + v2 overwrite. (Proved:
+    `test_default_reconstruction_follows_surviving_branch_only`.)
+34. **rewound-branch retrieval** — `reconstructBranches` returns `{ survivingTip, surviving,
+    rewound }`: the surviving histories plus one `RewoundBranchHistory` per rewound branch
+    (rewind point + tip + the histories of files it changed AFTER the rewind; a tangent with no
+    post-rewind file change, like S7's `#72` Read/`ls`, is excluded). A rewound branch's writes
+    are preserved, never discarded — retrievable like `git log` on an unmerged branch. The CLI
+    **defaults to rendering all branches** (surviving + rewound under `## surviving` / `## rewound`
+    headers; byte-identical to the old plain list when there are no rewound branches, keeping
+    S1–S6 unchanged), with `--surviving` (surviving only), `--list-branches` (one summary line per
+    branch), and `--branch <tip-short-id>` (one branch, composing with `--target`/`--diff`/
+    `--verbose`; an unknown id throws the usage message with the available ids). (Proved:
+    `test_reconstruct_branches_retains_rewound_v1_branch`, `test_default_view_shows_all_branches`,
+    `test_default_view_unchanged_when_no_rewound_branches`,
+    `test_surviving_flag_shows_only_surviving_branch`,
+    `test_list_branches_summarizes_surviving_and_rewound`,
+    `test_branch_id_retrieves_one_specific_branch`,
+    `test_branch_id_with_target_narrows_to_one_file`,
+    `test_branch_id_unknown_throws_with_available_ids`.)
 
 ### Deferred to later scenarios
 

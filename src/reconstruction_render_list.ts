@@ -2,8 +2,13 @@
 // with its numbered entries (kind, line count or rename/copy detail, short time,
 // short change id). Pure over FileHistory[]. Design: reconstruction_engine.ts.
 
-import type { FileHistory, FileRevision } from "./reconstruction_engine.ts";
+import type {
+    BranchedReconstruction,
+    FileHistory,
+    FileRevision,
+} from "./reconstruction_engine.ts";
 import { EventKind } from "./structures/vocabulary.ts";
+import { shortUuid } from "./reconstruction_branch.ts";
 import type { Path, Uuid } from "./structures/domain.ts";
 
 // The tail component of a path (its file name).
@@ -125,4 +130,40 @@ export function renderHistoryList(histories: FileHistory[]): string {
         return "no files touched";
     }
     return histories.map(renderHistoryBlock).join("\n\n");
+}
+
+// A branch's section header for the all-branches view: `## surviving  tip #<short>` for the
+// surviving branch, `## rewound  tip #<short>  (rewind @ #<short>)` for a rewound one.
+export function formatBranchHeader(
+    label: string,
+    tip: Uuid,
+    rewindPoint: Uuid | undefined,
+): string {
+    const header = `## ${label}  tip #${shortUuid(tip)}`;
+    if (rewindPoint === undefined) {
+        return header;
+    }
+    return `${header}  (rewind @ #${shortUuid(rewindPoint)})`;
+}
+
+// The basenames of the files a branch touched, comma-joined (its "files changed" column).
+function summarizeBranchFiles(histories: FileHistory[]): string {
+    return histories.map((history) => getBaseName(history.target)).join(", ");
+}
+
+// One summary line per branch (like `git branch`): kind, tip short id, for a rewound branch also
+// its rewind point, then the files it touched. Used by the CLI `--list-branches` view.
+export function renderBranchSummary(branched: BranchedReconstruction): string {
+    const lines: string[] = [];
+    if (branched.survivingTip !== undefined) {
+        const files = summarizeBranchFiles(branched.surviving);
+        lines.push(`surviving  tip #${shortUuid(branched.survivingTip)}    ${files}`);
+    }
+    for (const entry of branched.rewound) {
+        const files = summarizeBranchFiles(entry.histories);
+        lines.push(
+            `rewound    tip #${shortUuid(entry.tip)}  rewind @ #${shortUuid(entry.rewindPoint)}    ${files}`,
+        );
+    }
+    return lines.join("\n");
 }
