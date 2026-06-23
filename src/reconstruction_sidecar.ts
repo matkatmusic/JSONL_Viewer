@@ -5,12 +5,13 @@
 // <root>/<sessionId>/<backupFileName>; backupFileName already embeds hash@vN, so no hashing.
 // The reader is injected so the engine stays pure and tests use an in-memory map.
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { readFileSync } from "node:fs";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { getFileHistorySnapshot } from "./structures/file-history.ts";
 import { Path, Uuid } from "./structures/domain.ts";
 import { EventKind } from "./structures/vocabulary.ts";
+import { resolveAgainstCwd } from "./structures/path-resolve.ts";
 import type { FileEvent } from "./reconstruction_engine.ts";
 
 export type BackupReader = (backupFileName: Path) => string;
@@ -28,17 +29,6 @@ function findCwd(records: TranscriptRecord[]): Path | undefined {
         }
     }
     return undefined;
-}
-
-// Resolve a path to an absolute string against the transcript cwd. The snapshots key their
-// backups by the path relative to cwd (e.g. "s5_redirect.txt"), while a file event's target
-// is absolute; resolving both the same way lets them match. resolve() leaves an
-// already-absolute path unchanged, so an absolute target passes through untouched.
-function resolveAgainstCwd(cwd: Path | undefined, path: Path): string {
-    if (!cwd) {
-        return path.toString();
-    }
-    return resolve(cwd.toString(), path.toString());
 }
 
 // Per absolute path, the time-ordered backup points across every file-history snapshot.

@@ -1,3 +1,64 @@
+## 2026-06-23:10:56:00 — S6 reconstruction (`git mv` rename with cwd-relative path resolution)
+Chat title: api-from-scenarios — S6 (`git mv`) implement plan
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/4361c956-98cb-4629-8055-39e5bd522860.jsonl
+
+### References
+
+/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s6/s6-reconstruction-plan.md
+/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1044.md
+/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/reconstruction-engine-design.md
+S6 JSONL: /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s6-git-mv/4ad1d191-23e8-41de-adfa-d182b6a1cf55.jsonl
+
+### Design decisions
+
+- **`git mv` is recognized by generalizing the one `mv` parser, not a sibling parser.**
+  `parseMvPaths`'s regex gained an optional `git ` prefix (`^(?:git\s+)?mv\s+(\S+)\s+(\S+)$`),
+  so `bashEventFrom` emits the same `RenameEvent` for `mv` and `git mv`. One canonical mv
+  parser, one `RenameInfo` shape — no behavioral difference to justify duplication.
+- **The rename's relative paths are resolved to absolute at the event source.** `git mv`'s
+  args are cwd-relative (`s6_git.py`) while every Write/Edit target is absolute, so the rename
+  endpoints are resolved against the record `cwd` via `resolveAgainstCwd` before the
+  `RenameEvent` is built. Resolving once at extraction keeps every downstream lineage compare
+  absolute (as it already is for Write/Edit); resolution is idempotent for absolute paths, so
+  S2's absolute plain `mv` is unchanged (`test_extract_finds_rename_from_mv` still green).
+- **The cwd resolver was promoted to a leaf module `src/structures/path-resolve.ts`.** It was
+  private to `reconstruction_sidecar.ts`; extraction now needs it too, so it moved to one
+  canonical home that imports only node `path`. A leaf module avoids any engine import cycle
+  (`engine → extract` is a runtime import; routing through the sidecar would add an
+  extract→sidecar edge). The sidecar now imports it; its stray `resolve` import was pruned.
+- **No sidecar for S6** — `reconstructAll(records)` is called with no `BackupReader`. Every
+  revision's content is in the JSONL (Write `content`, rename carry, Edit `structuredPatch`);
+  the transcript has no `>>`/`>` redirect.
+- **`applyEdit` stayed strict.** The pre-fix `TypeError` in `insertHunkAdditions` (the
+  `goodbye()` Edit targeting `s6_git_renamed.py`, which had no base revision while `git mv`
+  was unrecognized) is a symptom — recognizing the rename gives the Edit its base and the
+  crash disappears. No defensive guard was added, which would mask genuinely-orphaned edits.
+
+### Deviations
+
+None. Executed the 3 planned tasks in order (RED→GREEN→Verify gate each). End-to-end output
+matches the plan exactly: `s6_git_renamed.py` create `#01FJ4hLH` → rename `#019BbcnY` → edit
+`#01CVhCVD` (6 lines, +4), plus `tests/test_s6_git.py` create `#019htcN9`. No render/engine
+code changed — `getEntryLabel` and the diff renderer already handle `rename`/`edit` (S2).
+
+### Tradeoffs
+
+- **Generalize the regex vs. a sibling `parseGitMvPaths`** — chose generalize (DRY, one home).
+- **Resolve at the event source vs. at lineage-compare time** — chose the source, so the
+  rest of the pipeline keeps comparing absolute paths and no compare site changes.
+
+### Open questions
+
+- **Latent `2>&1` / `>/dev/null` redirect mis-parse (S5 regression), left OUT of S6 scope.**
+  `parseRedirect`'s `(?<!>)>\s*(\S+)\s*$` matches a trailing `2>&1` (capturing `&1`) or
+  `>/dev/null`, producing a spurious overwrite/append to a non-file target. S6's transcript
+  does not trigger it (extraction yields exactly the 3 real events), so it was not fixed here.
+  Recommend a dedicated hardening slice: make `parseRedirect` ignore fd-duplication (`N>&M`)
+  and `/dev/null`. Confirm you want this tracked separately.
+- **Commit + stray file.** Work is uncommitted per the standing convention (commit only after
+  your approval). `src/Plan_Impl_template.md` is still an untracked stray unrelated to any
+  slice — confirm whether to remove it or leave it before any commit.
+
 ## 2026-06-22:19:37:00 — S4 reconstruction (overwrite: a second Write to a present file)
 Chat title: api-from-scenarios — S4 overwrite-file (implement plan)
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/ (this session)

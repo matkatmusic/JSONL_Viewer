@@ -4,6 +4,7 @@ import { extractFileEvents } from "../src/reconstruction_extract.ts";
 import { BlockType, EventKind, RecordType, ToolName } from "../src/structures/vocabulary.ts";
 import type { AppendEvent, OverwriteEvent } from "../src/reconstruction_engine.ts";
 import type { TranscriptRecord } from "../src/structures/envelope.ts";
+import { Path } from "../src/structures/domain.ts";
 import { loadRecords } from "./utilities.ts";
 import { S1_JSONL, S2_JSONL, S3_JSONL, S4_JSONL } from "./fixtures.ts";
 
@@ -26,6 +27,34 @@ function buildBashRecord(id: string, command: string, timestamp: string): Transc
         message: { content: [buildBashBlock(id, command)] },
     } as unknown as TranscriptRecord;
 }
+
+// One assistant record running `git mv a.py b.py` with the transcript cwd set to /work — the
+// shape `collectEventsFromRecord` reads cwd from to resolve the rename's relative paths.
+function buildGitMvRecords(): TranscriptRecord[] {
+    return [
+        {
+            type: RecordType.assistant,
+            timestamp: new Date("2026-01-01T00:00:10Z"),
+            cwd: new Path("/work"),
+            message: { content: [buildBashBlock("toolu_gitmv", "git mv a.py b.py")] },
+        } as unknown as TranscriptRecord,
+    ];
+}
+
+// `git mv a.py b.py` issued with cwd /work extracts to one rename whose from/to are resolved
+// absolute against that cwd — so the rename can later link to the absolute Write/Edit targets.
+test("test_extract_maps_git_mv_to_a_rename_with_cwd_resolved_paths", () => {
+    // Build one assistant record: a Bash tool_use `git mv a.py b.py`, on a record whose cwd is /work.
+    const records = buildGitMvRecords();
+    // Extract the file events from that record.
+    const events = extractFileEvents(records);
+    // Exactly one event is produced, and it is a rename — git mv is recognized like a plain mv.
+    assert.equal(events.length, 1);
+    const rename = events.find((event) => event.kind === EventKind.rename)!;
+    // The relative args were resolved against cwd, so both endpoints are absolute under /work.
+    assert.equal(rename.from.toString(), "/work/a.py");
+    assert.equal(rename.to.toString(), "/work/b.py");
+});
 
 // One `>>` then one `>` redirect to /a/f.txt, in timestamp order.
 function buildRedirectRecords(): TranscriptRecord[] {

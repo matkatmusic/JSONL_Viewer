@@ -16,3 +16,6 @@ export const S4_JSONL =
 
 export const S5_JSONL =
     "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s5-bash-redirect/621364dd-a153-42f4-b44f-b6b5232c57e9.jsonl";
+
+export const S6_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s6-git-mv/4ad1d191-23e8-41de-adfa-d182b6a1cf55.jsonl";

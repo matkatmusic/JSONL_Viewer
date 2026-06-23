@@ -131,8 +131,10 @@ The engine is split by concern, one paired test each (files kept well under the
   sidecar): with one, `fillRedirectContent` recovers bash-redirect content before
   replay; S1–S4 pass none, so it is a no-op for them.
 - `src/reconstruction_extract.ts` — extraction (records → ordered `FileEvent`s):
-  Write→create, Bash `rm`→delete / `mv`→rename / `cp`→copy / `>>`→append / `>`→overwrite
-  (`parseRedirect`, empty content — the sidecar fills it), Edit→splice (+ hunk indexing).
+  Write→create, Bash `rm`→delete / `mv`+`git mv`→rename / `cp`→copy / `>>`→append / `>`→overwrite
+  (`parseRedirect`, empty content — the sidecar fills it), Edit→splice (+ hunk indexing). A
+  rename's cwd-relative paths (s6's `git mv`) are resolved absolute against the record `cwd`
+  via `resolveAgainstCwd` so they match the absolute Write/Edit targets.
 - `src/reconstruction_replay.ts` — replay (events → revisions): the left-fold and the
   write/delete/rename/copy/overwrite/append appenders.
 - `src/reconstruction_replay_edit.ts` — the per-line primitives (`splitLines`,
@@ -145,7 +147,12 @@ The engine is split by concern, one paired test each (files kept well under the
   taken next after the redirect names the blob), through an injected `BackupReader`;
   `createSidecarReader`/`getDefaultFileHistoryRoot`/`findSessionId` build the real
   on-disk reader (`~/.claude/file-history/<sessionId>/`). Snapshot paths are resolved
-  against the transcript `cwd` (they are cwd-relative).
+  against the transcript `cwd` (they are cwd-relative) via the shared `resolveAgainstCwd`.
+- `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
+  resolver of a path to an absolute string against the transcript `cwd` (idempotent for
+  already-absolute paths). A leaf module (imports only node `path`) shared by extraction
+  (s6 `git mv` rename targets) and the sidecar (snapshot paths), so neither risks an engine
+  import cycle. Moved here from the sidecar in S6.
 - `src/structures/line-model.ts` — the genesis sentinel `DOES_NOT_EXIST_YET` (= -1),
   a leaf module so engine/replay/render import it as a value without a runtime cycle.
 - `src/reconstruction_lineage.ts` — following a file across renames (rename chain,
@@ -170,10 +177,11 @@ Tests (`node:test` + `node:assert`) split to match the modules, one paired test
 file each: extraction in `tests/reconstruction_extract.test.ts`, replay in
 `tests/reconstruction_replay.test.ts`, lineage in
 `tests/reconstruction_lineage.test.ts`, the public reconstruct API in
-`tests/reconstruction_engine.test.ts`, `tests/reconstruction_engine_s4.test.ts`, and
-`tests/reconstruction_engine_s5.test.ts` (driven off the real
-`S1_JSONL`/`S2_JSONL`/`S3_JSONL`/`S4_JSONL`/`S5_JSONL`; the S4 and S5 engine specs are
-in their own files to stay under the 250-line cap), the sidecar resolver in
+`tests/reconstruction_engine.test.ts`, `tests/reconstruction_engine_s4.test.ts`,
+`tests/reconstruction_engine_s5.test.ts`, and `tests/reconstruction_engine_s6.test.ts`
+(driven off the real
+`S1_JSONL`/`S2_JSONL`/`S3_JSONL`/`S4_JSONL`/`S5_JSONL`/`S6_JSONL`; the S4, S5, and S6 engine
+specs are in their own files to stay under the 250-line cap), the sidecar resolver in
 `tests/reconstruction_sidecar.test.ts` (synthetic snapshots + an in-memory reader),
 verbose/diff rendering in `tests/reconstruction_render.test.ts` and the default list
 view in `tests/reconstruction_render_list.test.ts` (pure, literal revisions), CLI
@@ -309,6 +317,26 @@ in `tests/reconstruction_cli.test.ts`. Red→green, each spec one test.
     default body. The CLI builds the real on-disk reader from the transcript's session id.
     (Proved: `test_list_labels_append_entry`, `test_diff_shows_append_as_added_tail_only`,
     `test_default_view_lists_s5_redirect_entries`.)
+
+### S6 — implemented now
+
+29. **`git mv` recognition** — `parseMvPaths` matches both `mv <src> <dst>` and
+    `git mv <src> <dst>` (one regex, optional `git ` prefix); `bashEventFrom` emits the
+    same `RenameEvent` for either. No new event kind or parser. (Proved:
+    `test_extract_maps_git_mv_to_a_rename_with_cwd_resolved_paths`,
+    `test_extract_finds_rename_from_mv` still green for plain `mv`.)
+30. **cwd path resolution** — a `git mv`'s args are cwd-relative while every Write/Edit
+    target is absolute, so the rename's `from`/`to` are resolved against the record's
+    `cwd` via `resolveAgainstCwd` (now in `structures/path-resolve.ts`, the one canonical
+    resolver, idempotent for already-absolute paths so S2's absolute `mv` is unchanged).
+    The resolver is shared by extraction and the sidecar. (Proved:
+    `test_resolve_against_cwd_joins_relative_and_passes_absolute_through`.)
+31. **`git mv` reconstruction** — `reconstructAll(S6)` returns the `s6_git_renamed.py`
+    lineage create → rename → edit (the `goodbye()` Edit applies onto the renamed file,
+    no crash) plus `tests/test_s6_git.py`'s own create; the list view labels the entries
+    `create`/`rename`/`edit` (no render change — S2 already heads `rename` and `edit`).
+    (Proved: `test_git_mv_links_rename_lineage_and_applies_later_edit`,
+    `test_default_view_lists_s6_git_mv_lineage`.)
 
 ### Deferred to later scenarios
 

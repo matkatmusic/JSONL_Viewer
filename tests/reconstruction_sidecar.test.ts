@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fillRedirectContent } from "../src/reconstruction_sidecar.ts";
 import type { BackupReader } from "../src/reconstruction_sidecar.ts";
+import { resolveAgainstCwd } from "../src/structures/path-resolve.ts";
 import type { AppendEvent, FileEvent } from "../src/reconstruction_engine.ts";
 import type { TranscriptRecord } from "../src/structures/envelope.ts";
 import { RecordType } from "../src/structures/vocabulary.ts";
@@ -63,4 +64,13 @@ test("test_fill_resolves_redirect_content_from_the_next_snapshot_blob", () => {
     const filled = fillRedirectContent(records, [event], reader);
     // The append now carries the post-append blob; a non-redirect event would be untouched.
     assert.equal((filled[0] as AppendEvent).content, "line one\nline two\n");
+});
+
+// resolveAgainstCwd joins a relative path onto cwd and leaves an absolute path unchanged.
+test("test_resolve_against_cwd_joins_relative_and_passes_absolute_through", () => {
+    // A relative path is joined onto the cwd.
+    const cwd = new Path("/work/dir");
+    assert.equal(resolveAgainstCwd(cwd, new Path("a.py")), "/work/dir/a.py");
+    // An already-absolute path is returned unchanged (idempotent — why S2's absolute mv stays correct).
+    assert.equal(resolveAgainstCwd(cwd, new Path("/abs/a.py")), "/abs/a.py");
 });

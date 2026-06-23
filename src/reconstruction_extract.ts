@@ -13,6 +13,7 @@ import {
 } from "./structures/tool-results.ts";
 import { BlockType, EventKind, ToolName } from "./structures/vocabulary.ts";
 import { Path } from "./structures/domain.ts";
+import { resolveAgainstCwd } from "./structures/path-resolve.ts";
 import type {
     CopyInfo,
     EditEvent,
@@ -42,9 +43,10 @@ function parseRmTarget(command: string): Path | undefined {
     return new Path(match[1]!.trim());
 }
 
-// Parse `mv <src> <dst>` (two space-separated paths, no flags — the s2 form).
+// Parse `mv <src> <dst>` or `git mv <src> <dst>` (two space-separated paths, no flags).
+// s2 used plain `mv` with absolute paths; s6 uses `git mv` with cwd-relative paths.
 function parseMvPaths(command: string): RenameInfo | undefined {
-    const match = command.trim().match(/^mv\s+(\S+)\s+(\S+)$/);
+    const match = command.trim().match(/^(?:git\s+)?mv\s+(\S+)\s+(\S+)$/);
     if (!match) {
         return undefined;
     }
@@ -82,11 +84,13 @@ function parseRedirect(command: string): ParsedRedirect | undefined {
     return undefined;
 }
 
-// Turn a Bash tool_use into a file event: `rm` -> delete, `mv` -> rename, `cp` ->
-// copy, else undefined (s1 uses rm; s2 uses mv; s3 uses cp).
+// Turn a Bash tool_use into a file event: `rm` -> delete, `mv`/`git mv` -> rename, `cp` ->
+// copy, else undefined (s1 uses rm; s2 uses mv; s3 uses cp; s6 uses git mv). The rename's
+// relative paths are resolved against `cwd` so they match the absolute Write/Edit targets.
 function bashEventFrom(
     block: ToolUseBlock,
     timestamp: Date,
+    cwd: Path | undefined,
 ): FileEvent | undefined {
     const input = block.input as { command: string };
     const removed = parseRmTarget(input.command);
@@ -98,8 +102,8 @@ function bashEventFrom(
         return {
             kind: EventKind.rename,
             changeId: block.id,
-            from: moved.from,
-            to: moved.to,
+            from: new Path(resolveAgainstCwd(cwd, moved.from)),
+            to: new Path(resolveAgainstCwd(cwd, moved.to)),
             timestamp,
         };
     }
@@ -143,18 +147,20 @@ function editEventFrom(
     };
 }
 
-// Map a tool_use block to a file event (Write -> create, Bash rm/mv -> delete/
-// rename, Edit -> in-place splice).
+// Map a tool_use block to a file event (Write -> create, Bash rm/mv/git mv -> delete/
+// rename, Edit -> in-place splice). `cwd` is the record's working directory, used to resolve
+// a rename's relative paths to absolute.
 function toFileEvent(
     block: ToolUseBlock,
     timestamp: Date,
     hunksById: Map<string, StructuredPatchHunk[]>,
+    cwd: Path | undefined,
 ): FileEvent | undefined {
     if (block.name === ToolName.Write) {
         return writeEventFrom(block, timestamp);
     }
     if (block.name === ToolName.Bash) {
-        return bashEventFrom(block, timestamp);
+        return bashEventFrom(block, timestamp, cwd);
     }
     if (block.name === ToolName.Edit) {
         return editEventFrom(block, timestamp, hunksById);
@@ -171,11 +177,12 @@ function collectEventsFromRecord(
     if (!(timestamp instanceof Date)) {
         return;
     }
+    const cwd = (record as { cwd?: Path }).cwd;
     for (const block of getContentBlocks(record)) {
         if (block.type !== BlockType.tool_use) {
             continue;
         }
-        const event = toFileEvent(block, timestamp, hunksById);
+        const event = toFileEvent(block, timestamp, hunksById, cwd);
         if (event) {
             events.push(event);
         }

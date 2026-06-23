@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseArgs, runCli } from "../src/reconstruction_cli.ts";
-import { S1_JSONL, S2_JSONL, S3_JSONL, S4_JSONL, S5_JSONL } from "./fixtures.ts";
+import { S1_JSONL, S2_JSONL, S3_JSONL, S4_JSONL, S5_JSONL, S6_JSONL } from "./fixtures.ts";
 
 // The append entry's whole list line (matched by its short change id).
 function entryLineWith(out: string, shortChangeId: string): string {
@@ -24,6 +24,20 @@ test("test_default_view_lists_s5_redirect_entries", () => {
     const overwriteLine = entryLineWith(out, "#01UB1SvL");
     assert.ok(overwriteLine.includes("overwrite"));
     assert.ok(overwriteLine.includes("1 lines"));
+});
+
+// The default view lists the renamed file's create -> rename -> edit and the test's create.
+test("test_default_view_lists_s6_git_mv_lineage", () => {
+    const out = runCli([S6_JSONL]);
+    // The renamed file appears with both its rename and its later edit.
+    assert.ok(out.includes("s6_git_renamed.py"));
+    assert.ok(out.includes("rename"));
+    assert.ok(out.includes("edit"));
+    // The git mv and the goodbye edit carry their short change ids.
+    assert.ok(out.includes("#019BbcnY")); // the git mv
+    assert.ok(out.includes("#01CVhCVD")); // the goodbye edit
+    // The test file is listed as its own create.
+    assert.ok(out.includes("tests/test_s6_git.py"));
 });
 
 // A transcript path is required; without one, parseArgs reports usage.
