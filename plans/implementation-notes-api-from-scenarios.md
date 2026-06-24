@@ -1,3 +1,26 @@
+## 2026-06-23:22:30:00 — S22 reconstruction (two user edits across a conversation rewind) — COMPLETE; characterization/regression LOCK, no production-code change; 260 tests green
+Chat title: api-from-scenarios — S22 impl monitor → implement S22 (user-edits-conv-rewind)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/8e7ceadb-0426-4adb-83e3-d50d13f3b81c.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s22/s22-reconstruction-plan.md (THE authoritative plan executed)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-2225.md (the S22 IMPLEMENT handoff that gated this session)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s19/ (the conv-rewind twin where the reseed is ACTIVE); plans/s18/, plans/s21/ (the linear user-edit twins)
+
+### Design decisions
+- NO `src/` change. The S19+S20+S21 engine already reconstructs S22 byte-identically WITH and WITHOUT a reader: S15's `userEditChangesContent` records both user edits (D/F), and the conv-only rewind leaves push+pop on disk so F's snapshot absorbs them; the S19 reseed stays inert (F is a user-edit; G's base is aligned).
+- Added `S22_JSONL` fixture + `tests/reconstruction_engine_s22.test.ts` (4) + `tests/reconstruction_cli_s22.test.ts` (5).
+- Key locks: the surviving 3-revision absorption test (rev1 = 6 lines, no seed), the rewound-branch reconstruction test (5-line init+push+pop), and the two-user-edits extraction test.
+
+### Deviations
+- None. All 9 tests GREEN on arrival (no RED phase). CLI whitespace re-captured live before finalizing the CLI test and matched the plan's verbatim strings exactly. `git diff src/` confirmed empty.
+
+### Tradeoffs
+- Engine tests use NO BackupReader (user-edit content, including the absorbed off-branch push/pop in F's snapshot, is self-contained in the JSONL attachment), unlike S20 which supplied an in-memory reader. Verified that the no-reader reconstruction is byte-identical, so the reseed is provably inert.
+
+### Open questions
+- None blocking.
+
 ## 2026-06-23:22:08:00 — S21 reconstruction (multiple interleaved user edits, no rewind) — COMPLETE; characterization/regression LOCK, no production-code change; 251 tests green
 Chat title: api-from-scenarios — S21 impl monitor → implement S21 (multiple-user-edits)
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/caa8005d-217f-4064-9949-e313b604bc33.jsonl

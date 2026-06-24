@@ -197,6 +197,15 @@ The engine is split by concern, one paired test each (files kept well under the
   disk off-branch, every edit base is aligned and `editBaseIsStale` is false, so `seedStaleEditBases`
   stays inert. Confirms a Claude edit may anchor on content a prior user edit produced, and that a
   prepending user edit re-numbers later lines without loss. No code change; characterization only.
+  S22 (`s22-user-edits-conv-rewind`) locks the two-user-edit conversation-rewind case: a user edit
+  lands on each side of a conv-only rewind (push on the abandoned branch, peek on the surviving one),
+  each followed by a Claude edit. Because the rewind is conversation-only, the off-branch push+pop
+  stay on disk, so the surviving user-edit's `edited_text_file` snapshot ABSORBS them — the surviving
+  scenario22.py is three revisions where the userEdit jumps 3→6 lines. `seedStaleEditBases` stays
+  inert (a user-edit is never a reseed candidate, and the lone surviving Claude edit anchors on the
+  content the user edit already produced), the complement of S19 where the reseed is active because a
+  Claude edit follows the rewind. The same user-edit kind adds one line on the abandoned branch but
+  three on the surviving branch, driven by per-branch disk state. No code change; characterization only.
 - `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
   resolver of a path to an absolute string against the transcript `cwd` (idempotent for
   already-absolute paths). A leaf module (imports only node `path`) shared by extraction
