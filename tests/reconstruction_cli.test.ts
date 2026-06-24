@@ -8,25 +8,24 @@ function entryLineWith(out: string, shortChangeId: string): string {
     return out.split("\n").find((line) => line.includes(shortChangeId))!;
 }
 
-// The default view of the real S5 transcript lists create -> append -> overwrite, with the
-// redirect line counts recovered from the file-history sidecar (append 1->2, overwrite ->1).
+// The default view of the real S5 transcript renders the redirect lineage in both DAGs: one file,
+// write -> append -> overwrite. Topology only — line counts live in the content views, not the graph.
 test("test_default_view_lists_s5_redirect_entries", () => {
     const out = runCli([S5_JSONL]);
+    assert.ok(out.includes("══ conversationDAG ══"));
     assert.ok(out.includes("s5_redirect.txt"));
-    assert.ok(out.includes("create"));
+    assert.ok(out.includes("write"));
     assert.ok(out.includes("append"));
     assert.ok(out.includes("overwrite"));
-    // The append entry recovered its appended tail from the sidecar: two lines now.
-    const appendLine = entryLineWith(out, "#01PDv4Df");
-    assert.ok(appendLine.includes("append"));
-    assert.ok(appendLine.includes("2 lines"));
-    // The overwrite entry recovered its replacement content: one line.
-    const overwriteLine = entryLineWith(out, "#01UB1SvL");
-    assert.ok(overwriteLine.includes("overwrite"));
-    assert.ok(overwriteLine.includes("1 lines"));
+    // The append and overwrite turns carry their short change ids.
+    assert.ok(entryLineWith(out, "#01PDv4Df").includes("append"));
+    assert.ok(entryLineWith(out, "#01UB1SvL").includes("overwrite"));
+    // No fork: a linear conversationDAG (no branch wrappers).
+    assert.ok(!out.includes("branch "));
 });
 
-// The default view lists the renamed file's create -> rename -> edit and the test's create.
+// The default view renders the renamed file's write -> rename -> edit lineage and the test file's
+// write in both DAGs.
 test("test_default_view_lists_s6_git_mv_lineage", () => {
     const out = runCli([S6_JSONL]);
     // The renamed file appears with both its rename and its later edit.
@@ -36,29 +35,35 @@ test("test_default_view_lists_s6_git_mv_lineage", () => {
     // The git mv and the goodbye edit carry their short change ids.
     assert.ok(out.includes("#019BbcnY")); // the git mv
     assert.ok(out.includes("#01CVhCVD")); // the goodbye edit
-    // The test file is listed as its own create.
-    assert.ok(out.includes("tests/test_s6_git.py"));
+    // The test file appears by base name.
+    assert.ok(out.includes("test_s6_git.py"));
+    // No fork: a linear conversationDAG (no branch wrappers).
+    assert.ok(!out.includes("branch "));
 });
 
-// Default (no flag): ALL branches — both the surviving v2 writes and the rewound v1 writes appear,
-// under branch headers naming the rewind point. (No "overwrite": the v2 write is a create on its
-// own branch, not an overwrite of v1.)
+// Default (no flag): S7's forked conversationDAG shows the rewound branch (v1 writes) ABOVE the
+// surviving branch (v2 writes), oldest-first, naming the rewind point; the fileDAG stays linear.
 test("test_default_view_shows_all_branches", () => {
     const out = runCli([S7_JSONL]);
-    assert.ok(out.includes("surviving"));
-    assert.ok(out.includes("rewound"));
+    assert.ok(out.includes("branch surviving"));
+    assert.ok(out.includes("branch rewound"));
     assert.ok(out.includes("#2e47efbe")); // rewind point
     assert.ok(out.includes("#01JWycFr")); // surviving v2 scenario7.py
     assert.ok(out.includes("#012jN7F9")); // rewound v1 scenario7.py
     assert.ok(out.includes("#015eug6V")); // rewound v1 test
+    // Oldest-first: the rewound branch renders before the surviving branch.
+    assert.ok(out.indexOf("branch rewound") < out.indexOf("branch surviving"));
     assert.ok(!out.includes("overwrite"));
 });
 
-// A transcript with no rewound branch (S1) renders exactly as before — no branch headers added.
+// A transcript with no rewound branch (S1) renders a LINEAR conversationDAG: no branch wrappers, no
+// connectors.
 test("test_default_view_unchanged_when_no_rewound_branches", () => {
     const out = runCli([S1_JSONL]);
-    assert.ok(!out.includes("## surviving"));
-    assert.ok(!out.includes("## rewound"));
+    assert.ok(out.includes("══ conversationDAG ══"));
+    assert.ok(!out.includes("branch "));
+    assert.ok(!out.includes("├─"));
+    assert.ok(!out.includes("└─"));
 });
 
 // --surviving: only the surviving branch (the v2 creates); no rewound v1 ids, no headers.
@@ -128,66 +133,58 @@ test("test_run_cli_default_lists_touched_files", () => {
     const out = runCli([S1_JSONL]);
     assert.ok(out.includes("s1_delete.py"));
     assert.ok(out.includes("test_s1_delete.py"));
-    // s1_delete.py is created then deleted: a create entry and a delete entry.
-    assert.ok(out.includes("create"));
+    // s1_delete.py is written then deleted: a write turn and a delete turn.
+    assert.ok(out.includes("write"));
     assert.ok(out.includes("delete"));
 });
 
-// The default view lists s2's entries, including a first-class rename line and
-// the short change id shared by the test file's two edits.
+// The default view lists s2's entries, including a first-class rename turn (its target is the new
+// name) and the test file's edit change id.
 test("test_default_view_lists_s2_entries_with_rename", () => {
     const out = runCli([S2_JSONL]);
-    assert.ok(out.includes("s2_moved.py"));
-    // The rename is its own entry naming both the old and new file.
-    const renameLine = out
-        .split("\n")
-        .find((line) => line.includes("rename"))!;
-    assert.ok(renameLine.includes("s2_original.py"));
+    assert.ok(out.includes("s2_original.py"));
+    // The rename is its own turn, targeting the new name.
+    const renameLine = out.split("\n").find((line) => line.includes("rename"))!;
     assert.ok(renameLine.includes("s2_moved.py"));
-    // The test file's two edits share the change id 015b59mN.
-    assert.ok(out.includes("015b59mN"));
+    assert.ok(out.includes("015b59mN")); // the test file's edit
+    assert.ok(!out.includes("branch ")); // linear
 });
 
-// The default view lists s3's three files, marks the copied file, and shows the
-// copy entry plus the short change id shared by its two edits.
+// The default view lists s3's three files and shows the copy turn plus the edit's short changeId.
 test("test_default_view_lists_s3_with_copy_entry", () => {
     const out = runCli([S3_JSONL]);
-    // All three touched files appear.
     assert.ok(out.includes("s3_source.py"));
     assert.ok(out.includes("s3_copy.py"));
     assert.ok(out.includes("test_s3_source.py"));
-    // The copied file is marked a copy of the source and carries a copy entry.
-    assert.ok(out.includes("(copy of s3_source.py)"));
-    assert.ok(out.includes("copy"));
-    // The copied file's edits share the Edit's short changeId.
-    assert.ok(out.includes("#012rscwP"));
+    assert.ok(out.includes("copy"));          // the cp is its own turn
+    assert.ok(out.includes("#012rscwP"));     // the copied file's edit
+    assert.ok(!out.includes("branch "));      // linear
 });
 
-// The default view lists S4's two files, each created then overwritten.
+// The default view lists S4's two files, each written twice (the second Write is a `write` turn in
+// the topology view — overwrite detection is a content-view concern).
 test("test_default_view_lists_s4_overwrite_entries", () => {
     const out = runCli([S4_JSONL]);
-    // Both touched files appear.
     assert.ok(out.includes("s4_overwrite.py"));
     assert.ok(out.includes("test_s4_overwrite.py"));
-    // Each carries a create entry and an overwrite entry.
-    assert.ok(out.includes("create"));
-    assert.ok(out.includes("overwrite"));
-    // The overwrite of s4_overwrite.py carries its short change id.
-    assert.ok(out.includes("#012vJCJs"));
+    assert.ok(out.includes("write"));
+    assert.ok(out.includes("#012vJCJs")); // the second write of s4_overwrite.py
+    assert.ok(!out.includes("branch "));  // linear
 });
 
-// Default (no flag): the surviving section is v_c's real files (NOT "no files touched"), plus the
-// two code-rewound branches v_a and v_b. The file-less step-12 Hello head is not a branch.
+// Default (no flag): S8's forked conversationDAG has TWO rewound branch wrappers (v_a, v_b) above the
+// surviving branch (v_c). The file-less step-12 Hello head is not a branch.
 test("test_default_view_shows_surviving_vc_plus_two_rewound", () => {
     const out = runCli([S8_JSONL]);
-    assert.ok(out.includes("surviving"));
+    assert.ok(out.includes("branch surviving"));
     assert.ok(!out.includes("no files touched"));
+    assert.equal((out.match(/branch rewound/g) ?? []).length, 2); // exactly two rewound wrappers
     assert.ok(out.includes("#01WWP6tD"));            // surviving v_c scenario8.py
     assert.ok(out.includes("#01Jn7kgw"));            // surviving v_c test
     assert.ok(out.includes("#014hpZNH"));            // rewound v_a
     assert.ok(out.includes("#014Yd3uL"));            // rewound v_b
     assert.ok(out.includes("#04c69f8b"));            // rewind point (root)
-    assert.ok(!out.includes("overwrite"));           // each write is a create on its own branch
+    assert.ok(!out.includes("overwrite"));
 });
 
 // --surviving: only v_c (the on-disk files), no rewound ids, no branch headers.
@@ -217,15 +214,15 @@ test("test_branch_id_retrieves_one_rewound_version", () => {
 });
 
 // Default (no flag): S9 has one surviving branch and zero rewound branches (the read-only head is a
-// file-less tangent), so it renders as a plain list like S1–S6 — no branch headers, no "no files
-// touched". Both restored files appear with their real create change ids.
+// file-less tangent), so its conversationDAG is LINEAR — no branch wrappers. Both restored files
+// appear with their real create change ids.
 test("test_s9_default_view_is_a_plain_list_of_the_restored_files", () => {
     const out = runCli([S9_JSONL]);
     assert.ok(out.includes("scenario9.py"));
-    assert.ok(out.includes("tests/test_scenario9.py"));
+    assert.ok(out.includes("test_scenario9.py"));
     assert.ok(out.includes("#01PZ3yAw"));            // scenario9.py create
     assert.ok(out.includes("#012EzSkd"));            // test create
-    assert.ok(!out.includes("## "));                 // no branch headers
+    assert.ok(!out.includes("branch "));             // linear, no wrappers
     assert.ok(!out.includes("no files touched"));
 });
 

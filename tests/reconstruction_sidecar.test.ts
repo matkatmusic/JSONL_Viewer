@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fillRedirectContent } from "../src/reconstruction_sidecar.ts";
+import { fillRedirectContent, seedEditBaseFromBackup } from "../src/reconstruction_sidecar.ts";
 import type { BackupReader } from "../src/reconstruction_sidecar.ts";
 import { resolveAgainstCwd } from "../src/structures/path-resolve.ts";
-import type { AppendEvent, FileEvent } from "../src/reconstruction_engine.ts";
+import type { AppendEvent, EditEvent, FileEvent, WriteEvent } from "../src/reconstruction_engine.ts";
 import type { TranscriptRecord } from "../src/structures/envelope.ts";
 import { RecordType } from "../src/structures/vocabulary.ts";
 import { EventKind } from "../src/structures/vocabulary.ts";
@@ -73,4 +73,68 @@ test("test_resolve_against_cwd_joins_relative_and_passes_absolute_through", () =
     assert.equal(resolveAgainstCwd(cwd, new Path("a.py")), "/work/dir/a.py");
     // An already-absolute path is returned unchanged (idempotent — why S2's absolute mv stays correct).
     assert.equal(resolveAgainstCwd(cwd, new Path("/abs/a.py")), "/abs/a.py");
+});
+
+// An Edit on `target` at `when`, with no hunks (the seed never inspects hunks — only events[0].kind).
+function buildEditEvent(target: string, when: string): EditEvent {
+    return {
+        kind: EventKind.edit, changeId: new Uuid("edit-1"),
+        target: new Path(target), hunks: [], timestamp: new Date(when),
+    };
+}
+
+// When a file's first event on this branch is an Edit (its creating Write is off-branch), the seed
+// recovers the pre-edit on-disk content from the file-history backup taken at or before the edit and
+// prepends it as a synthetic Write, so the Edit splices onto real lines instead of an empty base.
+test("test_seed_prepends_a_write_base_from_the_at_or_before_backup", () => {
+    const cwd = "/work/dir";
+    const records = [
+        buildCwdRecord(cwd),
+        // The pre-edit backup, snapshotted BEFORE the edit (16:09:52 < 16:10:31).
+        buildSnapshotRecord("scenario12.py", "bk@v2", "2026-01-01T16:09:52Z"),
+    ];
+    const edit = buildEditEvent("/work/dir/scenario12.py", "2026-01-01T16:10:31Z");
+    const reader: BackupReader = (name) =>
+        name.toString() === "bk@v2" ? "def add(a, b):\n    return a + b\n" : "WRONG";
+    const seeded = seedEditBaseFromBackup(records, [edit], reader);
+    // A synthetic Write base is prepended ahead of the Edit.
+    assert.equal(seeded.length, 2);
+    assert.equal(seeded[0]!.kind, EventKind.write);
+    assert.equal((seeded[0] as WriteEvent).content, "def add(a, b):\n    return a + b\n");
+    assert.equal(seeded[0]!.target.toString(), "/work/dir/scenario12.py");
+    // The original Edit is preserved, now second.
+    assert.equal(seeded[1]!.kind, EventKind.edit);
+    assert.equal(seeded[1], edit);
+});
+
+// A file whose first event already creates it (a Write here) needs no base — the events pass through
+// unchanged (this is every S1–S11 file, so the seed must be a no-op for them).
+test("test_seed_passes_through_when_first_event_creates_the_file", () => {
+    const records = [buildCwdRecord("/work/dir")];
+    const write: WriteEvent = {
+        kind: EventKind.write, changeId: new Uuid("w1"),
+        target: new Path("/work/dir/a.py"), content: "x\n", timestamp: new Date("2026-01-01T16:09:00Z"),
+    };
+    const reader: BackupReader = () => "SHOULD NOT BE READ";
+    const seeded = seedEditBaseFromBackup(records, [write], reader);
+    // Pass-through: just the Write, no prepended base.
+    assert.equal(seeded.length, 1);
+    assert.equal(seeded[0], write);
+});
+
+// When the Edit's first event has no backup snapshotted at or before it (only a later one exists), the
+// seed cannot recover a base, so it passes the events through unchanged (the genesis guard then applies).
+test("test_seed_passes_through_when_no_backup_precedes_the_edit", () => {
+    const cwd = "/work/dir";
+    const records = [
+        buildCwdRecord(cwd),
+        // The only backup is snapshotted AFTER the edit (16:11:00 > 16:10:31) — too late to seed it.
+        buildSnapshotRecord("scenario12.py", "bk@v3", "2026-01-01T16:11:00Z"),
+    ];
+    const edit = buildEditEvent("/work/dir/scenario12.py", "2026-01-01T16:10:31Z");
+    const reader: BackupReader = () => "SHOULD NOT BE READ";
+    const seeded = seedEditBaseFromBackup(records, [edit], reader);
+    // Pass-through: just the Edit, no prepended base.
+    assert.equal(seeded.length, 1);
+    assert.equal(seeded[0], edit);
 });

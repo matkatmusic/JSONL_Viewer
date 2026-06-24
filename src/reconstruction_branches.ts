@@ -10,7 +10,7 @@ import type { Path } from "./structures/domain.ts";
 import { EventKind } from "./structures/vocabulary.ts";
 import { extractFileEvents } from "./reconstruction_extract.ts";
 import { replayEvents } from "./reconstruction_replay.ts";
-import { fillRedirectContent } from "./reconstruction_sidecar.ts";
+import { fillRedirectContent, seedEditBaseFromBackup } from "./reconstruction_sidecar.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
 import {
     buildRenameChain,
@@ -44,7 +44,8 @@ export function reconstructFileOver(
     );
     const seeded = seedCopyEvents(records, lineage, resolving, reader);
     const filled = reader ? fillRedirectContent(records, seeded, reader) : seeded;
-    return replayEvents(filled);
+    const based = reader ? seedEditBaseFromBackup(records, filled, reader) : filled;
+    return replayEvents(based);
 }
 
 // Fill each copy event's seedLines from its source; pass other events through.

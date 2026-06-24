@@ -1,3 +1,118 @@
+## 2026-06-23:17:40:00 — S13 reconstruction (multi-edit code-restore-read: discover the rewound branch STRUCTURALLY from the parentUuid fork — the abandoned branch edited a file but its tip is named by NO last-prompt head — and render the file-less surviving branch so the conversationDAG shows the fork)
+Chat title: api-from-scenarios — S13 handoff monitor → implement S13 (multi-edit-code-restore-read)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/297fd035-d302-4c9d-98f4-2792b11d67dd.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s13/s13-reconstruction-plan.md (THE authoritative plan executed)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1722.md (S13 planning handoff that triggered this implementation)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1655.md (S12 implementation handoff; S12 work is the uncommitted predecessor in the tree)
+
+### Design decisions
+- **Baseline confirmed before any change:** `npm test` = 151 pass / 0 fail (the uncommitted-S12 baseline). Final state = **172 pass / 0 fail** (151 + 21 new S13 tests), `npx tsc --noEmit` clean, every changed file ≤ 250 lines.
+- **Part 1 (structural rewound discovery) — DONE.** Four new forest walkers in `reconstruction_tree.ts`: `isGenuineUserPrompt` (user, not isMeta, no tool_result block), `findPromptForkPoints` (parents of ≥2 genuine prompts, first-appearance order), `collectDescendantUuids` (BFS down following children of EVERY type — the abandoned subtree threads through `attachment` records), `findDeepestPromptOrReply` (latest-timestamp user/assistant descendant = the abandoned tip). The append/dedup glue lives in a NEW leaf module `reconstruction_fork.ts` (`findStructuralRewoundBranches`), wired into `findConversationBranches` (`reconstruction_branch.ts`) as a purely-additive 2-line tail.
+- **Part 2 (render the fork when surviving is file-less) — DONE.** `buildSurvivingConvoBranch` now keeps an empty-`turns` surviving branch when `rewound.length > 0` (else still drops it, preserving linear scenarios); `firstTurnTime` returns `Number.POSITIVE_INFINITY` for a 0-turn branch so it sorts last; `renderBranchBlock` emits a single `(no file changes)` marker line for an empty branch. The S13 bare-CLI conversationDAG now matches the plan's authoritative literal byte-for-byte (root `#8faab841 (rewind point)`, rewound `#45cf4bf8` above surviving `#9641c49c`).
+
+### Deviations
+- **The structural-append logic went into a NEW module `reconstruction_fork.ts`, not into `reconstruction_branch.ts` (plan's first choice) nor `reconstruction_tree.ts` (plan's fallback).** Reason: after Part 1's four walkers, `reconstruction_tree.ts` hit 249/250 (no room), and `reconstruction_branch.ts` had only ~35 lines of headroom — too little for the ~70-line append logic with single-condition-branching + the deep-nesting hook. `reconstruction_fork.ts` imports the `ConversationBranch` TYPE only (erased at runtime), so there is no value import cycle with `reconstruction_branch.ts`. This honors the project's no-forwarding-layer rule (one canonical home, direct import) and the plan's explicit "move the symbol to one home; do NOT create a re-export shim."
+- **Two helper extractions to satisfy the >3× indent (deep-nesting) hook**, both behavior-preserving: `recordNewChildren` (the BFS inner loop in `collectDescendantUuids`) and the `isConversationalTurn`/`isLaterThan` split in `findDeepestPromptOrReply`.
+- **Added a dedicated unit test file `tests/reconstruction_fork.test.ts`** (2 tests: a synthetic fork yields one structural rewound branch; the dedup guard skips a subtree already holding an existing tip). The plan tested the fork logic only through `findConversationBranches`; the unit file isolates the dedup-guard regression contract AND satisfies the repo's per-source test-file check for the new module.
+
+### Tradeoffs
+- **New module vs. cramming an existing file.** Splitting `reconstruction_fork.ts` out keeps every file well under the 250-line cap and gives the structural-fork logic a named home, at the cost of one more module + a type-only import edge. The alternative (squeezing into `reconstruction_branch.ts`) would have breached the cap and forced condensing existing functions — which the project rule forbids ("split, don't condense").
+- **Display choice (the plan's flagged open decision): keep the file-less surviving branch VISIBLE with `(no file changes)`** rather than omitting it. Chosen because it is honest about the two-branch fork, mirrors S11's layout, and signals the on-disk `greet` came from the pre-fork writes + restore. Reversing this later touches only Part 2's gate + the Task 5/6 expected strings.
+
+### Open questions
+- **None blocking.** The plan's flagged display decision was resolved as "show it" (above). S1–S12 outputs verified unchanged (S9/S10 stay linear — the read-only structural branch is filtered downstream by `divergingIds.size===0`; S11 shows exactly one rewound branch — the dedup guard prevents double-counting). NOTHING is committed: the uncommitted S12 work plus this S13 work both sit in the tree, awaiting the user's review/commit (project rule: commit only when asked).
+
+## 2026-06-23:16:16:00 — S12 reconstruction (conversation-only rewind + post-rewind EDIT: fix the crash by seeding the Edit base from the file-history backup, AND add a two-DAG CLI render that becomes the new global default)
+Chat title: api-from-scenarios — implement S12 (write-conv-only-rewrite) [autonomous monitor session]
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/0caa7b79-b451-443a-912c-646973eabe23.jsonl
+
+### References
+- /Users/matkatmusicllc/.claude/plans/reactive-imagining-llama.md (THE authoritative plan executed)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s12/s12-reconstruction-plan.md (earlier draft; SUPERSEDED on branch order — see plan warning; ground-truth tables still valid)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1611.md (S12 implementation handoff that launched this session)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/reconstruction-engine-design.md (specs 39 + 40 added)
+
+### Design decisions
+- Baseline confirmed before any change: `npm test` = 129 pass / 0 fail at HEAD 6a47c39; the real S12
+  transcript CRASHES the unchanged engine at `reconstruction_branches.ts:116` → `insertHunkAdditions`
+  (empty-base Edit). Both facts captured as the RED starting point.
+- **Part 1 (crash fix) — DONE, 133 pass / 0 fail, tsc clean.** Three changes per plan: (1)
+  `seedEditBaseFromBackup` + private `findBackupAtOrBefore` in `reconstruction_sidecar.ts` — when a
+  per-file lineage's first event is an Edit, prepend a synthetic Write whose content is the
+  at-or-before file-history backup; (2) wired into `reconstructFileOver` after `fillRedirectContent`,
+  guarded on `reader`; (3) `insertHunkAdditions`' context branch made total. End-to-end `--surviving`
+  on the real S12 transcript now yields scenario12.py = create(`add`)+edit(`multiply`) and
+  test_scenario12.py = create+edit(removal)+edit(addition); final scenario12.py has both `def add` and
+  `def multiply`.
+
+### Deviations
+- **`insertHunkAdditions` refactor went beyond the plan's literal 4-line nested `if` to satisfy the
+  project's deep-nesting hook (>3× indent).** Extracted a `resolveContextLine(workingLines,
+  workingIndex, text, timestamp) -> {entry, born}` helper (reusing existing `genesisLine`/`carryAt`),
+  and converted the '+' branch to an early `continue`. Behavior is identical to the plan's pseudocode
+  (verified: all 129 prior tests + the new empty-base guard green); the change is purely structural to
+  clear the lint gate and honor single-condition-branching.
+
+### Tradeoffs
+- **Synthetic seed Write's `changeId` is the backup filename** (e.g. `43c1313ce6fd5f24@v2`), per plan.
+  It surfaces in `--surviving` content views as `#43c1313c`. This is internal-reconstruction identity,
+  NOT a real turn; the fileDAG (Part 2, decision 9) attributes the file's base to the REAL Write turn
+  (`#015zSRxJ`) via `extractFileEvents` over all records, so the synthetic id stays out of the graphs.
+
+### Open questions
+- **None blocking — all six tasks complete, 151 green, tsc clean, every file ≤ 250 lines, nothing
+  committed (awaiting user approval).** Resolved during implementation: (1) the root-node-is-rewind-point
+  vs parentUuid-null discrepancy (resolved to match the plan's expected literal — see Progress); (2) the
+  `insertHunkAdditions` nesting refactor to clear the project lint gate. Carried-forward / out-of-scope
+  (flagged in the plan's Risks, unchanged by S12): multi-fork transcripts (S8) render flat one-wrapper-
+  per-branch (not nested); the seed picks the at-or-before backup by TIMESTAMP (clock-skew edge falls
+  back to the genesis guard; not present in S12); `parseRedirect` still mis-parses `2>&1` / `>/dev/null`
+  (its own future slice). A `--graphConvo`/`--graphFile` content-bearing variant and nested multi-fork
+  rendering are possible future enhancements, not requested here.
+
+### Progress
+- **Part 2 CLI wiring + global default + 12 rewritten tests — DONE.** `--graphConvo`/`--graphFile`
+  added; bare default turns BOTH on via `resolveGraphFlags` (only when no selector AND no
+  content-view modifier, so `--verbose`/`--diff` still render content). `renderAllBranches` and
+  `formatBranchHeader` retired. The 12 default-view CLI tests rewritten to the new graph output
+  (linear S1–S6/S9/S10; forked S7/S8/S11). **Plan-vs-output resolution:** the plan said the
+  conversationDAG root = the parentUuid-null record, but the plan's own EXPECTED literal shows the
+  root as `#94000895` — the REWIND point (== the rewound branch's `rewind @`), not the absolute root
+  (`#dfd8d07c`). I made `resolveRootUuid` use the rewind point when forked (else the parentUuid-null
+  root for linear), which reproduces the expected output exactly. **Topology-only consequence:** the
+  graph shows raw `EventKind` ("write", not the list view's "create"; S4's second write is "write",
+  not "overwrite"; no line counts), so the rewritten tests assert kinds/changeIds/structure, not the
+  old content-view strings.
+- **Part 2 S12 real-transcript lock — DONE, 151 pass / 0 fail, tsc clean.** `S12_JSONL` in
+  `fixtures.ts`; `reconstruction_engine_s12.test.ts` (in-memory `S12_BACKUPS` reader — the two
+  `@v2` pre-edit blobs) proves the seeded `add`+`multiply` surviving files and the single rewound
+  `add` branch (rewindPoint `94000895`); `reconstruction_cli_s12.test.ts` (real reader) locks the
+  both-graph default (root `#94000895`, rewound tip `#cba30c9f` above surviving tip `#2c9424c4`,
+  the four B–E turns), `--graphConvo`/`--graphFile` isolation, `--surviving --verbose` content, and
+  the three `parseArgs` graph-flag cases. **Branch B's surviving tip `#2c9424c4` was read off the
+  real `runCli` output and transcribed** (per the plan).
+- **Docs — DONE.** Specs 39 (crash fix) + 40 (two-DAG render) added to
+  `reconstruction-engine-design.md`; code-layout updated (3 new modules + sidecar/replay_edit/
+  render_list/cli edits) and the TDD test inventory extended; this notes entry; `roadmap.md` S12
+  flipped to `[x]`. Full filesize sweep across `src/**` + `tests/*` is clean (all ≤ 250 lines).
+- **Part 2 graph renderers — DONE, 141 pass / 0 fail, tsc clean.** New `src/reconstruction_graph_render.ts`
+  (`renderConversationDag`/`renderFileDag`/`renderGraphs`). Relocated `shortenChangeId` AND `getBaseName`
+  to a new shared `src/reconstruction_labels.ts` (one canonical home, no re-export shim); `render_list.ts`
+  now imports them. Column alignment computed per-render over the turns being shown (kind + base-name
+  widths) so it reproduces the plan's exact spacing.
+- **Part 2 graph model + builders — DONE, 137 pass / 0 fail, tsc clean.** New `src/reconstruction_graph.ts`
+  (`assignTurnLetters`, `buildFileDag`, `buildConversationDag` + the `GraphTurn`/`ConvoBranch`/
+  `ConversationDag`/`FileDag` types) and `BranchRole` enum in `vocabulary.ts`. Surviving-branch diverging
+  turns are computed as "records below the rewind point" (via `selectPostForkRecords`) when a real fork
+  exists, else all surviving file turns (linear) — this is the one place the plan's "mirror
+  buildRewoundBranchHistory" rule needed adapting, because that rule (branch minus surviving-uuids) yields
+  EMPTY for the surviving branch itself. Letters come from a single global `assignTurnLetters` pass
+  (timestamp order, "B"-first, bijective base-26 past Z) so fileDAG and convoDAG share them.
+
+---
+
 ## 2026-06-23:14:21:00 — S11 reconstruction (code restore then post-rewind rewrite — surviving working tree is the REWRITTEN code, abandoned pre-restore write preserved as a rewound branch; NO production-code change, the engine was already correct)
 Chat title: api-from-scenarios — implement S11 (write-code-restore-rewrite) [autonomous monitor session]
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/89dc8e9e-295c-4cbd-8411-271183003dc6.jsonl

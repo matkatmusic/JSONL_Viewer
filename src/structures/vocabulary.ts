@@ -102,3 +102,11 @@ export enum EventKind {
     overwrite = "overwrite",
     append = "append",
 }
+
+// The role a conversation branch plays in the two-DAG render (s12-write-conv-only-rewrite). The
+// surviving branch holds the on-disk working tree; a rewound branch forked at a rewind point and was
+// abandoned. Same string-enum style as EventKind so the renderer and the CLI speak one vocabulary.
+export enum BranchRole {
+    surviving = "surviving",
+    rewound = "rewound",
+}

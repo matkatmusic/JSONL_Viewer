@@ -15,6 +15,7 @@ import {
     indexRecordsByUuid,
 } from "./reconstruction_tree.ts";
 import { findWorkingTreeOwner } from "./reconstruction_worktree.ts";
+import { findStructuralRewoundBranches } from "./reconstruction_fork.ts";
 import type {
     BranchedReconstruction,
     FileHistory,
@@ -145,6 +146,8 @@ export function findConversationBranches(
         const rewindPoint = findRewindPoint(records, tip, survivingSet);
         branches.push({ tip, rewindPoint, isSurviving: false });
     }
+    const existingTips = new Set(branches.map((branch) => branch.tip.toString()));
+    branches.push(...findStructuralRewoundBranches(records, existingTips));
     return branches;
 }
 

@@ -12,7 +12,7 @@ import { getFileHistorySnapshot } from "./structures/file-history.ts";
 import { Path, Uuid } from "./structures/domain.ts";
 import { EventKind } from "./structures/vocabulary.ts";
 import { resolveAgainstCwd } from "./structures/path-resolve.ts";
-import type { FileEvent } from "./reconstruction_engine.ts";
+import type { FileEvent, WriteEvent } from "./reconstruction_engine.ts";
 
 export type BackupReader = (backupFileName: Path) => string;
 
@@ -68,6 +68,55 @@ function findBackupAfter(
         (point) => point.backupFileName !== null && point.backupTime.getTime() > when.getTime(),
     );
     return next?.backupFileName ?? undefined;
+}
+
+// The latest backup point of `target` whose backup is non-null and whose snapshot was taken at or
+// before `when` — the pre-edit on-disk content for an Edit-first file. Returns the BackupPoint (the
+// seed needs its backupTime), or undefined when none precedes the edit.
+function findBackupAtOrBefore(
+    timeline: Map<string, BackupPoint[]>,
+    cwd: Path | undefined,
+    target: Path,
+    when: Date,
+): BackupPoint | undefined {
+    const points = timeline.get(resolveAgainstCwd(cwd, target)) ?? [];
+    let chosen: BackupPoint | undefined;
+    for (const point of points) {
+        if (point.backupFileName !== null && point.backupTime.getTime() <= when.getTime()) {
+            chosen = point;
+        }
+    }
+    return chosen;
+}
+
+// When a file's first event on this branch is an Edit (its creating Write lives on an abandoned
+// conversation branch and a conversation-only rewind left the file on disk — spec 39), recover the
+// pre-edit on-disk content from the file-history backup taken at or before the edit and prepend a
+// synthetic Write so the edit splices onto real lines. A file whose first event already creates it
+// (write/overwrite/copy/append) is returned unchanged.
+export function seedEditBaseFromBackup(
+    records: TranscriptRecord[],
+    events: FileEvent[],
+    reader: BackupReader,
+): FileEvent[] {
+    const first = events[0];
+    if (first === undefined || first.kind !== EventKind.edit) {
+        return events;
+    }
+    const cwd = findCwd(records);
+    const timeline = buildBackupTimeline(records, cwd);
+    const base = findBackupAtOrBefore(timeline, cwd, first.target, first.timestamp);
+    if (base === undefined || base.backupFileName === null) {
+        return events;
+    }
+    const seed: WriteEvent = {
+        kind: EventKind.write,
+        changeId: new Uuid(base.backupFileName.toString()),
+        target: first.target,
+        content: reader(base.backupFileName),
+        timestamp: base.backupTime,
+    };
+    return [seed, ...events];
 }
 
 // Fill each append/overwrite event's content from the sidecar; pass others through. A

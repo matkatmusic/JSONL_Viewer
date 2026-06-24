@@ -17,10 +17,10 @@ import {
 import { findBranchById, shortUuid } from "./reconstruction_branch.ts";
 import { renderDiff, renderVerbose } from "./reconstruction_render.ts";
 import {
-    formatBranchHeader,
     renderBranchSummary,
     renderHistoryList,
 } from "./reconstruction_render_list.ts";
+import { renderGraphs } from "./reconstruction_graph_render.ts";
 import {
     createSidecarReader,
     getDefaultFileHistoryRoot,
@@ -29,7 +29,7 @@ import {
 } from "./reconstruction_sidecar.ts";
 
 const USAGE =
-    "usage: reconstruction_cli <transcript.jsonl> [--target <path>] [--verbose|--diff] [--surviving|--list-branches|--branch <id>]";
+    "usage: reconstruction_cli <transcript.jsonl> [--target <path>] [--verbose|--diff] [--graphConvo|--graphFile|--surviving|--list-branches|--branch <id>]";
 
 export type CliOptions = {
     jsonlPath: string;
@@ -39,6 +39,8 @@ export type CliOptions = {
     diff: boolean;
     surviving: boolean;
     listBranches: boolean;
+    graphConvo: boolean;
+    graphFile: boolean;
 };
 
 // Pull a value-taking flag (e.g. `--target <path>`) out of argv: return its value (undefined when
@@ -57,6 +59,30 @@ function extractValueFlag(
     return { value, rest };
 }
 
+// The graph flags: honor explicit --graphConvo/--graphFile; otherwise default BOTH on when the CLI was
+// given no other intent (no selector and no content-view modifier) — the new global bare default that
+// prints both DAGs for every scenario.
+function resolveGraphFlags(
+    rest: string[],
+    branch: string | undefined,
+    surviving: boolean,
+    listBranches: boolean,
+    verbose: boolean,
+    diff: boolean,
+): { convo: boolean; file: boolean } {
+    const convo = rest.includes("--graphConvo");
+    const file = rest.includes("--graphFile");
+    const explicit = convo || file;
+    if (explicit) {
+        return { convo, file };
+    }
+    const hasOtherIntent = surviving || listBranches || branch !== undefined || verbose || diff;
+    if (hasOtherIntent) {
+        return { convo: false, file: false };
+    }
+    return { convo: true, file: true };
+}
+
 // Parse argv: a required transcript path, the value-taking flags (--target, --branch), and the
 // boolean view flags. Throws the usage message when no transcript path is given.
 export function parseArgs(argv: string[]): CliOptions {
@@ -67,14 +93,21 @@ export function parseArgs(argv: string[]): CliOptions {
     if (!jsonlPath) {
         throw new Error(USAGE);
     }
+    const surviving = rest.includes("--surviving");
+    const listBranches = rest.includes("--list-branches");
+    const verbose = rest.includes("--verbose");
+    const diff = rest.includes("--diff");
+    const graphs = resolveGraphFlags(rest, branchFlag.value, surviving, listBranches, verbose, diff);
     return {
         jsonlPath,
         target: targetFlag.value !== undefined ? new Path(targetFlag.value) : undefined,
         branch: branchFlag.value,
-        verbose: rest.includes("--verbose"),
-        diff: rest.includes("--diff"),
-        surviving: rest.includes("--surviving"),
-        listBranches: rest.includes("--list-branches"),
+        verbose,
+        diff,
+        surviving,
+        listBranches,
+        graphConvo: graphs.convo,
+        graphFile: graphs.file,
     };
 }
 
@@ -122,28 +155,6 @@ function renderChosen(histories: FileHistory[], options: CliOptions): string {
     return renderHistoryList(chosen);
 }
 
-// The default view: all branches. With no rewound branch the output is byte-identical to the plain
-// list (the S1-S6 passthrough); otherwise the surviving branch and each rewound branch print under
-// a header naming its tip and (for rewound) its rewind point.
-function renderAllBranches(
-    branched: BranchedReconstruction,
-    options: CliOptions,
-): string {
-    if (branched.rewound.length === 0) {
-        return renderChosen(branched.surviving, options);
-    }
-    const sections: string[] = [];
-    if (branched.survivingTip !== undefined) {
-        const header = formatBranchHeader("surviving", branched.survivingTip, undefined);
-        sections.push(`${header}\n${renderChosen(branched.surviving, options)}`);
-    }
-    for (const entry of branched.rewound) {
-        const header = formatBranchHeader("rewound", entry.tip, entry.rewindPoint);
-        sections.push(`${header}\n${renderChosen(entry.histories, options)}`);
-    }
-    return sections.join("\n\n");
-}
-
 // The selectable branch ids for the `--branch` error message: "surviving" plus each rewound tip.
 function listAvailableBranchIds(branched: BranchedReconstruction): string {
     const ids: string[] = [];
@@ -169,10 +180,15 @@ function renderOneBranch(
     return renderChosen(histories, options);
 }
 
-// Load the transcript, reconstruct every branch, and render per the chosen branch view.
+// Load the transcript and render the chosen view. The bare default (no flags) prints both DAGs; the
+// graph flags take precedence, then the branch selectors, then the surviving content view (the
+// back-compat path for --surviving and for --verbose/--diff with no selector).
 export function runCli(argv: string[]): string {
     const options = parseArgs(argv);
     const records = loadTranscript(options.jsonlPath);
+    if (options.graphConvo || options.graphFile) {
+        return renderGraphs(records, { convo: options.graphConvo, file: options.graphFile });
+    }
     const reader = buildSidecarReader(records);
     const branched = reconstructBranches(records, reader);
     if (options.listBranches) {
@@ -181,10 +197,7 @@ export function runCli(argv: string[]): string {
     if (options.branch !== undefined) {
         return renderOneBranch(branched, options);
     }
-    if (options.surviving) {
-        return renderChosen(branched.surviving, options);
-    }
-    return renderAllBranches(branched, options);
+    return renderChosen(branched.surviving, options);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

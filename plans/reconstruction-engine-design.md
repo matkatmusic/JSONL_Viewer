@@ -165,13 +165,18 @@ The engine is split by concern, one paired test each (files kept well under the
   `genesisLine`, `carryAt`, `lastLinesOf`, `fileIsPresent`), the `appendRevision`
   builder, and the whole Edit splice (`applyEdit` + privates). Imports nothing from
   `reconstruction_replay.ts`, so the dependency runs one way (replay → here). Split out
-  in S5 (replay was 247/250 lines).
+  in S5 (replay was 247/250 lines). S12 made `insertHunkAdditions`' context branch total
+  (`resolveContextLine`): a context line with no working line to carry becomes a genesis
+  line instead of indexing past an empty base (the conversation-only-rewind-then-edit guard).
 - `src/reconstruction_sidecar.ts` — `fillRedirectContent` recovers a `>`/`>>`'s
   resulting content from the file-history backups beside the transcript (the snapshot
   taken next after the redirect names the blob), through an injected `BackupReader`;
   `createSidecarReader`/`getDefaultFileHistoryRoot`/`findSessionId` build the real
   on-disk reader (`~/.claude/file-history/<sessionId>/`). Snapshot paths are resolved
   against the transcript `cwd` (they are cwd-relative) via the shared `resolveAgainstCwd`.
+  S12 added `seedEditBaseFromBackup` (+ `findBackupAtOrBefore`): when a per-file lineage's
+  first event is an Edit (its creating Write off-branch), prepend a synthetic Write seeded
+  from the at-or-before backup so the Edit splices onto real lines (spec 39).
 - `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
   resolver of a path to an absolute string against the transcript `cwd` (idempotent for
   already-absolute paths). A leaf module (imports only node `path`) shared by extraction
@@ -190,13 +195,28 @@ The engine is split by concern, one paired test each (files kept well under the
 - `src/reconstruction_render_list.ts` — the default list view `renderHistoryList`
   and its helpers (`getEntryLabel`/`getEntryDetail`/`renderHistoryBlock`/…, verb-renamed
   in S5), split out in S4 so `reconstruction_render.ts` could grow. `getEntryLabel` maps
-  `overwrite` and `append`.
+  `overwrite` and `append`. In S12 its private `shortenChangeId`/`getBaseName` moved to the
+  shared `reconstruction_labels.ts`, and the retired `formatBranchHeader` (the old
+  `## surviving`/`## rewound` default) was removed with `renderAllBranches`.
 - `src/reconstruction_cli.ts` — arg parsing + `runCli` + entry point; builds the real
   sidecar `BackupReader` from the transcript's session and threads it into reconstruction.
-  Reconstructs all branches once, then renders per the chosen branch view (default = all branches
-  with the no-rewound passthrough; `--surviving` / `--list-branches` / `--branch <id>`). Run:
+  The **bare default prints both DAGs** (spec 40) via `renderGraphs`; the graph flags take precedence,
+  then the branch selectors (`--list-branches` / `--branch <id>`), then the surviving content view
+  (`--surviving`, and the back-compat `--verbose`/`--diff`-with-no-selector path). `resolveGraphFlags`
+  turns both graph flags on only when no other intent is given. Run:
   `tsx src/reconstruction_cli.ts <transcript.jsonl> [--target <p>] [--verbose|--diff]
-  [--surviving|--list-branches|--branch <id>]`.
+  [--graphConvo|--graphFile|--surviving|--list-branches|--branch <id>]`.
+- `src/reconstruction_graph.ts` — the two-DAG model + pure builders (spec 40): `assignTurnLetters`
+  (one shared letter per file-changing turn, timestamp order, `B`-first), `buildFileDag` (per-file
+  cross-branch lineage), `buildConversationDag` (forked oldest-first wrappers, or a linear trunk when
+  only one branch changed files; root = the rewind point when forked, else the parentUuid-null root).
+  Imports the branch model + `collectAncestorUuids`; engine types are type-only.
+- `src/reconstruction_graph_render.ts` — the oldest-at-top renderers `renderConversationDag` /
+  `renderFileDag` / `renderGraphs` (topology only, columns aligned per render). Reuses `shortUuid`
+  (branch) and `shortenChangeId`/`getBaseName` (labels).
+- `src/reconstruction_labels.ts` — the shared display-label helpers `shortenChangeId` (drop `toolu_`,
+  8 chars) and `getBaseName` (path tail), relocated here in S12 as the one canonical home (no
+  re-export shim) so both the list renderer and the graph renderer import them directly.
 
 ## TDD specs
 
@@ -219,7 +239,15 @@ sidecar resolver in
 `tests/reconstruction_sidecar.test.ts` (synthetic snapshots + an in-memory reader),
 verbose/diff rendering in `tests/reconstruction_render.test.ts` and the default list
 view in `tests/reconstruction_render_list.test.ts` (pure, literal revisions), CLI
-in `tests/reconstruction_cli.test.ts`. Red→green, each spec one test.
+in `tests/reconstruction_cli.test.ts`. The later rewind scenarios add their own engine + CLI files to
+stay under the 250-line cap: `tests/reconstruction_engine_s10.test.ts` /
+`tests/reconstruction_engine_s11.test.ts` / `tests/reconstruction_engine_s12.test.ts` and
+`tests/reconstruction_cli_s10.test.ts` / `tests/reconstruction_cli_s11.test.ts` /
+`tests/reconstruction_cli_s12.test.ts` (the last driven off the real `S12_JSONL` with an in-memory
+backup reader for the engine specs and the real on-disk reader for the CLI specs). S12 also adds the
+empty-base Edit guard in `tests/reconstruction_replay_edit.test.ts` (spec 39) and the two-DAG builders
++ renderers in `tests/reconstruction_graph.test.ts` / `tests/reconstruction_graph_render.test.ts`
+(spec 40, synthetic records + literal dags). Red→green, each spec one test.
 
 ### S1 — implemented now
 
@@ -523,6 +551,61 @@ in `tests/reconstruction_cli.test.ts`. Red→green, each spec one test.
     `test_s11_surviving_flag_shows_only_the_multiply_rewrite`,
     `test_s11_list_branches_summarizes_surviving_and_rewound`,
     `test_s11_branch_id_retrieves_the_rewound_add_branch`.)
+
+### S12 — implemented now
+
+39. **conversation-only-rewind-then-edit (the empty-base Edit crash) — first production-code fix.**
+    The session Writes `scenario12.py`(`add`) + `test_scenario12.py`, accepts, does a
+    **conversation-only** rewind to the original prompt (which, per spec 37/S10, leaves the files on
+    disk), then on a NEW surviving branch **Edits** both files to add `multiply` (Read-then-Edit; it
+    never re-Writes). The surviving branch's first event for each file is therefore an Edit whose
+    *creating Write lives on the abandoned (rewound) branch* — so the Edit replays against an empty base
+    and the old `insertHunkAdditions` threw `Cannot read properties of undefined (reading 'values')` on
+    the first context line. Two coupled changes fix it: (a) **seed the Edit base from the file-history
+    backup** — `seedEditBaseFromBackup` (`src/reconstruction_sidecar.ts`), wired into
+    `reconstructFileOver` after `fillRedirectContent`, detects a per-file lineage whose first event is an
+    Edit and prepends a synthetic Write whose content is the backup snapshotted **at or before** the edit
+    (`findBackupAtOrBefore`; the pre-edit on-disk content the conversation-only rewind preserved). For
+    every S1–S11 file the first event already creates the file, so the seed is a strict no-op. (b) **make
+    `insertHunkAdditions`' context branch total** (`src/reconstruction_replay_edit.ts`): a context line
+    with no working line to carry is now materialised as a genesis line (extracted into
+    `resolveContextLine`) instead of indexing past the empty base — a defensive guard, since for a
+    non-empty base it is byte-identical to the old path. The synthetic seed Write's `changeId` is the
+    backup filename (e.g. `43c1313ce6fd5f24@v2`), which surfaces only in the `--surviving` content views,
+    never in the graphs (spec 40 attributes the file's base to the REAL Write turn). The surviving
+    `scenario12.py` reconstructs as `add` (seeded) → `multiply` (edit), final text holding both
+    functions. (Proved: `test_seed_prepends_a_write_base_from_the_at_or_before_backup`,
+    `test_seed_passes_through_when_first_event_creates_the_file`,
+    `test_seed_passes_through_when_no_backup_precedes_the_edit`,
+    `test_apply_edit_on_empty_base_materialises_context_lines_as_genesis`,
+    `test_s12_surviving_scenario_file_is_seeded_add_base_then_multiply_edit`,
+    `test_s12_surviving_test_file_imports_multiply`,
+    `test_s12_reconstruct_branches_keeps_one_rewound_add_branch`.)
+
+40. **two-DAG CLI render + the new global default.** S12 is the first scenario where the *conversation*
+    graph (which forks at the rewind) and the *file/disk* graph (which stays linear, because disk was
+    never reverted) disagree, so the CLI now renders BOTH as explicit graphs and the **bare default
+    prints both** for EVERY scenario (replacing the retired `## surviving`/`## rewound` text default).
+    `src/reconstruction_graph.ts` builds the model (`assignTurnLetters` gives ONE letter per
+    file-changing turn across all records in timestamp order, `B`-first with `A` reserved for the root —
+    shared by both graphs; `buildConversationDag` forks into oldest-first branch wrappers, or a linear
+    trunk when only one branch changed files; `buildFileDag` groups every turn by file for true
+    cross-branch disk lineage). `src/reconstruction_graph_render.ts` renders oldest-at-top: the
+    conversationDAG roots at the **rewind point** (annotated `(rewind point)`) and forks
+    rewound-above-surviving (the branch whose first turn is oldest renders first); the fileDAG lists each
+    file's version-ordered turns. Nodes are **topology only** (`<letter> <kind> <target> #<shortId>`) —
+    file CONTENT stays in `--surviving`/`--branch` (+`--verbose`/`--diff`). New flags `--graphConvo` /
+    `--graphFile` select one graph; `--surviving` / `--list-branches` / `--branch` / `--verbose` /
+    `--diff` are unchanged and suppress the graph default. `BranchRole {surviving, rewound}` joins the
+    vocabulary; `shortenChangeId` + `getBaseName` were relocated to a shared `reconstruction_labels.ts`
+    (one canonical home, no shim). The 12 existing default-view CLI tests were rewritten to the new graph
+    output (linear for S1–S6/S9/S10; forked for S7/S8/S11). (Proved:
+    `tests/reconstruction_graph.test.ts`, `tests/reconstruction_graph_render.test.ts`,
+    `test_s12_default_view_renders_both_dags_rewound_above_surviving`,
+    `test_s12_graph_convo_flag_renders_only_the_conversation_dag`,
+    `test_s12_graph_file_flag_renders_only_the_file_dag`,
+    `test_s12_surviving_verbose_shows_add_base_plus_multiply_edit`, + the three `parseArgs` graph-flag
+    tests and the 12 rewritten default-view locks.)
 
 ### Deferred to later scenarios
 

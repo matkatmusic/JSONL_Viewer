@@ -9,16 +9,18 @@ import { S11_JSONL } from "./fixtures.ts";
 // future change cannot silently regress S11.
 
 // Default (no flag): S11 has one surviving branch (the multiply rewrite) AND one rewound branch (the
-// abandoned add turn that wrote files), so the default view shows BOTH branch headers and both creates
-// on each branch — unlike S9/S10's plain lists.
+// abandoned add turn that wrote files), so its conversationDAG FORKS into a rewound wrapper (add)
+// above a surviving wrapper (multiply) — unlike S9/S10's linear graphs.
 test("test_s11_default_view_shows_surviving_multiply_and_rewound_add", () => {
     const out = runCli([S11_JSONL]);
-    assert.ok(out.includes("## surviving"));
-    assert.ok(out.includes("## rewound"));
+    assert.ok(out.includes("branch surviving"));
+    assert.ok(out.includes("branch rewound"));
     assert.ok(out.includes("#01U5g9RL"));            // surviving multiply scenario11.py
     assert.ok(out.includes("#01B97eyh"));            // surviving multiply test
     assert.ok(out.includes("#01CMuVT4"));            // rewound add scenario11.py
     assert.ok(out.includes("#01EW4ztd"));            // rewound add test
+    // Oldest-first: the rewound add branch renders above the surviving multiply branch.
+    assert.ok(out.indexOf("branch rewound") < out.indexOf("branch surviving"));
 });
 
 // --surviving: only the multiply rewrite (the on-disk files); no rewound add ids, no branch headers.

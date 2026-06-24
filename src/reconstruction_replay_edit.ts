@@ -89,6 +89,23 @@ function keepSurvivingLines(
     return survivors;
 }
 
+// One context (' ') line of a hunk: carry the working line forward when it exists, or — when the base
+// is empty because the creating Write is off-branch (conversation-only-rewind-then-edit, spec 39) —
+// materialise it as a genesis line so the splice never indexes past the empty base. `born` reports
+// whether the line was created here (so the caller marks the revision as having added a line).
+function resolveContextLine(
+    workingLines: LineEntry[],
+    workingIndex: number,
+    text: string,
+    timestamp: Date,
+): { entry: LineEntry; born: boolean } {
+    const carried = workingLines[workingIndex];
+    if (carried === undefined) {
+        return { entry: genesisLine(text, timestamp), born: true };
+    }
+    return { entry: carryAt(carried, workingIndex), born: false };
+}
+
 // Insert the hunk's '+' lines among the (post-removal) working lines. Context
 // lines carry their working index as oldLineNum and keep their existing values;
 // '+' lines are born (-1) with the hunk text (its prefix char stripped) at the
@@ -106,12 +123,14 @@ function insertHunkAdditions(
             continue;
         }
         if (line.startsWith("+")) {
-            result.push({ oldLineNum: DOES_NOT_EXIST_YET, values: [{ line: line.slice(1), timestamp }] });
+            result.push(genesisLine(line.slice(1), timestamp));
             added = true;
-        } else {
-            result.push({ oldLineNum: workingIndex, values: workingLines[workingIndex]!.values });
-            workingIndex += 1;
+            continue;
         }
+        const context = resolveContextLine(workingLines, workingIndex, line.slice(1), timestamp);
+        result.push(context.entry);
+        added = added || context.born;
+        workingIndex += 1;
     }
     for (let index = workingIndex; index < workingLines.length; index++) {
         result.push({ oldLineNum: index, values: workingLines[index]!.values });

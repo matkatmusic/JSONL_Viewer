@@ -9,18 +9,8 @@ import type {
 } from "./reconstruction_engine.ts";
 import { EventKind } from "./structures/vocabulary.ts";
 import { shortUuid } from "./reconstruction_branch.ts";
-import type { Path, Uuid } from "./structures/domain.ts";
-
-// The tail component of a path (its file name).
-function getBaseName(path: Path): string {
-    const parts = path.toString().split("/");
-    return parts[parts.length - 1]!;
-}
-
-// A change id, shortened for display: drop a leading `toolu_`, keep 8 chars.
-function shortenChangeId(id: Uuid): string {
-    return id.toString().replace(/^toolu_/, "").slice(0, 8);
-}
+import { getBaseName, shortenChangeId } from "./reconstruction_labels.ts";
+import type { Path } from "./structures/domain.ts";
 
 // The clock portion of a timestamp (HH:MM:SSZ).
 function formatShortTime(date: Date): string {
@@ -130,20 +120,6 @@ export function renderHistoryList(histories: FileHistory[]): string {
         return "no files touched";
     }
     return histories.map(renderHistoryBlock).join("\n\n");
-}
-
-// A branch's section header for the all-branches view: `## surviving  tip #<short>` for the
-// surviving branch, `## rewound  tip #<short>  (rewind @ #<short>)` for a rewound one.
-export function formatBranchHeader(
-    label: string,
-    tip: Uuid,
-    rewindPoint: Uuid | undefined,
-): string {
-    const header = `## ${label}  tip #${shortUuid(tip)}`;
-    if (rewindPoint === undefined) {
-        return header;
-    }
-    return `${header}  (rewind @ #${shortUuid(rewindPoint)})`;
 }
 
 // The basenames of the files a branch touched, comma-joined (its "files changed" column).
