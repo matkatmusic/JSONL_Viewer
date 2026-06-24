@@ -103,20 +103,34 @@ export function seedEditBaseFromBackup(
     if (first === undefined || first.kind !== EventKind.edit) {
         return events;
     }
+    const seed = backupSeedWriteFor(records, first.target, first.timestamp, reader);
+    return seed ? [seed, ...events] : events;
+}
+
+// A synthetic Write that seeds `target`'s pre-edit on-disk content from the file-history backup taken
+// at or before `when` — the source of truth for content an off-branch edit left on disk. Returns
+// undefined when no backup blob precedes `when` (version 1 holds no blob). The changeId is the backup
+// blob name, so the synthetic seed stays out of the graphs (spec 40 attributes a file's base to the
+// REAL Write turn).
+export function backupSeedWriteFor(
+    records: TranscriptRecord[],
+    target: Path,
+    when: Date,
+    reader: BackupReader,
+): WriteEvent | undefined {
     const cwd = findCwd(records);
     const timeline = buildBackupTimeline(records, cwd);
-    const base = findBackupAtOrBefore(timeline, cwd, first.target, first.timestamp);
+    const base = findBackupAtOrBefore(timeline, cwd, target, when);
     if (base === undefined || base.backupFileName === null) {
-        return events;
+        return undefined;
     }
-    const seed: WriteEvent = {
+    return {
         kind: EventKind.write,
         changeId: new Uuid(base.backupFileName.toString()),
-        target: first.target,
+        target,
         content: reader(base.backupFileName),
         timestamp: base.backupTime,
     };
-    return [seed, ...events];
 }
 
 // Fill each append/overwrite event's content from the sidecar; pass others through. A

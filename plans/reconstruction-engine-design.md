@@ -176,7 +176,21 @@ The engine is split by concern, one paired test each (files kept well under the
   against the transcript `cwd` (they are cwd-relative) via the shared `resolveAgainstCwd`.
   S12 added `seedEditBaseFromBackup` (+ `findBackupAtOrBefore`): when a per-file lineage's
   first event is an Edit (its creating Write off-branch), prepend a synthetic Write seeded
-  from the at-or-before backup so the Edit splices onto real lines (spec 39).
+  from the at-or-before backup so the Edit splices onto real lines (spec 39). S19 generalised
+  this to MID-stream edits via `seedStaleEditBases`/`staleEditSeedFor`/`backupSeedWriteFor`
+  (in `reconstruction_branches.ts`, reusing the same backup lookup): when an edit's first hunk
+  references lines past its reconstructed base — off-branch edits that advanced the disk and
+  persisted across a conversation-only rewind — the same backup seed is spliced before that
+  edit; an edit whose base is intact passes through unchanged.
+  S20 (code-rewind twin of S19) records the contrast and needs NO new rule: a CODE rewind
+  reverts the file on disk, and Claude Code re-writing the checkpoint surfaces as a synthetic
+  `edited_text_file` (a `user-edit`) on the SURVIVING branch. The S15 content-aware guard
+  records it, which advances the surviving base to the full restored disk state, so the
+  post-rewind edit's hunk is ALIGNED and `editBaseIsStale` is false — the S19 reseed stays
+  INERT. (Contrast: a conversation-only rewind leaves the user-edit off the surviving branch,
+  so the surviving base is too short and the S19 backup reseed must fire.) S20 is the first
+  scenario carrying a `user-edit` on BOTH branches (the real human edit on the rewound branch,
+  the code-rewind restore echo on the surviving branch).
 - `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
   resolver of a path to an absolute string against the transcript `cwd` (idempotent for
   already-absolute paths). A leaf module (imports only node `path`) shared by extraction

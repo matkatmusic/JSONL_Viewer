@@ -10,8 +10,13 @@ import type { Path } from "./structures/domain.ts";
 import { EventKind } from "./structures/vocabulary.ts";
 import { extractFileEvents } from "./reconstruction_extract.ts";
 import { replayEvents } from "./reconstruction_replay.ts";
+import { lastLinesOf } from "./reconstruction_replay_edit.ts";
 import { findConversationBranches, selectBranchRecords } from "./reconstruction_branch.ts";
-import { fillRedirectContent, seedEditBaseFromBackup } from "./reconstruction_sidecar.ts";
+import {
+    backupSeedWriteFor,
+    fillRedirectContent,
+    seedEditBaseFromBackup,
+} from "./reconstruction_sidecar.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
 import {
     buildRenameChain,
@@ -21,9 +26,11 @@ import {
 } from "./reconstruction_lineage.ts";
 import type {
     CopyEvent,
+    EditEvent,
     FileEvent,
     FileHistory,
     FileRevision,
+    WriteEvent,
 } from "./reconstruction_engine.ts";
 
 // The branch-agnostic core: reconstruct one file's history over EXACTLY the records given (no branch
@@ -46,7 +53,54 @@ export function reconstructFileOver(
     const seeded = seedCopyEvents(records, lineage, resolving, reader);
     const filled = reader ? fillRedirectContent(records, seeded, reader) : seeded;
     const based = reader ? seedEditBaseFromBackup(records, filled, reader) : filled;
-    return replayEvents(based);
+    const restaged = reader ? seedStaleEditBases(records, based, reader) : based;
+    return replayEvents(restaged);
+}
+
+// Whether an edit's first hunk references lines past the base reconstructed from the events before it
+// — the mark of an edit Claude Code computed against a disk state that carried OFF-branch changes
+// across a conversation-only rewind (s19). The on-branch base is shorter than the hunk's first context
+// line expects, so replaying the hunk would drop the lines that precede that context line.
+function editBaseIsStale(event: EditEvent, priorEvents: FileEvent[]): boolean {
+    const firstHunk = event.hunks[0];
+    if (firstHunk === undefined) {
+        return false;
+    }
+    return firstHunk.oldStart - 1 > lastLinesOf(replayEvents(priorEvents)).length;
+}
+
+// The synthetic backup-seed Write to splice before `event`, or undefined when its base is intact (the
+// common case — every edit whose reconstructed base already matches the disk it was computed against).
+function staleEditSeedFor(
+    records: TranscriptRecord[],
+    event: FileEvent,
+    priorEvents: FileEvent[],
+    reader: BackupReader,
+): WriteEvent | undefined {
+    if (event.kind !== EventKind.edit || !editBaseIsStale(event, priorEvents)) {
+        return undefined;
+    }
+    return backupSeedWriteFor(records, event.target, event.timestamp, reader);
+}
+
+// Generalises spec 39's edit-base seeding to MID-stream edits: walk the lineage and, before each edit
+// whose base is stale (off-branch changes persisted across a rewind — s19), splice the synthetic
+// backup-seed Write so the hunk's context lands on the real pre-edit disk content. Edits whose base is
+// intact pass through unchanged, so every pre-s19 scenario is byte-for-byte unaffected.
+function seedStaleEditBases(
+    records: TranscriptRecord[],
+    lineage: FileEvent[],
+    reader: BackupReader,
+): FileEvent[] {
+    const result: FileEvent[] = [];
+    for (const event of lineage) {
+        const seed = staleEditSeedFor(records, event, result, reader);
+        if (seed) {
+            result.push(seed);
+        }
+        result.push(event);
+    }
+    return result;
 }
 
 // Fill each copy event's seedLines from its source; pass other events through.
