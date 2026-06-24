@@ -341,6 +341,23 @@ The engine is split by concern, one paired test each (files kept well under the
   OBSERVED — the engine adopts the beacon as the post-script revision and needs NO script-execution
   replay or forward-validation (that machinery is only for NO-BEACON files). No engine change — it is
   LOCKED, not fixed. Linear: one surviving branch (tip #fba814f7), no rewound branch.
+  S25 (`s25-script-rename-multi-file`) is the MULTI-FILE extension of S24, and the FIRST scenario
+  where a HAS-BEACON file STILL needs the backup reader. ONE `python3 rename_geo.py` Bash run rewrites
+  THREE tracked files at once (`geo_core.py`, `geo_report.py`, `tests/test_geo_core.py`), so the single
+  opaque run produces THREE `edited_text_file` beacons (one per file, uuids `dd04eabc…`/`755a78dd…`/
+  `fcaacf80…`) that `userEditEventFrom` turns into three `user-edit` revisions — S24 ×3. The new lesson
+  is MIXED reader-dependence. `geo_core.py` (8 revs) and `tests/test_geo_core.py` (2 revs) are
+  reader-INDEPENDENT: their beacons are complete snapshots, so later Edits splice cleanly and a poison
+  reader is provably ignored. `geo_report.py` (7 revs) is reader-DEPENDENT: its beacon is an INCOMPLETE
+  77-line snapshot, but the post-script `totals` Edit was computed against the true 95-line disk state.
+  So the m6 backup-seed fires — `seedEditBaseFromBackup`/`backupSeedWriteFor`/`findBackupPointAfter`
+  reseed a synthetic `overwrite` revision keyed `a5675d5dd5201ac8@v4` (the 95-line base) before
+  `applyEdit` replays the `totals` Edit. Without a backup the reseed can't fire (6 revs, truncated
+  final — provably wrong); the `@v4` backup is load-bearing. This REFINES the HAS-BEACON rule:
+  "beacon alone suffices" governs the post-script revision itself; the base-alignment of a LATER Edit
+  is the m6 concern, solved by a backup-seed (NOT a script transform). No script-execution-replay is
+  needed or added. No engine change — LOCKED, not fixed. Linear: one surviving branch (tip #e3b43fcc),
+  four files, no rewound branch.
 - `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
   resolver of a path to an absolute string against the transcript `cwd` (idempotent for
   already-absolute paths). A leaf module (imports only node `path`) shared by extraction

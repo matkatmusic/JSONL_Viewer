@@ -1,3 +1,96 @@
+## 2026-06-24:14:25:00 — S25 reconstruction (multi-file script rename via Bash python3) — COMPLETE; characterization/regression LOCK, NO src change; 359 tests green
+Chat title: api-from-scenarios — S25 impl monitor → implement S25 (script-rename-multi-file)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/52d94dd7-8312-411c-b526-9d6dafb7b47b.jsonl
+
+### References
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt (HAS-BEACON vs NO-BEACON premise)
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s25/s25-reconstruction-plan.md
+- Handoff (in): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s25/handoff-api-from-scenarios-20260624-1409.md
+- S24 LOCK this mirrors: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s24/s24-reconstruction-plan.md
+- Scenario: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/s25-script-rename-multi-file.txt
+- Executed output: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s25-script-rename-multi-file/
+
+### What S25 is
+Multi-file extension of S24: ONE `python3 rename_geo.py` Bash run rewrites THREE tracked files at once
+(`geo_core.py`, `geo_report.py`, `tests/test_geo_core.py`), a whole-word rename `area→rectangle_area`,
+`perim→rectangle_perimeter`, `vol→box_volume`. The scenario forbids Edit/Write for the rename, so the
+single opaque run leaves NO tool_use file op and produces ZERO file events (the m3 contrast). What
+carries the rename is THREE `edited_text_file` BEACONs (one per file) at `20:02:55.775Z` — the same
+S15 disk-echo machinery as S24, firing three times from one Bash run. changeId of each beacon = the
+attachment record's own message uuid: geo_report `dd04eabc…`, geo_core `755a78dd…`, test `fcaacf80…`.
+
+### Mixed reader-dependence (the reason S25 exists)
+- `geo_core.py` — 8 revs [write,edit,edit,edit,userEdit,edit,edit,edit], rev4 userEdit, → 196 ln /
+  5263 ch — reader-INDEPENDENT (complete 169-line beacon; later Edits M,N splice cleanly).
+- `tests/test_geo_core.py` — 2 revs [write,userEdit] → 42 ln / 1145 ch — reader-INDEPENDENT (purest
+  single-beacon file; write → beacon, no later edits).
+- `geo_report.py` — 7 revs [write,edit,edit,userEdit,overwrite,edit,edit] → 120 ln / 3810 ch —
+  reader-DEPENDENT. Its beacon (rev3) is an INCOMPLETE 77-line snapshot, but the post-script `totals`
+  Edit was computed against the true 95-line disk state. So the m5/m6 backup-seed fires: a synthetic
+  `overwrite` rev4 keyed `a5675d5dd5201ac8@v4` (the 95-line disk base, the ONLY backup the engine
+  requests) is injected, then the `totals` Edit replays cleanly onto it. WITHOUT a backup the reseed
+  can't fire (6 revs, truncated 102-line final — provably WRONG); a poison reader corrupts it (35-line
+  final). The `@v4` backup is LOAD-BEARING. FIRST scenario where a HAS-BEACON file still needs the
+  backup reader.
+
+### Why no engine change
+S25 reuses shipped machinery verbatim: `userEditEventFrom`/`stripLineNumberPrefixes`
+(reconstruction_user_edit.ts) detect each beacon; `collectEventsFromRecord`/`extractFileEvents`
+(reconstruction_extract.ts) inject the 3 user-edits and ignore the opaque python runs;
+`userEditChangesContent`/`userEditRevision` (reconstruction_replay.ts) record each as a user-edit;
+`seedEditBaseFromBackup`/`backupSeedWriteFor`/`findBackupPointAfter` (reconstruction_sidecar.ts) reseed
+`@v4` for geo_report and stay INERT for geo_core+test; `applyEdit` (reconstruction_replay_edit.ts)
+splices the post-rename Edits. The m5/m6 reseed is REUSED, not new — first time it bridges a
+beacon→later-Edit gap (vs a rewind/copy).
+
+### The HAS-BEACON refinement
+"Beacon alone suffices" (script-handling.txt) governs the post-script revision ITSELF — correctly
+established by the beacon, no forward-validation. The base-alignment of a LATER Edit is a separate, m6
+concern, solved by a backup-seed (NOT a script transform). So S25 REFINES, does not contradict, the
+premise: it needs NO script-execution-replay / forward-validation feature.
+
+### RED→GREEN liveness (proven, then reverted)
+Engine: (1) geo_core changeId `755a78dd…`→`deadbeef…` → RED; (2) geo_report overwrite key
+`a5675d5dd5201ac8@v4`→`wrong@v9` → RED; (3) geo_report final literal one-char mutation → RED;
+(4) Test 5 `notEqual`→`equal` on the no-reader path → RED (proves the `@v4` backup is load-bearing).
+CLI: Test 5 `def totals(`→`def TOTALS(` → RED. All restored; final suite 359/0.
+
+### Design decisions
+- Engine test: geo_core + test are reader-FREE with a poison guard (mirrors S24); geo_report uses a
+  hermetic `@v4` backup map (mirrors m7) so the engine test never touches `~/.claude/file-history`.
+- CLI test: uses the REAL CLI (which builds the real sidecar reader), so geo_report reconstructs
+  correctly; a `fileVerboseBlock` helper slices each file's `### …/<file>` verbose section because the
+  per-file `revision N` numbers overlap (geo_core & geo_report both reach revision 6/7).
+- The 4 ground-truth literals (backup 3024, geo_core 5263, geo_report 3810, test 1145 chars) were
+  INJECTED byte-for-byte from the rendered files via a one-off generator (placeholder-token
+  substitution), never hand-typed, then length-guarded against the plan.
+
+### Deviations
+- Engine Test 4 (geo_report crux): the plan reused `geo_core`'s `def <name>(` header check
+  (`RENAMED_DEFS`/`TERSE_DEFS`) to verify the rename. That is WRONG for `geo_report.py`: it IMPORTS
+  `geo_core` and CALLS `geo_core.rectangle_area(...)` — it never DEFINES area/perim/vol (those headers
+  live in geo_core.py). The byte-lock `assert.equal(finalText, S25_GEO_REPORT_FINAL)` passed first, so
+  reconstruction is byte-perfect; only the supplementary assertion was wrong. Replaced it with a
+  call-site lock: renamed call forms `.rectangle_area(`/`.rectangle_perimeter(`/`.box_volume(` present,
+  terse call forms `.area(`/`.perim(`/`.vol(` absent. A bare-word `\barea\b` check is ALSO unsafe: the
+  post-rename `totals` docstring legitimately contains the English word "area".
+- CLI Test 4 (verbose geo_core): the plan's whole-block terse-absence check
+  (`!block.includes("| def area(")`) is wrong because `--verbose` prints EVERY revision, and the terse
+  pre-rename revisions (0..3) of geo_core legitimately still contain `def area(`. Scoped the
+  renamed-present / terse-absent check to the FINAL revision only (`block.slice(block.indexOf("revision
+  7  @"))`) — the meaningful "final rendered state is fully renamed" lock. geo_report/test verbose
+  tests are unaffected (those files never DEFINE the terse names).
+
+### Tradeoffs
+- Kept the engine/CLI split exactly as the plan specified (6 + 6). The geo_report engine test could
+  have used the real reader, but a hermetic backup map keeps the engine test deterministic and
+  independent of the developer's `~/.claude/file-history` tree (the m7 precedent).
+
+### Open questions
+- None blocking. Commit is gated on explicit user approval (project rule: one commit per scenario);
+  nothing is staged. The unrelated `src/Plan_Impl_template.md` edit + new `src/*_template.md` files in
+  the tree are NOT part of S25 and must never be staged.
+
 ## 2026-06-24:13:46:00 — S24 reconstruction (script-driven function rename via Bash python3) — COMPLETE; characterization/regression LOCK, NO src change; 347 tests green
 Chat title: api-from-scenarios — S24 impl monitor → implement S24 (script-rename-functions)
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/5a3a589d-9f7d-4cdd-b8ae-15b5a955f226.jsonl
