@@ -1,4 +1,10 @@
-Create a monitoring loop that checks the `plans/` folder for when the handoff document for 'Scenario X-1' is created, which documents the implementation of 'Scenario X-1'. 
+Wait for the handoff document for 'Scenario X-1' to be created, which documents the *implementation* of 'Scenario X-1'. Use the repo-root monitoring script for this — do not hand-roll a loop:
+
+```
+./monitor-handoff.sh <X-1> impl
+```
+
+Substitute `<X-1>` with the previous scenario's token (e.g. if your X is `s27`, run `./monitor-handoff.sh s26 impl`). The script blocks and exits 0 only when the Implementing agent's completion handoff for 'Scenario X-1' has landed, printing its path. Run it as a Monitor task with a timeout (e.g. 1h).
 
 The agent creating the handoff document for you hasn't finished/launched yet, so wait for the monitor to notify you that your specific 'Scenario X-1' handoff document is ready.
 
@@ -23,6 +29,6 @@ If the monitor shuts off or exits due to timing out and you haven't received the
 
 Include 'create handoff' in your task list for the next agent, who will implement the plan you create. 
 
-When you write the handoff, put 'MUST READ: plans/script-handling.txt' at the top.
+When you write the handoff, put 'MUST READ: plans/script-handling.txt' near the top, after the header of the handoff tmeplate.
 
 Don't write a summary to me after you create the handoff, just provide the path to the handoff, as the skill specifies. 

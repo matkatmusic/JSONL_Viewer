@@ -1,6 +1,13 @@
 Read everything in `~/.claude/guides/`
-Then, create a monitoring loop that checks the `plans/` folder for when the Handoff document for 'Scenario X' is created.  
-**Do not begin implementing** the plan file for 'Scenario X' when the plan lands.  Wait for the handoff document that is specifically.  The plan file always lands before the handoff.
+Then wait for the Handoff document for 'Scenario X' to be created. Use the repo-root monitoring script for this — do not hand-roll a loop:
+
+```
+./monitor-handoff.sh <X> plan
+```
+
+Substitute `<X>` with your scenario's token (e.g. if your X is `s27`, run `./monitor-handoff.sh s27 plan`). The script blocks and exits 0 only when the Planning agent's handoff for 'Scenario X' (the one that tells you to IMPLEMENT it) has landed, printing its path. Run it as a Monitor task with a timeout (e.g. 1h).
+
+**Do not begin implementing** the plan file for 'Scenario X' when the plan lands.  Wait for the handoff document, which the script detects.  The plan file always lands before the handoff.
 
 The agent creating the 'Scenario X' plan for you hasn't finished/launched yet, so wait for the monitor to notify you that your specific Handoff document is ready. 
 
@@ -17,7 +24,7 @@ The scenario you're implementing engine handling for is here: `/Users/matkatmusi
 
 When the implementation of the handling of 'Scenario X' is finished, write a handoff doc using the '/jot:handoff-prompt' skill.
 
-When you write the handoff, put 'MUST READ: plans/script-handling.txt' at the top.
+When you write the handoff, put 'MUST READ: plans/script-handling.txt' near the top, after the header of the handoff tmeplate.
 
 Include 'create handoff' in your task list, once you start implementing the plan for 'Scenario X'.
 
