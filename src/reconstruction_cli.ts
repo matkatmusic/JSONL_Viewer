@@ -186,10 +186,10 @@ function renderOneBranch(
 export function runCli(argv: string[]): string {
     const options = parseArgs(argv);
     const records = loadTranscript(options.jsonlPath);
-    if (options.graphConvo || options.graphFile) {
-        return renderGraphs(records, { convo: options.graphConvo, file: options.graphFile });
-    }
     const reader = buildSidecarReader(records);
+    if (options.graphConvo || options.graphFile) {
+        return renderGraphs(records, { convo: options.graphConvo, file: options.graphFile }, reader);
+    }
     const branched = reconstructBranches(records, reader);
     if (options.listBranches) {
         return renderBranchSummary(branched);

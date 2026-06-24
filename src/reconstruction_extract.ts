@@ -21,6 +21,7 @@ import type {
     RenameInfo,
     WriteEvent,
 } from "./reconstruction_engine.ts";
+import { userEditEventFrom } from "./reconstruction_user_edit.ts";
 
 // Turn a Write tool_use into a write event (file_path/content live in its input).
 function writeEventFrom(block: ToolUseBlock, timestamp: Date): WriteEvent {
@@ -186,6 +187,10 @@ function collectEventsFromRecord(
         if (event) {
             events.push(event);
         }
+    }
+    const userEdit = userEditEventFrom(record);
+    if (userEdit) {
+        events.push(userEdit);
     }
 }
 

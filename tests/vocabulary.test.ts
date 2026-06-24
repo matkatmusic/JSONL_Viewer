@@ -5,6 +5,7 @@ import {
     BlockType,
     ToolName,
     AttachmentPayloadType,
+    EventKind,
     ENVELOPE_ID_KEYS,
     ENVELOPE_KEYS,
 } from "../src/structures/vocabulary.ts";
@@ -51,17 +52,36 @@ test("test_tool_name_enum_holds_the_observed_wire_strings", () => {
 
 test("test_attachment_payload_type_enum_holds_the_observed_wire_strings", () => {
     // Scenario: AttachmentPayloadType's member values are the payload kinds seen
-    // so far — the 6 from s1 plus the 3 added by s2-move-file.
+    // so far — the 6 from s1, the 3 added by s2-move-file, and edited_text_file
+    // added by s15-user-edit-then-conv-rewind.
     assert.deepEqual(Object.values(AttachmentPayloadType).sort(), [
         "agent_listing_delta",
         "deferred_tools_delta",
         "diagnostics",
+        "edited_text_file",
         "hook_additional_context",
         "hook_success",
         "hook_system_message",
         "opened_file_in_ide",
         "skill_listing",
         "task_reminder",
+    ]);
+});
+
+test("test_event_kind_enum_holds_the_observed_wire_strings", () => {
+    // Scenario: EventKind's member values are the engine's evidence kinds seen so
+    // far — write/delete (s1), edit/rename (s2), copy (s3), overwrite (s4),
+    // append (s5), plus user-edit added by s15-user-edit-then-conv-rewind (a
+    // user's out-of-band disk edit, captured as an edited_text_file attachment).
+    assert.deepEqual(Object.values(EventKind).sort(), [
+        "append",
+        "copy",
+        "delete",
+        "edit",
+        "overwrite",
+        "rename",
+        "user-edit",
+        "write",
     ]);
 });
 

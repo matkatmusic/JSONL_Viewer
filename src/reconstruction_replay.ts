@@ -20,6 +20,7 @@ import type {
     FileRevision,
     OverwriteEvent,
     RenameEvent,
+    UserEditEvent,
     WriteEvent,
 } from "./reconstruction_engine.ts";
 
@@ -92,6 +93,46 @@ function copyRevision(event: CopyEvent): FileRevision {
     };
 }
 
+// A user's out-of-band edit: a wholesale full-content revision (the snippet carried the entire post-edit
+// file). Like an overwrite it replaces all content — every line genesis — but keeps the `user-edit` kind
+// so the render attributes it to the user, not an agent write.
+function userEditRevision(event: UserEditEvent): FileRevision {
+    const lines = splitLines(event.content).map((line) =>
+        genesisLine(line, event.timestamp),
+    );
+    return {
+        kind: EventKind.userEdit,
+        changeId: event.changeId,
+        timestamp: event.timestamp,
+        lines,
+    };
+}
+
+// The believed current text of a file: the latest value of each line in its last revision.
+function currentText(revisions: FileRevision[]): string[] {
+    return lastLinesOf(revisions).map(
+        (entry) => entry.values[entry.values.length - 1]!.line,
+    );
+}
+
+// Whether a user edit actually changes the file: true when the file is absent, or the snippet's lines
+// differ from the file's current lines. An `edited_text_file` attachment is the IDE echoing a file's
+// content whenever it is written OR read, so a snapshot that matches the current content records NO
+// change and is dropped — the goal is to reconstruct every real change, not to log redundant snapshots
+// (an agent-write echo in s5/s13 matches disk; a genuine user edit in s15 differs). See
+// plans/s15/s15-reconstruction-plan.md.
+function userEditChangesContent(event: UserEditEvent, revisions: FileRevision[]): boolean {
+    if (!fileIsPresent(revisions)) {
+        return true;
+    }
+    const current = currentText(revisions);
+    const next = splitLines(event.content);
+    if (current.length !== next.length) {
+        return true;
+    }
+    return current.some((line, index) => line !== next[index]);
+}
+
 function appendRevisionsForEvent(
     event: FileEvent,
     revisions: FileRevision[],
@@ -122,6 +163,12 @@ function appendRevisionsForEvent(
     }
     if (event.kind === EventKind.append) {
         revisions.push(appendRevision(event, revisions, fileIsPresent(revisions)));
+        return;
+    }
+    if (event.kind === EventKind.userEdit) {
+        if (userEditChangesContent(event, revisions)) {
+            revisions.push(userEditRevision(event));
+        }
         return;
     }
     throw new UnsupportedEventKindError((event as { kind: string }).kind);

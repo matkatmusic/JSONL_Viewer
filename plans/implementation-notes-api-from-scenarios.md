@@ -1,3 +1,29 @@
+## 2026-06-23:19:12:00 — S15 reconstruction (user out-of-band edit then conv-only rewind) — COMPLETE (corrected a plan defect; 197 tests green)
+Chat title: api-from-scenarios — S15 handoff monitor → implement S15 (user-edit-then-conv-rewind)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/4a8f2643-0dae-45b6-9c02-eef26c555235.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s15/s15-reconstruction-plan.md (the plan being executed; its regression-safety claim was wrong — see Deviations)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1855.md (S15 planning handoff that triggered this implementation)
+
+### Design decisions
+- **Implemented the plan's six edits, PLUS a content-aware guard the plan omitted.** Final state: **197 pass / 0 fail** (180 prior + 17 new: 1 vocab EventKind membership + 3 user_edit + 4 engine + 5 cli + 4 branches), `npx tsc --noEmit` clean, every file ≤ 250 lines (graph.ts 249, branches.ts 186, replay.ts 185).
+- **The user-edit family's true signal is CONTENT, per the user's directive** ("it is less important that an edit be 100% attributed to the user and more important that the change history can be reconstructed 100%"). An `edited_text_file` attachment is the IDE echoing a file's bytes whenever it is written OR read; it is a genuine change ONLY when its snapshot differs from the file's current content. So the engine records an `edited_text_file` as a `user-edit` change iff it actually changed the file — every real change in, no phantom changes.
+- **Where the guard lives (single source of truth = replay):** `reconstruction_replay.userEditChangesContent` drops a `user-edit` revision whose snapshot equals the file's current content (`fileIsPresent` + line-by-line compare). Because replay runs per branch over sidecar-filled events, this is branch-aware and reader-correct for every lineage (write/edit AND bash-redirect). This alone fixes all CONTENT views (`--surviving`/`--branch`/`renderHistoryList`).
+- **Graphs follow the same truth via an accepted-set:** `reconstruction_branches.collectAcceptedUserEditIds(records, reader)` reconstructs every branch and collects the changeIds of `user-edit` revisions that SURVIVED replay; `extractRenderableEvents(records, accepted)` filters the graph's events so a redundant echo never becomes a fileDAG/conversationDAG turn. The CLI now passes its sidecar reader into `renderGraphs` (reader built before the graph dispatch) so the file graph is content-correct even for the bash-redirect lineage (S5).
+
+### Deviations
+- **The plan's central regression-safety claim was FALSE; I corrected it.** Plan §"Regression safety" asserted `edited_text_file` "appears for the first time in S15." A grep shows it in **S5 and S13** (both implemented/locked) and 9 future scenarios. The plan author validated only S15 (prototype reverted), so the full-suite regression was never seen. Unconditional extraction therefore emitted phantom `user-edit` turns for S5/S13. The content-aware guard above is the fix; the plan's six edits are all still present (the guard is additive). The user explicitly authorized building the correct solution against the S1–S15 datasets.
+- **Added a new `EventKind` membership test** to `tests/vocabulary.test.ts` — the plan said to extend an existing one, but none existed; this realizes the plan's intent.
+- **Added `tests/reconstruction_branches.test.ts`** (4 tests) covering the new `collectAcceptedUserEditIds`/`extractRenderableEvents` discriminator AND clearing the repo's per-source no-test warning for `reconstruction_branches.ts`.
+
+### Tradeoffs
+- **Content comparison vs. a structural heuristic.** The attachment shape (`userType:"external"`, `isSidechain:false`, parent type) is byte-identical between a genuine edit and a disk echo, and the echo can sit on a "Read the file" turn with no same-file tool_use — so no structural signal separates them. Content comparison is the only robust discriminator and is exactly what "reconstruct the change history 100%" wants (record a change iff content changed). Cost: the graph path now reconstructs branch content to build the accepted-set (was topology-only); contained to `buildConversationDag`/`buildFileDag`, which already had `records` and now take an optional `reader`.
+- **Validated against the real S1–S15 datasets:** every default view runs clean (exit 0); S1–S14 show ZERO `user-edit` turns (byte-unchanged), S15 shows exactly the genuine edit (the fork's rewound `user-edit` turn + its fileDAG turn). S5's previously-latent phantom fileDAG turn is also gone now that the graph gets a reader.
+
+### Open questions
+- **None blocking.** Generalizes to the rest of the user-edit family (S16, S18–S23) and the M-scenarios that carry `edited_text_file` (m3/m5/m6): each such snapshot will be kept iff it changed content. NOTHING is committed — awaiting the user's review/commit (project rule: commit only when asked; one-commit-per-scenario precedent → `Implemented S15 handling`).
+
 ## 2026-06-23:18:30:00 — S14 reconstruction (multi-edit conv-only-read: the conversation-only twin of S13 — a conv-only rewind leaves the abandoned `farewell` Edit on disk, mis-routing findSurvivingHead and hiding the rewound branch; two surgical fixes route the case onto S13's already-correct path)
 Chat title: api-from-scenarios — S14 handoff monitor → implement S14 (multi-edit-conv-only-read)
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/c0d50750-e7e5-4817-a7cf-2f1d78f61cc9.jsonl

@@ -7,7 +7,10 @@
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { Path, Uuid } from "./structures/domain.ts";
 import { BranchRole, EventKind } from "./structures/vocabulary.ts";
-import { extractFileEvents } from "./reconstruction_extract.ts";
+import {
+    collectAcceptedUserEditIds,
+    extractRenderableEvents,
+} from "./reconstruction_branches.ts";
 import {
     collectSurvivingUuids,
     findConversationBranches,
@@ -16,6 +19,7 @@ import {
     type ConversationBranch,
 } from "./reconstruction_branch.ts";
 import { collectAncestorUuids } from "./reconstruction_tree.ts";
+import type { BackupReader } from "./reconstruction_sidecar.ts";
 import type { FileEvent } from "./reconstruction_engine.ts";
 
 // One file-changing turn as a graph node: its shared letter, what it did (kind/target), and the ids
@@ -77,10 +81,11 @@ function turnTarget(event: FileEvent): Path {
 }
 
 // Assign one letter per file-changing turn across ALL records, in timestamp order, starting at "B".
-// The single source of letters for both graphs (decision 7), keyed by changeId string.
-export function assignTurnLetters(records: TranscriptRecord[]): Map<string, string> {
+// The single source of letters for both graphs (decision 7), keyed by changeId string. `accepted`
+// (when given) drops redundant disk-echo user edits so letters stay contiguous over real changes.
+export function assignTurnLetters(records: TranscriptRecord[], accepted?: Set<string>): Map<string, string> {
     const letters = new Map<string, string>();
-    extractFileEvents(records).forEach((event, index) => {
+    extractRenderableEvents(records, accepted).forEach((event, index) => {
         letters.set(event.changeId.toString(), columnLabel(index + 1));
     });
     return letters;
@@ -100,11 +105,12 @@ function toGraphTurn(event: FileEvent, letters: Map<string, string>): GraphTurn 
 
 // Group every file event by the file it touched, files ordered by first touch and turns by version
 // (extractFileEvents is already timestamp-sorted). True cross-branch disk lineage (decision 9).
-export function buildFileDag(records: TranscriptRecord[]): FileDag {
-    const letters = assignTurnLetters(records);
+export function buildFileDag(records: TranscriptRecord[], reader?: BackupReader): FileDag {
+    const accepted = collectAcceptedUserEditIds(records, reader);
+    const letters = assignTurnLetters(records, accepted);
     const groups = new Map<string, GraphTurn[]>();
     const order: string[] = [];
-    for (const event of extractFileEvents(records)) {
+    for (const event of extractRenderableEvents(records, accepted)) {
         const turn = toGraphTurn(event, letters);
         const key = turn.target.toString();
         if (!groups.has(key)) {
@@ -123,12 +129,15 @@ function buildRewoundConvoBranch(
     branch: ConversationBranch,
     survivingUuids: Set<string>,
     letters: Map<string, string>,
+    accepted: Set<string>,
 ): ConvoBranch {
     const branchRecords = selectBranchRecords(records, branch.tip);
     const diverging = branchRecords.filter(
         (record) => record.uuid !== undefined && !survivingUuids.has(record.uuid.toString()),
     );
-    const turns = extractFileEvents(diverging).map((event) => toGraphTurn(event, letters));
+    const turns = extractRenderableEvents(diverging, accepted).map((event) =>
+        toGraphTurn(event, letters),
+    );
     return { role: BranchRole.rewound, tip: branch.tip, rewindPoint: branch.rewindPoint, turns };
 }
 
@@ -158,11 +167,13 @@ function buildSurvivingConvoBranch(
     rewound: ConvoBranch[],
     rootUuid: Uuid | undefined,
     letters: Map<string, string>,
+    accepted: Set<string>,
 ): ConvoBranch | undefined {
     const branchRecords = survivingBranch
         ? selectBranchRecords(records, survivingBranch.tip)
         : selectLiveBranch(records);
-    const turns = extractFileEvents(selectPostForkRecords(records, branchRecords, rewound)).map(
+    const postFork = selectPostForkRecords(records, branchRecords, rewound);
+    const turns = extractRenderableEvents(postFork, accepted).map(
         (event) => toGraphTurn(event, letters),
     );
     if (turns.length > 0) {
@@ -221,17 +232,18 @@ function resolveRootUuid(records: TranscriptRecord[], rewound: ConvoBranch[]): U
 
 // Build the conversationDAG: letter every turn, find the rewind branches, keep only those that changed
 // files, and render a linear trunk when only one branch remains or forked wrappers when more do.
-export function buildConversationDag(records: TranscriptRecord[]): ConversationDag {
-    const letters = assignTurnLetters(records);
+export function buildConversationDag(records: TranscriptRecord[], reader?: BackupReader): ConversationDag {
+    const accepted = collectAcceptedUserEditIds(records, reader);
+    const letters = assignTurnLetters(records, accepted);
     const branches = findConversationBranches(records);
     const survivingBranch = branches.find((branch) => branch.isSurviving);
     const survivingUuids = collectSurvivingUuids(records);
     const rewound = branches
         .filter((branch) => !branch.isSurviving)
-        .map((branch) => buildRewoundConvoBranch(records, branch, survivingUuids, letters))
+        .map((branch) => buildRewoundConvoBranch(records, branch, survivingUuids, letters, accepted))
         .filter((branch) => branch.turns.length > 0);
     const rootUuid = resolveRootUuid(records, rewound);
-    const surviving = buildSurvivingConvoBranch(records, survivingBranch, rewound, rootUuid, letters);
+    const surviving = buildSurvivingConvoBranch(records, survivingBranch, rewound, rootUuid, letters, accepted);
     const kept = surviving === undefined ? rewound : [surviving, ...rewound];
     return assembleDag(rootUuid, kept);
 }

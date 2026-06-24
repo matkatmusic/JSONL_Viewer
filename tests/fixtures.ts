@@ -43,3 +43,6 @@ export const S13_JSONL =
 
 export const S14_JSONL =
     "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s14-multi-edit-conv-only-read/6d632174-79b3-4c11-953f-1308a957d748.jsonl";
+
+export const S15_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s15-user-edit-then-conv-rewind/7365140d-8666-4dbf-81bc-9d92e9d6cac9.jsonl";

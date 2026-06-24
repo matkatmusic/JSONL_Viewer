@@ -126,6 +126,19 @@ export type OverwriteEvent = {
     timestamp: Date;
 };
 
+// A user's out-of-band edit to a file on disk (NOT an agent tool call): captured as an
+// `edited_text_file` attachment whose snippet carries the full post-edit content. Modeled as a
+// full-content revision (like an overwrite) but kept a distinct kind for honest provenance in the
+// render. content is the snippet's text with its `<n>\t` line-number prefixes stripped. See
+// plans/s15/s15-reconstruction-plan.md.
+export type UserEditEvent = {
+    kind: EventKind.userEdit;
+    changeId: Uuid;
+    target: Path;
+    content: string;
+    timestamp: Date;
+};
+
 export type FileEvent =
     | WriteEvent
     | DeleteEvent
@@ -133,7 +146,8 @@ export type FileEvent =
     | RenameEvent
     | CopyEvent
     | AppendEvent
-    | OverwriteEvent;
+    | OverwriteEvent
+    | UserEditEvent;
 
 // --- Reconstruction: the public API ------------------------------------------
 

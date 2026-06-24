@@ -10,6 +10,7 @@ import type { Path } from "./structures/domain.ts";
 import { EventKind } from "./structures/vocabulary.ts";
 import { extractFileEvents } from "./reconstruction_extract.ts";
 import { replayEvents } from "./reconstruction_replay.ts";
+import { findConversationBranches, selectBranchRecords } from "./reconstruction_branch.ts";
 import { fillRedirectContent, seedEditBaseFromBackup } from "./reconstruction_sidecar.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
 import {
@@ -118,4 +119,60 @@ export function reconstructFilesOver(
         target,
         revisions: reconstructFileOver(records, target, new Set<string>(), reader),
     }));
+}
+
+// The changeIds of every user edit that ACTUALLY changed a file, across all conversation branches. A
+// user edit's revision survives replay only when its snapshot differs from the file's current content
+// (reconstruction_replay.userEditChangesContent), so a redundant disk-echo snapshot — the IDE echoes an
+// `edited_text_file` whenever a file is written or read — leaves no revision and is absent here. The
+// graph views consult this to drop echo turns while keeping genuine user-edit turns, so every view
+// agrees on which user edits are real changes. Branch-aware: a snapshot is judged against ITS OWN
+// branch's content (s13's echo matches the read branch's restored content, not the cross-branch mix).
+export function collectAcceptedUserEditIds(
+    records: TranscriptRecord[],
+    reader?: BackupReader,
+): Set<string> {
+    const accepted = new Set<string>();
+    for (const branch of findConversationBranches(records)) {
+        const branchRecords = selectBranchRecords(records, branch.tip);
+        addBranchUserEditIds(reconstructFilesOver(branchRecords, reader), accepted);
+    }
+    return accepted;
+}
+
+// The changeIds of the surviving user-edit revisions in one branch's reconstructed histories.
+function userEditIdsOf(history: FileHistory): string[] {
+    return history.revisions
+        .filter((revision) => revision.kind === EventKind.userEdit)
+        .map((revision) => revision.changeId.toString());
+}
+
+// Add every branch history's surviving user-edit changeId into the accumulating accepted set.
+function addBranchUserEditIds(histories: FileHistory[], accepted: Set<string>): void {
+    for (const id of histories.flatMap(userEditIdsOf)) {
+        accepted.add(id);
+    }
+}
+
+// Whether a file event should appear in a rendered view: every non-user-edit event always does; a
+// user-edit event does only when it actually changed content (its changeId is in the accepted set).
+export function isRenderableEvent(event: FileEvent, accepted: Set<string>): boolean {
+    if (event.kind !== EventKind.userEdit) {
+        return true;
+    }
+    return accepted.has(event.changeId.toString());
+}
+
+// The transcript's file events filtered to those a view should render: drops redundant disk-echo user
+// edits (an `edited_text_file` snapshot that changed nothing). `accepted` comes from
+// collectAcceptedUserEditIds; pass undefined to keep every event (an unfiltered letter pass).
+export function extractRenderableEvents(
+    records: TranscriptRecord[],
+    accepted?: Set<string>,
+): FileEvent[] {
+    const events = extractFileEvents(records);
+    if (accepted === undefined) {
+        return events;
+    }
+    return events.filter((event) => isRenderableEvent(event, accepted));
 }

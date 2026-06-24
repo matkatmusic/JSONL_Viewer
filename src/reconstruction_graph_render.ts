@@ -5,6 +5,7 @@
 
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import type { Uuid } from "./structures/domain.ts";
+import type { BackupReader } from "./reconstruction_sidecar.ts";
 import { shortUuid } from "./reconstruction_branch.ts";
 import { getBaseName, shortenChangeId } from "./reconstruction_labels.ts";
 import {
@@ -121,13 +122,14 @@ export function renderFileDag(dag: FileDag): string {
 export function renderGraphs(
     records: TranscriptRecord[],
     show: { convo: boolean; file: boolean },
+    reader?: BackupReader,
 ): string {
     const parts: string[] = [];
     if (show.convo) {
-        parts.push(renderConversationDag(buildConversationDag(records)));
+        parts.push(renderConversationDag(buildConversationDag(records, reader)));
     }
     if (show.file) {
-        parts.push(renderFileDag(buildFileDag(records)));
+        parts.push(renderFileDag(buildFileDag(records, reader)));
     }
     return parts.join("\n\n");
 }

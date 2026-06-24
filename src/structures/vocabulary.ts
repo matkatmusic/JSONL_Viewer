@@ -43,8 +43,10 @@ export enum ToolName {
 }
 
 // Attachment payload kinds observed across scenarios: 6 in s1; s2-move-file adds
-// opened_file_in_ide, task_reminder, diagnostics. Modeled as discriminant only;
-// per-kind payload fields are deferred.
+// opened_file_in_ide, task_reminder, diagnostics; s15-user-edit-then-conv-rewind
+// adds edited_text_file (a user's out-of-band disk edit, snippet = full post-edit
+// content in `cat -n` form). Modeled as discriminant only; per-kind payload fields
+// are deferred (edited_text_file's filename/snippet are read via getAttachmentEntry).
 export enum AttachmentPayloadType {
     hook_success = "hook_success",
     hook_system_message = "hook_system_message",
@@ -55,6 +57,7 @@ export enum AttachmentPayloadType {
     opened_file_in_ide = "opened_file_in_ide",
     task_reminder = "task_reminder",
     diagnostics = "diagnostics",
+    edited_text_file = "edited_text_file",
 }
 
 export const ATTACHMENT_PAYLOAD_TYPES: AttachmentPayloadType[] =
@@ -92,7 +95,9 @@ export const ENVELOPE_KEYS = [
 // delete (Bash rm). s2-move-file adds edit (in-place splice) and rename (Bash
 // mv). s3-copy-file adds copy (Bash cp). s4-overwrite-file adds overwrite (a
 // second Write to a present file). s5-bash-redirect adds append (a >> redirect to
-// a present file). Later scenarios add read, etc.
+// a present file). s15-user-edit-then-conv-rewind adds user-edit (a user's
+// out-of-band disk edit, captured as an edited_text_file attachment, replayed as a
+// full-content revision like overwrite). Later scenarios add read, etc.
 export enum EventKind {
     write = "write",
     delete = "delete",
@@ -101,6 +106,7 @@ export enum EventKind {
     copy = "copy",
     overwrite = "overwrite",
     append = "append",
+    userEdit = "user-edit",
 }
 
 // The role a conversation branch plays in the two-DAG render (s12-write-conv-only-rewrite). The

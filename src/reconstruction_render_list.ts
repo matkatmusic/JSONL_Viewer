@@ -37,6 +37,9 @@ function getEntryLabel(kind: EventKind): string {
     if (kind === EventKind.append) {
         return "append";
     }
+    if (kind === EventKind.userEdit) {
+        return "user-edit";
+    }
     return "delete";
 }
 
