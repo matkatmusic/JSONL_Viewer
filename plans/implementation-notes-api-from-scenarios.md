@@ -1,3 +1,78 @@
+## 2026-06-24:13:46:00 — S24 reconstruction (script-driven function rename via Bash python3) — COMPLETE; characterization/regression LOCK, NO src change; 347 tests green
+Chat title: api-from-scenarios — S24 impl monitor → implement S24 (script-rename-functions)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/5a3a589d-9f7d-4cdd-b8ae-15b5a955f226.jsonl
+
+### References
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s24/s24-reconstruction-plan.md
+- Planning handoff: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s24/handoff-api-from-scenarios-20260624-1330.md
+- Scenario script: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/s24-script-rename-functions.txt
+- Executed output (JSONL + rendered): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s24-script-rename-functions/
+- Sibling HAS-BEACON rule (APPROVED): /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/{spec,plan,tasks}-script-execution-replay.md
+
+### What S24 is
+A tracked file `order_utils.py` is rewritten by an EXTERNAL `python3 rename_funcs.py` run through the
+Bash tool — NOT by Claude's Edit/Write tools (the scenario forbids it). The ladder: Write
+`order_utils.py` (149 lines, terse names) → Edit +`validate_items` → Edit +`order_line` → Write
+`rename_funcs.py` + run it TWICE with `python3` (whole-word `def` rename calc_tot→calculate_total,
+fmt_money→format_currency, chk_stock→check_stock, mk_order→build_order, apply_disc→apply_discount) →
+Edit +`print_receipt` → Edit +`apply_loyalty`. `order_utils.py` reconstructs as SIX revisions
+[write, edit, edit, userEdit, edit, edit] ending at the 234-line / 6478-char ground truth, byte-
+identical to `scenarios/executed/s24-script-rename-functions/order_utils.py`.
+
+### Why no engine change (the reference map I CITED, did NOT modify)
+- `src/reconstruction_user_edit.ts` `userEditEventFrom` / `stripLineNumberPrefixes` — reads the
+  `attachment.type === edited_text_file` beacon; changeId = `entry.uuid` (→ `859347d2…`, a message
+  UUID, not a `toolu_` id); content = the snippet with `N\t` cat-n prefixes stripped.
+- `src/reconstruction_extract.ts` `collectEventsFromRecord` / `extractFileEvents` — injects the
+  user-edit among tool events, sorted by timestamp. The two `python3` Bash runs yield no tool_use
+  file op, so they add nothing.
+- `src/reconstruction_replay.ts` `userEditChangesContent` / `userEditRevision` — records the beacon as
+  the rev3 `user-edit` ONLY because the renamed content differs from the current (terse) belief.
+- `src/reconstruction_replay_edit.ts` `applyEdit` (+ `editBaseIsStale` / `seedStaleEditBases` INERT) —
+  H/I's recorded Edit base already matches the renamed belief, so they splice cleanly and the S19/S23
+  reseed does NOT fire (six revisions, not seven).
+
+### The HAS-BEACON rule
+S24 is the clean-room HAS-BEACON case of the sibling RevEng "Script-Execution-as-Authored-Event" work.
+That forward-validation engine exists ONLY for NO-BEACON files (no post-script observation): find the
+beacon, rewind observed edits in `(T_exec, beacon]` to get the immediate post-script state, then check
+`forward(pre-script) == that state`. S24 never reaches that path: its beacon (the `edited_text_file`
+attachment at 20:12:44.611) lands with ZERO intervening edits before it (the Read is 20:12:55, Edit H
+is 20:13:03 — both after), so the immediate post-script state is DIRECTLY OBSERVED. The
+`api-from-scenarios` engine adopts the beacon as the rev3 user-edit — no transform, no forward-
+validation, no `src/` change. I did NOT port the RevEng replay feature — that would be over-
+engineering for a file that already has observed truth.
+
+### RED→GREEN liveness (ran, then reverted)
+- Engine Test 2: changeId `859347d2…` → `deadbeef…` ⇒ RED (4 pass / 1 fail), restored 5/5.
+- Engine Test 4: poison-reader assertion flipped to `.includes("POISONED")` ⇒ RED (4/1), restored 5/5.
+- Engine Test 5: one-char change to the 234-line `S24_FINAL` literal ⇒ RED (4/1), restored 5/5.
+- CLI Test 1/2: `#859347d2` → `#deadbeef` ⇒ RED (3 pass / 2 fail), restored 5/5.
+- CLI Test 4/5: `def calculate_total(` → `def calculate_TOTAL(` ⇒ RED (3/2), restored 5/5.
+
+### Tradeoffs
+- Engine tests are reader-FREE (mirroring s22) with a POISON-reader guard (a `BackupReader` returning
+  garbage, proven ignored) — this is the regression guard for S24's reader-independence, stronger than
+  comparing two real runs. CLI tests use the REAL sidecar reader (mirroring m3/m7) — harmless here
+  because S24 is reader-independent.
+- The whole-word terse-name check matches `def <name>(` headers, never bare substrings: `apply_disc`
+  is a substring of `apply_discount`, so a naive substring check reports a phantom match.
+
+### Deviations
+- Plan §6 CLI Test 4/5 asserted the terse `def` headers are ABSENT from the whole `--surviving
+  --verbose` dump. That is incorrect: verbose renders EVERY revision (each file section `### <path>`
+  with all its revisions), so the terse headers legitimately appear in the early pre-rename revision
+  blocks (rev0/1/2). I scoped the "terse absent / renamed present" assertion to the FINAL revision-5
+  block (isolated from the unique `revision 5  @` header up to the next `\n### ` file section), which
+  is where "terse gone" is genuinely true. The positive renamed-header assertions and the six-revision
+  count lock are unchanged. NO `src/` change resulted — this was a test-design correction only. The
+  exact-final-byte lock still lives in engine Test 5 (234 lines / 6478 chars / no terse).
+
+### Open questions
+- None blocking. S24 appears to be the LAST currently-defined scenario (no `s25-*` / `m8-*` in
+  `scenarios/`). Commit is gated on explicit user approval (one commit per scenario; never `git add
+  -A`; the pre-existing `src/Plan_Impl_template.md` modification is left OUT of the S24 stage).
+
 ## 2026-06-24:10:05:00 — m7 reconstruction (conversation-only rewind, no user edits) — COMPLETE; characterization/regression LOCK, NO src change; 337 tests green
 Chat title: api-from-scenarios — m7 impl monitor → implement m7 (conv-rewind-no-user-edits)
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/7fb776ae-90c5-443b-8bbd-a5b8072e51a1.jsonl

@@ -321,6 +321,26 @@ The engine is split by concern, one paired test each (files kept well under the
   where S17 was not. Reader-ASYMMETRIC: the surviving branch needs a `BackupReader` (without it step2
   collapses and the file is 2 corrupted revisions), the rewound branch does not — first scenario
   split that way.
+  S24 (`s24-script-rename-functions`) is the FIRST script-driven trigger of the `edited_text_file`
+  disk-echo path (the S15 user-edit family). One source file `order_utils.py` is written with terse
+  function names, edited twice, then rewritten by an EXTERNAL `python3 rename_funcs.py` run through
+  the Bash tool (a whole-word `def` rename) — NOT by Edit/Write — and edited twice more on the renamed
+  base. The two `python3` Bash runs are OPAQUE: unlike m3's `>>` redirects they are NOT parsed as file
+  ops and emit ZERO file events. What carries the rename is a BEACON: the harness auto-snapshots the
+  changed file immediately after the script run as an `edited_text_file` attachment (uuid
+  `859347d2…`), which `userEditEventFrom` turns into a `user-edit` event (changeId = the message uuid,
+  content = `stripLineNumberPrefixes(snippet)`); `userEditChangesContent` records it as the rev3
+  revision because the renamed content differs from the prior terse belief, and `userEditRevision`
+  emits it. The later Edits replay on the renamed base (their recorded `originalFile` already shows the
+  renamed disk), so `editBaseIsStale`/`seedStaleEditBases` stay INERT (six revisions, not seven).
+  Reader-INDEPENDENT — the renamed content is in the in-JSONL attachment snippet, never a file-history
+  backup (locked with a poison reader that returns garbage and is provably ignored). This is the
+  clean-room HAS-BEACON case of the sibling RevEng "Script-Execution-as-Authored-Event" rule (APPROVED
+  `…/RevEng/plans/{spec,plan,tasks}-script-execution-replay.md`): a beacon exists with ZERO intervening
+  edits between the script run and the snapshot, so the immediate post-script state is DIRECTLY
+  OBSERVED — the engine adopts the beacon as the post-script revision and needs NO script-execution
+  replay or forward-validation (that machinery is only for NO-BEACON files). No engine change — it is
+  LOCKED, not fixed. Linear: one surviving branch (tip #fba814f7), no rewound branch.
 - `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
   resolver of a path to an absolute string against the transcript `cwd` (idempotent for
   already-absolute paths). A leaf module (imports only node `path`) shared by extraction

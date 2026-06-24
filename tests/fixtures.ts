@@ -91,3 +91,6 @@ export const M6_JSONL =
 
 export const M7_JSONL =
     "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m7-conv-rewind-no-user-edits/725204e2-8678-4c45-82d0-262557bff0ad.jsonl";
+
+export const S24_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s24-script-rename-functions/c46c3db9-b5ac-4c20-adf8-9f33caa8359c.jsonl";
