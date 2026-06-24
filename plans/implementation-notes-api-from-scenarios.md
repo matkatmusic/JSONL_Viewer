@@ -1,3 +1,28 @@
+## 2026-06-23:22:08:00 — S21 reconstruction (multiple interleaved user edits, no rewind) — COMPLETE; characterization/regression LOCK, no production-code change; 251 tests green
+Chat title: api-from-scenarios — S21 impl monitor → implement S21 (multiple-user-edits)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/caa8005d-217f-4064-9949-e313b604bc33.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s21/s21-reconstruction-plan.md (THE authoritative plan executed)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-2200.md (S21 handoff that gated this implementation)
+- plans/s18/… and plans/s20/… (the no-rewind user-edit + reseed-dormancy twins)
+
+### Design decisions
+- NO `src/` change. The S19+S20 engine already reconstructs S21 byte-identically: S15's `userEditChangesContent` records all three user edits (D/F/H), and S19's `editBaseIsStale` is false for the aligned edits E/G so `seedStaleEditBases` never fires.
+- Added `S21_JSONL` fixture + `tests/reconstruction_engine_s21.test.ts` (4) + `tests/reconstruction_cli_s21.test.ts` (5).
+- Key lock: the 6-revision alternating-kind test + the "three user-edits among two edits and two writes" extraction test prove the multi-user-edit interleaving and the reseed dormancy.
+
+### Deviations
+- Dropped the unused `reconstructAll` import from the engine test (the plan's verbatim block copied it from the S18 template, which DOES call it; the S21 tests use only `reconstructBranches`). Removed to keep the file free of dead code; tsc stays clean either way (project sets `strict` but not `noUnusedLocals`).
+- CLI whitespace was re-captured live before finalizing — every asserted substring matched the plan verbatim; no string edits needed.
+- `git diff src/` is NOT empty, but the only change is `src/Plan_Impl_template.md` (a markdown orchestration template) — a PRE-EXISTING uncommitted edit unrelated to S21, not touched by this work. No `src/*.ts` source changed, so the S21 "no engine change" gate holds. The template is NOT part of the S21 commit (staging is the 7 listed files only).
+
+### Tradeoffs
+- Engine tests use NO BackupReader (user-edit content is self-contained in the JSONL attachment), unlike S20 which supplied an in-memory reader to keep the reseed path active.
+
+### Open questions
+- None blocking.
+
 ## 2026-06-23:21:50:00 — S20 reconstruction (multi-edit user-edit then CODE rewind, then a post-rewind RE-EDIT) — COMPLETE as a characterization/regression lock; NO production-code change; 242 tests green
 Chat title: api-from-scenarios — S20 impl monitor → implement S20 (user-edit-code-rewind)
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/19d63a17-b3be-471b-ae3b-3564955ad4cc.jsonl

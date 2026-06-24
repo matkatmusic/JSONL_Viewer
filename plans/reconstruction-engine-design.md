@@ -191,6 +191,12 @@ The engine is split by concern, one paired test each (files kept well under the
   so the surviving base is too short and the S19 backup reseed must fire.) S20 is the first
   scenario carrying a `user-edit` on BOTH branches (the real human edit on the rewound branch,
   the code-rewind restore echo on the surviving branch).
+  S21 (`s21-multiple-user-edits`) locks the multi-user-edit linear case: three out-of-band
+  `edited_text_file` user edits interleaved with two Claude edits on one no-rewind branch.
+  `userEditChangesContent` records each (all three change content); because no rewind advances the
+  disk off-branch, every edit base is aligned and `editBaseIsStale` is false, so `seedStaleEditBases`
+  stays inert. Confirms a Claude edit may anchor on content a prior user edit produced, and that a
+  prepending user edit re-numbers later lines without loss. No code change; characterization only.
 - `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
   resolver of a path to an absolute string against the transcript `cwd` (idempotent for
   already-absolute paths). A leaf module (imports only node `path`) shared by extraction
