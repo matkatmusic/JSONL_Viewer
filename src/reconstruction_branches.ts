@@ -10,14 +10,10 @@ import type { Path } from "./structures/domain.ts";
 import { EventKind } from "./structures/vocabulary.ts";
 import { extractFileEvents } from "./reconstruction_extract.ts";
 import { replayEvents } from "./reconstruction_replay.ts";
-import { lastLinesOf } from "./reconstruction_replay_edit.ts";
 import { findConversationBranches, selectBranchRecords } from "./reconstruction_branch.ts";
-import {
-    backupSeedWriteFor,
-    fillRedirectContent,
-    seedEditBaseFromBackup,
-} from "./reconstruction_sidecar.ts";
+import { fillRedirectContent, seedEditBaseFromBackup } from "./reconstruction_sidecar.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
+import { completeTruncatedBeacon, seedStaleEditBases } from "./reconstruction_reseed.ts";
 import {
     buildRenameChain,
     distinctFinalPaths,
@@ -26,11 +22,9 @@ import {
 } from "./reconstruction_lineage.ts";
 import type {
     CopyEvent,
-    EditEvent,
     FileEvent,
     FileHistory,
     FileRevision,
-    WriteEvent,
 } from "./reconstruction_engine.ts";
 
 // The branch-agnostic core: reconstruct one file's history over EXACTLY the records given (no branch
@@ -54,71 +48,8 @@ export function reconstructFileOver(
     const filled = reader ? fillRedirectContent(records, seeded, reader) : seeded;
     const based = reader ? seedEditBaseFromBackup(records, filled, reader) : filled;
     const restaged = reader ? seedStaleEditBases(records, based, reader) : based;
-    return replayEvents(restaged);
-}
-
-// The reconstructed base text (each line's latest value) the events before an edit produce.
-function reconstructedBaseText(priorEvents: FileEvent[]): string[] {
-    return lastLinesOf(replayEvents(priorEvents)).map(
-        (entry) => entry.values[entry.values.length - 1]!.line,
-    );
-}
-
-// Whether an edit's first hunk references base content the events before it did NOT reconstruct: each
-// context/removed line must equal the base line at its position; a mismatch — or a position past the
-// base — means the hunk splices onto wrong lines, so the base is reseeded from the backup. Generalises
-// s19 (base too SHORT) to s23 (a user edit absorbed only into the post-code-rewind backup; same length).
-function editBaseIsStale(event: EditEvent, priorEvents: FileEvent[]): boolean {
-    const firstHunk = event.hunks[0];
-    if (firstHunk === undefined) {
-        return false;
-    }
-    const base = reconstructedBaseText(priorEvents);
-    let index = firstHunk.oldStart - 1;
-    for (const line of firstHunk.lines) {
-        if (line.startsWith("+")) {
-            continue;
-        }
-        if (index >= base.length || base[index] !== line.slice(1)) {
-            return true;
-        }
-        index += 1;
-    }
-    return false;
-}
-
-// The synthetic backup-seed Write to splice before `event`, or undefined when its base is intact (the
-// common case — every edit whose reconstructed base already matches the disk it was computed against).
-function staleEditSeedFor(
-    records: TranscriptRecord[],
-    event: FileEvent,
-    priorEvents: FileEvent[],
-    reader: BackupReader,
-): WriteEvent | undefined {
-    if (event.kind !== EventKind.edit || !editBaseIsStale(event, priorEvents)) {
-        return undefined;
-    }
-    return backupSeedWriteFor(records, event.target, event.timestamp, reader, true);
-}
-
-// Generalises spec 39's edit-base seeding to MID-stream edits: walk the lineage and, before each edit
-// whose base is stale (off-branch changes persisted across a rewind — s19), splice the synthetic
-// backup-seed Write so the hunk's context lands on the real pre-edit disk content. Edits whose base is
-// intact pass through unchanged, so every pre-s19 scenario is byte-for-byte unaffected.
-function seedStaleEditBases(
-    records: TranscriptRecord[],
-    lineage: FileEvent[],
-    reader: BackupReader,
-): FileEvent[] {
-    const result: FileEvent[] = [];
-    for (const event of lineage) {
-        const seed = staleEditSeedFor(records, event, result, reader);
-        if (seed) {
-            result.push(seed);
-        }
-        result.push(event);
-    }
-    return result;
+    const completed = reader ? completeTruncatedBeacon(records, restaged, reader) : restaged;
+    return replayEvents(completed);
 }
 
 // Fill each copy event's seedLines from its source; pass other events through.

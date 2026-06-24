@@ -1,3 +1,103 @@
+## 2026-06-24:16:10:00 — S27 reconstruction (script rename EDITED BEFORE RUN + TERMINAL TRUNCATED BEACON) — COMPLETE; REAL ENGINE FIX (first since S19/S23/m6), reader-dependent; 384 tests green
+Chat title: api-from-scenarios — S27 impl (/impl-scenario 27) → implement S27 (script-rename-edited-before-run)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/c640dd17-a9c5-4fe2-bf93-8ef7b736debc.jsonl
+
+### References
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt (HAS-BEACON vs NO-BEACON premise; S27 extends it to the TERMINAL truncated beacon)
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s27/s27-reconstruction-plan.md
+- Handoff (in): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s27/handoff-api-from-scenarios-20260624-1540.md
+- S25 LOCK this generalises (incomplete beacon RESCUED by a downstream Edit): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s25/s25-reconstruction-plan.md
+- Scenario: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/s27-script-rename-edited-before-run.txt
+- Executed output: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s27-script-rename-edited-before-run/
+
+### What S27 is
+A single `python3 rename_inv.py` Bash run rewrites TWO tracked sources (`inventory.py`,
+`tests/test_inventory.py`) with three whole-word renames (`qty_chk→check_quantity`,
+`add_item→insert_item`, `rm_item→remove_item`). The scenario-naming twist: `rename_inv.py` is WRITTEN
+then EDITED TWICE (the renames accrue across three script revisions) BEFORE the single run, and
+`inventory.py` gets one more Edit (`restock`) AFTER. The rename surfaces via TWO `edited_text_file`
+beacons (uuids `a39c4731…` inventory / `51c639d6…` test_inventory); the `python3` run itself is opaque
+(ZERO file events, the m3 contrast). Linear — one surviving branch (tip #7e94e313), three files, no
+rewound branch.
+
+### Why S27 needed a REAL engine fix — the terminal-truncated-beacon gap
+`tests/test_inventory.py`'s post-script beacon is TRUNCATED: a 50-line PREFIX of the true 73-line file
+(it cuts off after `test_tot_value_empty_store_is_zero`, dropping the last four `test_tot_value_*`
+functions), AND it is the file's LAST event — there is NO downstream Edit to reseed against. The engine
+adopts a terminal user-edit beacon verbatim (`reconstruction_replay.userEditRevision`), so the file
+reconstructs SHORT by 23 lines / 621 bytes (1594 vs 2215). The existing backup machinery cannot help:
+`seedEditBaseFromBackup` fires only for Edit-FIRST files, and `seedStaleEditBases` reseeds the base of a
+downstream Edit — but there is none here. This is a genuinely NEW failure mode distinct from S25 (whose
+incomplete `geo_report` beacon was RESCUED by its downstream `totals` Edit).
+
+### The fix (src/ — first change since S19/S23/m6)
+Reader-only event-list transform, appended as a new pipeline stage in `reconstructFileOver` after
+`seedStaleEditBases` (both behind the existing `reader ?` guard):
+- `src/reconstruction_sidecar.ts` (+25, 198→230): new `latestBackupWriteFor(records, target, reader)` —
+  a synthetic Write from the file's LATEST non-null file-history backup (highest version). Picking the
+  newest non-null point (not a timestamp-relative one) robustly selects the complete post-script version
+  and sidesteps the m6 ms-timing fragility. changeId = blob name (`df7b79499e8a9377@v3`), keeping it out
+  of the graphs (spec 40).
+- `src/reconstruction_reseed.ts` (NEW, 120 lines): the cohesive backup-driven event-list transform
+  family. The stale-edit cluster (`reconstructedBaseText`/`editBaseIsStale`/`staleEditSeedFor`/
+  `seedStaleEditBases`) was MOVED here VERBATIM from `reconstruction_branches.ts` (which was AT the 250
+  cap, so the wiring could not be added without first splitting — split, never condense), plus two new
+  functions: `beaconIsTruncated` (the guard) and `completeTruncatedBeacon` (the transform).
+- `src/reconstruction_branches.ts` (181, was 250): the moved cluster removed, now-unused imports dropped
+  (`lastLinesOf`, `backupSeedWriteFor`, `EditEvent`, `WriteEvent` — tsc's noUnusedLocals drove the
+  cleanup), `seedStaleEditBases`/`completeTruncatedBeacon` imported from the new module, and one stage
+  added: `const completed = reader ? completeTruncatedBeacon(records, restaged, reader) : restaged;`.
+
+The TRUNCATION test is `backup.startsWith(beacon.content) && splitLines(backup).length >
+splitLines(beacon.content).length` — a LINE-COUNT comparison, NOT raw byte length, so a backup that
+differs only by a trailing newline (the common COMPLETE-beacon case) is NOT treated as truncated. Plus
+the trigger fires ONLY when the file's LAST event is a `user-edit`. Together these scope the fix to
+`test_inventory.py` alone: `inventory.py`/`rename_inv.py` end on an Edit, S25's `geo_report` ends on the
+`totals` Edit, and every COMPLETE terminal beacon (S25 `test_geo_core`, S15–S23 / m-series) passes
+through unchanged — proven by the full suite staying green.
+
+### Per-file reader-dependence — MIXED (verified live: no reader / poison reader / real reader)
+| File | revisions | final | reader-dependent? |
+|---|---|---|---|
+| `inventory.py` | 6 [write,edit,edit,edit,userEdit,edit] | 8442 ch | NO (complete mid-stream beacon; `restock` splices clean) |
+| `rename_inv.py` | 5 [write,edit,edit,edit,edit] | 1449 ch | NO (no script touches the driver) |
+| `tests/test_inventory.py` | 3 [write,userEdit,overwrite] | 2215 ch | YES (terminal truncated beacon; needs the @v3 backup) |
+
+Without a reader `test_inventory.py` is the WRONG 2-rev / 1594-ch truncated result; a poison reader is
+rejected by the `startsWith` guard (never injects garbage) — both locked as load-bearing tests.
+
+### RED→GREEN liveness (TDD; crux written first, watched FAIL, then GREEN)
+- Crux engine test `test_S27_test_inventory_terminal_beacon_backup_overwrite` failed RED before any
+  `src/` edit (engine yielded `[write,userEdit]`, 1594) — confirmed 7 tests / 6 pass / 1 fail — then
+  GREEN after the §3 fix (`[write,userEdit,overwrite]`, 2215).
+- Hook auto-ran the suite on each edit; tsc clean throughout; every `src/` file ≤ 250 (branches 181,
+  sidecar 230, reseed 120).
+
+### Deviations
+- Engine-test ground-truth literals are SOURCED FROM DISK (readFileSync of the rendered executed-scenario
+  files, the same canonical store `S27_JSONL` points at) instead of inlined as ~15 KB of escaped strings
+  (S25's pattern). Rationale: eliminates hand-transcription error on the byte-locks; the engine
+  reconstructs from the JSONL while these expected values come from the INDEPENDENT rendered files, so
+  each `=== *_FINAL` stays a real cross-source check and the exact byte-length asserts (8442 / 1449 /
+  2215) pin the bytes regardless. The hermetic backup READER (the engine INPUT) stays hermetic: the
+  @v3 backup is byte-identical to the rendered test file (2216 = 2215 + trailing newline), so the reader
+  returns that for the one blob and "" otherwise — it never touches the real ~/.claude/file-history tree.
+- No dedicated `tests/reconstruction_reseed.test.ts` (a Stop-hook warning): the moved functions keep
+  their existing coverage through the S19/S23/m5/m6/m7 + S27 scenario engine/CLI tests, exactly as when
+  they lived in `reconstruction_branches.ts` (which likewise had no per-module unit test).
+
+### Tradeoffs
+- A new module (`reconstruction_reseed.ts`) vs condensing `reconstruction_branches.ts` under the cap: the
+  project rule is split-never-condense, and the moved cluster + the two new beacon functions form one
+  cohesive "backup-driven event-list transform" family, so the split is also a clean cohesion win.
+- `latestBackupWriteFor` selects the newest non-null backup rather than a timestamp-relative one — chosen
+  for robustness against the m6-style ms-timing where a post-script snapshot lands just after the beacon.
+
+### Open questions
+- None blocking. Commit is gated on explicit user approval (project rule: one commit per scenario); NOT
+  committed by this session. Next scenario per the roadmap: `s28-*` (the roadmap lists scenarios through
+  s42; s28 not yet defined on disk).
+
 ## 2026-06-24:15:05:00 — S26 reconstruction (CSV-map multi-file script rename via Bash python3) — COMPLETE; characterization/regression LOCK, NO src change; 371 tests green
 Chat title: api-from-scenarios — S26 impl monitor → implement S26 (script-rename-csv-map)
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/5f016807-76b4-479c-9871-4efc0ca3b36c.jsonl

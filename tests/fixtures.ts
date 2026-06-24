@@ -100,3 +100,6 @@ export const S25_JSONL =
 
 export const S26_JSONL =
     "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s26-script-rename-csv-map/fd98c8aa-7264-4945-a83c-0d23a3d3a2ab.jsonl";
+
+export const S27_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s27-script-rename-edited-before-run/d1b02f2f-eda1-49f1-9cc7-075bf02104c2.jsonl";

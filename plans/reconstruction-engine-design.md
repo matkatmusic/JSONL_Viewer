@@ -377,6 +377,30 @@ The engine is split by concern, one paired test each (files kept well under the
   [write, userEdit] → 60 ln / 1394 ch; `renames.csv` = 1 [write] → 5 ln / 106 ch; `apply_renames.py`
   = 1 [write] → 43 ln / 1125 ch. No engine change — LOCKED, not fixed. Linear: one surviving branch
   (tip #ae7838c8), four files, no rewound branch.
+  S27 (`s27-script-rename-edited-before-run`) is the FIRST script-rename scenario to require an engine
+  change, and the first use of a file's FINAL backup (highest version) rather than a timestamp-relative
+  one. ONE `python3 rename_inv.py` Bash run rewrites `inventory.py` + `tests/test_inventory.py`; the
+  rename script is WRITTEN then EDITED TWICE before it runs, and `inventory.py` gets a `restock` Edit
+  after. The new failure mode: `tests/test_inventory.py`'s post-script `edited_text_file` beacon is
+  TRUNCATED (a 50-line prefix of the true 73-line file) AND it is the file's LAST event — there is NO
+  downstream Edit to reseed against (the S25 `geo_report` rescue path never engages), so the engine
+  adopts the truncated snippet verbatim and the file is short by 23 lines / 621 bytes. The fix is a new
+  reader-only event-list transform `completeTruncatedBeacon` (in the new `reconstruction_reseed.ts`,
+  alongside the stale-edit cluster moved out of `reconstruction_branches.ts` to respect the 250-line
+  cap): when a file's LAST event is a `user-edit` beacon whose snippet is a byte-PREFIX of the file's
+  LATEST file-history backup (`latestBackupWriteFor`, reconstruction_sidecar.ts → `df7b79499e8a9377@v3`)
+  AND the backup has strictly MORE lines, append a synthetic Write so `writeRevision` records a terminal
+  `overwrite` of the COMPLETE 73-line file. The truncation test is a LINE-COUNT comparison (not raw byte
+  length), so a backup differing from a COMPLETE beacon only by a trailing newline is NOT treated as
+  truncated — every prior complete terminal beacon (S25 `test_geo_core`, S15–S23 / m-series) passes
+  through unchanged; and the `last.kind === userEdit` trigger excludes `inventory.py`/`rename_inv.py`
+  (end on Edit) and S25's `geo_report` (ends on `totals` Edit). Distinct from S25's DOWNSTREAM-Edit
+  reseed: S27 completes a TERMINAL truncated beacon directly. MIXED reader-dependence: `inventory.py`
+  (6 revs [write,edit,edit,edit,userEdit,edit] → 8442 ch) and `rename_inv.py` (5 revs → 1449 ch) are
+  reader-INDEPENDENT; `tests/test_inventory.py` (3 revs [write,userEdit,overwrite] → 2215 ch) is
+  reader-DEPENDENT (without a backup it is the truncated 1594-ch 2-rev wrong result; a poison reader is
+  rejected by the `startsWith` guard). Linear: one surviving branch (tip #7e94e313), three files, no
+  rewound branch. REAL fix (first since S19/S23/m6).
 - `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
   resolver of a path to an absolute string against the transcript `cwd` (idempotent for
   already-absolute paths). A leaf module (imports only node `path`) shared by extraction

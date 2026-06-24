@@ -152,6 +152,38 @@ export function backupSeedWriteFor(
     };
 }
 
+// A synthetic Write seeding `target`'s FINAL on-disk content from its LATEST file-history backup blob
+// (the highest version — a post-script snapshot can land a few ms after the beacon, m6). Used to
+// complete a TERMINAL user-edit beacon the harness truncated (s27). Selecting the newest non-null
+// point — rather than a timestamp-relative one — robustly picks the complete post-script version and
+// sidesteps the m6-style ms-timing fragility. The changeId is the blob name, keeping the synthetic
+// seed out of the graphs (spec 40). Returns undefined when the file has no backup blob.
+export function latestBackupWriteFor(
+    records: TranscriptRecord[],
+    target: Path,
+    reader: BackupReader,
+): WriteEvent | undefined {
+    const cwd = findCwd(records);
+    const timeline = buildBackupTimeline(records, cwd);
+    const points = timeline.get(resolveAgainstCwd(cwd, target)) ?? [];
+    let latest: BackupPoint | undefined;
+    for (const point of points) {
+        if (point.backupFileName !== null) {
+            latest = point; // points are time-sorted ascending; keep the newest non-null
+        }
+    }
+    if (latest === undefined || latest.backupFileName === null) {
+        return undefined;
+    }
+    return {
+        kind: EventKind.write,
+        changeId: new Uuid(latest.backupFileName.toString()),
+        target,
+        content: reader(latest.backupFileName),
+        timestamp: latest.backupTime,
+    };
+}
+
 // Fill each append/overwrite event's content from the sidecar; pass others through. A
 // redirect with no resolvable backup keeps its empty content (defensive — should not happen
 // for a tracked file).
