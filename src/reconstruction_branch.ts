@@ -16,6 +16,7 @@ import {
 } from "./reconstruction_tree.ts";
 import { findWorkingTreeOwner } from "./reconstruction_worktree.ts";
 import { findStructuralRewoundBranches } from "./reconstruction_fork.ts";
+import { extractFileEvents } from "./reconstruction_extract.ts";
 import type {
     BranchedReconstruction,
     FileHistory,
@@ -51,7 +52,22 @@ function findSurvivingHead(records: TranscriptRecord[]): Uuid | undefined {
     if (workingTreeHead === undefined) {
         return finalHead;
     }
+    if (survivingBranchRecordsFileChange(records, finalHead)) {
+        return finalHead;
+    }
     return workingTreeHead;
+}
+
+// True when the final-head branch produces any file event of its own (its trunk holds the creating
+// Writes). When it does, the on-disk working tree is already attributed to the surviving branch and a
+// working-tree owner found off-branch is an abandoned post-rewind change, not the surviving tree — so
+// the override must NOT redirect (S14). When it is empty, the on-disk files came from an off-branch
+// Write and the override correctly redirects to the owner's head (S8/S9/S10).
+function survivingBranchRecordsFileChange(
+    records: TranscriptRecord[],
+    finalHead: Uuid,
+): boolean {
+    return extractFileEvents(selectBranchRecords(records, finalHead)).length > 0;
 }
 
 // The rewind point of an abandoned tip: the deepest record on the tip's path that also lies on the

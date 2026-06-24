@@ -105,16 +105,16 @@ function promptTime(record: TranscriptRecord): number {
     return record.timestamp?.getTime() ?? 0;
 }
 
-// True when the abandoned prompt itself, or any record in its subtree, is already a claimed tip — the
-// regression guard that prevents double-counting branches the head path already enumerated.
+// True when any record in the abandoned prompt's subtree is already a claimed tip — the regression
+// guard that prevents double-counting branches the head path already enumerated. The prompt itself is
+// intentionally NOT treated as its own claimed tip: in S14 the abandoned prompt is also a last-prompt
+// head, so a self-match would block discovery of the deeper real `farewell` tip. collectDescendantUuids
+// excludes `start`, so S7/S8/S11/S12 (whose claimed head tip is a descendant) stay skipped.
 function subtreeHoldsClaimedTip(
     records: TranscriptRecord[],
     abandonedPrompt: Uuid,
     claimed: Set<string>,
 ): boolean {
-    if (claimed.has(abandonedPrompt.toString())) {
-        return true;
-    }
     const subtree = collectDescendantUuids(records, abandonedPrompt);
     for (const tip of claimed) {
         if (subtree.has(tip)) {

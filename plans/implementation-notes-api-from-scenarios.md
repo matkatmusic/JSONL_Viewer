@@ -1,3 +1,27 @@
+## 2026-06-23:18:30:00 — S14 reconstruction (multi-edit conv-only-read: the conversation-only twin of S13 — a conv-only rewind leaves the abandoned `farewell` Edit on disk, mis-routing findSurvivingHead and hiding the rewound branch; two surgical fixes route the case onto S13's already-correct path)
+Chat title: api-from-scenarios — S14 handoff monitor → implement S14 (multi-edit-conv-only-read)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/c0d50750-e7e5-4817-a7cf-2f1d78f61cc9.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s14/s14-reconstruction-plan.md (THE authoritative plan executed)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1820.md (S14 planning handoff that triggered this implementation)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1722.md (S13 planning handoff; S14 mirrors the S13 tests almost line-for-line)
+
+### Design decisions
+- **Two surgical edits exactly as planned, strict RED→GREEN TDD.** Final state = **180 pass / 0 fail** (172 prior + 8 new: 4 engine + 4 CLI), `npx tsc --noEmit` clean, filesize sweep clean (`reconstruction_branch.ts` 231 / 250, `reconstruction_fork.ts` 125).
+- **Part 1 (`reconstruction_branch.ts`):** added `survivingBranchRecordsFileChange(records, finalHead)` = `extractFileEvents(selectBranchRecords(records, finalHead)).length > 0` and an `import { extractFileEvents } from "./reconstruction_extract.ts"` (no import cycle — extract imports none of branch/fork/worktree). `findSurvivingHead` now keeps `finalHead` when that helper is true, so the working-tree override only redirects for a file-less surviving branch (S8/S9/S10). S14's surviving Read branch carries the trunk Writes → keeps `de63b23a`.
+- **Part 2 (`reconstruction_fork.ts`):** deleted the `claimed.has(abandonedPrompt)` short-circuit in `subtreeHoldsClaimedTip`. `collectDescendantUuids` excludes `start`, so S7/S8/S11/S12 (whose claimed head tip is a descendant) stay skipped; only S14's deeper structural tip `68f74356` is now discovered.
+- **CLI output is byte-identical to the plan's authoritative Expected-outputs section** (verified by direct CLI run): `--list-branches` = surviving `#de63b23a` + rewound `#68f74356` rewind @ `#acc07a57`; default fork + unchanged fileDAG (`B write #0131TtyG`, `D edit #01X52CXE`, `C write #01YE6fsX`).
+
+### Deviations
+- **Plan Task 1 said `findConversationBranches(...).length === 2`; the real value is 3.** After Part 1, the abandoned prompt `fadbe55d` — which in S14 is itself a `last-prompt` head — is enumerated by the head-based pass as a degenerate abandoned branch (tip = the prompt). The plan's own root-cause text describes this branch as "degenerate ... filtered downstream (no diverging file change) — harmless," which confirms it exists at the `findConversationBranches` level and is removed only by `reconstructBranches` (`rewound.length === 1`, asserted by Task 2 and passing). So the raw count is 3, not 2 — the plan's stated `=== 2` was inconsistent with its own design. **Resolution:** the engine test `test_S14_findConversationBranches_includes_the_structural_rewound_branch` asserts the two MEANINGFUL branches are present (surviving tip `de63b23a`; a non-surviving branch `68f74356` @ `acc07a57`) instead of `length === 2`. This still proves both bugs are fixed and matches the authoritative CLI output exactly. No production change was made to suppress the degenerate branch (the plan explicitly forbids going beyond the two edits, and the branch is invisible in every rendered view).
+
+### Tradeoffs
+- Considered adding ancestor-dedup so `findConversationBranches` drops `fadbe55d` (it is an ancestor of the structural tip `68f74356`) to make a literal `length === 2` true. Rejected: that is a third production change with regression surface across S7/S8/S11/S12, the plan forbids extra edits, and the degenerate branch never reaches a rendered view (filtered by `reconstructBranches`). Asserting the meaningful invariants is faithful and lower-risk.
+
+### Open questions
+- None blocking. The one deviation (test asserts branch presence, not raw `length === 2`) is documented above; flag for review if a literal raw-count lock is preferred.
+
 ## 2026-06-23:17:40:00 — S13 reconstruction (multi-edit code-restore-read: discover the rewound branch STRUCTURALLY from the parentUuid fork — the abandoned branch edited a file but its tip is named by NO last-prompt head — and render the file-less surviving branch so the conversationDAG shows the fork)
 Chat title: api-from-scenarios — S13 handoff monitor → implement S13 (multi-edit-code-restore-read)
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/297fd035-d302-4c9d-98f4-2792b11d67dd.jsonl
