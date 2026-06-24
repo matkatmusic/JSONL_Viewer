@@ -67,3 +67,9 @@ export const S21_JSONL =
 
 export const S22_JSONL =
     "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s22-user-edits-conv-rewind/64ab0dde-e737-4ba6-9d31-64ead32f6ff4.jsonl";
+
+export const S23_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s23-user-edits-code-rewind/2bb895d4-b58b-483e-bc3a-d6a4505cbf08.jsonl";
+
+export const M1_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m1-cp-fork/6dd28b9c-6553-4a42-ba00-0b681bd890bb.jsonl";

@@ -57,16 +57,34 @@ export function reconstructFileOver(
     return replayEvents(restaged);
 }
 
-// Whether an edit's first hunk references lines past the base reconstructed from the events before it
-// — the mark of an edit Claude Code computed against a disk state that carried OFF-branch changes
-// across a conversation-only rewind (s19). The on-branch base is shorter than the hunk's first context
-// line expects, so replaying the hunk would drop the lines that precede that context line.
+// The reconstructed base text (each line's latest value) the events before an edit produce.
+function reconstructedBaseText(priorEvents: FileEvent[]): string[] {
+    return lastLinesOf(replayEvents(priorEvents)).map(
+        (entry) => entry.values[entry.values.length - 1]!.line,
+    );
+}
+
+// Whether an edit's first hunk references base content the events before it did NOT reconstruct: each
+// context/removed line must equal the base line at its position; a mismatch — or a position past the
+// base — means the hunk splices onto wrong lines, so the base is reseeded from the backup. Generalises
+// s19 (base too SHORT) to s23 (a user edit absorbed only into the post-code-rewind backup; same length).
 function editBaseIsStale(event: EditEvent, priorEvents: FileEvent[]): boolean {
     const firstHunk = event.hunks[0];
     if (firstHunk === undefined) {
         return false;
     }
-    return firstHunk.oldStart - 1 > lastLinesOf(replayEvents(priorEvents)).length;
+    const base = reconstructedBaseText(priorEvents);
+    let index = firstHunk.oldStart - 1;
+    for (const line of firstHunk.lines) {
+        if (line.startsWith("+")) {
+            continue;
+        }
+        if (index >= base.length || base[index] !== line.slice(1)) {
+            return true;
+        }
+        index += 1;
+    }
+    return false;
 }
 
 // The synthetic backup-seed Write to splice before `event`, or undefined when its base is intact (the
