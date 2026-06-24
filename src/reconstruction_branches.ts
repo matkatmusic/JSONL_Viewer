@@ -98,7 +98,7 @@ function staleEditSeedFor(
     if (event.kind !== EventKind.edit || !editBaseIsStale(event, priorEvents)) {
         return undefined;
     }
-    return backupSeedWriteFor(records, event.target, event.timestamp, reader);
+    return backupSeedWriteFor(records, event.target, event.timestamp, reader, true);
 }
 
 // Generalises spec 39's edit-base seeding to MID-stream edits: walk the lineage and, before each edit

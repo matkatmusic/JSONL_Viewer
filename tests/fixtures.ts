@@ -73,3 +73,21 @@ export const S23_JSONL =
 
 export const M1_JSONL =
     "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m1-cp-fork/6dd28b9c-6553-4a42-ba00-0b681bd890bb.jsonl";
+
+export const M2_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m2-mv-rename/70c5989e-017b-425f-8a8b-89daec0c4528.jsonl";
+
+export const M3_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m3-bash-redirect/0a7f5fa5-deda-4208-823e-1cfe7d650a74.jsonl";
+
+export const M4_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m4-delete-recreate/c8422976-8d07-4c16-8b0a-30c582c1cf7c.jsonl";
+
+export const M5_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m5-full-interleave/d61d30ab-ced9-402a-ba99-60caf334ca63.jsonl";
+
+export const M6_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m6-cp-user-edit-rewind/134feae4-4eb0-4008-9ef7-05e27ad3113d.jsonl";
+
+export const M7_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m7-conv-rewind-no-user-edits/725204e2-8678-4c45-82d0-262557bff0ad.jsonl";

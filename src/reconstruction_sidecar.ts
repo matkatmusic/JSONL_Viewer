@@ -89,6 +89,22 @@ function findBackupAtOrBefore(
     return chosen;
 }
 
+// The first non-null backup point of `target` taken strictly after `when` — the pre-edit content when
+// the file-history snapshot capturing it was timestamped just AFTER the edit's tool-use time (m6: a
+// user edit and the edit that follows it land in the same turn, so the pre-edit snapshot lands 22ms
+// after the edit record). The BackupPoint variant of findBackupAfter (the seed needs its backupTime).
+function findBackupPointAfter(
+    timeline: Map<string, BackupPoint[]>,
+    cwd: Path | undefined,
+    target: Path,
+    when: Date,
+): BackupPoint | undefined {
+    const points = timeline.get(resolveAgainstCwd(cwd, target)) ?? [];
+    return points.find(
+        (point) => point.backupFileName !== null && point.backupTime.getTime() > when.getTime(),
+    );
+}
+
 // When a file's first event on this branch is an Edit (its creating Write lives on an abandoned
 // conversation branch and a conversation-only rewind left the file on disk — spec 39), recover the
 // pre-edit on-disk content from the file-history backup taken at or before the edit and prepend a
@@ -117,10 +133,13 @@ export function backupSeedWriteFor(
     target: Path,
     when: Date,
     reader: BackupReader,
+    includeAfter: boolean = false,
 ): WriteEvent | undefined {
     const cwd = findCwd(records);
     const timeline = buildBackupTimeline(records, cwd);
-    const base = findBackupAtOrBefore(timeline, cwd, target, when);
+    const atOrBefore = findBackupAtOrBefore(timeline, cwd, target, when);
+    const base =
+        atOrBefore ?? (includeAfter ? findBackupPointAfter(timeline, cwd, target, when) : undefined);
     if (base === undefined || base.backupFileName === null) {
         return undefined;
     }

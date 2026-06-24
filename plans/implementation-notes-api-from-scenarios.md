@@ -1,3 +1,197 @@
+## 2026-06-24:10:05:00 — m7 reconstruction (conversation-only rewind, no user edits) — COMPLETE; characterization/regression LOCK, NO src change; 337 tests green
+Chat title: api-from-scenarios — m7 impl monitor → implement m7 (conv-rewind-no-user-edits)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/7fb776ae-90c5-443b-8bbd-a5b8072e51a1.jsonl
+
+### References
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/m7/m7-reconstruction-plan.md
+- Gating handoff (m7 plan): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/m7/handoff-api-from-scenarios-20260624-0958.md
+- Scenario: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/m7-conv-rewind-no-user-edits.txt
+- Executed transcript (worktree): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/m7-conv-rewind-no-user-edits/725204e2-8678-4c45-82d0-262557bff0ad.jsonl
+- Precedents: tests/reconstruction_engine_m5.test.ts + tests/reconstruction_cli_m5.test.ts (reader-dependent stale-edit-base reseed); tests/reconstruction_engine_s17.test.ts (conv-only rewind + structural rewound branch)
+- No-fix reference map (file:line): plan §3 — findConversationBranches/findStructuralRewoundBranches (src/reconstruction_branch.ts:150-168, src/reconstruction_fork.ts), editBaseIsStale/staleEditSeedFor/seedStaleEditBases (src/reconstruction_branches.ts:71,92,108-122), backupSeedWriteFor (src/reconstruction_sidecar.ts), reconstructFileOver reader-gating (src/reconstruction_branches.ts:41-58), born-path resolveContextLine/insertHunkAdditions (src/reconstruction_replay_edit.ts:96-139)
+
+### Design decisions
+- NO engine change. m7 is a characterization LOCK: the engine already reconstructs both branches byte-for-byte correct WITH a BackupReader (verified live before coding; baseline 327/0). Added M7_JSONL fixture + 10 tests (5 engine + 5 CLI) + 3 doc edits only.
+- The surviving branch is reconstructed WITH an in-memory m7Reader keyed by the backup blob `29a113119f194d6f@v4` (the 10-line off-branch disk base), mirroring the m5/m6 engine-test pattern; the CLI tests use the live ~/.claude/file-history reader (m5/m6 pattern).
+- WHY no src change works: the off-branch Claude edits D (step2) and E (step3) are scoped out of the surviving lineage, so the surviving base for F (step2_alt) is the 2-line step1 Write, but F's structuredPatch was computed against the 10-line on-disk file. editBaseIsStale (S23 per-line context walk) detects the stale base; backupSeedWriteFor recovers the 10-line disk from backup @v4, inserted as an `overwrite` revision before F replays. This is the S19/m5 reseed — firing for the FIRST time because of OFF-BRANCH CLAUDE EDITS, not a user edit.
+- The reseed backup (@v4, 16:08:12.997) precedes F's edit (16:08:40.473), so findBackupAtOrBefore finds it directly; m7 does NOT exercise m6's includeAfter after-fallback (no assertion on includeAfter for m7).
+
+### Deviations
+- Plan §9 asks the completion handoff to name "the next unchecked roadmap line after M7." There is NO next scenario: M7 is the LAST roadmap line and scenarios/ contains only m1–m7 (all now done). The handoff therefore records m7 complete and that no further scenario is defined — nothing to gate a downstream planning monitor on. Surfaced as an open question below.
+- None otherwise from the plan. Implemented §4–§8 verbatim. The §5/§6 test code was used as written (enum-member EventKind comparisons, finalTextOf/historyEndingWith accessors, in-memory BackupReader stub).
+- Prove-the-lock RED→GREEN steps executed and reverted (all confirmed RED then restored to GREEN):
+  - engine test 3: reseed blob `@v4`→`@v3` → RED (actual @v4 ≠ expected @v3); restored.
+  - engine test 4: no-reader revision count `2`→`3` → RED (actual 2 ≠ expected 3, reader load-bearing); restored.
+  - CLI surviving byte-lock: `def step2_alt():`→`def step2_alt_SENTINEL():` → RED (substring absent); restored.
+
+### Tradeoffs
+- Engine tests use an in-memory reader (deterministic, no live-FS dependency) like m5/m6; CLI tests depend on the live backup `29a113119f194d6f@v4` in ~/.claude/file-history/725204e2-…/ (confirmed present). If a surviving verbose ever shows `    return 1\n    return 2`, the live backup is missing — re-sync via /jot:sync-jsonl-projects; do NOT "fix" the engine.
+- Surviving correctness is reader-DEPENDENT and locked both directions (with-reader = correct 3-rev 14-line; without-reader = corrupted 2-rev). Rewound is reader-INDEPENDENT and locked byte-identical with/without a reader. m7 is the FIRST scenario reader-independent on one branch and reader-dependent on the other.
+
+### Open questions
+- m7 is the final defined scenario (m1–m7 + S1–S23 all implemented). Is the scenario series complete, or is an m8+ planned? The completion handoff names no next scenario because none exists.
+- Commit is pending your approval (plan §9 = one commit per scenario after approval). The exact 7-file stage list is ready; nothing has been committed.
+
+## 2026-06-24:09:38:00 — m6 reconstruction (cp-fork + user edit + code rewind on the forked copy) — COMPLETE; REAL ENGINE FIX (first since S19/S23), 2 src files +21/−2; 327 tests green
+Chat title: api-from-scenarios — m6 impl monitor → implement m6 (cp-user-edit-rewind)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/17cd387d-e9df-47e6-88a1-98adee8edcdd.jsonl
+
+### References
+- Plan file (authoritative, executed verbatim): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/m6/m6-reconstruction-plan.md
+- Planning handoff that gated this impl: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/m6/handoff-api-from-scenarios-20260624-0930.md
+- Scenario script: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/m6-cp-user-edit-rewind.txt
+- Executed transcript (worktree): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/m6-cp-user-edit-rewind/134feae4-4eb0-4008-9ef7-05e27ad3113d.jsonl
+- Fixture (Desktop suite root): /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m6-cp-user-edit-rewind/134feae4-4eb0-4008-9ef7-05e27ad3113d.jsonl
+- THE FIX: src/reconstruction_sidecar.ts `findBackupPointAfter` (new helper after `findBackupAtOrBefore`) + `backupSeedWriteFor(includeAfter)` after-fallback; src/reconstruction_branches.ts:101 `staleEditSeedFor` passes `true`
+- Bug locus (unchanged): src/reconstruction_replay_edit.ts:113 `insertHunkAdditions` (carries context by index; :96 `resolveContextLine` materialises the past-the-base context line as the duplicate)
+- Stale-base detection (unchanged, correctly fired): src/reconstruction_branches.ts:71 `editBaseIsStale`, :92 `staleEditSeedFor`
+
+### Design decisions
+- The fix reuses the existing S19/S23 stale-edit reseed machinery and only broadens WHERE it looks for the pre-edit backup. The new `findBackupPointAfter` is the BackupPoint variant of the existing `findBackupAfter` (the seed needs the snapshot's `backupTime`, not just the blob name).
+- The fallback is gated behind a new `includeAfter` parameter (default `false`) on `backupSeedWriteFor`, and only `staleEditSeedFor` passes `true`. The fallback fires ONLY when `findBackupAtOrBefore` returns undefined (`??`), so every existing reseed (m5/S19/S23, all of which have an at-or-before backup) is byte-for-byte unchanged.
+- Added 2 sidecar unit tests beside `test_seed_passes_through_when_no_backup_precedes_the_edit` (the existing at-or-before lock): one proving the includeAfter fallback fires, one proving at-or-before still wins when both backups exist (locks the `??` precedence).
+
+### Deviations
+- None. §4.1 and §4.2 applied exactly; §5 Tasks 1–7 followed verbatim. The `reconstruction_branches.ts` change is the planned net-zero one-call edit (file held at the 250-line cap; all explanatory comments live in `reconstruction_sidecar.ts`, which has room).
+
+### Tradeoffs
+- Scoping via the `includeAfter` flag vs. a blanket after-fallback in `backupSeedWriteFor`: the blanket version breaks `test_seed_passes_through_when_no_backup_precedes_the_edit` (spec-39 first-event-edit MUST NOT seed from a later backup). The flag keeps both call sites correct — confirmed by that test staying green.
+
+### Open questions
+- None outstanding. Committing is gated on user approval (Task 8). The four shared docs (`tests/fixtures.ts`, `plans/roadmap.md`, this file, `plans/reconstruction-engine-design.md`) carry uncommitted m2–m5 edits, so any commit must stage the exact m6 file list — never `git add -A`, never `git checkout`/`restore` the shared docs.
+
+## 2026-06-24:08:39:32 — m5 reconstruction (full interleave: user+agent edits across a code rewind, backup-recovered user_add_2) — COMPLETE; characterization/regression LOCK, NO src change; 315 tests green
+Chat title: api-from-scenarios — m5 impl monitor → implement m5 (full-interleave)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/059abe45-cdbf-4f0c-a645-d8f65587274d.jsonl
+
+### References
+- Plan file (authoritative, executed verbatim): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/m5/m5-reconstruction-plan.md
+- Planning handoff that gated this impl: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/m5/handoff-api-from-scenarios-20260624-0833.md
+- Scenario script: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/m5-full-interleave.txt
+- Executed transcript (worktree): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/m5-full-interleave/d61d30ab-ced9-402a-ba99-60caf334ca63.jsonl
+- Fixture (Desktop suite root): /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m5-full-interleave/d61d30ab-ced9-402a-ba99-60caf334ca63.jsonl
+- THE CRUX — S19 reseed (FIRES here): src/reconstruction_branches.ts:41-57 (`reconstructFileOver`/`seedStaleEditBases`), :61-65 (`reconstructedBaseText`), :71-88 (`editBaseIsStale`, base-too-short case), :92-102 (`staleEditSeedFor`); src/reconstruction_sidecar.ts:115 (`backupSeedWriteFor` recovers `@v5`)
+- Branch enumeration / rewound scoping: src/reconstruction_engine.ts:206-218 (`reconstructBranches`), :222-242 (`buildRewoundBranchHistory`/`divergingIds`); src/reconstruction_branch.ts:37-59 (`findSurvivingHead`, simple path), :75-102 (`findRewindPoint`), :150-183 (`findConversationBranches`/`selectBranchRecords`)
+- user-edit recorded as a real revision: src/reconstruction_replay.ts:124-134 (`userEditChangesContent`); vocabulary src/structures/vocabulary.ts:102-110
+
+### Design decisions
+- Engine tests use an IN-MEMORY `BackupReader` (`m5Reader`) seeded with the single `17bbea89afb745a4@v5` blob — mirrors `tests/reconstruction_engine_m3.test.ts`/`_s5`, so the engine lock is independent of the live `~/.claude/file-history` tree.
+- CLI tests drive `runCli`'s REAL on-disk sidecar reader; tests 4–5 (surviving-verbose) depend on that backup resolving on the host (the same hazard m3's CLI tests accept). All 5 CLI tests were GREEN on the first run, so the live backup resolves on this machine.
+- `historyEndingWith` suffixes lead with a slash (`/m5_interleave.py`) because `test_m5_interleave.py` also ends with `m5_interleave.py` — a slash-less suffix would match the wrong file.
+
+### Deviations
+- None. The plan's 10 test bodies, the fixture block, and the 3 doc edits were applied verbatim. NO `src/` change (`git diff src/` empty). No engine machinery was touched.
+
+### Tradeoffs
+- Implemented sequentially in this session rather than via subagents: every write target is a SHARED file (`tests/fixtures.ts` + the 3 docs already carry uncommitted m2/m3/m4 edits), so parallel agents would contend on the same files. Sequential edits avoid the worktree-shared-doc hazard the plan flags.
+
+### Open questions
+- None blocking. Commit is intentionally withheld pending user approval (plan §9). The completion handoff (naming m6) is the remaining required deliverable.
+
+### Prove-the-lock RED→GREEN log (each flip confirmed RED, then restored)
+- engine test 2 (crux): `seeded.kind` flipped to `EventKind.write` → RED `actual='overwrite', expected='write'`; restored to `EventKind.overwrite`.
+- engine test 3 (reader-dependence): no-reader `revisions.length` flipped to `4` → RED `actual=3, expected=4`; restored to `3` (proves the reader injects the 4th `@v5` revision).
+- CLI test 4 (backup-recovery byte-lock): injected `user2SENTINEL` into the `@v5` 4-line block → RED (`includes` false); restored.
+- CLI test 5 (final ground-truth byte-lock): renamed `agent_add_2` → `agent_add_2_SENTINEL` in the 5-line block → RED (`includes` false); restored.
+
+## 2026-06-24:08:05:00 — m4 reconstruction (delete then recreate at the same path) — COMPLETE; characterization/regression LOCK, NO src change; 305 tests green
+Chat title: api-from-scenarios — m4 impl monitor → implement m4 (delete-recreate)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/2e8b966a-b7ab-4da5-b2b4-9cd17d2f9485.jsonl
+
+### References
+- Plan file: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/m4/m4-reconstruction-plan.md
+- Planning handoff that gated this impl: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/m4/handoff-api-from-scenarios-20260624-0757.md
+- Scenario script: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/m4-delete-recreate.txt
+- Executed transcript (worktree): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/m4-delete-recreate/c8422976-8d07-4c16-8b0a-30c582c1cf7c.jsonl
+- Engine vocabulary: src/structures/vocabulary.ts:103 (`EventKind.delete`)
+- Delete extraction: src/reconstruction_extract.ts:39-45 (`parseRmTarget`), :91-100 (`bashEventFrom`), :163-164 (dispatch)
+- Delete replay: src/reconstruction_replay.ts:55-62 (`deleteRevision`), :144-147 (dispatch)
+- CRUX (born-fresh recreate): src/reconstruction_replay_edit.ts:30-35 (`fileIsPresent` — "locked decision 3"); src/reconstruction_replay.ts:43-53 (`writeRevision`), :140-142 (dispatch)
+- Render: src/reconstruction_render.ts:36-42 (`(file absent — 0 lines)` em-dash literal)
+- Precedent: tests/reconstruction_engine.test.ts:30-85 (S1 terminal delete); :103 (paired edit lock); tests/reconstruction_replay.test.ts:50-71 (overwrite-vs-create inverse branch)
+
+### Design decisions
+NO engine change. The existing machinery already produces m4's ground truth byte-for-byte. Decisions documented in §3 of the plan:
+- Delete extraction (`parseRmTarget`/`bashEventFrom`) emits a content-less `DeleteEvent`; `deleteRevision` produces an empty 0-line revision stamped at the rm time — the same S1 path, here NON-terminal for the first time.
+- Born-fresh recreate ("locked decision 3"): `writeRevision` builds an unconditional all-genesis full-content revision; `fileIsPresent` returns false when the latest revision is a delete, so the post-delete Write is labelled `EventKind.write` (a create), NOT `EventKind.overwrite`, and carries NONE of the pre-delete v1/v1_helper lineage. m4 is the FIRST fixture to drive this delete-branch (the inverse of `test_second_write_to_a_present_file_is_an_overwrite`).
+- Edit pair: the sibling test's single Edit becomes the engine's standard removal+addition pair (both halves sharing the one Edit's changeId); the pre-delete Edit on the source is `+`-only so it yields a single addition revision (rev 1, 6 lines).
+- Reader-free (m2 pattern): no bash redirect events, so engine tests call `reconstructAll(loadRecords(M4_JSONL))` with NO reader, and the CLI tests pass no reader (the CLI builds its own sidecar reader which simply resolves unused).
+
+### Deviations
+None. Plan §5/§6 test code was used verbatim. All prove-the-lock RED→GREEN cycles ran clean:
+- Engine A (`recreate.kind`): flipped `EventKind.write` → `EventKind.overwrite` → RED with `actual='write', expected='overwrite'` (proves `fileIsPresent` saw the trailing delete and labelled the recreate a fresh create). Restored.
+- Engine B (`delete revision lines.length`): flipped `0` → `1` → RED with `actual=0, expected=1` (proves the non-terminal delete revision is empty). Restored.
+- CLI C (recreate v2 sentinel): flipped `def v2():` → `def v2_SENTINEL():` → RED (sentinel appears nowhere in the rendered output). Restored.
+- CLI D (file-absent sentinel): appended `SENTINEL` inside the `(file absent — 0 lines)` literal → RED. Restored.
+
+### Tradeoffs
+- Engine tests are reader-free (m2/m3 idiom) rather than wiring an in-memory backup map — m4 needs no backup recovery (all content is inline or as Edit `originalFile` bases), so the test signature stays minimal.
+- The born-fresh property is locked at BOTH levels: the engine test asserts `recreate.kind === EventKind.write` AND every line is `DOES_NOT_EXIST_YET` genesis; the CLI test asserts the rendered v2 block carries only the 2-line v2 content (no carried `v1`/`v1_helper`). Either layer alone would catch a regression, but the double-coverage matches the m1/m2/m3 char-lock style.
+
+### Open questions
+None. Plan was complete and accurate; all acceptance criteria met without escalation.
+
+## 2026-06-24:07:30:00 — m3 reconstruction (bash-redirect interleaved with an edit) — COMPLETE; characterization/regression LOCK, NO src change; 296 tests green
+Chat title: api-from-scenarios — m3 impl monitor → implement m3 (bash-redirect)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/c54f9594-53d3-4e10-9496-d16a79e04585.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/m3/m3-reconstruction-plan.md (THE authoritative plan, executed verbatim)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/m3/handoff-api-from-scenarios-20260624-0025.md (planning handoff that gated this impl)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/m3-bash-redirect.txt (scenario script)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/m3-bash-redirect/0a7f5fa5-deda-4208-823e-1cfe7d650a74.jsonl (worktree copy of executed transcript)
+- /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m3-bash-redirect/0a7f5fa5-deda-4208-823e-1cfe7d650a74.jsonl (Desktop fixture path used by tests)
+- Engine reference map (no change needed): `parseRedirect` (src/reconstruction_extract.ts — redirect branch, spec 26) emits a content-less AppendEvent; `fillRedirectContent`/`findBackupAfter` (src/reconstruction_sidecar.ts:60-71,139-157 — specs 25, 27) recover @v3 / @v5 via the injected BackupReader; `appendRevision` (src/reconstruction_replay_edit.ts:145-169 — specs 24, 28) carries the file forward and births the recovered tail; `applyEdit` (src/reconstruction_replay_edit.ts:174-187) emits the standard removal+addition pair, locked by tests/reconstruction_engine.test.ts:103; `seedStaleEditBases`/`editBaseIsStale` (src/reconstruction_branches.ts:60-122) stay INERT because the Edit's recorded base aligns with the reconstructed append revision.
+
+### Design decisions
+- **NO engine change.** The engine reconstructs m3 byte-for-byte correct already (verified live by the planning session against the CLI; re-verified here by running the engine + CLI test files — all 9 GREEN on first run). m3 is a characterization/regression LOCK, mirroring m1/m2/S20/S21/S22 — not a real fix (unlike S19/S23).
+- **Three existing guarantees composed for the first time:** (a) redirect recovery — `parseRedirect` emits content-less AppendEvents for both `>>` events, and `fillRedirectContent` recovers `line two` from backup `936191f45d79faed@v3` and `line three` from `@v5` via the injected `BackupReader`. (b) Paired edit — `applyEdit` emits the standard two revisions for the Edit (removal: `line one` dropped leaving the appended `line two`; addition: `LINE ONE`/`line two`), here for the first time spliced on top of a base produced by a backup-recovered append. (c) Reseed dormancy — the Edit's recorded base (`line one\nline two\n`) matches the reconstructed append revision exactly, so `editBaseIsStale` is false and `seedStaleEditBases` injects no synthetic Write. Net: exactly five revisions (one write revision), not six.
+- **Engine tests wire an in-memory BackupReader (unlike m2, which is reader-free).** m3's `>>` redirects carry no content in the JSONL; the engine recovers the appended chunks from `~/.claude/file-history` blobs. The reader-wired pattern mirrors `tests/reconstruction_engine_s5.test.ts:11-16`. The in-memory map includes all four observed blobs (@v2, @v3, @v4, @v5) so the test is robust to which name the engine queries (it queries @v3 + @v5).
+- **CLI tests pass NO reader.** `runCli` builds its own real on-disk sidecar reader internally (`buildSidecarReader` → `createSidecarReader(sessionId, getDefaultFileHistoryRoot())`, src/reconstruction_cli.ts:114-122,189), so the CLI tests exercise the real `~/.claude/file-history` blobs end-to-end for session `0a7f5fa5-deda-4208-823e-1cfe7d650a74`.
+- **m3's novelty:** FIRST scenario to interleave an Edit between two bash `>>` redirects on one file. FIRST proof that the S23 per-line `editBaseIsStale` walk does NOT false-positive when the edit's recorded base was produced by a backup-recovered append (the dormant complement of S19/S23, where it fires).
+
+### Deviations
+- None from the plan's literal test code. All 9 tests GREEN on first run.
+- Prove-the-lock RED→GREEN flips per plan §5/§6 ran clean and were all restored:
+  - Engine `test_m3_edit_is_paired_removal_then_addition_over_appended_base`: flipped removal expectation `"line two"` → `"line one"` → RED (actual `"line two"`, expected `"line one"`), restored.
+  - Engine `test_m3_aligned_edit_base_keeps_reseed_inert_single_write_revision`: flipped `writeRevisions.length, 1` → `2` → RED (actual `1`, expected `2`), restored.
+  - CLI `test_m3_surviving_verbose_appends_recover_backup_content_to_ground_truth`: flipped `line three` → `line THREE-SENTINEL` (per plan §6 sentinel guidance — avoid reusing `(1 lines)`/`(2 lines)` which recur across blocks) → RED (`assert.ok(... includes ...)` returned `false`), restored.
+
+### Tradeoffs
+- Engine tests are reader-WIRED (in-memory `M3_BACKUPS` map per s5) vs reader-free (m2). m3 cannot test redirect recovery without the reader because the JSONL carries no content for `>>` events. CLI tests use the real on-disk reader to verify end-to-end recovery from the actual file-history blobs.
+- Sentinel for prove-the-lock CLI flip: chose `line THREE-SENTINEL` (per plan §6 / m2 handoff lesson) — a substring guaranteed to appear nowhere else in the verbose output, unlike `(N lines)` which recurs across revision blocks.
+
+### Open questions
+- None. The no-fix premise held (all 9 tests GREEN on first run, both prove-the-lock crux assertions confirmed to bite). Commit is gated on user approval per project rule (one commit per scenario, staged file list per plan §9).
+
+## 2026-06-24:00:05:00 — m2 reconstruction (mv-rename: edit, rename, then edit the renamed file) — COMPLETE; characterization/regression LOCK, NO src change; 287 tests green
+Chat title: api-from-scenarios — m2 impl monitor → implement m2 (mv-rename)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/dee18a44-0c90-433f-ab40-6c32f5544dca.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/m2/m2-reconstruction-plan.md (THE authoritative plan executed verbatim)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/m1/m1-reconstruction-plan.md (m1 cp-fork — the prior scenario; m2 is its rename twin)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/m2-mv-rename.txt (scenario script)
+- /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m2-mv-rename/70c5989e-017b-425f-8a8b-89daec0c4528.jsonl (executed transcript / fixture)
+- Engine reference map (no change needed): `parseMvPaths`/`bashEventFrom` (src/reconstruction_extract.ts:49,91-107); `buildRenameChain`/`resolveFinalPath`/`contentPathOf`/`eventBelongsToLineage` (src/reconstruction_lineage.ts:11-51); `distinctFinalPaths` (src/reconstruction_lineage.ts:53-65); `renameRevision`/`lastLinesOf`/`carryAt` (src/reconstruction_replay.ts:64-78, src/reconstruction_replay_edit.ts:38-46); applied in `reconstructFileOver`/`reconstructFilesOver` (src/reconstruction_branches.ts:41-58,189-195).
+
+### Design decisions
+- **NO engine change.** The engine reconstructs m2 byte-for-byte correct already (verified live via the CLI on the worktree JSONL BEFORE writing tests, and against the final content in plan §2.3). m2 is a characterization/regression LOCK, mirroring m1/S20/S21/S22 — not a real fix (unlike S19/S23).
+- **One-history merge across the rename:** `buildRenameChain`/`resolveFinalPath`/`eventBelongsToLineage` fold the old-path write (B) + edit (D), the rename (E), and the new-path edit (F) into a SINGLE `m2_new_name.py` lineage — a four-revision history (write→edit→rename→edit).
+- **Pre-rename content carried:** `renameRevision` carries the prior revision's lines (`process+validate`, 6 lines) forward via `lastLinesOf`/`carryAt`, so the post-rename `finalize` edit (F) composes on top of the carried content → final 10 lines.
+- **Old path collapses:** `distinctFinalPaths` resolves the rename source to its destination, so `m2_old_name.py` is never a separate surviving history; `reconstructAll` returns exactly TWO histories (`m2_new_name.py` + the test file) and `--list-branches` omits the old name.
+- **m2's novelty:** FIRST rename scenario edited on BOTH sides of the rename — generalises the S2 move lineage ("edit only AFTER the move") to "edit on both sides". The rename twin of m1's cp-fork.
+
+### Deviations
+- **Plan §6 prove-the-lock flip is flawed; substituted a valid sentinel.** The plan said to flip the CLI crux `(6 lines)` → `(2 lines)` to confirm RED. That does NOT go RED: `(2 lines)` legitimately appears in `--surviving --verbose` as revision 0 (the 2-line `process` write), so `out.includes("(2 lines)")` still matches. I instead flipped to an absent sentinel `(99 lines)` to prove the assertion bites (confirmed RED, `actual: false`), then restored `(6 lines)`.
+- Engine prove-the-lock per plan §5 was valid as written: flipped `OLD_AT_RENAME` → `MERGED_FINAL` → `test_m2_pre_rename_edit_is_carried_across_rename…` went RED (`actual` = pre-rename process+validate, distinct from the final), then restored.
+
+### Tradeoffs
+- Engine tests are **reader-free** (`reconstructAll(loadRecords(M2_JSONL))` with no `BackupReader`) — m2 needs no file-history sidecar: a rename is recovered entirely from the JSONL mv command (from/to paths) and the carried content is inline. (Contrast bash `>`/`>>` redirects, which DO need the sidecar.) The CLI builds its own real reader internally and is unaffected.
+
+### Open questions
+- None. The no-fix premise held (all 9 tests GREEN on first run); commit is gated on user approval per project rule (one commit per scenario).
+
 ## 2026-06-23:23:46:00 — m1 reconstruction (cp-fork: copy then independent edits to both files) — COMPLETE; characterization/regression LOCK, NO src change; 278 tests green
 Chat title: api-from-scenarios — m1 impl monitor → implement m1 (cp-fork)
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/cbeb9820-ab83-4daa-9a4a-dfa04711cfbf.jsonl

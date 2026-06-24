@@ -226,6 +226,101 @@ The engine is split by concern, one paired test each (files kept well under the
   event is keyed to its destination (`contentPathOf`/`turnTarget`) and excluded from the rename chain,
   so source and copy stay two histories. Generalises the S3 copy lineage from "copy then edit the
   COPY" to "copy then edit BOTH". Linear (no rewind): one surviving branch.
+  m2 (`m2-mv-rename`) is the rename twin of m1's cp-fork: a `mv` (event E) renames `m2_old_name.py`
+  to `m2_new_name.py`, and the file is edited on BOTH sides of the rename (D adds `validate` before;
+  F adds `finalize` after). No new machinery — it is locked, not fixed. It generalises the S2 move
+  lineage ("edit only after the move") to "edit on both sides", exercising two existing guarantees
+  together for the first time on a rename: (a) one-history merge — `buildRenameChain`/`resolveFinalPath`/
+  `eventBelongsToLineage` fold the old-path write+edit and the new-path edit into a single
+  `m2_new_name.py` lineage (write→edit→rename→edit); (b) content carry — `renameRevision` carries the
+  pre-rename `process+validate` forward via `lastLinesOf`/`carryAt`, so F's `finalize` splices onto it.
+  `distinctFinalPaths` collapses the rename source, so `m2_old_name.py` is never a separate surviving
+  file. Linear (no rewind): one surviving branch.
+  m3 (`m3-bash-redirect`) interleaves a real Edit between two bash `>>` appends on one file
+  (m3_mixed.txt): write `line one`, `>>` append `line two`, Edit `line one`->`LINE ONE`, `>>` append
+  `line three`. No new machinery — it is locked, not fixed. It composes three existing guarantees
+  together for the first time: (a) redirect recovery — `parseRedirect` emits content-less append
+  events and `fillRedirectContent`/`findBackupAfter` recover `line two`/`line three` from the
+  file-history backups @v3/@v5 (specs 24-28, as in s5); (b) the paired edit — `applyEdit` emits the
+  standard removal revision (`line one` dropped, leaving the appended `line two`) then addition
+  revision (`LINE ONE`/`line two`), here for the first time spliced onto a base produced by a
+  backup-recovered append; (c) reseed dormancy — because the Edit's recorded base (line one/line two)
+  matches the reconstructed append revision exactly, `editBaseIsStale` is false and
+  `seedStaleEditBases` injects no synthetic Write, so the history is five revisions (one write), not
+  six. m3 thus regression-locks that the S23 per-line `editBaseIsStale` walk does not false-positive
+  on an append-advanced base (the dormant complement of S19/S23, where it fires). Linear (no rewind):
+  one surviving branch.
+  m4 (`m4-delete-recreate`) deletes a file then re-creates it at the same path. Two files:
+  `m4_lifecycle.py` is written (v1), edited (appends `v1_helper`), DELETED via bash `rm`, then
+  written again (v2); `tests/test_m4_lifecycle.py` is written then edited to v2. No new machinery
+  — it is locked, not fixed. It composes existing guarantees: (a) delete extraction —
+  `parseRmTarget`/`bashEventFrom` emit a content-less `DeleteEvent` and `deleteRevision` yields an
+  empty 0-line revision at the rm time (the s1 delete path, here NON-terminal for the first time);
+  (b) born-fresh recreate — `writeRevision` builds an unconditional all-genesis full-content
+  revision and `fileIsPresent` ("locked decision 3") treats the trailing delete as absent, so the
+  post-delete Write is labelled a create (kind write, not overwrite) carrying none of the
+  pre-delete `v1`/`v1_helper` lineage — the FIRST fixture to drive the `fileIsPresent`
+  delete-branch (the inverse of `test_second_write_to_a_present_file_is_an_overwrite`); (c) the
+  paired edit — `applyEdit` emits the sibling test's removal+addition pair, while the pre-delete
+  edit on the source (appending `v1_helper`) is a `+`-only hunk and so a single addition revision.
+  Reader-free (no bash redirect). Linear (no rewind): one surviving branch, two files.
+  m5 (`m5-full-interleave`) is the FULL INTERLEAVE — user + agent edits straddling a CODE REWIND on
+  one file `m5_interleave.py` (plus a sibling `tests/test_m5_interleave.py`, write only). No new
+  machinery — it is locked, not fixed. It composes existing guarantees: (a) user-edit kept on the
+  surviving lineage across the rewind — `selectBranchRecords` puts F's `user_add_1` snapshot in the
+  surviving tip's ancestor chain (the S18/S20/S22 behavior), and the same append surfaces on BOTH
+  branches with distinct changeIds (D `#5f68c3e1` rewound, F `#84166ae7` surviving); (b) rewound
+  branch scoped by `divergingIds` in `buildRewoundBranchHistory`, holding `agent_add_1` (E) only —
+  the FIRST m-series scenario with a rewind, so the conversationDAG is branched; (c) the S19 reseed
+  FIRING — the surviving `agent_add_2` Edit (G) records a base that includes the backup-only
+  `user_add_2` line, so the on-branch base reconstructs too SHORT (3 lines), `editBaseIsStale`
+  returns true (the "base too short" case), and `seedStaleEditBases`/`backupSeedWriteFor` recover
+  `17bbea89afb745a4@v5` as a synthetic `overwrite` revision before G (surviving source = 4 revisions
+  [write, user-edit, overwrite, edit]); meanwhile the rewound `agent_add_1`'s base is aligned so the
+  reseed stays INERT there, making the rewound branch reader-independent. m5 is the FIRING complement
+  of m3's dormant reseed and the first to recover a USER edit's disk state from a backup; reader
+  changes only the intermediate ladder, never the byte-identical endpoint.
+  m6 (`m6-cp-user-edit-rewind`) is a cp-FORK (m1) of `m6_source.py` → `m6_derived.py`, a USER
+  out-of-band edit inserting `# derived version` into the copy, then a CODE REWIND that discards
+  Claude's `transform()` (rewound branch) in favour of `validate()` (surviving branch) — the FIRST
+  m-series scenario combining a fork, a user edit on the forked copy, and a rewind, and the FIRST
+  with a WRONG reconstructed OUTPUT on a rewound branch (so the FIRST real engine fix since
+  S19/S23). The bug: the original out-of-band user edit (`8897e505`) is on the abandoned lineage
+  and `extractFileEvents` emits NO file event for it, so the rewound `m6_derived` lineage is just
+  `[copy, edit]` and the `transform()` Edit's hunk (`oldStart=5`, context `[blank, describe,
+  return]`) would splice onto the bare 6-line copy — the third context line resolves PAST the base
+  and `insertHunkAdditions`/`resolveContextLine` materialise it as a genesis line, DUPLICATING
+  `return self.name`. `editBaseIsStale` correctly DETECTS this, but the recovery was inert: the only
+  pre-edit backup (`b90d0fcb711472b4@v1`) is timestamped 22 ms AFTER the edit's tool-use time (the
+  user edit and the edit consuming it share one turn), so `findBackupAtOrBefore` (≤ when) missed it.
+  THE FIX adds `findBackupPointAfter` (the BackupPoint variant of `findBackupAfter`) and an
+  `includeAfter` flag on `backupSeedWriteFor` that falls back to the nearest strictly-later backup
+  ONLY when no at-or-before backup exists; `staleEditSeedFor` passes `includeAfter=true`, while
+  `seedEditBaseFromBackup` (spec-39 first-event-edit) keeps the `false` default so its at-or-before
+  semantics — and every prior reseed (m5/S19/S23, which all have an at-or-before backup) — stay
+  byte-identical. The rewound branch then reconstructs as `[copy, overwrite, edit]` (the overwrite =
+  the backup-recovered 7-line `# derived version` base) ending at the 10-line `transform()` with NO
+  duplicate. Unlike m5, m6's rewound ENDPOINT is reader-DEPENDENT: without a `BackupReader` the
+  duplicate persists (engine/CLI tests lock both directions).
+  m7 (`m7-conv-rewind-no-user-edits`) is a conversation-only rewind with NO user edits. One source
+  file `m7_conv.py`: written (step1), edited (+step2), edited (+step3), then a `Rewind:3` (conv-only
+  — disk NOT restored) forks the conversation back to just after the step1 Write, and a final Edit
+  inserts `step2_alt` before step3. Two branches of `m7_conv.py`: rewound = step1→+step2→+step3
+  (reader-independent; bases in the JSONL), surviving = step1 → [off-branch disk step1+step2+step3]
+  → +step2_alt. No new machinery — it is LOCKED, not fixed. It composes existing guarantees: (a)
+  branch enumeration — `findConversationBranches` + `findStructuralRewoundBranches` discover the
+  rewound branch structurally from the parentUuid fork (no last-prompt head, as in S14/S17); (b) the
+  surviving stale-edit-base reseed — because the off-branch edits D/E are scoped out, the surviving
+  branch's reconstructed base for the step2_alt Edit is the 2-line step1, but the Edit's
+  structuredPatch expects the 10-line on-disk file, so `editBaseIsStale` detects the mismatch and
+  `backupSeedWriteFor` recovers the 10-line disk from file-history backup `29a113119f194d6f@v4`,
+  inserted as an `overwrite` revision before the Edit replays (the S19/m5 reseed, here firing because
+  OFF-BRANCH CLAUDE EDITS — not a user edit — advanced the disk; FIRST such case). The reseed
+  precedes the edit so m6's `includeAfter` after-fallback is not used. The born-path alone would drop
+  step2 (the surviving Edit's hunk context covers only step3), which is why m7 is reader-dependent
+  where S17 was not. Reader-ASYMMETRIC: the surviving branch needs a `BackupReader` (without it step2
+  collapses and the file is 2 corrupted revisions), the rewound branch does not — first scenario
+  split that way.
 - `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
   resolver of a path to an absolute string against the transcript `cwd` (idempotent for
   already-absolute paths). A leaf module (imports only node `path`) shared by extraction

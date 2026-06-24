@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fillRedirectContent, seedEditBaseFromBackup } from "../src/reconstruction_sidecar.ts";
+import {
+    backupSeedWriteFor,
+    fillRedirectContent,
+    seedEditBaseFromBackup,
+} from "../src/reconstruction_sidecar.ts";
 import type { BackupReader } from "../src/reconstruction_sidecar.ts";
 import { resolveAgainstCwd } from "../src/structures/path-resolve.ts";
 import type { AppendEvent, EditEvent, FileEvent, WriteEvent } from "../src/reconstruction_engine.ts";
@@ -137,4 +141,47 @@ test("test_seed_passes_through_when_no_backup_precedes_the_edit", () => {
     // Pass-through: just the Edit, no prepended base.
     assert.equal(seeded.length, 1);
     assert.equal(seeded[0], edit);
+});
+
+// On the stale-edit reseed path (includeAfter=true), a backup snapshotted just AFTER the edit's
+// tool-use time IS a valid pre-edit base: m6's user edit and the edit consuming it share one turn, so
+// the pre-edit snapshot lands ~22ms after the edit record. backupSeedWriteFor must fall back to it.
+test("test_seed_recovers_later_backup_when_includeAfter_true", () => {
+    const cwd = "/work/dir";
+    const records = [
+        buildCwdRecord(cwd),
+        // The only backup is snapshotted AFTER the edit (16:07:55.546 > 16:07:55.524) — the m6 case.
+        buildSnapshotRecord("m6_derived.py", "after@v1", "2026-01-01T16:07:55.546Z"),
+    ];
+    const editWhen = new Date("2026-01-01T16:07:55.524Z");
+    const reader: BackupReader = (name) =>
+        name.toString() === "after@v1" ? "# derived version\nbase content\n" : "WRONG";
+    // With includeAfter=true the fallback fires and recovers the later snapshot as the seed base.
+    const seed = backupSeedWriteFor(records, new Path("/work/dir/m6_derived.py"), editWhen, reader, true);
+    // A synthetic Write is returned, its changeId is the after-backup blob name, content from the reader.
+    assert.notEqual(seed, undefined);
+    assert.equal(seed!.kind, EventKind.write);
+    assert.equal(seed!.changeId.toString(), "after@v1");
+    assert.equal((seed as WriteEvent).content, "# derived version\nbase content\n");
+});
+
+// When both an at-or-before AND a later backup exist, the `??` precedence must keep the at-or-before
+// one — the fallback only fills the gap when no pre-edit backup exists; it never overrides a valid one.
+test("test_seed_prefers_at_or_before_over_later_when_both_exist", () => {
+    const cwd = "/work/dir";
+    const records = [
+        buildCwdRecord(cwd),
+        // One backup BEFORE the edit and one AFTER it.
+        buildSnapshotRecord("m6_derived.py", "before@v1", "2026-01-01T16:07:50.000Z"),
+        buildSnapshotRecord("m6_derived.py", "after@v2", "2026-01-01T16:07:55.546Z"),
+    ];
+    const editWhen = new Date("2026-01-01T16:07:55.524Z");
+    const reader: BackupReader = (name) =>
+        name.toString() === "before@v1" ? "pre-edit content\n" : "WRONG";
+    // includeAfter=true, but the at-or-before backup wins via `??`.
+    const seed = backupSeedWriteFor(records, new Path("/work/dir/m6_derived.py"), editWhen, reader, true);
+    // The seed is the BEFORE backup, not the later one.
+    assert.notEqual(seed, undefined);
+    assert.equal(seed!.changeId.toString(), "before@v1");
+    assert.equal((seed as WriteEvent).content, "pre-edit content\n");
 });
