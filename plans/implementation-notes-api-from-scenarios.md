@@ -1,3 +1,80 @@
+## 2026-06-23:20:52:00 — S18 reconstruction (linear external user-edit with NO rewind, then a post-edit RE-EDIT on top) — COMPLETE as a characterization/regression lock; NO production-code change; 224 tests green
+Chat title: api-from-scenarios — S18 impl monitor → implement S18 (user-edit-no-rewind)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/d47d2d20-8e0f-49e3-b854-44038c10018b.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s18/s18-reconstruction-plan.md (THE authoritative plan executed)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-2048.md (S18 planning handoff that triggered this implementation)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s15/s15-reconstruction-plan.md (S15 — the user-edit-on-rewound-branch scenario S18 inverts; test scaffolding mirrored)
+
+### Design decisions
+- **No production-code change — S18 was already reconstructed correctly by the shipped S15 content-aware user-edit guard + the spec-39 born-path + the linear `findSurvivingHead` case; this slice LOCKS that with tests + docs.** Final state = **224 pass / 0 fail** (215 baseline + 9 new: 4 engine + 5 CLI), `npx tsc --noEmit` clean, filesize sweep clean (new test files 86 / 72 lines).
+- **S18 is the inversion of S15.** S18 is strictly LINEAR (no rewind, no fork): B writes `scenario18.py` (greet) + the test C; the user edits `scenario18.py` out-of-band (an `edited_text_file` attachment prepending `# user was here`); E (Claude) edits the file to add `farewell` anchored on the user-edited content. Surviving (and only) tree = `# user was here` + greet + farewell. Where S15 stranded its user edit on a rewound branch and its `--surviving` view EXCLUDES the edit, S18 KEEPS the edit on the surviving lineage and its `--surviving` view INCLUDES it.
+- **S18 is the FIRST scenario whose fileDAG shows a `user-edit` kind on the surviving lineage**, and the first where a Claude edit is reconstructed on top of a recorded external user edit. The assertions were INVERTED from S15/S16/S17 deliberately, not copied: assert `branches.length === 1` (surviving only), `rewound.length === 0`, the fileDAG `includes("user-edit")`, and `--surviving` KEEPS `# user was here` + greet + farewell.
+- **Why the engine is already correct (read-only references — not modified):** the user's `# user was here` content DIFFERS from B's greet-only write, so `userEditChangesContent` (`reconstruction_replay.ts:118-134`) returns true and KEEPS the user-edit revision (in S16 the echo matched current → dropped — the inverted path). E's `farewell` edit anchors on the user-edited base via `resolveContextLine` carryAt (`reconstruction_replay_edit.ts:96-107`). With no rewind, `findSurvivingHead` (`reconstruction_branch.ts:37-59`) returns the single head directly; the rewind-handling lines never execute.
+
+### Deviations
+- **None.** The plan's test code (engine + CLI) was transcribed verbatim; the scaffolding (imports + the three `finalTextOf`/`historyFinalText`/`historyEndingWith` helpers, `runCli`/`loadRecords` usage) mirrors `tests/reconstruction_engine_s15.test.ts` / `tests/reconstruction_cli_s15.test.ts`. Every assertion passed GREEN on arrival, confirming the plan's live engine-probe verification. No assertion was loosened and no production change was invented.
+
+### Tradeoffs
+- **New per-scenario test files (`tests/reconstruction_engine_s18.test.ts`, `tests/reconstruction_cli_s18.test.ts`) rather than additions to the shared CLI test file** — follows the S10–S17 per-scenario split precedent (the shared `reconstruction_cli.test.ts` sits at 243/250 and cannot absorb more).
+- **Characterization locks (GREEN on arrival) rather than a fabricated RED phase.** Like S10/S11/S16/S17, the engine is already correct; the 9 tests give regression protection for the exact S18 combination (linear external user-edit KEPT on the surviving lineage + a Claude re-edit anchored on it). A future RED here signals a real regression.
+
+### Open questions
+- **None blocking.** No design-doc/spec change was made (S18 introduces no new engine rule — it exercises the existing positive branch of the S15 content-aware guard plus the spec-39 born-path). NOTHING is committed — awaiting the user's review/commit (project rule: commit only when asked; one-commit-per-scenario precedent → `Implemented S18 handling`). S16/S17 may still be uncommitted in this worktree; keep S18 a DISTINCT commit — stage exactly the S18 artifacts (`tests/fixtures.ts`, the two new S18 test files, `plans/roadmap.md`, this notes file), never `git add -A`.
+
+## 2026-06-23:20:39:00 — S17 reconstruction (multi-edit, conversation-only rewind, then post-rewind RE-EDIT) — COMPLETE as a characterization/regression lock; NO production-code change; 215 tests green
+Chat title: api-from-scenarios — S17 handoff monitor → implement S17 (multi-edit-conv-only-re-edit)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/26cdb2a2-3c50-4e56-a4d2-4bebb589e59f.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s17/s17-reconstruction-plan.md (THE authoritative plan executed)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-2034.md (S17 planning handoff that triggered this implementation)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s16/s16-reconstruction-plan.md (S16 — the code-restore twin S17 inverts; templates mirrored)
+
+### Design decisions
+- **No production-code change — S17 was already reconstructed correctly by the shipped S12 born-path + S13 structural discovery + S14 surviving-head guard; this slice LOCKS that with tests + docs.** Final state = **215 pass / 0 fail** (206 baseline + 9 new: 4 engine + 5 CLI), `npx tsc --noEmit` clean, filesize sweep clean (new test files 87 / 73 lines; `reconstruction_cli.test.ts` untouched at 243).
+- **S17 is the conversation-only twin of S16.** B writes `scenario17.py` (greet) + the test C; D edits in `farewell`; a conv-only rewind (`Rewind: 2`, NO `code` suffix) abandons D CONVERSATIONALLY but leaves `farewell` on disk; E re-edits the still-farewell file to add `shout`. Surviving working tree = greet + farewell + shout (KEEPS farewell). This inverts S16, whose `code` restore rolled disk back to greet-only so its surviving tree was greet + shout. Same write→edit→rewind→re-edit shape and the same B/C/D changeIds across the twins; they diverge on exactly the rewind kind, which determines the disk the re-edit sees.
+- **The one assertion that inverts vs S16 (the whole point of the slice):** S16's surviving tests assert the tree has `shout` and NOT `farewell`; S17's assert it has `farewell` AND `shout`. The S16 templates were mirrored, but this single inversion was applied deliberately (the engine and CLI surviving tests both assert both functions present) — NOT a blind copy.
+- **Why the engine is already correct on a partially-present base:** the surviving branch reconstructs over its own records (D excluded), so E's `farewell` context lines are absent from the greet-only base B; `resolveContextLine` (`reconstruction_replay_edit.ts:96-107`) finds them undefined and materialises them as genesis (`born: true`), and `insertHunkAdditions` appends the `+ shout` lines — yielding `scenario17.py` as TWO revisions (greet Write, then one Edit revision holding greet + farewell + shout). This born-path firing on a partially-present base (greet present, farewell absent) is the behavior S17 uniquely exercises and locks. The rewound `farewell` branch (tip #07038b43) is named by no last-prompt head, so it is found STRUCTURALLY (the S13 path); `findWorkingTreeOwner` returns #60cee518 on the final chain, so `findSurvivingHead` keeps the final head #e53225b5 via its on-branch short-circuit (the S14 guard a second line of defense).
+- **No `edited_text_file` attachment exists in S17 at all** (full-transcript scan = zero). Unlike S16 (which had a record-80 greet-only echo dropped by the S15 content-aware guard), S17 has nothing for that guard to evaluate, so "no `user-edit` turn" holds trivially and the fileDAG kind column stays width 5 (`write`/`edit`). The CLI test asserts `!out.includes("user-edit")` to lock this.
+
+### Deviations
+- **None.** The plan's test code (engine + CLI) was transcribed verbatim; the `reconstructBranches`/`ConversationBranch` accessors match the existing S16 test exactly. Every assertion passed GREEN on arrival, confirming the plan's four-way verification. No assertion was loosened and no production change was invented (the plan explicitly forbids manufacturing a RED→GREEN cycle where there is nothing to fix). The end-to-end check confirmed S17 `--surviving` = greet + farewell + shout AND that S16 `--surviving` STILL shows greet + shout with NO farewell — the twins differ by exactly the kept `farewell`.
+
+### Tradeoffs
+- **New per-scenario CLI test file (`tests/reconstruction_cli_s17.test.ts`) rather than additions to `tests/reconstruction_cli.test.ts`** — that file is at 243/250 and five more tests would breach the hard 250-line cap. This follows the S10–S16 per-scenario split precedent.
+- **Characterization locks (GREEN on arrival) rather than a fabricated RED phase.** Like S10/S11/S16, the engine is already correct; the value of the 9 tests is regression protection for the exact S17 combination (conv-only-kept-farewell + surviving re-edit on a partially-present base). A future RED here signals a real regression, not expected churn.
+- **The farewell-attribution artifact is intentional, not a bug.** On the surviving branch, `farewell`'s content lands on E's edit revision (its real author D is off-branch). Per the project directive "reconstruct the change history 100%, attribution second" the surviving content is byte-correct; special-casing attribution would be scope creep risking S1–S16.
+
+### Open questions
+- **None blocking.** No design-doc/spec change was made (S13–S16 added none; S17 introduces no new engine rule — it exercises the existing spec-39 born-path). If a short S17 prose note in `plans/reconstruction-engine-design.md` is wanted for completeness, that is an optional follow-up. NOTHING is committed — awaiting the user's review/commit (project rule: commit only when asked; one-commit-per-scenario precedent → `Implemented S17 handling`). If S16 is still uncommitted, keep S16 and S17 as DISTINCT commits — do not fold S17 into the S16 commit. The unrelated working-tree edit `src/Plan_Impl_template.md` (now committed at `39700e6`) and any other stray edits must NOT be swept into the S17 commit.
+
+## 2026-06-23:20:16:00 — S16 reconstruction (multi-edit, code restore, then post-restore RE-EDIT) — COMPLETE as a characterization/regression lock; NO production-code change; 206 tests green
+Chat title: api-from-scenarios — S16 handoff monitor → implement S16 (multi-edit-code-restore-re-edit)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/fe7cb86f-e453-4b27-9a0c-c3645251748d.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s16/s16-reconstruction-plan.md (THE authoritative plan executed)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-2005.md (S16 planning handoff that triggered this implementation)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-1722.md (S13 planning handoff; S16 is the re-edit twin of S13)
+
+### Design decisions
+- **No production-code change — S16 was already reconstructed correctly by the shipped S13+S14+S15 machinery; this slice LOCKS that with tests + docs.** Final state = **206 pass / 0 fail** (197 baseline + 9 new: 4 engine + 5 CLI), `npx tsc --noEmit` clean, filesize sweep clean (new test files 88 / 67 lines; `reconstruction_cli.test.ts` untouched at 243).
+- **S16 is the re-edit twin of S13.** B writes `scenario16.py` (greet) + the test C; D edits in `farewell`; a code-restore rewind (`Rewind: 2, code`) abandons D and rolls disk back to greet-only; E re-edits to add `shout`. Surviving working tree = greet + shout; the abandoned `farewell` edit is preserved as a structurally-discovered rewound branch.
+- **Why S16 is its own slice despite no code change:** it is the FIRST scenario where a structurally-discovered rewound branch (the S13 mechanism — abandoned tip `24093c68` is NOT a last-prompt head) coexists with a surviving branch that records its OWN file change (the `shout` re-edit). In S13/S14/S15 the surviving branch was file-less (`(no file changes)`); here it renders its `E edit`. The load-bearing reason the surviving head stays correct is the on-branch working-tree-owner short-circuit (`reconstruction_branch.ts:48-49`): `findWorkingTreeOwner` returns the `shout` snapshot `2de1cd62`, which sits on the final chain, so `findSurvivingHead` keeps the final head `a4ec5565` and never reaches the S14 `survivingBranchRecordsFileChange` guard (which would independently also keep it — doubly robust).
+- **The lone `edited_text_file` (record 80, greet-only) is a disk-snapshot ECHO, not a user edit.** The S15 content-aware, branch-aware guard drops it (it equals the file's current greet-only content on its own branch), so no `user-edit` turn appears and the fileDAG kind column stays width 5 (`write`/`edit`). The CLI test asserts `!out.includes("user-edit")` to lock this.
+
+### Deviations
+- **None.** The plan's test code (engine + CLI) was transcribed verbatim; the `reconstructBranches`/`ConversationBranch` accessors match the existing S15 test exactly. Every assertion passed GREEN on arrival, confirming the plan's four-way verification. No assertion was loosened and no production change was invented (the plan explicitly forbids manufacturing a RED→GREEN cycle where there is nothing to fix).
+
+### Tradeoffs
+- **New per-scenario CLI test file (`tests/reconstruction_cli_s16.test.ts`) rather than additions to `tests/reconstruction_cli.test.ts`** — that file is at 243/250 and five more tests would breach the hard 250-line cap. This follows the S10–S15 per-scenario split precedent.
+- **Characterization locks (GREEN on arrival) rather than a fabricated RED phase.** Like S10/S11, the engine is already correct; the value of the 9 tests is regression protection for the exact S16 combination (structural rewound branch + file-recording surviving branch). A future RED here signals a real regression, not expected churn.
+
+### Open questions
+- **None blocking.** No design-doc/spec change was made (S13–S15 added none; S16 introduces no new engine rule). If a short S16 prose note in `plans/reconstruction-engine-design.md` is wanted for completeness, that is an optional follow-up. NOTHING is committed — awaiting the user's review/commit (project rule: commit only when asked; one-commit-per-scenario precedent → `Implemented S16 handling`). The unrelated working-tree edit `src/Plan_Impl_template.md` must NOT be swept into the S16 commit.
+
 ## 2026-06-23:19:12:00 — S15 reconstruction (user out-of-band edit then conv-only rewind) — COMPLETE (corrected a plan defect; 197 tests green)
 Chat title: api-from-scenarios — S15 handoff monitor → implement S15 (user-edit-then-conv-rewind)
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/4a8f2643-0dae-45b6-9c02-eef26c555235.jsonl
