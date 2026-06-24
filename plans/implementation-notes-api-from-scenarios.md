@@ -1,3 +1,52 @@
+## 2026-06-23:23:46:00 — m1 reconstruction (cp-fork: copy then independent edits to both files) — COMPLETE; characterization/regression LOCK, NO src change; 278 tests green
+Chat title: api-from-scenarios — m1 impl monitor → implement m1 (cp-fork)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/cbeb9820-ab83-4daa-9a4a-dfa04711cfbf.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/m1/m1-reconstruction-plan.md (THE authoritative plan executed verbatim)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/m1/handoff-api-from-scenarios-20260623-2340.md (the planning handoff that gated this implementation)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/src/reconstruction_branches.ts (lines 139-156: `seedOneCopy` → `lastRevisionAtOrBefore`, the copy-time snapshot — READ-ONLY, not edited)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/src/reconstruction_lineage.ts (lines 9-15, 33-52: copy excluded from the rename chain; source/copy stay independent — READ-ONLY)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/src/reconstruction_graph.ts (lines 76-81, 108-123: copy keyed to its destination via `contentPathOf`/`turnTarget` — READ-ONLY)
+
+### Design decisions
+- NO engine change. m1 was implemented as a characterization/regression LOCK (like S20/S21/S22), not a fix (unlike S19/S23). The plan verified live that the engine reconstructs all three m1 files byte-for-byte correct before any test was written; the new tests pin that behaviour.
+- Why correct already: (1) copy-time snapshot — `seedOneCopy` seeds the fork from `lastRevisionAtOrBefore(sourceRevisions, cpTimestamp)`, so `m1_fork.py` is born as `m1_base.py` AS OF the `cp` moment (init+enable_debug, 7 lines), and the base's later `disable_all` cannot leak in; (2) per-path independence — the copy event is keyed to its destination path and excluded from the rename chain (`buildRenameChain` follows only `EventKind.rename`), so `m1_base.py` and `m1_fork.py` stay two histories. Reconstructing the base filters the copy event OUT; reconstructing the fork keeps copy+its own edit and drops the base's `disable_all`.
+- m1 is the FIRST file-level fork (all of S7–S23 forked the conversation) and the FIRST scenario to edit BOTH the source and the copy after a `cp` (S3 only edited the copy). It is linear — one surviving branch (tip #3740a519), no rewound branch.
+
+### Deviations
+- None from the plan's instructions. The 9 tests were written verbatim from plan §5/§6 and all passed GREEN on first run (engine + CLI), confirming the no-fix premise.
+- Prove-the-lock RED→GREEN proof (plan §5 step 2): temporarily flipped the crux engine assertion from `BASE_AT_COPY` to `BASE_FINAL`; `test_m1_fork_born_as_copy_of_base_at_copy_time…` went RED with `actual` = the 7-line base@copy text and `expected` = the 11-line base-final text (proving the test distinguishes copy-time from final content). Restored `BASE_AT_COPY`; re-ran → 4/4 GREEN. The CLI crux line-counts (`(7 lines)` copy / `(10 lines)` fork-final / `(11 lines)` base-final) are the regression signal.
+
+### Tradeoffs
+- Engine tests run reader-free (no `BackupReader`) because m1's copy seeding reconstructs the source inline; no file-history sidecar is needed (mirrors S22). The CLI builds its own real reader internally and is unaffected. Considered passing a backup map for parity with S19/S23 — rejected as unnecessary and misleading (m1 has no stale-edit base).
+
+### Open questions
+- None.
+
+## 2026-06-23:23:10:00 — S23 reconstruction (two user edits across a CODE rewind) — COMPLETE; REAL production-code change (first since S19); 269 tests green
+Chat title: api-from-scenarios — S23 impl monitor → implement S23 (user-edits-code-rewind)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/04c4acc5-cf42-4a1b-802c-831311d8fa74.jsonl
+
+### References
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s23/s23-reconstruction-plan.md (THE authoritative plan executed; contains the verified fix code)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/handoff-api-from-scenarios-20260623-2259.md (the S23 IMPLEMENT handoff that gated this session)
+- /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s19/ (the conv-rewind twin where `seedStaleEditBases`/`backupSeedWriteFor` were born; S23 generalises the staleness predicate that feeds them)
+
+### Design decisions
+- REAL `src/` change, ONE file: generalised `editBaseIsStale` (`src/reconstruction_branches.ts`) from a length-overflow check (`oldStart-1 > baseLength`) to a per-line context-match walk against the reconstructed base, plus a small `reconstructedBaseText` accessor. Once `editBaseIsStale` returns true for G, the existing `staleEditSeedFor`/`seedStaleEditBases`/`backupSeedWriteFor` pipeline (unchanged) reseeds the `…@v5` backup as a synthetic overwrite before G.
+- Engine test uses an in-memory `BackupReader` supplying only the v5 blob (init+size+push) that G's seed reads (v4 included for completeness), mirroring the S19 engine test. CLI tests use the real on-disk file-history reader built inside `runCli` (the v5 blob is present on disk at `~/.claude/file-history/2bb895d4-…/`).
+- Key locks: the surviving 4-revision seeded ladder (write→userEdit→overwrite→edit, rev2 = the 5-line v5 seed), the regression byte-lock (size on line 4, a SINGLE push on line 5 — the unfixed engine dropped size and duplicated push), and the rewound-branch reconstruction (5-line init+push+pop).
+
+### Deviations
+- Plan §Task 4 noted `branched.rewound`'s shape "is `FileHistory[]`"; in practice `reconstructBranches` returns `rewound: RewoundBranchHistory[]`, each wrapping `.histories: FileHistory[]`. The rewound test therefore selects the rewound branch by tip (`e62d73ad`) and reads `.histories` rather than passing `branched.rewound` directly to `historyEndingWith`. Result is identical; only the access path differs.
+
+### Tradeoffs
+- The fix is strictly more conservative than the old check: for an ALIGNED edit every context/removed line equals the base line at its index, so the loop never returns true and the lineage passes through unchanged (S1–S22 byte-for-byte unaffected, verified by 260 → all-green). The S19 length-overflow case (`index >= base.length`) is now a special case of the same walk, so S19 still seeds its v3 base.
+
+### Open questions
+- None blocking. `src/reconstruction_branches.ts` lands at exactly 250 lines (the cap); the `editBaseIsStale` doc comment was kept to four lines per the plan. A future change needing more room must split a helper into a new module rather than condense (the project's "split, never condense" rule).
+
 ## 2026-06-23:22:30:00 — S22 reconstruction (two user edits across a conversation rewind) — COMPLETE; characterization/regression LOCK, no production-code change; 260 tests green
 Chat title: api-from-scenarios — S22 impl monitor → implement S22 (user-edits-conv-rewind)
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/8e7ceadb-0426-4adb-83e3-d50d13f3b81c.jsonl

@@ -179,9 +179,11 @@ The engine is split by concern, one paired test each (files kept well under the
   from the at-or-before backup so the Edit splices onto real lines (spec 39). S19 generalised
   this to MID-stream edits via `seedStaleEditBases`/`staleEditSeedFor`/`backupSeedWriteFor`
   (in `reconstruction_branches.ts`, reusing the same backup lookup): when an edit's first hunk
-  references lines past its reconstructed base — off-branch edits that advanced the disk and
-  persisted across a conversation-only rewind — the same backup seed is spliced before that
-  edit; an edit whose base is intact passes through unchanged.
+  references base content the events before it did not reconstruct — each context/removed line must
+  equal the base line at its position; a mismatch, or a position past the base, means off-branch edits
+  advanced the disk and persisted across a rewind — the same backup seed is spliced before that
+  edit; an edit whose base is intact (every line aligned) passes through unchanged. (S19 first needed
+  only the length-overflow half of this check; S23 generalised it to the per-line context-match below.)
   S20 (code-rewind twin of S19) records the contrast and needs NO new rule: a CODE rewind
   reverts the file on disk, and Claude Code re-writing the checkpoint surfaces as a synthetic
   `edited_text_file` (a `user-edit`) on the SURVIVING branch. The S15 content-aware guard
@@ -206,6 +208,24 @@ The engine is split by concern, one paired test each (files kept well under the
   content the user edit already produced), the complement of S19 where the reseed is active because a
   Claude edit follows the rewind. The same user-edit kind adds one line on the abandoned branch but
   three on the surviving branch, driven by per-branch disk state. No code change; characterization only.
+  S23 (`s23-user-edits-code-rewind`) is the code-rewind twin of S22, but the user's second edit
+  (`size`) left NO event (it surfaces only in the file-history backup `…@v5`), so the surviving
+  `is_empty` edit was computed against a disk the on-branch events do not reconstruct — a base of the
+  SAME length as S19's but a WRONG line. `editBaseIsStale` was generalised from `oldStart-1 >
+  baseLength` (length-only) to a per-line context-match against the reconstructed base (via a new
+  `reconstructedBaseText` accessor); the same `seedStaleEditBases` reseed then splices the at-or-before
+  `…@v5` backup before the surviving `is_empty` edit. The length-overflow case (S19) is now a special
+  case of the mismatch walk, so every aligned pre-S23 edit is byte-for-byte unaffected. REAL code
+  change (the first since S19); first scenario where a captured base diverges by content, not length.
+  m1 (`m1-cp-fork`) is the first *file-level* fork: a `cp` (event E) creates `m1_fork.py` from
+  `m1_base.py`, then BOTH files are edited independently (G adds `disable_all` to the base; F adds
+  `enable_verbose` to the fork). No new machinery — it is locked, not fixed. It exercises two existing
+  guarantees together for the first time: (a) copy-time snapshot — `seedOneCopy` seeds the fork from
+  `lastRevisionAtOrBefore(sourceRevisions, cpTimestamp)`, so the fork is born as base@D
+  (init+enable_debug) and the later `disable_all` never leaks in; (b) per-path independence — the copy
+  event is keyed to its destination (`contentPathOf`/`turnTarget`) and excluded from the rename chain,
+  so source and copy stay two histories. Generalises the S3 copy lineage from "copy then edit the
+  COPY" to "copy then edit BOTH". Linear (no rewind): one surviving branch.
 - `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
   resolver of a path to an absolute string against the transcript `cwd` (idempotent for
   already-absolute paths). A leaf module (imports only node `path`) shared by extraction
