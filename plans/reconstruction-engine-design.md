@@ -358,6 +358,25 @@ The engine is split by concern, one paired test each (files kept well under the
   is the m6 concern, solved by a backup-seed (NOT a script transform). No script-execution-replay is
   needed or added. No engine change — LOCKED, not fixed. Linear: one surviving branch (tip #e3b43fcc),
   four files, no rewound branch.
+  S26 (`s26-script-rename-csv-map`) is the CSV-MAP / data-driven variant of S25 and the STRUCTURAL
+  INVERSION of its mixed-reader crux. ONE `python3 apply_renames.py` Bash run rewrites TWO tracked
+  sources (`billing.py`, `tests/test_billing.py`), but the rename mapping is READ from a tracked
+  `renames.csv` (header + 4 pairs) rather than hardcoded — so `renames.csv` and `apply_renames.py` are
+  ordinary Claude `Write`s and the rename itself surfaces via TWO `edited_text_file` beacons (uuids
+  `298a585d…` billing / `507c3e6b…` test_billing) that `userEditEventFrom` turns into `user-edit`
+  revisions. The load-bearing finding: `billing.py` ALSO carries a post-script Edit (`print_invoice`),
+  exactly like S25's `geo_report.py` — but its beacon is a COMPLETE 149-line snapshot, so the Edit's
+  recorded base matches it and the splice is clean (149 → 177 lines) with NO backup-seed. So
+  `seedEditBaseFromBackup`/`backupSeedWriteFor` stay INERT and NO `overwrite` revision is injected
+  anywhere; ALL FOUR files are reader-INDEPENDENT (provably ignored under a poison reader). This proves
+  a post-script Edit ALONE does NOT force reader-dependence — only an INCOMPLETE beacon does (S25's
+  `geo_report`). The first scenario where a HAS-BEACON file with a post-script Edit is STILL
+  reader-independent — the exact complement of S25, confirming the m6 backup-seed correctly STAYS
+  DORMANT when the beacon is complete. `billing.py` = 4 revs [write, edit, userEdit, edit] (pure
+  insertions, no removal/addition split) → 177 ln / 5813 ch; `test_billing.py` = 2 revs
+  [write, userEdit] → 60 ln / 1394 ch; `renames.csv` = 1 [write] → 5 ln / 106 ch; `apply_renames.py`
+  = 1 [write] → 43 ln / 1125 ch. No engine change — LOCKED, not fixed. Linear: one surviving branch
+  (tip #ae7838c8), four files, no rewound branch.
 - `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
   resolver of a path to an absolute string against the transcript `cwd` (idempotent for
   already-absolute paths). A leaf module (imports only node `path`) shared by extraction

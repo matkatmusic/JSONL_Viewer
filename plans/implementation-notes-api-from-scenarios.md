@@ -1,3 +1,91 @@
+## 2026-06-24:15:05:00 — S26 reconstruction (CSV-map multi-file script rename via Bash python3) — COMPLETE; characterization/regression LOCK, NO src change; 371 tests green
+Chat title: api-from-scenarios — S26 impl monitor → implement S26 (script-rename-csv-map)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/5f016807-76b4-479c-9871-4efc0ca3b36c.jsonl
+
+### References
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt (HAS-BEACON vs NO-BEACON premise)
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s26/s26-reconstruction-plan.md
+- Handoff (in): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s26/handoff-api-from-scenarios-20260624-1446.md
+- S25 LOCK this inverts: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s25/s25-reconstruction-plan.md
+- Scenario: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/s26-script-rename-csv-map.txt
+- Executed output: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s26-script-rename-csv-map/
+
+### What S26 is
+The CSV-map / data-driven variant of S25's multi-file script rename. ONE `python3 apply_renames.py`
+Bash run rewrites TWO tracked sources (`billing.py`, `tests/test_billing.py`), but the rename mapping
+is READ from a tracked `renames.csv` (header `old,new` + 4 pairs: `calc_tot→calculate_total`,
+`fmt_money→format_currency`, `chk_stock→check_stock`, `apply_disc→apply_discount`) rather than
+hardcoded in the script. Ladder: Write `billing.py` (terse) + `tests/test_billing.py` → Edit `billing`
++`validate` → Write `renames.csv` → Write `apply_renames.py` then run it with `python3` via the Bash
+tool → Edit `billing` +`print_invoice` (uses the renamed `calculate_total`/`format_currency`). The
+scenario FORBIDS Edit/Write for the rename — it happens only through the script, so there is NO
+Edit/Write tool_use for the rename; the rename is carried by TWO `edited_text_file` beacons (uuids
+`298a585d…` billing / `507c3e6b…` test_billing).
+
+### All reader-INDEPENDENT — the inversion of S25
+S25's `geo_report.py` had a post-script Edit (`totals`) whose base was the true 95-line disk state
+while its beacon was an INCOMPLETE 77-line snapshot → the m6 backup-seed fired (synthetic `overwrite`
+keyed `a5675d5dd5201ac8@v4`). S26's `billing.py` ALSO has a post-script Edit (`print_invoice`, step 5),
+but its beacon is a COMPLETE 149-line snapshot, so the Edit's recorded base matches it and the splice
+is clean (149 → 177) with NO backup-seed and NO `overwrite` revision. Verified live with no reader, a
+poison reader, and the real sidecar reader — all three byte-identical for every file:
+
+| File | revisions | reader-INDEPENDENT? |
+|---|---|---|
+| `billing.py` | 4 [write, edit, userEdit, edit] → 177 ln / 5813 ch | YES (complete beacon; print_invoice splices clean) |
+| `tests/test_billing.py` | 2 [write, userEdit] → 60 ln / 1394 ch | YES (complete beacon; no later edits) |
+| `renames.csv` | 1 [write] → 5 ln / 106 ch | YES (ordinary Write, the rename map) |
+| `apply_renames.py` | 1 [write] → 43 ln / 1125 ch | YES (ordinary Write, the driver) |
+
+This is the first scenario that proves "post-script Edit ⇏ reader-dependent" — only an INCOMPLETE
+beacon forces reader-dependence. The m5/m6 `seedEditBaseFromBackup`/`backupSeedWriteFor` reseed stays
+DORMANT throughout (no backup is requested), which is exactly what S26 locks.
+
+### Why no engine change
+S26 stays inside the S24/S25 HAS-BEACON family. `userEditEventFrom` (reconstruction_user_edit.ts)
+reads each `edited_text_file` attachment (changeId = entry.uuid); `collectEventsFromRecord` /
+`extractFileEvents` (reconstruction_extract.ts) inject the 2 user-edits alongside the 4 writes / 2
+edits (the opaque `python3` run adds nothing); `userEditChangesContent` / `userEditRevision`
+(reconstruction_replay.ts) record each beacon as a `user-edit` revision; `applyEdit`
+(reconstruction_replay_edit.ts) splices the `validate` and `print_invoice` Edits onto the prior base;
+and `seedEditBaseFromBackup` / `backupSeedWriteFor` (reconstruction_sidecar.ts) stay INERT — the
+`print_invoice` Edit's base already matches the complete beacon. `git diff src/` is EMPTY.
+
+### The CSV map
+S26's new wrinkle vs S24/S25: the rename mapping lives in a tracked DATA file (`renames.csv`) the
+script READS, not hardcoded in the script body. Engine Test 5 byte-locks `renames.csv` (5 ln / 106 ch)
+and checks all 4 pairs, and confirms `apply_renames.py` references `renames.csv`.
+
+### RED→GREEN liveness (proven, then reverted)
+- Engine Test 2: changeId `298a585d…` → `deadbeef…` → RED. Restored.
+- Engine Test 2: `S26_BILLING_FINAL` one-char flip (`Small` → `Xmall`) → RED (the 5813 byte-lock bites). Restored.
+- Engine Test 3: assert `overwrite` PRESENT (it is absent) → RED (the inverse-of-S25 signature bites). Restored.
+- Engine Test 5: `S26_RENAMES_CSV` one-char flip (`old,new` → `old,NEW`) → RED. Restored.
+- CLI Test 4: `def print_invoice(` → `def PRINT_INVOICE(` → RED. Restored.
+All 12 tests GREEN after each restore; full suite 371/0; `npx tsc --noEmit` clean.
+
+### Deviations
+- CLI Test 5 (`test_S26_verbose_test_billing_two_revisions_renamed`): the plan's negative check
+  `!block.includes("import calc_tot")` was NOT scoped to the final revision. `--verbose` prints EVERY
+  revision, and the terse pre-rename revision 0 of `tests/test_billing.py` legitimately still contains
+  `from billing import calc_tot, fmt_money`, so the unscoped check falsely failed RED. Fixed by scoping
+  the terse-absence check to the FINAL revision (slice from `revision 1  @`), mirroring the plan's own
+  billing.py Test 4 pattern. This is a test-authoring fix consistent with the plan's §2.7 guidance
+  ("per-file verbose assertions must be scoped"); the ENGINE is correct (the byte-lock on the renamed
+  final revision passes), so NO src change.
+
+### Tradeoffs
+- All engine tests are reader-free with a poison guard; NO hermetic backup map is needed (unlike S25's
+  `s25Reader`/`S25_GEO_REPORT_BACKUP`) because S26 is fully reader-independent.
+- The test-file rename lock uses the renamed import line + call forms, NOT bare tokens, because the
+  whole-word rename correctly leaves terse substrings inside test METHOD names (`test_calc_tot_empty`,
+  `test_fmt_money_zero`). A bare `!includes("calc_tot")` check would falsely fail.
+- CLI tests use the real, inert sidecar reader (the CLI builds it; it is simply never consulted).
+
+### Open questions
+- None blocking. Commit is gated on explicit user approval (project rule: one commit per scenario);
+  not committed by this session. Next scenario per the plan: `s27-script-rename-edited-before-run`.
+
 ## 2026-06-24:14:25:00 — S25 reconstruction (multi-file script rename via Bash python3) — COMPLETE; characterization/regression LOCK, NO src change; 359 tests green
 Chat title: api-from-scenarios — S25 impl monitor → implement S25 (script-rename-multi-file)
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/52d94dd7-8312-411c-b526-9d6dafb7b47b.jsonl
