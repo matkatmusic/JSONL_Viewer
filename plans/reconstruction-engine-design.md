@@ -708,6 +708,52 @@ The engine is split by concern, one paired test each (files kept well under the
   18-line revision. `tests/test_orders.py` is correctly NOT reconstructed (written in the excluded baseline
   session, no event here — a sidecar cannot legitimately reattach it). 4 new engine + 5 new CLI tests;
   517 → 526.
+- S40 (`s40-git-baseline-user-edits`) adds NO code — it is s39 (`git-baseline-seed`) plus TWO interleaved
+  USER edits on `orders.py`, so it inherits s39's mid-stream-open, reader-DEPENDENT shape (the
+  `--excludeJSONL` respawn again drops the baseline session; no git markers in the JSONL). The post-respawn
+  agent runs a linear 4-node ladder on `orders.py`: B `edit` (#0112WZX4, Claude adds `count`) → C `user-edit`
+  (#9a3cae75, appends `# reviewed by ops`) → D `edit` (#017v7Ebf, Claude adds `subtotal`, inserted before
+  `count`) → E `user-edit` (#450a2098, appends `# checked`). One surviving branch (tip #86c30c1a), one file,
+  no rewound; prompt #e84ca6bc. `--verbose` renders 7 revisions (0..6) with line counts
+  `28, 40, 9, 41, 54, 9, 55`: the full-state ladder is monotonic 28 → 40 → 41 → 54 → 55, and rev 2 and rev 5
+  are the 9-line user-edit PARTIAL-ECHO snapshots (the tail window ending in the appended comment) — the same
+  value-snapshot rendering s39 documented for its single edit, EXPECTED not a defect. The tip (rev 6, 55 L)
+  is BYTE-IDENTICAL to the rendered on-disk `orders.py` after stripping `  N | ` prefixes and the trailing
+  newline. `tests/test_orders.py` is correctly NOT reconstructed (written in the excluded baseline session).
+  5 new CLI tests; 526 → 531.
+- S41 (`s41-git-baseline-mid-commit`) adds NO code — it is s40 (`git-baseline-user-edits`) plus a mid-stream
+  `git commit "wip"` between the two interleaved USER edits on `orders.py`, so it inherits s39/s40's
+  mid-stream-open, reader-DEPENDENT shape. The mid-stream commit is INERT: the `git add`/`status`/`commit`/
+  `log` Bash records carry no file events and the engine ignores them cleanly (no node, no crash) — the only
+  structural difference from s40, changing nothing in the reconstruction. The post-respawn agent runs a linear
+  2-node ladder on `orders.py`: B `edit` (#01Rw572a, Claude adds `count`) → C `user-edit` (#a72dd041, appends
+  `# reviewed by ops`). The SECOND user edit (`# checked`) appears NOWHERE in the JSONL — the file-history
+  backup (`@v3`) supplies the tip, folded into C, so there is no third node. The scenario's `subtotal` step
+  NEVER executed (session ends "Thanks." + exit), so unlike s40 there is NO subtotal node and the engine
+  correctly does NOT invent one. One surviving branch (tip #fbd57365), one file, no rewound; prompt #f4131b49.
+  `--verbose` renders 4 revisions (0..3) with line counts `29, 41, 9, 43`: the full-state ladder is monotonic
+  29 → 41 → 43, and rev 2 is the 9-line user-edit PARTIAL-ECHO snapshot (the tail window ending in
+  `# reviewed by ops`) — EXPECTED not a defect. The tip (rev 3, 43 L) is BYTE-IDENTICAL to the rendered
+  on-disk `orders.py` after stripping `  N | ` prefixes and the trailing newline. `tests/test_orders.py` is
+  correctly NOT reconstructed (written in the excluded baseline session). 5 new CLI tests; 531 → 536.
+- S42 (`s42-git-baseline-from-s38`) adds NO code — it is the FOURTH of the `git-baseline` family and the
+  first that composes it with an s38-style MCP script-rename IN THE BASELINE. The dropped baseline session
+  (`--excludeJSONL`) writes `inventory.py` + `tests/test_inventory.py` with terse names, runs `rename_inv.py`
+  through the context-mode MCP sandbox to rename `qty_chk→check_quantity`/`add_item→insert_item`/
+  `rm_item→remove_item`, and commits "baseline" — so the rename machinery is NEVER in the transcript and the
+  JSONL opens MID-STREAM. reader-DEPENDENT (same as s39/s41): the first mid-stream `inventory.py` Edit has no
+  usable `toolUseResult.originalFile`, so rev 0 is seeded from the `~/.claude/file-history` backup, which
+  ALREADY carries the post-rename names — that is WHY the renamed identifiers appear with no rename replay
+  here. The post-respawn agent runs a linear 3-node ladder on `inventory.py`: B `edit` (#01HyE14A, Claude adds
+  `reorder`) → C `user-edit` (#6a022912, appends `# reviewed by ops`) → D `edit` (#01SNebUt, Claude adds
+  `shrink`). One surviving branch (tip #a017b766), one file, no rewound, no `write` node; prompt #09c1efd9.
+  `--verbose` renders 4 revisions (0..3) with line counts `145, 173, 174, 191`: rev 0 = the five backup-seeded
+  post-rename baseline funcs (no `reorder`/`shrink`/comment), monotonic 145 → 173 (+`reorder`) → 174
+  (+`# reviewed by ops`) → 191 (+`shrink`). The tip (rev 3, 191 L) is BYTE-IDENTICAL to the rendered on-disk
+  `inventory.py` after stripping `  N | ` prefixes and the trailing newline. The scenario's `low_stock`
+  (step 2) and `restock` (step 7) left no trace in the executed file or transcript, and the engine correctly
+  does NOT invent them — their absence is asserted everywhere. `tests/test_inventory.py` and `rename_inv.py`
+  (both written in the excluded baseline session) are correctly NOT reconstructed. 5 new CLI tests; 536 → 541.
 - `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
   resolver of a path to an absolute string against the transcript `cwd` (idempotent for
   already-absolute paths). A leaf module (imports only node `path`) shared by extraction

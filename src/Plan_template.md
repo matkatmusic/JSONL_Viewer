@@ -26,7 +26,21 @@ If the monitor shuts off or exits due to timing out and you haven't received the
 Once the handoff for 'Scenario X-1' has landed, run the JSONL for 'Scenario X' through the `reconstruction_cli` tool and compare its output against the on-disk reconstruction for the scenario. The point of this check is to eliminate unnecessary work when the engine already handles the scenario correctly.
 
 - Scenario input data: `/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/sX-*.txt`
-- Executed output (the JSONL + rendered on-disk files): `/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/sX*/`
+- Executed output (the JSONL + rendered on-disk files): `/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/sX-*/`
+
+Run the CLI from the repo root, passing the scenario's JSONL as the only positional argument:
+
+```
+node --import tsx src/reconstruction_cli.ts scenarios/executed/sX-*/*.jsonl
+```
+
+Useful flags for inspecting the reconstruction so you can diff it against the on-disk files:
+- `--target <path>` — restrict output to a single reconstructed file
+- `--verbose` — print each file's full reconstructed content (this is what you compare byte-for-byte against the on-disk file in `scenarios/executed/sX-*/`)
+- `--diff` — show the reconstruction as diffs instead of full content
+- view flags: `--graphConvo` / `--graphFile` / `--surviving` / `--list-branches` / `--branch <id>` (both graphs print by default)
+
+Compare the CLI's reconstructed history/content for every file the JSONL touches against the rendered on-disk files in `scenarios/executed/sX-*/`.
 
 **If `reconstruction_cli` produces the correct reconstruction history for every file touched in the JSONL**, the engine already handles Scenario X. Skip the handoff read and the gap analysis entirely — jump straight to writing a short plan with exactly these details:
 ```

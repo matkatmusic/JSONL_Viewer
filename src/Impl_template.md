@@ -1,3 +1,5 @@
+Create a task list for everything you end up doing in this session so the user can keep up with what you're doing.  The more granular the task list is, the better.
+
 use the '/ponytail' skill to reduce how much code and context you generate.
 
 Read everything in `~/.claude/guides/`
@@ -28,7 +30,7 @@ When the handoff document lands, read the 'MUST READ' file at the top, then read
 Then begin implementing the plan mentioned within for handling 'Scenario X' using the '/jot:implement' skill. 
 Use subagents where possible to keep your context window clear.
 
-The scenario you're implementing engine handling for is here: `/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/X-*.txt`.  the `scenarios/executed/X*/` folder contains the output from the run of that scenario, including the JSONL file and any rendered files. 
+The scenario you're implementing engine handling for is here: `/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/X-*.txt`.  the `scenarios/executed/X-*/` folder contains the output from the run of that scenario, including the JSONL file and any rendered files. 
 
 Include 'create handoff' in your task list, once you start implementing the plan for 'Scenario X'.
 

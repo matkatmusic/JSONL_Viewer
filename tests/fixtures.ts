@@ -143,3 +143,23 @@ export const S38_JSONL =
 // `orders.py` sitting beside this JSONL in the same local executed dir.
 export const S39_JSONL =
     "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s39-git-baseline-seed/356cbd5e-009f-457d-9c05-d56aa944b25c.jsonl";
+
+// s40 = s39 + two interleaved USER edits on `orders.py`. Same `git-baseline` family, same LOCAL-copy
+// convention: the baseline session was excluded (`--excludeJSONL`) so this transcript opens mid-stream,
+// and the s40 CLI test byte-matches the tip against the rendered `orders.py` beside this JSONL.
+export const S40_JSONL =
+    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s40-git-baseline-user-edits/e2fee02a-29c1-4710-9146-8d8055e7fe94.jsonl";
+
+// s41 = s40 + a mid-stream `git commit "wip"` between the two interleaved USER edits on `orders.py`. The commit
+// is INERT (Bash git records produce no file events), and the `subtotal` step in the scenario never executed —
+// so the tip is a 43-line `orders.py` (count + both appended comments, no subtotal). Same LOCAL-copy convention.
+export const S41_JSONL =
+    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s41-git-baseline-mid-commit/6d01aabb-79c5-4ca9-88b9-7834a050bf6d.jsonl";
+
+// s42 = the `git-baseline` family composed with an s38-style MCP script-rename IN THE BASELINE. The baseline
+// session (which ran the rename) is excluded (`--excludeJSONL`), so this transcript opens mid-stream with
+// three `inventory.py` events (Claude adds `reorder`, a user edit appends `# reviewed by ops`, Claude adds
+// `shrink`); rev 0 is seeded from the file-history backup that already carries the post-rename names. Same
+// LOCAL-copy convention — the s42 CLI test byte-matches the tip against the rendered `inventory.py` beside it.
+export const S42_JSONL =
+    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s42-git-baseline-from-s38/58525cea-c958-449a-894a-1c562a18a2bd.jsonl";

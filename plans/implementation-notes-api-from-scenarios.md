@@ -2494,3 +2494,27 @@ Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-
 
 ### Open questions
 - None blocking. Note for s40/s42 planners: treat the git-baseline family as reader-DEPENDENT — the pre-edit base lives in the file-history sidecar, not the transcript.
+
+## 2026-06-24:22:38:00 — S40 (`s40-git-baseline-user-edits`) CHAR-LOCK
+Chat title: impl-scenario 40
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/ (current session)
+
+### References
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s40/s40-reconstruction-plan.md
+- Handoff (planning → impl): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s40/handoff-api-from-scenarios-20260624-2230.md
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt
+- Scenario JSONL: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s40-git-baseline-user-edits/e2fee02a-29c1-4710-9146-8d8055e7fe94.jsonl
+
+### Design decisions
+- CHAR-LOCK, NO source change. s40 = s39 + two interleaved USER edits on `orders.py`; the engine already reconstructs it correctly. Added fixture `S40_JSONL` (LOCAL executed copy, same convention as s39) and `tests/reconstruction_cli_s40.test.ts` (5 tests). 526 → 531, tsc clean.
+- Skipped the optional `tests/reconstruction_engine_s40.test.ts` — the CLI test exercises the real sidecar reader internally (via `runCli`) and already byte-locks the tip, so it satisfies the characterization without duplicating s39's engine-level lock.
+- Captured live `runCli` output for all four modes FIRST (s33 lesson), incl. exact DAG whitespace, before writing any assert. Locked literals: prompt #e84ca6bc; nodes B `edit` #0112WZX4 / C `user-edit` #9a3cae75 / D `edit` #017v7Ebf / E `user-edit` #450a2098; surviving tip #86c30c1a; verbose 7-revision line counts `28,40,9,41,54,9,55`.
+
+### Deviations
+- None. The plan's literals all matched the live capture exactly (unlike s39, where the plan's `originalFile`-seed claim was wrong). The plan's framing — 9-line rev 2 / rev 5 as user-edit partial-echo snapshots, tip byte-match, reader-dependent family — held verbatim.
+
+### Tradeoffs
+- Added a small `revisionSlice(block, n)` helper (alongside s39's `finalRevisionSlice`) so each interleaved revision (rev 2/3/5/6) can be asserted independently — the two user edits and their full-state pairs each get a distinct content lock rather than a single coarse tip check.
+
+### Open questions
+- None blocking. s41 (`git-baseline-mid-commit`) builds on s40 by adding a mid-stream `wip` commit between the two user edits; the commit is git-only and (per the family pattern) should stay invisible to the engine — flag if a commit marker leaks into the transcript.
