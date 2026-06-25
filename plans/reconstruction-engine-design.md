@@ -691,6 +691,23 @@ The engine is split by concern, one paired test each (files kept well under the
   completion changeIds are backup blob names, kept out of the DAGs, spec 40): `inventory.py` 4 nodes
   (B,D,H,I), `test_inventory.py` 2 (C,G), `rename_inv.py` 2 (E,F). Linear: one surviving branch
   (tip #ef548232), three files, no rewound; prompt #20f20b89. 6 new CLI tests; 511 → 517.
+- S39 (`s39-git-baseline-seed`) adds NO code — it is the FIRST of a new `git-baseline` family (s40/s42
+  build on it). The scenario's first agent does `git init`, writes `orders.py` (`total`/`names`) +
+  `tests/test_orders.py`, commits "baseline", and branches `feature`; then
+  `EndCurrentAgentAndSpawnNewAgent --excludeJSONL` drops that whole baseline session from the transcript.
+  So the s39 JSONL opens MID-STREAM with the post-respawn agent only: one prompt ("add count()"), one
+  `Read`, one `Edit` of `orders.py`, "Thanks". There are NO git Bash commands and NO spawn markers in the
+  JSONL — the respawn is invisible to the engine. extractFileEvents = exactly 1 edit (0 write / overwrite /
+  userEdit). HEADLINE (and a correction to the plan's first guess of an `originalFile`-seed): s39 is
+  reader-DEPENDENT. The lone Edit carries no usable `toolUseResult.originalFile`, so the 29-line pre-edit
+  base is recovered from the file-history sidecar backup, not from the transcript. WITH the real reader
+  (the CLI's path): one surviving branch (tip #d8c61657), one file `orders.py`, 2-revision ladder
+  29 → 41 L (rev 0 = `total`/`names`, no `count`; tip adds documented `count(items)`, BYTE-IDENTICAL to the
+  rendered on-disk `orders.py`); fileDAG = one `edit` node (B #01XCwxVH), no `write` node (the base is a
+  recovered backup, not an observed write); prompt #5b518fc2. WITHOUT a reader it degrades to a single
+  18-line revision. `tests/test_orders.py` is correctly NOT reconstructed (written in the excluded baseline
+  session, no event here — a sidecar cannot legitimately reattach it). 4 new engine + 5 new CLI tests;
+  517 → 526.
 - `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
   resolver of a path to an absolute string against the transcript `cwd` (idempotent for
   already-absolute paths). A leaf module (imports only node `path`) shared by extraction

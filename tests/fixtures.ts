@@ -136,3 +136,10 @@ export const S37_JSONL =
 
 export const S38_JSONL =
     "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s38-script-rename-script-user-edit-mcp/fa5ad942-4316-406b-95a5-65995b112970.jsonl";
+
+// s39 is the first `git-baseline-seed` scenario. Unlike the others above it points at the LOCAL
+// worktree copy: the baseline session was excluded (`--excludeJSONL`), so this transcript opens
+// mid-stream with a single `orders.py` Edit, and the engine test byte-matches against the rendered
+// `orders.py` sitting beside this JSONL in the same local executed dir.
+export const S39_JSONL =
+    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s39-git-baseline-seed/356cbd5e-009f-457d-9c05-d56aa944b25c.jsonl";

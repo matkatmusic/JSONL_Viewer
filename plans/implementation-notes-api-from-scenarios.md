@@ -2469,3 +2469,28 @@ Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-
 ### Open questions
 1. **The sidecar alignment rule assumes ≤1 mutation to a path between two non-null snapshots.** S5 satisfies it (one mutation per turn). A future scenario that mutates one file twice between snapshots would leave the intermediate state unrecoverable from the sidecar — flag it then.
 2. **`reconstruction_engine.ts` at 248/250** — pre-emptively split (e.g. move the copy-seed recursion) before S6, or wait until a change forces it?
+
+## 2026-06-24:22:22:00 — S39 (`s39-git-baseline-seed`) CHAR-LOCK
+Chat title: impl-scenario 39
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Desktop-claude-code-src-RevEng/ (current session)
+
+### References
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s39/s39-reconstruction-plan.md
+- Handoff (planning → impl): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s39/handoff-api-from-scenarios-20260624-2208.md
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt
+- Scenario JSONL: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s39-git-baseline-seed/356cbd5e-009f-457d-9c05-d56aa944b25c.jsonl
+
+### Design decisions
+- CHAR-LOCK, NO source change. Added a fixture (`S39_JSONL`), `tests/reconstruction_cli_s39.test.ts` (5 tests), `tests/reconstruction_engine_s39.test.ts` (4 tests). 517 → 526, tsc clean.
+- `S39_JSONL` points at the LOCAL worktree executed copy (not the sibling RevEng store the other fixtures use), per the plan, so the engine test byte-matches against the `orders.py` sitting beside the JSONL in the same dir. Captured live `runCli` output first (s33 lesson) before locking strings.
+- The CLI test owns the "2-revision ladder / rev 0 = 29 lines" characterization (the verbose renderer renders the two value-snapshots as `revision 0`/`revision 1`); the engine test owns the structural truth + byte-lock.
+
+### Deviations
+- **HEADLINE — plan's reconstruction mechanism was wrong; tests corrected to reality.** The plan/handoff claim rev 0 is seeded "PURELY from the Edit's `toolUseResult.originalFile` (no Write event)" and frame s39 as reader-independent. Probed live: s39 `orders.py` is **reader-DEPENDENT**. The lone Edit has no usable `originalFile`, so WITHOUT a backup reader the engine cannot recover the 29-line pre-edit base — `orders.py` collapses to a single degraded 18-line revision. WITH the real file-history sidecar reader (exactly the CLI's path), it yields the clean 2-revision ladder 29 → 41 L with a byte-perfect tip. The "no Write event" half of the plan IS correct (extractFileEvents = 1 edit, 0 write). Consistent with the existing `originalfile-not-always-populated` finding.
+- Engine test therefore uses `realReader(records)` (mirrors the S37 engine test) for the byte-lock, and adds an explicit `test_S39_orders_reader_dependent_degrades_without_backup` locking the 18-line no-reader degradation. This is the s39 characterization that governs s40/s42.
+
+### Tradeoffs
+- Did the rigorous byte-match in BOTH the engine test (`historyFinalText` vs on-disk) and the CLI test (strip `  N | ` prefixes vs on-disk). Slight duplication, but the CLI strip-and-compare is what the plan explicitly asked for and the engine compare is prefix-free / more robust — keeping both makes a future renderer-format change fail loudly in exactly one place.
+
+### Open questions
+- None blocking. Note for s40/s42 planners: treat the git-baseline family as reader-DEPENDENT — the pre-edit base lives in the file-history sidecar, not the transcript.
