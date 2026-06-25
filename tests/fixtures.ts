@@ -163,3 +163,39 @@ export const S41_JSONL =
 // LOCAL-copy convention — the s42 CLI test byte-matches the tip against the rendered `inventory.py` beside it.
 export const S42_JSONL =
     "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s42-git-baseline-from-s38/58525cea-c958-449a-894a-1c562a18a2bd.jsonl";
+
+// s43 = the `git-baseline` family, structural twin of s42, with the baseline leaving `inventory.py` UNTRACKED
+// in git (only `rename_inv.py` + `tests/` committed) — a no-op for reconstruction since git state never enters
+// the JSONL. The baseline session (write `inventory.py` terse-named, add `low_stock`, run `rename_inv.py`
+// through the MCP sandbox to rename qty_chk→check_quantity / add_item→insert_item / rm_item→remove_item, add
+// `restock`, `git commit "baseline"`) is dropped by `--excludeJSONL`, so this transcript opens MID-STREAM with
+// three `inventory.py` events (Claude adds `reorder`, a user edit appends `# reviewed by ops`, Claude adds
+// `shrink`); rev 0 is seeded from the file-history backup that already carries the post-rename names AND
+// `low_stock` (added before the backup point). `restock` was added after and left no trace. Same LOCAL-copy
+// convention — the s43 CLI test byte-matches the tip against the rendered `inventory.py` beside it.
+export const S43_JSONL =
+    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s43-git-baseline-uncommitted-module/bc144725-0013-4991-8994-4ee99efab8f4.jsonl";
+
+// s44 = the `git-baseline` family with the script-rename running MID-STREAM (not in the excluded baseline as in
+// s42/s43). `--excludeJSONL` fires at step 4, BEFORE the rename script exists, so the mid-stream transcript
+// CONTAINS the full rename machinery: `rename_inv.py` is Written (one tuple qty_chk→check_quantity) + 2 USER
+// edits (add_item→insert_item, rm_item→remove_item), then the MCP sandbox runs it. That is why `rename_inv.py`
+// IS reconstructed here (3-rev ladder, tip 38 lines) — the new assertion vs s43. The MCP rename leaves NO
+// `inventory.py` DAG node: its effect surfaces only because rev 0 of `inventory.py` (175 lines) is backup-seeded
+// AFTER the rename ran, so it already carries the post-rename names (check_quantity / insert_item / remove_item).
+// `inventory.py` then takes four mid-stream edits — restock, reorder, `# reviewed by ops` (user), shrink — to a
+// 264-line tip. NOTE: unlike s43, there is NO `low_stock` anywhere in s44. Reader-DEPENDENT (rev 0 needs the
+// file-history backup). Same LOCAL-copy convention — the s44 CLI test byte-matches both tips against the rendered
+// files beside it.
+export const S44_JSONL =
+    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s44-git-baseline-then-rename/56f60db2-0bf0-4685-99dd-ef8f65685245.jsonl";
+
+// s45 = the first CODE-REWIND scenario after the git-baseline family. The transcript writes `calc.py` (`add`) +
+// `tests/test_calc.py`, edits `calc.py` to add `subtract`, then `Rewind: 2, code` abandons that edit and restores
+// `calc.py` on disk, then edits `calc.py` to add `multiply`. Both code edits are Claude's (no user authoring). The
+// rewound/abandoned branch (tip #836ea480) keeps `add`+`subtract`; the surviving branch (tip #c3457a61) is
+// `add`+`multiply`. Reader-DEPENDENT: the rewind restore is carried only by file-history backups (no explicit
+// "revert to add" event). Same LOCAL-copy convention — the s45 CLI test byte-matches the tips against the rendered
+// `calc.py` / `tests/test_calc.py` / `.abandoned_branches/abandoned-branch-1/calc.py` beside this JSONL.
+export const S45_JSONL =
+    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s45-rewind-abandoned-branch/6bdd9f73-5ab9-4c7c-bb41-5fdf9da5a09a.jsonl";

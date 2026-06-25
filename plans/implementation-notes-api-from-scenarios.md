@@ -2518,3 +2518,27 @@ Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-
 
 ### Open questions
 - None blocking. s41 (`git-baseline-mid-commit`) builds on s40 by adding a mid-stream `wip` commit between the two user edits; the commit is git-only and (per the family pattern) should stay invisible to the engine — flag if a commit marker leaks into the transcript.
+
+## 2026-06-24:23:31:00 — S43 (`s43-git-baseline-uncommitted-module`) CHAR-LOCK
+Chat title: impl-scenario 43
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/ (current session)
+
+### References
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s43/s43-reconstruction-plan.md
+- Handoff (planning → impl): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s43/handoff-api-from-scenarios-20260624-2324.md
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt
+- Scenario JSONL: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s43-git-baseline-uncommitted-module/bc144725-0013-4991-8994-4ee99efab8f4.jsonl
+
+### Design decisions
+- CHAR-LOCK, NO source change. s43 = the `git-baseline` family, structural twin of s42, with the baseline leaving `inventory.py` UNTRACKED in git (only `rename_inv.py` + `tests/` committed). The twist is a no-op for reconstruction — git state never enters the JSONL and the file-history backup is written regardless of tracking. Added fixture `S43_JSONL` (LOCAL executed copy, same convention as s39–s42) and `tests/reconstruction_cli_s43.test.ts` (5 tests). 541 → 546, tsc clean.
+- Captured live `runCli` output for all four modes FIRST (s33 lesson) before writing any assert. Locked literals: prompt #5e47015d; nodes B `edit` #01Lvteyx (reorder) / C `user-edit` #47d06200 (`# reviewed by ops`) / D `edit` #01BoeBti (shrink); surviving tip #0b7f2b4c; verbose 4-revision line counts `193, 232, 233, 255`.
+
+### Deviations
+- The live capture caught a REAL divergence from s42 that a blind clone would have broken: in s43 the baseline adds `low_stock` BEFORE the rename run and backup point, so rev 0 (and every revision) carries SIX post-rename baseline funcs INCLUDING `low_stock` — s42 had five and asserts `low_stock` absent everywhere. The s43 test therefore asserts `low_stock` PRESENT (rev 0 baseline list + tip retention) instead of absent. `restock` (added AFTER the backup point) still left no trace and is asserted absent everywhere, same as s42.
+- Skipped the optional `tests/reconstruction_engine_s43.test.ts` — the CLI test exercises the real sidecar reader internally (via `runCli`) and byte-locks the tip, same reasoning as s40/s42.
+
+### Tradeoffs
+- None new — reused the s28–s42 helper set (`fileVerboseBlock`, `finalRevisionSlice`, `revisionSlice`, `stripLineNumberPrefixes`, `stripTrailingNewline`) verbatim.
+
+### Open questions
+- None blocking. The `low_stock`-present / `restock`-absent split is purely a function of WHERE each scenario step falls relative to the excluded baseline's backup point — a useful reminder for s44+ planners that the backup-seed snapshots whatever existed at commit time, not the full scenario narrative.

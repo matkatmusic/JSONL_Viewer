@@ -99,13 +99,26 @@ function backupMatchesBeacon(snippet: BeaconSnippet, backupContent: string): boo
     return true;
 }
 
-// The synthetic Write completing an ELIDED beacon: the latest file-history backup whose numbered
-// content matches every visible beacon line. undefined when the beacon is not elided or no backup
-// matches (reader-only; never fabricated).
+// Whether a candidate backup was taken at or before `notAfter` — the timestamp of the lineage event
+// that FOLLOWS the beacon. A beacon's completed content can never be newer than the next thing that
+// happened to the file, so a backup carrying a LATER edit's effect (s45: the restore echo's `add`-tail
+// window also matches the post-`multiply` backup) is excluded. undefined `notAfter` (a terminal beacon
+// — s28's case) imposes no bound, so existing behaviour is unchanged.
+function backupIsWithinBound(candidate: WriteEvent, notAfter: Date | undefined): boolean {
+    if (notAfter === undefined) {
+        return true;
+    }
+    return candidate.timestamp.getTime() <= notAfter.getTime();
+}
+
+// The synthetic Write completing an ELIDED beacon: the latest file-history backup (taken no later than
+// the next lineage event) whose numbered content matches every visible beacon line. undefined when the
+// beacon is not elided or no backup matches (reader-only; never fabricated).
 function elidedBeaconSeed(
     records: TranscriptRecord[],
     beacon: UserEditEvent,
     reader: BackupReader,
+    notAfter: Date | undefined,
 ): WriteEvent | undefined {
     const snippet = beaconSnippetFor(records, beacon.changeId);
     if (snippet === undefined || !beaconIsElided(snippet)) {
@@ -113,8 +126,11 @@ function elidedBeaconSeed(
     }
     let match: WriteEvent | undefined;
     for (const candidate of backupWritesFor(records, beacon.target, reader)) {
+        if (!backupIsWithinBound(candidate, notAfter)) {
+            continue;
+        }
         if (backupMatchesBeacon(snippet, candidate.content)) {
-            match = candidate; // time-ascending; keep the latest version consistent with the window
+            match = candidate; // time-ascending; keep the latest in-bound version consistent with the window
         }
     }
     return match;
@@ -131,12 +147,14 @@ export function completeElidedBeacons(
     reader: BackupReader,
 ): FileEvent[] {
     const result: FileEvent[] = [];
-    for (const event of events) {
+    for (let index = 0; index < events.length; index += 1) {
+        const event = events[index]!;
         result.push(event);
         if (event.kind !== EventKind.userEdit) {
             continue;
         }
-        const seed = elidedBeaconSeed(records, event, reader);
+        const next = events[index + 1];
+        const seed = elidedBeaconSeed(records, event, reader, next?.timestamp);
         if (seed) {
             result.push(seed);
         }

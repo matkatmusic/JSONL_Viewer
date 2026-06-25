@@ -754,6 +754,21 @@ The engine is split by concern, one paired test each (files kept well under the
   (step 2) and `restock` (step 7) left no trace in the executed file or transcript, and the engine correctly
   does NOT invent them — their absence is asserted everywhere. `tests/test_inventory.py` and `rename_inv.py`
   (both written in the excluded baseline session) are correctly NOT reconstructed. 5 new CLI tests; 536 → 541.
+- S43 (`s43-git-baseline-uncommitted-module`) adds NO code — it is the FIFTH of the `git-baseline` family and a
+  structural twin of s42, with one twist: the dropped baseline leaves `inventory.py` UNTRACKED in git (only
+  `rename_inv.py` + `tests/` are staged/committed). That twist is a NO-OP for reconstruction — git state never
+  enters the JSONL and the `~/.claude/file-history` backup is written regardless of tracking, so rev 0 still
+  seeds correctly. Same `--excludeJSONL` mid-stream open and reader-DEPENDENT backup-seed as s42. Linear 3-node
+  ladder on `inventory.py`: B `edit` (#01Lvteyx, Claude adds `reorder`) → C `user-edit` (#47d06200, appends
+  `# reviewed by ops`) → D `edit` (#01BoeBti, Claude adds `shrink`). One surviving branch (tip #0b7f2b4c), one
+  file, no rewound, no `write` node; prompt #5e47015d. `--verbose` renders 4 revisions (0..3) with line counts
+  `193, 232, 233, 255`, monotonic. The DIVERGENCE from s42: the baseline adds `low_stock` BEFORE the rename run
+  and backup point, so rev 0 carries SIX post-rename baseline funcs INCLUDING `low_stock` (s42 had five and no
+  low_stock) — `low_stock` is correctly part of every revision, not asserted absent. `restock` (added AFTER the
+  backup point) left no trace and is correctly NOT invented — its absence is asserted everywhere. The tip
+  (rev 3, 255 L) is BYTE-IDENTICAL to the rendered on-disk `inventory.py` after stripping `  N | ` prefixes and
+  the trailing newline. `tests/test_inventory.py` and `rename_inv.py` are correctly NOT reconstructed. 5 new
+  CLI tests; 541 → 546.
 - `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
   resolver of a path to an absolute string against the transcript `cwd` (idempotent for
   already-absolute paths). A leaf module (imports only node `path`) shared by extraction
