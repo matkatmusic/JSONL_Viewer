@@ -22,6 +22,11 @@ import {
 } from "./reconstruction_render_list.ts";
 import { renderGraphs } from "./reconstruction_graph_render.ts";
 import {
+    countStepsInTranscript,
+    reconstructStepStates,
+    renderRepoSnapshot,
+} from "./reconstruction_steps.ts";
+import {
     createSidecarReader,
     getDefaultFileHistoryRoot,
     findSessionId,
@@ -29,12 +34,14 @@ import {
 } from "./reconstruction_sidecar.ts";
 
 const USAGE =
-    "usage: reconstruction_cli <transcript.jsonl> [--target <path>] [--verbose|--diff] [--graphConvo|--graphFile|--surviving|--list-branches|--branch <id>]";
+    "usage: reconstruction_cli <transcript.jsonl> [--target <path>] [--count-steps|--step <n>] [--verbose|--diff] [--graphConvo|--graphFile|--surviving|--list-branches|--branch <id>]";
 
 export type CliOptions = {
     jsonlPath: string;
     target: Path | undefined;
     branch: string | undefined;
+    countSteps: boolean;
+    stepNumber: number | undefined;
     verbose: boolean;
     diff: boolean;
     surviving: boolean;
@@ -88,11 +95,14 @@ function resolveGraphFlags(
 export function parseArgs(argv: string[]): CliOptions {
     const targetFlag = extractValueFlag(argv, "--target");
     const branchFlag = extractValueFlag(targetFlag.rest, "--branch");
-    const rest = branchFlag.rest;
+    const stepFlag = extractValueFlag(branchFlag.rest, "--step");
+    const rest = stepFlag.rest;
     const jsonlPath = rest.find((arg) => !arg.startsWith("--"));
     if (!jsonlPath) {
         throw new Error(USAGE);
     }
+    const stepNumber = parseStepNumber(stepFlag.value);
+    const countSteps = rest.includes("--count-steps");
     const surviving = rest.includes("--surviving");
     const listBranches = rest.includes("--list-branches");
     const verbose = rest.includes("--verbose");
@@ -102,6 +112,8 @@ export function parseArgs(argv: string[]): CliOptions {
         jsonlPath,
         target: targetFlag.value !== undefined ? new Path(targetFlag.value) : undefined,
         branch: branchFlag.value,
+        countSteps,
+        stepNumber,
         verbose,
         diff,
         surviving,
@@ -109,6 +121,19 @@ export function parseArgs(argv: string[]): CliOptions {
         graphConvo: graphs.convo,
         graphFile: graphs.file,
     };
+}
+
+// Parse the `--step <n>` value into a 1-based step number, or undefined when the flag is absent. A
+// present-but-non-integer value is a usage error (caught here so the positional path scan never sees it).
+function parseStepNumber(value: string | undefined): number | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+    const stepNumber = Number(value);
+    if (!Number.isInteger(stepNumber)) {
+        throw new Error(USAGE);
+    }
+    return stepNumber;
 }
 
 // The on-disk file-history reader for this transcript's session, or undefined when the
@@ -180,6 +205,20 @@ function renderOneBranch(
     return renderChosen(histories, options);
 }
 
+// Render one code-change step's full-repo snapshot, selected by `--step <n>` (1-based). Throws the usage
+// message plus the valid range when the step number is out of bounds.
+function renderStep(
+    records: TranscriptRecord[],
+    reader: BackupReader | undefined,
+    stepNumber: number,
+): string {
+    const steps = reconstructStepStates(records, reader);
+    if (stepNumber < 1 || stepNumber > steps.length) {
+        throw new Error(`${USAGE}\nstep must be in 1..${steps.length}`);
+    }
+    return renderRepoSnapshot(steps[stepNumber - 1]!);
+}
+
 // Load the transcript and render the chosen view. The bare default (no flags) prints both DAGs; the
 // graph flags take precedence, then the branch selectors, then the surviving content view (the
 // back-compat path for --surviving and for --verbose/--diff with no selector).
@@ -187,6 +226,12 @@ export function runCli(argv: string[]): string {
     const options = parseArgs(argv);
     const records = loadTranscript(options.jsonlPath);
     const reader = buildSidecarReader(records);
+    if (options.countSteps) {
+        return String(countStepsInTranscript(records, reader));
+    }
+    if (options.stepNumber !== undefined) {
+        return renderStep(records, reader, options.stepNumber);
+    }
     if (options.graphConvo || options.graphFile) {
         return renderGraphs(records, { convo: options.graphConvo, file: options.graphFile }, reader);
     }

@@ -56,8 +56,10 @@ export const S17_JSONL =
 export const S18_JSONL =
     "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s18-user-edit-no-rewind/a2146944-adfe-408d-b9be-0de8cc1d4c72.jsonl";
 
+// s19 was re-run with the code-change-only step capture; its executed data now lives in-worktree
+// (the durable, tracked location), matching the s39 `scenarios/executed/` convention.
 export const S19_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s19-user-edit-conv-rewind/6fc31802-b970-4698-9814-cc04c0fef14f.jsonl";
+    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s19-user-edit-conv-rewind/d8a5cf41-43ef-41b0-a9db-45e76873ff04.jsonl";
 
 export const S20_JSONL =
     "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s20-user-edit-code-rewind/cff07216-e002-4839-9e95-42547049332e.jsonl";

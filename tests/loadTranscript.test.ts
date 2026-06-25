@@ -5,7 +5,7 @@ import {
     parseTranscriptLine,
     UnmodeledFieldError,
 } from "../src/parse/loadTranscript.ts";
-import { S1_JSONL, S2_JSONL, S32_JSONL } from "./fixtures.ts";
+import { S1_JSONL, S2_JSONL, S19_JSONL, S32_JSONL } from "./fixtures.ts";
 
 test("test_s1_jsonl_parses_into_known_typed_records", () => {
     // Scenario: loading the whole s1 transcript yields only typed records — no
@@ -60,6 +60,33 @@ test("test_s32_jsonl_parses_with_mcp_attribution_keys", () => {
         assert.equal(
             (record as { attributionMcpTool?: string }).attributionMcpTool,
             "ctx_execute",
+        );
+    }
+});
+
+test("test_s19_rerun_jsonl_parses_with_attribution_plugin_and_skill_keys", () => {
+    // Scenario: the re-run s19 transcript was produced by a newer Claude Code that emits two novel
+    // top-level keys on assistant turns issued under an active skill (attributionPlugin /
+    // attributionSkill, same `attribution*` family as the MCP keys). The field-gate must model them.
+    // Steps:
+    // load every record of the re-run s19 JSONL through the gate (throws UnmodeledFieldError at HEAD).
+    const records = loadTranscript(S19_JSONL);
+    // the re-run transcript has exactly 103 records.
+    assert.equal(records.length, 103);
+    // the assistant turns issued under a skill carry both attribution keys.
+    const withAttribution = records.filter(
+        (record) => "attributionSkill" in record || "attributionPlugin" in record,
+    );
+    // both such assistant turns were issued under the ponytail skill/plugin.
+    assert.equal(withAttribution.length, 2);
+    for (const record of withAttribution) {
+        assert.equal(
+            (record as { attributionSkill?: string }).attributionSkill,
+            "ponytail:ponytail",
+        );
+        assert.equal(
+            (record as { attributionPlugin?: string }).attributionPlugin,
+            "ponytail",
         );
     }
 });

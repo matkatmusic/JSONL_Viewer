@@ -24,6 +24,7 @@ export const ALLOWED_TOP_LEVEL_KEYS: Record<RecordType, ReadonlySet<string>> = {
     [RecordType.aiTitle]: keys(META_KEYS, "aiTitle"),
     [RecordType.assistant]: keys(
         ENVELOPE_KEYS, "message", "requestId", "attributionMcpServer", "attributionMcpTool",
+        "attributionPlugin", "attributionSkill",
     ),
     [RecordType.attachment]: keys(ENVELOPE_KEYS, "attachment"),
     [RecordType.bridgeSession]: keys(META_KEYS, "bridgeSessionId", "lastSequenceNum"),

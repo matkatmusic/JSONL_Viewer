@@ -91,7 +91,7 @@ function seedOneCopy(
 }
 
 // The latest revision whose timestamp is at or before `when`, or undefined.
-function lastRevisionAtOrBefore(
+export function lastRevisionAtOrBefore(
     revisions: FileRevision[],
     when: Date,
 ): FileRevision | undefined {
@@ -105,7 +105,7 @@ function lastRevisionAtOrBefore(
 }
 
 // The believed text of each line in a revision (its latest value).
-function linesTextOf(revision: FileRevision): string[] {
+export function linesTextOf(revision: FileRevision): string[] {
     return revision.lines.map(
         (entry) => entry.values[entry.values.length - 1]!.line,
     );
