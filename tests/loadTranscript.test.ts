@@ -5,7 +5,7 @@ import {
     parseTranscriptLine,
     UnmodeledFieldError,
 } from "../src/parse/loadTranscript.ts";
-import { S1_JSONL, S2_JSONL } from "./fixtures.ts";
+import { S1_JSONL, S2_JSONL, S32_JSONL } from "./fixtures.ts";
 
 test("test_s1_jsonl_parses_into_known_typed_records", () => {
     // Scenario: loading the whole s1 transcript yields only typed records — no
@@ -33,6 +33,34 @@ test("test_s2_jsonl_parses_into_known_typed_records", () => {
     // every record carries a known record type string.
     for (const record of records) {
         assert.equal(typeof record.type, "string");
+    }
+});
+
+test("test_s32_jsonl_parses_with_mcp_attribution_keys", () => {
+    // Scenario: the s32 transcript runs its rename script through the context-mode MCP
+    // sandbox. The MCP-invoking assistant records carry two novel top-level keys
+    // (attributionMcpServer / attributionMcpTool). The field-gate must model them, not throw.
+    // Steps:
+    // load every record of the s32 JSONL through the gate (throws UnmodeledFieldError at HEAD).
+    const records = loadTranscript(S32_JSONL);
+    // s32 has exactly 206 records.
+    assert.equal(records.length, 206);
+    // the assistant turns that issued an MCP tool call carry the two attribution keys.
+    const withAttribution = records.filter(
+        (record) => "attributionMcpServer" in record || "attributionMcpTool" in record,
+    );
+    // all 19 MCP-invoking assistant turns carry both keys.
+    assert.equal(withAttribution.length, 19);
+    // each carries the exact context-mode server + ctx_execute tool values.
+    for (const record of withAttribution) {
+        assert.equal(
+            (record as { attributionMcpServer?: string }).attributionMcpServer,
+            "plugin:context-mode:context-mode",
+        );
+        assert.equal(
+            (record as { attributionMcpTool?: string }).attributionMcpTool,
+            "ctx_execute",
+        );
     }
 });
 

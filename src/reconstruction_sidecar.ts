@@ -152,6 +152,34 @@ export function backupSeedWriteFor(
     };
 }
 
+// Every non-null file-history backup of `target` as a synthetic Write, time-ascending. Used to find
+// the backup version whose numbered content matches an ELIDED beacon (s28): the correct post-script
+// version is NOT necessarily the latest (a later Edit produces a newer blob), so the caller must scan
+// versions and validate by content. changeId = the blob name (out of the graphs, spec 40).
+export function backupWritesFor(
+    records: TranscriptRecord[],
+    target: Path,
+    reader: BackupReader,
+): WriteEvent[] {
+    const cwd = findCwd(records);
+    const timeline = buildBackupTimeline(records, cwd);
+    const points = timeline.get(resolveAgainstCwd(cwd, target)) ?? [];
+    const writes: WriteEvent[] = [];
+    for (const point of points) {
+        if (point.backupFileName === null) {
+            continue;
+        }
+        writes.push({
+            kind: EventKind.write,
+            changeId: new Uuid(point.backupFileName.toString()),
+            target,
+            content: reader(point.backupFileName),
+            timestamp: point.backupTime,
+        });
+    }
+    return writes;
+}
+
 // A synthetic Write seeding `target`'s FINAL on-disk content from its LATEST file-history backup blob
 // (the highest version — a post-script snapshot can land a few ms after the beacon, m6). Used to
 // complete a TERMINAL user-edit beacon the harness truncated (s27). Selecting the newest non-null
@@ -163,25 +191,8 @@ export function latestBackupWriteFor(
     target: Path,
     reader: BackupReader,
 ): WriteEvent | undefined {
-    const cwd = findCwd(records);
-    const timeline = buildBackupTimeline(records, cwd);
-    const points = timeline.get(resolveAgainstCwd(cwd, target)) ?? [];
-    let latest: BackupPoint | undefined;
-    for (const point of points) {
-        if (point.backupFileName !== null) {
-            latest = point; // points are time-sorted ascending; keep the newest non-null
-        }
-    }
-    if (latest === undefined || latest.backupFileName === null) {
-        return undefined;
-    }
-    return {
-        kind: EventKind.write,
-        changeId: new Uuid(latest.backupFileName.toString()),
-        target,
-        content: reader(latest.backupFileName),
-        timestamp: latest.backupTime,
-    };
+    const writes = backupWritesFor(records, target, reader); // time-ascending; newest is last
+    return writes[writes.length - 1];
 }
 
 // Fill each append/overwrite event's content from the sidecar; pass others through. A

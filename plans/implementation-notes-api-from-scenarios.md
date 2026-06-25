@@ -1,3 +1,773 @@
+## 2026-06-24:21:38:00 — S37 reconstruction (DRIVER-BACK-AND-FORTH-MCP script rename) — COMPLETE; CHARACTERIZATION/REGRESSION LOCK, NO `src/` change; the MCP-SANDBOX TWIN of S34 (rename driver run via `ctx_execute`, not Bash); 499 → 511 tests green
+Chat title: api-from-scenarios — S37 impl (/impl-scenario 37) → implement S37 (script-rename-driver-back-and-forth-mcp)
+Path to JSONL log: the active /impl-scenario 37 session under /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/ (planning source of record: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/4538a085-8ba5-463d-8914-84c38fdd96f4.jsonl)
+
+### References
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt (HAS-BEACON vs NO-BEACON premise; S37's MCP-run beacons are INCOMPLETE → the EXISTING rescue stages fire)
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s37/s37-reconstruction-plan.md
+- Handoff (in): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s37/handoff-api-from-scenarios-20260624-2121.md
+- Templates copied: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/tests/reconstruction_engine_s34.test.ts + reconstruction_cli_s34.test.ts (helper blocks verbatim — `finalTextOf`/`historyFinalText`/`historyEndingWith`/`stripTrailingNewline`/`defBlock`/`poison`, and `fileVerboseBlock`/`finalRevisionSlice`)
+- Ground truth (read with `readFileSync`): /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s37-script-rename-driver-back-and-forth-mcp/ (JSONL `8f4366d3-…`; `ledger.py`, `tests/test_ledger.py`, `renames.csv`, `apply_renames.py`)
+
+### What S37 is
+An `apply_renames.py` rename (four whole-word pairs: `add_entry→record_entry`, `rm_entry→remove_entry`,
+`tot_debits→total_debits`, `tot_credits→total_credits`) across `ledger.py` + `tests/test_ledger.py`, read from
+`renames.csv`. THE TWIN-OF-S34 shape: the "back and forth" — `renames.csv` is written with header + 2 rows →
+manual user-edit appends the 3rd row (step-5 beacon `#22de8fa9`) → `apply_renames.py` is written → manual
+user-edit appends the 4th row (step-7, NO beacon, recovered via S27) — the driver write sits BETWEEN the two
+manual CSV edits, and the last two renames exist ONLY because of those interleaved rows. THE NOVEL ELEMENT vs
+S34: the driver runs through the context-mode MCP sandbox (`ctx_execute`), NOT the Bash tool — so 6 assistant
+records carry `attributionMcpServer`/`attributionMcpTool` keys, and the two MCP-run beacons (`#9022d09a` ledger /
+`#a4d3d115` test) arrive INCOMPLETE.
+
+### Why NO `src/` change (CHAR-LOCK) — composes already-shipped machinery
+Loading depends on S32's parser fix (MCP attribution keys in the assistant allow-set in
+`src/parse/loadTranscript.ts`; were it reverted, `loadRecords(S37_JSONL)` throws `UnmodeledFieldError`). The two
+INCOMPLETE MCP-run beacons are completed by the EXISTING S27 `completeTruncatedBeacon` / S28
+`completeElidedBeacons`; the step-9 `ledger.py` trailing append (`# names normalized via rename script`, NO
+beacon) is recovered by S34's `outOfWindowEditSeed`. All three fixes are already in the worktree (uncommitted),
+so s37 needs no new code.
+
+### Verification
+- Baseline re-confirmed at HEAD: `npm test` 499/0, `npx tsc --noEmit` clean.
+- All 12 new tests pass on the first run (no RED phase — these are regression LOCKs). Full suite 511/0; `npx tsc
+  --noEmit` clean; `git diff --stat -- src/` shows ZERO S37 hunks.
+- Exact-string CLI assertions locked against live `runCli` output captured before writing the tests (a throwaway
+  inline probe printing the engine ladders + all four CLI views, run, then deleted — no trace).
+- Live-verified facts the tests pin: `reconstructBranches` → rewound=0, surviving=4; `extractFileEvents` =
+  {write:4, edit:2, userEdit:4, overwrite:0} with ids sorted `["22de8fa9","9022d09a","a4d3d115","d6a766e2"]`;
+  ledger.py ladder 119→9→120→137→137→138→151, test_ledger.py 69→68→69, renames.csv 3→4→5, apply_renames.py 66;
+  A prompt #ba6aa3a0; surviving tip #b86404ef; 6 MCP-run records (`attributionMcpTool:"ctx_execute"`).
+- MIXED reader-dependence (like S25/S35): ledger.py (151) + apply_renames.py (66) reader-INDEPENDENT;
+  test_ledger.py (69 real / 68 no-reader) + renames.csv (5 real / 4 no-reader) reader-DEPENDENT.
+
+### Deviations / decisions
+- POISON CAVEAT (per the plan): s34's T6 asserts poison-rejection on ALL four files; for s37 that is WRONG.
+  `ledger.py`'s rescue path ACCEPTS the poison backup (collapses to 19, leaks `"POISONED"`) — a latent
+  robustness gap, NOT a correctness gap (real-reader AND no-reader both give 151), OUT OF SCOPE for this
+  char-lock. T6(b) asserts poison-cleanliness ONLY on the three guarded files (test_ledger.py 68 / renames.csv 4
+  / apply_renames.py 66) and documents the ledger.py exclusion in a comment.
+- `apply_renames.py` uses the PRECOMPILED two-line substitution form (`pattern = r"\b" + re.escape(old) + r"\b"`
+  then `text = re.sub(pattern, new, text)`), NOT s34's inline form — asserted both lines.
+- Dropped the s34 helper `FILES` constant from the engine test (T6 iterates a local `guarded` array of only the
+  three poison-clean files, so `FILES` was unused — removed to satisfy the 250-line cap + unused-var lint).
+- `plans/roadmap.md` carried a verbatim DUPLICATE S36 line (the entry was pasted twice). Replaced the second
+  (duplicate) copy with the new S37 entry; the S36 entry remains intact and correctly ordered. Not a rewrite of
+  a prior entry — removal of an accidental exact-duplicate paste.
+
+### Open questions
+- None. Awaiting user approval to commit (s37 paths only; the worktree carries unrelated uncommitted S28–S36 work
+  — do NOT `git add -A`).
+
+---
+
+## 2026-06-24:21:04:00 — S36 reconstruction (CSV-USER-EDIT-MCP script rename) — COMPLETE; CHARACTERIZATION/REGRESSION LOCK, NO `src/` change; the MCP-SANDBOX TWIN of S33 (rename driver run via `ctx_execute`, not Bash); 487 → 499 tests green
+Chat title: api-from-scenarios — S36 impl (/impl-scenario 36) → implement S36 (script-rename-csv-user-edit-mcp)
+Path to JSONL log: the active /impl-scenario 36 session under /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/ (planning source of record: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/b6bca870-1b1f-47f1-9e30-340fa2fb5a6d.jsonl)
+
+### References
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt (HAS-BEACON vs NO-BEACON premise; S36's beacons are HAS-BEACON and COMPLETE → no rescue stage fires)
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s36/s36-reconstruction-plan.md
+- Handoff (in): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s36/handoff-api-from-scenarios-20260624-2053.md
+- Templates copied: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/tests/reconstruction_engine_s35.test.ts + reconstruction_cli_s35.test.ts (helper blocks verbatim — `finalTextOf`/`historyFinalText`/`historyEndingWith`/`stripTrailingNewline`/`defBlock`/`poison`, and `fileVerboseBlock`/`finalRevisionSlice`)
+- Ground truth (read with `readFileSync`): /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s36-script-rename-csv-user-edit-mcp/ (JSONL `e8fa105c-…`; `billing.py`, `tests/test_billing.py`, `renames.csv`, `apply_renames.py`)
+
+### What S36 is
+An `apply_renames.py` rename (four whole-word pairs: `calc_tot→calculate_total`, `fmt_money→format_currency`,
+`apply_disc→apply_discount`, `chk_stock→check_stock`) across `billing.py` + `tests/test_billing.py`, read from
+`renames.csv`. THE TWIN-OF-S33 twist: `renames.csv` is written with 3 rows then USER-EDITED to append a 4th row
+`chk_stock,check_stock` before the run (a genuine manual `edited_text_file` edit, not a script beacon), and the
+4th rename is LOAD-BEARING — the post-script `reorder` Edit on `billing.py` calls `check_stock`, a name that
+exists ONLY because that manual row flowed through the run. THE NOVEL ELEMENT vs S33: the driver runs through the
+context-mode MCP sandbox (`ctx_execute`), NOT the Bash tool — so 7 assistant records carry
+`attributionMcpServer`/`attributionMcpTool` keys.
+
+### Why NO `src/` change (CHAR-LOCK) — depends only on S32's already-shipped parser fix
+Both run beacons are COMPLETE (`#de1f5023` billing / `#aecbb827` test), so the engine adopts the fully-renamed
+state for free — no rescue stage fires (`completeTruncatedBeacon` S27 / `completeElidedBeacons` S28 /
+`seedStaleEditBases` S19 all INERT), every file reader-INDEPENDENT. The ONE thing that makes s36 distinct from
+S33 is the MCP dependency: loading the JSONL is only possible because S32's fix added `attributionMcpServer`/
+`attributionMcpTool` to the assistant allow-set in `src/parse/loadTranscript.ts` (that fix is already in the
+worktree, uncommitted). Were it reverted, `loadRecords(S36_JSONL)` would throw `UnmodeledFieldError`.
+
+### Verification
+- Baseline re-confirmed at HEAD: `npm test` 487/0, `npx tsc --noEmit` clean.
+- All 12 new tests pass on the first run (no RED phase — there is no bug; these are regression LOCKs). Full suite
+  499/0; `npx tsc --noEmit` clean; `git diff --stat -- src/` shows ZERO S36 hunks.
+- Exact-string CLI assertions locked against live `runCli` output captured before writing the tests (a throwaway
+  `_probe_s36.ts` printing the engine ladders + all four CLI views, run, then deleted — no trace).
+- Live-verified facts the tests pin: `reconstructBranches` → rewound=0, surviving=4; `extractFileEvents` =
+  {write:4, edit:2, userEdit:3, overwrite:0} with ids sorted `["96b40a66","aecbb827","de1f5023"]`; billing.py
+  ladder 156→184→184→219, test_billing.py 50→50, renames.csv 4→5, apply_renames.py 51; A prompt #fdce1bb9;
+  surviving tip #a7ed17a3; 7 MCP-run records (`attributionMcpTool:"ctx_execute"`); reader-INDEPENDENT (poison
+  reader changes nothing, no `"POISONED"` leak). WHOLE-WORD HAZARD: `apply_discount` contains `apply_disc` as a
+  5× prefix substring → absence assertions use `\bold\b`, never bare `includes()`.
+
+## 2026-06-24:20:42:00 — S35 reconstruction (SCRIPT-USER-EDIT script rename) — COMPLETE; CHARACTERIZATION/REGRESSION LOCK, NO `src/` change; the COMPLEMENT of S33 (incomplete beacons → S27/S28 rescue stages FIRE); 475 → 487 tests green
+Chat title: api-from-scenarios — S35 impl (/impl-scenario 35) → implement S35 (script-rename-script-user-edit)
+Path to JSONL log: the active /impl-scenario 35 session under /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/ (planning source of record: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/7e7cc3db-8f8c-4aca-8a25-04d7367574ac.jsonl)
+
+### References
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt (HAS-BEACON vs NO-BEACON premise; S35's beacons are HAS-BEACON but INCOMPLETE → completed by the S27/S28 rescue stages)
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s35/s35-reconstruction-plan.md
+- Handoff (in): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s35/handoff-api-from-scenarios-20260624-2028.md
+- Templates copied: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/tests/reconstruction_engine_s34.test.ts + reconstruction_cli_s34.test.ts (helper blocks verbatim — `finalTextOf`/`historyFinalText`/`historyEndingWith`/`stripTrailingNewline`/`defBlock`/`realReader`/`poison`, and `fileVerboseBlock`/`finalRevisionSlice`)
+- Ground truth (read with `readFileSync`): /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s35-script-rename-script-user-edit/ (JSONL `2a208e10-…`; `inventory.py`, `tests/test_inventory.py`, `rename_inv.py`)
+
+### What S35 is
+A `python3 rename_inv.py` Bash rename (three whole-word pairs: `qty_chk→check_quantity`, `add_item→insert_item`,
+`rm_item→remove_item`) across `inventory.py` + `tests/test_inventory.py`. The NOVEL twist: the file user-edited
+before the run is the RENAME SCRIPT ITSELF — `rename_inv.py` is written with ONE tuple then user-edited twice
+(steps 4 & 5 add the 2nd/3rd tuples), and those two edits COALESCE into a SINGLE ELIDED `edited_text_file`
+beacon (`#c67cfd9c`, a 17-line head+tail-cut fragment). S35 is the COMPLEMENT of S33: same "user-edit before the
+run" shape, but the script-phase beacons here are INCOMPLETE so the rescue stages FIRE (S33's were all INERT).
+
+### Why NO `src/` change (CHAR-LOCK) — composes shipped machinery
+The engine already reconstructs all three files byte-perfectly WITH the real file-history reader, by composing
+already-shipped stages: S28 `completeElidedBeacons` recovers the full 45-line 3-tuple `rename_inv.py` from backup
+`41364cab6ad88cbb@v2`; S27 `completeTruncatedBeacon` completes `tests/test_inventory.py`'s 51-line truncated
+prefix from backup `5ea404c2628560f6@v3` → 79 L; `inventory.py`'s script beacon is COMPLETE (no rescue, reader-
+INDEPENDENT, 244 L). A planning subagent confirmed S27/S28/S30 already LOCK the fragment+synthetic-overwrite
+two-revision pattern (`write + userEdit(fragment) + overwrite(backup)`); S35 reproduces it exactly, so the
+3-revision ladders are the ACCEPTED engine output — locked, not "fixed".
+
+### Verification
+- Baseline re-confirmed at HEAD: `npm test` 475/0, `npx tsc --noEmit` clean.
+- All 12 new tests pass on the first run (no RED phase — there is no bug; these are regression LOCKs). Full suite
+  487/0; `npx tsc --noEmit` clean; `git diff --stat -- src/` shows ZERO S35 hunks.
+- Exact-string CLI assertions locked against live `runCli` output captured before writing the tests (a throwaway
+  `tests/_probe_s35.ts` printing the engine ladders + all four CLI views, run, then deleted — no trace).
+- Live-verified facts the tests pin: `reconstructBranches(realReader)` → rewound=0, surviving=3;
+  `extractFileEvents` = {write:3, edit:2, userEdit:3, overwrite:0} with ids sorted `["c67cfd9c","dbc2e4c1","f3e90535"]`;
+  inventory.py ladder 172→192→192→244, test_inventory.py 79→51→79 (rev2 overwrite `@v3`), rename_inv.py 43→17→45
+  (rev2 overwrite `@v2`); A prompt #da499f4e; surviving tip #72049b4a; reader-DEPENDENT (no-reader test=51/2,
+  rename=17/2, inventory=244; poison rejected → falls back to the fragments, no `"POISONED"` leak).
+
+### Design decisions
+- Reused the S34 helper block verbatim (it already carries `realReader`, since S34 was the first reader-DEPENDENT
+  engine test) — S35 is reader-DEPENDENT (MIXED, like S25), so the bytelock tests pass the real reader while T6
+  deliberately uses NO reader / a poison reader to lock the reader-dependence + rejection.
+- T2's rev1 first-line assertion pins the elided fragment's exact head (`boundaries) so that substrings inside
+  longer identifiers are left alone.`) — a content fact only the real backup-completed reconstruction satisfies.
+
+### Deviations
+- Condensed the engine-test comment blocks and collapsed short multi-line `deepEqual` array assertions to single
+  lines to keep `tests/reconstruction_engine_s35.test.ts` at 249 lines (the project 250-line cap; the file is
+  assertion-dense because T2/T3/T6 each pin several cross-source facts). No assertion was dropped — the rev2==192
+  inventory check is subsumed by the `[172,192,192,244]` ladder deepEqual.
+
+### Tradeoffs
+- Kept the per-file engine + CLI split (no shared helper module) per the project's duplicate-helpers-per-test-file
+  convention, even though it costs ~85 duplicated helper lines — matches every prior sN test pair (S25–S34).
+
+### Open questions
+- Commit hygiene: NOTHING is committed yet. The worktree carries uncommitted S28–S34 work (`src/reconstruction_*`,
+  `src/parse/loadTranscript.ts`) plus unrelated `src/Impl_template.md`/`src/Plan_template.md` edits by other
+  agents, and the three doc files in this commit also carry S28–S34 edits. `git diff --stat` is NOT S35-only —
+  the commit-split needs USER APPROVAL; never `git add -A`. Stage exactly the S35 paths in the plan's "Commit
+  hygiene" section (`tests/fixtures.ts`, the two `*_s35.test.ts`, the three docs, `plans/s35/`).
+
+## 2026-06-24:20:08:00 — S34 reconstruction (DRIVER-BACK-AND-FORTH script rename) — COMPLETE; REAL ENGINE FIX (first since m6/S28) + mandatory 250-line module split; 463 → 475 tests green
+Chat title: api-from-scenarios — S34 impl (/impl-scenario 34) → implement S34 (script-rename-driver-back-and-forth)
+Path to JSONL log: the active /impl-scenario 34 session under /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/ (planning source of record: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/149e423f-6a85-4e83-96cc-5d28cd4cc85d.jsonl)
+
+### References
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt (HAS-BEACON vs NO-BEACON premise; the s34 gap is a NO-BEACON trailing append between a beacon and a later Edit)
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s34/s34-reconstruction-plan.md
+- Handoff (in): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s34/handoff-api-from-scenarios-20260624-1955.md
+- Templates copied: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/tests/reconstruction_engine_s33.test.ts + reconstruction_cli_s33.test.ts (helper blocks verbatim)
+- Ground truth (read with `readFileSync`): /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s34-script-rename-driver-back-and-forth/ (JSONL `709c9b35-…`; `ledger.py`, `tests/test_ledger.py`, `renames.csv`, `apply_renames.py`)
+
+### What S34 is
+A script rename whose driver `apply_renames.py` is written BETWEEN two manual `renames.csv` edits ("back and
+forth"), and whose `ledger.py` gets a manual trailing append (`# names normalized via rename script`) AFTER the
+script-rename beacon but BEFORE a later Claude `report` Edit. The one `python3 apply_renames.py` Bash run applies
+four `\bold\b`→`new` whole-word renames (`add_entry→record_entry`, `rm_entry→remove_entry`,
+`tot_debits→total_debits`, `tot_credits→total_credits`) across `ledger.py` + `tests/test_ledger.py`. The last two
+renames exist ONLY because of the two interleaved manual CSV rows (steps 5 and 7).
+
+### The engine gap and the fix (REAL — first src change since m6/S28)
+The step-9 trailing append on `ledger.py` left NO `edited_text_file` beacon and NO tool_use, and it lands OUTSIDE
+the later `report` edit's hunk window — whose context (`if __name__ == "__main__":`) still matches the 173-line
+script-rename beacon base perfectly. So the existing hunk-context staleness test (`editBaseIsStale`) returns
+FALSE, no reseed fires, and the trailing line is silently dropped → `ledger.py` reconstructs to 186 (ground
+truth 187). THE FIX (`src/reconstruction_reseed.ts`): a SECOND staleness trigger, `outOfWindowEditSeed`, that
+detects an Edit whose hunk context matches the reconstructed base but whose real pre-edit disk carried an
+uncaptured change outside the window — by CONTENT: a file-history backup (`d5ade1bd80e08f91@v4`, 174 L) that is
+STRICTLY NEWER than the file's last captured event, whose content DIFFERS from the reconstructed base, AND onto
+which the edit's first hunk still splices cleanly (forward-validation rejects a poison/wrong backup). Refactored
+`editBaseIsStale` to share a new `firstHunkMatchesBase`; the two triggers are DISJOINT. `renames.csv`'s step-7
+NO-BEACON append is fixed by the EXISTING S27 `completeTruncatedBeacon` — the s34 fix does NOT touch it.
+
+### Module split (mandatory — `split, never condense`)
+The fix pushed `src/reconstruction_reseed.ts` from 216 to 274 lines (over the 250 cap). Per the project rule,
+moved the beacon-completion family (`completeTruncatedBeacon` S27 / `completeElidedBeacons` S28 + private helpers
+`beaconIsTruncated`/`beaconIsElided`/`backupMatchesBeacon`/`elidedBeaconSeed`) to a new
+`src/reconstruction_beacons.ts`. `src/reconstruction_branches.ts` now imports the two beacon functions from
+`./reconstruction_beacons.ts` and `seedStaleEditBases` from `./reconstruction_reseed.ts` directly (NO re-export
+shim — no-forwarding-layers). Both modules end at 145 lines.
+
+### Verification (RED→GREEN)
+- Baseline re-confirmed at HEAD: `npm test` 463/0, `npx tsc --noEmit` clean.
+- T1 (`test_S34_ledger_bytelock_out_of_window_reseed`) was written FIRST and FAILED at HEAD (ledger.py=186,
+  truncated, missing the trailing line) — the bug reproduced. After applying the fix, T1 GREEN (187 lines).
+- All 12 new tests pass (6 engine + 6 CLI). Full suite 475/0; `npx tsc --noEmit` clean; both touched src
+  modules ≤250 (145 each). s27/s28 engine tests stay green after the split (no regression).
+- Exact-string CLI assertions locked against live `runCli` output captured before writing the tests (capture
+  scripts written to project root, run, then deleted — no trace).
+- Live-verified facts the tests pin: `reconstructBranches` → rewound=0, surviving=4; `extractFileEvents` =
+  {write:4, edit:2, userEdit:4, overwrite:0} with ids sorted `["0ee68aad","2a0d75ba","720ee20c","ba8ee917"]`;
+  ledger.py ladder 156→157→173→173→174→187 (the 174 = the new reseed revision); renames.csv 3→4→5; A prompt
+  #7d7450c2; surviving tip #97e510eb; reader-DEPENDENT (no-reader 186/4; poison rejected → 186/4, no leak).
+
+### Design decisions
+- Reused the S33 helper block verbatim (`finalTextOf`, `historyFinalText`, `historyEndingWith`,
+  `stripTrailingNewline`, `defBlock`, `readGroundTruth`, `poison`) per the plan, plus a `realReader(records)`
+  helper that builds the on-disk reader exactly as the CLI does (`createSidecarReader(findSessionId(records)!,
+  getDefaultFileHistoryRoot())`) — S34 is the first reader-DEPENDENT engine test, so the bytelock tests must
+  pass the real reader; T2/T6 deliberately use NO reader / a poison reader to lock the RED state and rejection.
+
+### Deviations
+- The plan's C6 substitution literal was `re.sub(rf"\b{re.escape(old)}\b", new, text)` (copied from the S33
+  f-string form). The ACTUAL rendered `apply_renames.py` uses the STRING-CONCAT form
+  `re.sub(r"\b" + re.escape(old) + r"\b", new, text)`. Captured live (the S33 lesson) and asserted the real
+  literal — C6 would have failed against the plan's string.
+- T2 also asserts the no-reader line count is exactly 186 (the plan described the RED state but the explicit
+  186 assertion makes the reader-gating provable, not just descriptive).
+
+### Tradeoffs
+- The recommended split (beacon family → new module) was taken as-is; it cleanly separates the two reader-only
+  families (stale-edit-base vs beacon-completion) with no shared private helper, so no forwarding layer is
+  needed and both files land well under 250.
+
+### Open questions
+- Commit hygiene: NOTHING is committed yet. The worktree carries uncommitted S28–S33 work plus unrelated
+  `src/Impl_template.md`/`src/Plan_template.md` edits by other agents; `src/reconstruction_reseed.ts` and
+  `src/reconstruction_branches.ts` interleave S28–S33 hunks with S34. `git diff --stat` is NOT S34-only —
+  the commit-split needs USER APPROVAL; never `git add -A`. Stage exactly the S34 paths listed in the plan's
+  "Commit hygiene" section.
+
+## 2026-06-24:19:24:00 — S33 reconstruction (CSV-USER-EDIT script rename) — COMPLETE; CHARACTERIZATION/REGRESSION LOCK, NO `src/` change; 451 → 463 tests green
+Chat title: api-from-scenarios — S33 impl (/impl-scenario 33) → implement S33 (script-rename-csv-user-edit)
+Path to JSONL log: the active /impl-scenario 33 session under /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/ (planning source of record: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/11652f32-159d-475f-a5ff-83d3aa9bff50.jsonl)
+
+### References
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt (HAS-BEACON vs NO-BEACON premise; a Bash `python3 apply_renames.py` run is HAS-BEACON, so no script-replay is needed)
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s33/s33-reconstruction-plan.md
+- Handoff (in): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s33/handoff-api-from-scenarios-20260624-1918.md
+- Templates copied: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/tests/reconstruction_engine_s32.test.ts + reconstruction_cli_s32.test.ts (helper blocks verbatim)
+- Ground truth (read with `readFileSync`): /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s33-script-rename-csv-user-edit/ (JSONL `b54eafa5-…`; `billing.py`, `tests/test_billing.py`, `renames.csv`, `apply_renames.py`)
+
+### What S33 is
+A script rename whose `renames.csv` MAPPING file is WRITTEN with a header + 3 rows then USER-EDITED to APPEND a
+4th row (`chk_stock,check_stock`) BEFORE `python3 apply_renames.py` runs once via Bash. The run applies four
+`\bold\b`→`new` whole-word renames (`calc_tot→calculate_total`, `fmt_money→format_currency`,
+`apply_disc→apply_discount`, `chk_stock→check_stock`) across `billing.py` + `tests/test_billing.py`. The CSV
+user-edit is LOAD-BEARING: the post-script `reorder` Edit on `billing.py` calls `check_stock`, which exists
+ONLY because the manual 4th row flowed through the script.
+
+### The engine gap (there is none) and the implementation
+NO `src/` change. The engine already reconstructs all four files byte-perfectly: both renamed files are
+HAS-BEACON with COMPLETE `edited_text_file` beacons, so the engine adopts the fully-renamed state for free and
+no rescue stage fires; `renames.csv` and `billing.py` reconstruct their multi-revision ladders through the
+native S15 user-edit mechanism. Implementation = add the `S33_JSONL` fixture, write 6 engine + 6 CLI lock
+tests (helpers copied verbatim from the S32 files), update three docs.
+
+### Verification (no RED phase — pure characterization lock)
+- Baseline re-confirmed at HEAD: `npm test` 451/0, `npx tsc --noEmit` clean.
+- The 12 new tests pass on FIRST run (12/12) — there is no bug and no `src/` change, so there is no RED→GREEN.
+- Exact-string CLI assertions (conversationDAG, `--list-branches` tip #c3d6846d, `--graphFile` node ladders,
+  `--verbose` revision/line-count markers) were LOCKED against live `runCli` output captured before writing
+  the tests (capture scripts written to the project root, run, then deleted — they leave no trace).
+- Live-verified facts the tests pin: `reconstructBranches` → rewound=0, surviving=4; `extractFileEvents` =
+  {write:4, edit:2, userEdit:3, overwrite:0} with ids sorted `["4480f645","b8591d24","c7415420"]`; renames.csv
+  ladder 4→5 lines; billing.py ladder 146→164→164→187; reader-INDEPENDENT under a poison reader (no "POISONED"
+  leak).
+
+### Design decisions
+- Reused the S32 helper block verbatim (`finalTextOf`, `historyFinalText`, `historyEndingWith`,
+  `stripTrailingNewline`, `defBlock`, `readGroundTruth`, `poison`) per the plan, changing only the ground-truth
+  constant and the `FILES`/`RENAMES` tables — keeps the lock files structurally identical across the series.
+- Collapsed S32's 8 engine tests into the plan's 6 (T1–T6): T6 merges S32's separate extractFileEvents-multiset
+  and poison-reader tests, and the S31/S32 kept-name control is dropped (s33 has no terse-substring method names
+  to defend — see deviation). The CLI file omits the `RENAMES` const S32 declared (s33's CLI tests never use it;
+  `apply_renames.py` reads its mapping from the CSV rather than embedding rows, so there is nothing to assert).
+
+### Deviations
+- No kept-name control test. S31/S32 carried a `test_get_val_*` kept-name test to prove the rename was
+  whole-word not substring; `tests/test_billing.py`'s method names (`test_empty_is_zero`, `test_single_item`,
+  …) embed NO terse substring, so that control has no subject in s33 and was intentionally omitted (per plan).
+  Whole-word correctness is still pinned by the `\bold\b` absence regexes in T4/T5/C4/C5.
+
+### Tradeoffs
+- Captured live CLI output to lock exact-string assertions rather than trusting the plan's literals blindly.
+  Costs two throwaway capture scripts; buys certainty that the spacing/format strings match real output on the
+  first test run (they did). Alternative — write per plan and fix on RED — risked multiple test-edit cycles.
+
+### Open questions
+- None blocking. Commit is deferred to USER APPROVAL: the worktree carries uncommitted S28–S32 work (src +
+  three shared doc files), so `git diff --stat` is NOT S33-only — the commit-split must be confirmed with the
+  user before staging (never `git add -A`).
+
+## 2026-06-24:19:06:00 — S32 reconstruction (MCP-EXEC script rename) — COMPLETE; ONE-LINE REAL PARSER FIX; the FIRST `src/parse/loadTranscript.ts` change in the s25–s32 series; 451 tests green
+Chat title: api-from-scenarios — S32 impl (/impl-scenario 32) → implement S32 (script-rename-mcp-exec)
+Path to JSONL log: see the active /impl-scenario 32 session under /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/
+
+### References
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt (HAS-BEACON vs NO-BEACON; line 4-6 names the MCP sandbox as a HAS-BEACON-governed invisible-mutation source)
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s32/s32-reconstruction-plan.md
+- Handoff (in): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s32/handoff-api-from-scenarios-20260624-1855.md
+- Templates copied: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/tests/reconstruction_engine_s31.test.ts + reconstruction_cli_s31.test.ts
+- Ground truth (read with `readFileSync`): /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s32-script-rename-mcp-exec/ (JSONL `f4ff047f-…`; `config_utils.py`, `tests/test_config_utils.py`, `rename_config.py`)
+
+### What S32 is
+A script rename whose rename script runs through the context-mode MCP sandbox
+(`mcp__plugin_context-mode_context-mode__ctx_execute`, shell `python3 rename_config.py`) — NOT the Bash tool
+used by every prior rename (s25–s31). Whole-word `get_val`→`get_value`, `set_val`→`set_value`,
+`del_val`→`delete_value` across `config_utils.py` + `tests/test_config_utils.py` (`has_val`/`merge_val` kept).
+
+### The engine gap (one thing) and the fix
+At HEAD the parser CRASHES before any reconstruction: the 19 MCP-invoking assistant records each carry two
+novel top-level keys — `attributionMcpServer` = `plugin:context-mode:context-mode` and `attributionMcpTool` =
+`ctx_execute` — absent from `ALLOWED_TOP_LEVEL_KEYS[assistant]`, so `assertOnlyKnownTopLevelKeys` throws
+`UnmodeledFieldError` at parse time, gating EVERY file. Fix = ONE line in `src/parse/loadTranscript.ts`: add
+the two keys to the assistant entry's `keys(ENVELOPE_KEYS, "message", "requestId", …)` call. Kept assistant-
+only (NOT added to `ENVELOPE_KEYS`), as bare varargs (no new constant/indirection — matches the existing
+`"message"`/`"requestId"` style). `entrypoint`, the other novel-looking key, is ALREADY in `ENVELOPE_KEYS`.
+
+### Verification (RED→GREEN; mutation proof)
+- RED proof: `test_s32_jsonl_parses_with_mcp_attribution_keys` (tests/loadTranscript.test.ts) threw
+  `UnmodeledFieldError` on `attributionMcpServer` at HEAD before the fix (confirmed live).
+- After the fix: 206 records parse; 19 carry both attribution keys with the exact values; tsc clean.
+- Mutation proof (Task 6): `git checkout -- src/parse/loadTranscript.ts` (SAFE — loadTranscript.ts was NOT in
+  the uncommitted S28/29/30 set; confirmed ` M` then re-applied) → 7 s32 tests RED with `UnmodeledFieldError`:
+  the parser-gate test + all 6 CLI tests (these load through the GATED `loadTranscript` via `runCli:188`).
+  The 8 engine tests stayed GREEN — they build via the UNGATED `loadRecords` (`parseRecord`, no field gate),
+  so they lock reconstruction OUTPUT but do NOT exercise the gate. Re-apply → all green. The fix's necessity
+  is proven by the 7 gated tests; necessary + sufficient.
+
+### Post-fix reconstruction (live-verified, NO BackupReader)
+HAS-BEACON / reader-INDEPENDENT: the harness injects 2 COMPLETE `edited_text_file` beacons right after the MCP
+run (uuids `d9cbc214` config / `c7922fde` test). `config_utils.py` 11 revisions → 260 L (byte-exact vs
+rendered); `tests/test_config_utils.py` 2 revisions → 87 L (byte-exact); `rename_config.py` 1 revision → 62 L.
+Linear: one surviving branch (tip #1be0133f), three files, `rewound.length === 0`. `extractFileEvents`:
+writes=3, edits=6 (all on config_utils.py), userEdits=2 (`c7922fde`,`d9cbc214`), overwrites=0. Edit-ordering
+crux: `get_or_default` (pre-run) body renamed to `get_value` by the script; `apply_overrides` (post-run)
+references `get_value`/`set_value` on the renamed beacon. All rescue stages INERT; clean poison matrix.
+
+### Design decisions
+- Engine test asserts reader-independence by BUILDING with no BackupReader (the no-arg `reconstructBranches`)
+  AND with a poison reader, then byte-comparing — making reader-independence itself an assertion, per s31.
+- CLI test follows the s31 pattern: plain `--verbose` sliced by `### …/<suffix>` header + `finalRevisionSlice`
+  (NOT `--target`, which filters on the absolute reconstructed path and yields empty output for a basename).
+- Live-probed the `extractFileEvents` multiset and revision ladders BEFORE asserting them (S28/S31 lesson) —
+  the plan's 11/2/1 revisions and HAS-BEACON multiset were re-verified, not trusted blind.
+
+### Deviations
+- Test counts: 15 new tests = 1 parser-gate (in the existing tests/loadTranscript.test.ts) + 8 engine + 6
+  CLI; suite 436→451. The "14 new tests (8 engine + 6 CLI)" framing follows prior scenarios, which count the
+  per-scenario engine/CLI suites; the parser-gate test lives in the shared loadTranscript suite. Engine suite
+  grew to 8 (added explicit kept-name control T5 and a separated test-file byte-lock T2) for granularity.
+- Mutation proof scope (CORRECTS the plan's Task 6 prediction): the plan said "Tasks 4–5 all go RED" on
+  revert because "everything depends on the transcript loading." Not so — only the GATED load path throws.
+  The 6 CLI tests (via `runCli` → `loadTranscript:188`) + the parser-gate test go RED (7 total); the 8 engine
+  tests build via `loadRecords` (`tests/utilities.ts` → `parseRecord`, which does NOT call the field gate
+  `assertOnlyKnownTopLevelKeys`), so they reconstruct fine and stay green across the revert. This matches the
+  established s31 engine-test pattern (engine tests use the ungated `loadRecords`). The fix is still proven
+  necessary + sufficient by the 7 gated tests; the engine tests are independent OUTPUT byte-locks.
+- userEdit changeIds are `c7922fde`/`d9cbc214` (config = `d9cbc214`, test = `c7922fde`) — captured live;
+  the plan named the keys/mechanism but not the ids.
+
+### Tradeoffs
+- Wrote the `loadTranscript.ts` assistant entry as a multi-line `keys(...)` call (the 4 varargs exceed one
+  comfortable line) rather than a single long line — matches the existing multi-line `system`/`user` entries.
+
+### Open questions
+- COMMIT (USER APPROVAL ONLY): the tree carries uncommitted S28/S29/S30 engine + doc work and template edits
+  from other agents. S32 adds exactly ONE `src/` change (`src/parse/loadTranscript.ts`) + tests + docs. Stage
+  EXACTLY the S32 paths (loadTranscript.ts, tests/fixtures.ts, tests/loadTranscript.test.ts,
+  tests/reconstruction_engine_s32.test.ts, tests/reconstruction_cli_s32.test.ts, plans/roadmap.md,
+  plans/implementation-notes-api-from-scenarios.md, plans/reconstruction-engine-design.md, plans/s32/). Never
+  `git add -A`. The three doc files + `src/` carry prior-scenario uncommitted work — confirm the commit-split
+  with the user; do not assume. NOTHING committed by this session.
+
+## 2026-06-24:18:44:00 — S31 reconstruction (MANY-ROW script rename — 12 renames in one run) — COMPLETE; CHARACTERIZATION/REGRESSION LOCK (NO `src/` change); the many-row sibling of S25/S26/S29; 436 tests green
+Chat title: api-from-scenarios — S31 impl (/impl-scenario 31) → implement S31 (script-rename-many-rows)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/cb097932-13ef-4d4e-9110-eaf2b8ecf4a1.jsonl
+
+### References
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt (HAS-BEACON vs NO-BEACON premise; S31's rename reconstructs FROM the two COMPLETE beacons)
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s31/s31-reconstruction-plan.md
+- Handoff (in): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s31/handoff-api-from-scenarios-20260624-1828.md
+- Templates copied: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/tests/reconstruction_engine_s30.test.ts + reconstruction_cli_s30.test.ts
+- Ground truth (read with `readFileSync`): /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s31-script-rename-many-rows/ (JSONL `ef17241e-…`; `textutil.py`, `tests/test_textutil.py`, `many_renames.csv`, `bulk_rename.py`)
+
+### What S31 is
+A single `python3 bulk_rename.py` Bash run reads a TWELVE-row `many_renames.csv` (header `old,new` + 12
+rows) and applies every `\bold\b`→`new` whole-word rename across `textutil.py` and `tests/test_textutil.py`.
+The novelty locked is SCALE — twelve renames in one run with no per-row degradation — bracketed by a
+pre-script Edit (`normalize`, old-name body) and a post-script Edit (`headline`, new-name body). Both files
+are HAS-BEACON: the post-script `user-edit` beacon carries the fully-renamed file (textutil 205 L complete,
+test 71 L complete), so the engine adopts the renamed state for free. Linear — one surviving branch (tip
+#1349c502), four files, no rewound.
+
+### Why S31 needs NO engine fix — the ordinary HAS-BEACON path
+The engine never re-runs the script; it adopts the two COMPLETE `edited_text_file` beacons (`98ce2cbf`
+textutil, `590f882d` test_textutil) as full-content `user-edit` revisions, then replays the post-script
+`headline` Edit on top of textutil's renamed beacon (rev 3). Because both beacons are COMPLETE, NO rescue
+stage fires: `completeTruncatedBeacon` (S27), `completeElidedBeacons` (S28), and `seedStaleEditBases` (S19)
+are all inert. All four files reconstruct byte-identically with no new engine code; reader-INDEPENDENT
+(byte-identical with no reader AND with a poison reader; clean poison matrix, no "POISONED" leak anywhere).
+
+### Revision ladders + event multiset (VERIFIED LIVE)
+- `textutil.py` 218 L [write 193, edit `normalize` 205, userEdit `98ce2cbf` 205, edit `headline` 218] — reader-INDEPENDENT.
+- `tests/test_textutil.py` 71 L [write, userEdit `590f882d`] — reader-INDEPENDENT.
+- `many_renames.csv` 13 L [write] — no beacon; reader-INDEPENDENT.
+- `bulk_rename.py` 54 L [write] — no beacon; reader-INDEPENDENT.
+- `extractFileEvents`: writes=4, edits=2 (`normalize`+`headline`, both on textutil.py), userEdits=2 (`98ce2cbf,590f882d`), overwrites=0.
+
+### The edit-ordering crux (the interesting part)
+`normalize` was added BEFORE the run; its body referenced the OLD `trim`/`low`, so the script RENAMED its
+body — final `normalize` docstring references `:func:\`trim_whitespace\``/`:func:\`lowercase\``. `headline`
+was added AFTER the run, so it references the NEW `capitalize`/`slugify` and replays on top of the renamed
+beacon. T4 (engine) / C4-C5 (CLI) scope their assertions to each `def` block / the final revision so the
+ordering is proven, not mere co-presence.
+
+### Whole-word vs substring hazard
+The script renames whole words only (`\bold\b`). 11 of 12 old names have ZERO whole-word matches in final
+`textutil.py`, but `\bslug\b` legitimately appears TWICE (English prose in `headline`'s docstring, written
+post-rename — NOT a missed rename). Test fn names keep terse substrings (`test_cap_basic`/`test_rev_*`/
+`test_slug_*`, `_`-bounded). Every absence assertion uses `/\bname\b/` regex, never bare `includes()`.
+
+### Design decisions
+- Modeled both test files directly on the S30 templates (same imports + helpers `finalTextOf`/
+  `historyFinalText`/`historyEndingWith`/`stripTrailingNewline`/`readGroundTruth`; CLI helpers
+  `fileVerboseBlock`/`finalRevisionSlice`). Added one engine helper `defBlock(text, name)` to scope the T4
+  ordering crux to a single top-level `def`.
+- T1 is the headline byte-lock: each of the four files' `historyFinalText` === `stripTrailingNewline(
+  readGroundTruth(rel))` — a real cross-source check (engine reconstructs from JSONL; expected comes from the
+  independently-rendered files). It alone fails loudly on any regression.
+
+### Deviations
+- **T6 event multiset = 2 edits, NOT 3.** The plan §"What Remains" and the handoff state
+  `extractFileEvents` = "4w/3e/2ue/0ow". Re-verified LIVE against the engine: the actual multiset is
+  **4 writes, 2 edits, 2 user-edits, 0 overwrites** (the only edits are textutil.py's two bracketing Claude
+  edits `normalize` + `headline`; the conversationDAG confirms exactly D edit + I edit). The char-lock must
+  capture real engine output, so the test asserts 2 edits. This mirrors the S28 lesson (probe the engine at
+  HEAD before trusting plan ladder claims). All other plan literals matched live exactly.
+- **Skipped the optional src mutation probe.** The plan §"Crux note" offers an OPTIONAL probe (temporarily
+  neutralize beacon adoption / skip the post-script Edit replay → confirm T1/T4 RED). I did NOT run it: it
+  requires mutating shared engine `src/` that currently carries UNCOMMITTED S28/S29/S30 work, and the only
+  clean revert (`git checkout -- src/<file>`) would discard that uncommitted work (catastrophic). A
+  reverse-Edit restore is feasible but risks byte-drift on files I must leave untouched. The four-file
+  byte-lock (T1) plus the def-scoped ordering crux (T4) already fail loudly on any regression, and
+  `git diff -- src/` proving zero S31 hunks is the strongest guarantee for a char-lock. Logged as an
+  intentional tradeoff, not an oversight.
+
+### Verification
+- `npm test` → 436/436 (424 baseline + 12 new S31 tests), 0 fail. `npx tsc --noEmit` → clean.
+- `git diff -- src/` shows NO S31 hunks (only the pre-existing uncommitted S28/S29/S30 + template deltas).
+- Files touched by S31: `tests/fixtures.ts` (M, +`S31_JSONL`), `tests/reconstruction_engine_s31.test.ts`
+  (new, T1–T6), `tests/reconstruction_cli_s31.test.ts` (new, C1–C6), `plans/roadmap.md`,
+  `plans/implementation-notes-api-from-scenarios.md`, `plans/reconstruction-engine-design.md`, `plans/s31/`.
+
+### Open questions
+- COMMIT IS USER-APPROVAL-ONLY. COORDINATION HAZARD: the three doc files (`roadmap.md`,
+  `implementation-notes-…md`, `reconstruction-engine-design.md`) ALSO carry uncommitted S28/S29/S30 doc
+  edits, and `src/` carries uncommitted S28/S29/S30 engine work + unrelated `Plan_template.md`/
+  `Impl_template.md` edits. Confirm the commit-split strategy before committing; stage ONLY the seven S31
+  paths, never `git add -A`, never any `src/*`.
+
+## 2026-06-24:18:18:00 — S30 reconstruction (COUNT-MISMATCH script rename — CONDITIONAL/partial apply) — COMPLETE; CHARACTERIZATION/REGRESSION LOCK (NO `src/` change); the S28 elided path + a refusal that costs nothing; 424 tests green
+Chat title: api-from-scenarios — S30 impl (/impl-scenario 30) → implement S30 (script-rename-count-mismatch)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/6e9087d8-a7ba-4fd0-ac2f-7d0f222f9395.jsonl
+
+### References
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt (HAS-BEACON vs NO-BEACON premise; S30's applied rename reconstructs FROM the beacon)
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s30/s30-reconstruction-plan.md
+- Handoff (in): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s30/handoff-api-from-scenarios-20260624-1802.md
+- S28 LOCK reused (ELIDED window → `completeElidedBeacons`): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s28/s28-reconstruction-plan.md
+- Scenario: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/s30-script-rename-count-mismatch.txt
+- Executed output: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s30-script-rename-count-mismatch/
+
+### What S30 is
+A single `python3 safe_rename.py` Bash run reads `count_renames.csv` (header `old,new,count`, two rows) and,
+for each row, counts whole-word occurrences of `old` in `pricing.py`; IFF the count equals the row's `count`
+it applies the rename to BOTH `pricing.py` and `tests/test_pricing.py`, ELSE it prints `MISMATCH` and leaves
+that name unchanged everywhere (no partial write). The CSV is the off-by-one proof:
+`round_price,round_to_cents,8` (actual 8 == 8 → APPLIED) and `base_price,unit_price,10` (actual 11 != 10 →
+REFUSED). Pre-script: Write `pricing.py` (terse `base_price`/`net_price`/`bulk_price`/`round_price`/
+`tax_price`, `base_price` referenced several times) + `tests/test_pricing.py`, then Edit `pricing` +`quote()`
+(two intermediate edit revisions). Post-script: confirm the `MISMATCH`, then Edit `pricing` +`receipt()`
+(calls the NEW `round_to_cents`). The run emits TWO `edited_text_file` beacons (pricing + test_pricing — the
+applied rename touched both). Linear — one surviving branch (tip #e61d0ae0), four files, no rewound.
+
+### Why S30 needs NO engine fix — the S28 elided path + a refusal that costs nothing
+The engine adopts the post-script beacons and NEVER re-derives the rename, so the refusal is captured FOR
+FREE: the beacons already show `round_to_cents` applied and `base_price` retained, and nothing in the
+pipeline can fabricate `unit_price` — it exists in no beacon, edit, or backup, only as a string in
+`count_renames.csv`. `pricing.py` carries a COMPLETE 155-line beacon then the downstream `receipt` Edit;
+`tests/test_pricing.py` carries an ELIDED 39-line beacon (lines 1–40, `...` eliding 19–20) completed by the
+pre-existing S28 `completeElidedBeacons` (uncommitted working tree). All four files reconstruct
+byte-identically with no new engine code.
+
+### Two-beacon taxonomy + revision ladders (VERIFIED LIVE, real reader)
+- `pricing.py` 5863 ch [write, edit, edit, userEdit `9a1c303d`, edit] — COMPLETE beacon + downstream `receipt` Edit; reader-INDEPENDENT.
+- `tests/test_pricing.py` 1035 ch [write, userEdit `388074da`, overwrite `b1770edab554937c@v3` 40L] — ELIDED; reader-DEPENDENT.
+- `count_renames.csv` 67 ch [write] — no beacon; reader-INDEPENDENT.
+- `safe_rename.py` 2252 ch [write] — no beacon; reader-INDEPENDENT.
+
+`extractFileEvents`: writes=4, edits=3, userEdits=2 (`388074da,9a1c303d`), overwrites=0 (the synthetic
+`overwrite` is a reconstructed REVISION, never an extracted event).
+
+### Version-selection BY CONTENT, not recency (the crux)
+`tests/test_pricing.py` picks `b1770edab554937c@v3` (40L, post-rename `round_to_cents`) over the SAME-40-line
+`@v2` (pre-rename `round_price`). The hermetic engine-test reader serves BOTH versions so the choice is
+proven, not assumed; `@v2` is derived from the rendered `@v3` by undoing the whole-word rename
+(`round_to_cents`→`round_price`) and verified byte-identical (1012 bytes) to the real `@v2` backup. Both
+versions keep `base_price`×5 — no version contains `unit_price`.
+
+### Reader/poison matrix (the regression guard) — fully clean, NO leak
+Reader-INDEPENDENT: `pricing.py` (complete beacon + replayed Edit), `count_renames.csv`, `safe_rename.py`
+(real==without==poison). Reader-DEPENDENT: `tests/test_pricing.py` only — WITHOUT a reader it is the wrong
+977-ch 2-rev result with the `...` window surviving; a poison reader injects no overwrite and leaks no
+"POISONED". Unlike S29's `pkg/b.py`, S30 never exercises `seedStaleEditBases`, so the poison matrix is fully
+clean.
+
+### Mutation probes (load-bearing proof — §9, run live this session)
+Probe A (neutralize `completeElidedBeacons`, branches.ts:54 → `const unelided = based;`) turned ONLY engine
+test T3 (`test_S30_elided_test_beacon_completed_version_selected_by_content`) RED — the other five stayed
+green — proving the S28 elided path is the SOLE crux. `reconstruction_branches.ts` was restored
+byte-identical (`diff /tmp/s30-branches.bak …` clean) and `npm test` returned to 424. Probes B/C (truncated /
+stale-edit) were documented inert by planning and left unrun (no lock value).
+
+### Design decisions
+- Used the S29 hermetic in-memory reader pattern (engine tests never touch the real file-history tree). For
+  T3's content-not-recency lock the reader serves BOTH `@v3` (= rendered `tests/test_pricing.py`) and a
+  derived `@v2`, so content-validation — not key existence — drives the version choice.
+- NO ground-truth gap (unlike S29): every S30 file is rendered, so all four `*_FINAL` expectations are read
+  from the rendered store as a real cross-source check.
+- Whole-word assertions throughout (`/\bunit_price\b/`, `/\bround_price\b/`) — test method names like
+  `test_round_price_*` still contain the `round_price` substring (bounded by `_`, not a word boundary), so a
+  bare `includes()` would mis-fire.
+
+### Deviations
+- None. Every plan literal (4 ladders, final byte lengths, the `b1770edab554937c@v3` overwrite changeId +
+  version selection, the reader/poison matrix, `extractFileEvents` counts, and the CLI spacing) was
+  re-verified LIVE against the live engine before being baked into the tests; all matched the plan exactly.
+- Observed but NOT mine: `src/Impl_template.md` was modified by another agent at 18:14 (after my baseline
+  snapshot). The four reconstruction `.ts` engine files remain byte-identical to the S30-start baseline
+  (verified: `git diff` of the four files == baseline). Per plan §10, `src/Impl_template.md` is NOT staged.
+
+### Tradeoffs
+- Deriving `@v2` from the rendered `@v3` (vs inlining a captured blob) keeps the test self-documenting ("@v2
+  is @v3 with the rename undone") and was proven byte-exact against the real backup, avoiding ~1 KB of
+  escaped-string literal.
+
+### Open questions
+- None blocking. COMMIT IS USER-APPROVAL-ONLY and there is a COORDINATION HAZARD: the three doc files
+  (`roadmap.md`, this file, `reconstruction-engine-design.md`) ALSO carry uncommitted S28/S29 doc edits, and
+  `src/` carries uncommitted S28/S29 engine work + an unrelated `src/Impl_template.md`/`Plan_template.md`
+  edit. Stage ONLY the S30 files (`tests/fixtures.ts`, the two new s30 test files, the 3 docs, `plans/s30/`);
+  NEVER `git add -A`; confirm with the user how to split the S28/S29/S30 commits first.
+
+## 2026-06-24:17:40:00 — S29 reconstruction (REPO-WALK script rename + SKIPPED `vendor/` control) — COMPLETE; CHARACTERIZATION/REGRESSION LOCK (NO `src/` change); composition of S27 + S28 + vendor-skip; 412 tests green
+Chat title: api-from-scenarios — S29 impl (/impl-scenario 29) → implement S29 (script-rename-repo-walk)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/294e0115-5544-4846-986b-dca3ff1c22d2.jsonl
+
+### References
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt (HAS-BEACON vs NO-BEACON premise; S29 composes the truncated + elided + no-beacon-control shapes)
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s29/s29-reconstruction-plan.md
+- Handoff (in): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s29/handoff-api-from-scenarios-20260624-1720.md
+- S27 LOCK reused (TRUNCATED prefix → `completeTruncatedBeacon`): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s27/s27-reconstruction-plan.md
+- S28 LOCK reused (ELIDED window → `completeElidedBeacons`): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s28/s28-reconstruction-plan.md
+- Scenario: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/s29-script-rename-repo-walk.txt
+- Executed output: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s29-script-rename-repo-walk/
+
+### What S29 is
+A single `python3 walk_rename.py` Bash run `os.walk`s the tree, collects every `.py` file SKIPPING any
+directory named `vendor`, and whole-word renames `helper→compute_value` in each — the file list is
+DISCOVERED by walking, not hardcoded. Pre-script: a package (`pkg/a.py`, `pkg/b.py`, `pkg/vendor/c.py`,
+`main.py`, `tests/test_pkg.py`, plus the two `__init__.py`) each defining `helper`, then an Edit adds
+`preprocess` to `pkg/a.py`. Post-script: an Edit adds `pipeline` to `pkg/b.py` (calls the new
+`compute_value`). The run emits SIX `edited_text_file` beacons; the two `pkg/vendor/*` files get NO beacon
+(the walk skipped them) and keep their original `write`. Linear — one surviving branch (tip #e6bfddf3),
+eight files, no rewound branch.
+
+### Why S29 needs NO engine fix — it is the composition of S27 + S28 + control
+The six beacons arrive in EVERY shape the engine already handles, all in one run: ONE COMPLETE
+(`pkg/__init__.py`, adopted verbatim); FOUR TRUNCATED (`tests/test_pkg.py` 1–34/51, `main.py` 1–40/71,
+`pkg/b.py` 1–93/101, `walk_rename.py` 1–9/51 → S27 `completeTruncatedBeacon`); ONE ELIDED (`pkg/a.py`
+1–99 + `...` of 128 → S28 `completeElidedBeacons`). Both reseed transforms are already in the engine
+(uncommitted S28 working tree), so every beacon is completed from a content-validated backup and all eight
+files reconstruct byte-identically. The two `pkg/vendor/*` files are the CONTROL: NO beacon → original
+`write` kept → must still read `helper`, never `compute_value`, reader-INDEPENDENT + poison-stable.
+
+### Six-beacon taxonomy + revision ladders (VERIFIED LIVE, real reader)
+- `pkg/__init__.py` 399 ch [write, userEdit] — complete beacon; reader-INDEPENDENT.
+- `pkg/a.py` 3460 ch [write, edit, userEdit, overwrite `38dbed748662c3cb@v4` 128L] — elided; reader-DEPENDENT.
+- `pkg/b.py` 3330 ch [write, userEdit, overwrite `e5663c2564dcb2d1@v3` 101L, edit] — truncated + `pipeline` Edit; reader-DEPENDENT.
+- `pkg/vendor/__init__.py` 289 ch [write] — control; reader-INDEPENDENT.
+- `pkg/vendor/c.py` 2031 ch [write] — control; reader-INDEPENDENT.
+- `main.py` 1788 ch [write, edit, edit, edit, userEdit, overwrite `75e112d1b7c35b86@v3` 71L] — truncated; reader-DEPENDENT.
+- `tests/test_pkg.py` 1601 ch [write, edit, edit, edit, userEdit, overwrite `d7f33f1259aa3a18@v3` 51L] — truncated; reader-DEPENDENT.
+- `walk_rename.py` 1530 ch [write, userEdit, overwrite `e13888a28cfa9bd5@v2` 51L] — truncated, self-modifying; reader-DEPENDENT.
+
+`extractFileEvents`: writes=8, edits=4, userEdits=6 (`1527f907,1e9f8dd1,4c52c762,b27e66ab,d16b6b3b,e30c1bc6`),
+overwrites=0 (every synthetic `overwrite` is a reconstructed REVISION, never an extracted event).
+
+### Version-selection BY CONTENT, not recency (the strongest crux)
+`pkg/a.py` picks `@v4` (compute_value) over the SAME-128-line `@v3` (helper, pre-rename); `pkg/b.py` picks
+`@v3` over the same-101-line `@v2`, then the `pipeline` Edit replays on top. The hermetic engine-test reader
+serves BOTH the rejected and the chosen versions so the choice is proven, not assumed.
+
+### Reader/poison matrix (the regression guard)
+Reader-INDEPENDENT: the two vendor controls + the complete-beacon `pkg/__init__.py`. Reader-DEPENDENT: the
+four truncated/elided files + `pkg/b.py`. WITHOUT a reader the truncated/elided files are WRONG (`main.py`
+1140, `tests/test_pkg.py` 1127, `walk_rename.py` 290, `pkg/a.py` 2881 with the `...` window surviving).
+`pkg/b.py` LEAKS poison under a degenerate reader via the pre-existing `seedStaleEditBases` (s19/s23) path
+for the `pipeline` Edit's stale base — established prior-scenario behaviour (identical to S28's
+`catalog_view`), so `pkg/b.py` is EXCLUDED from poison asserts.
+
+### Mutation probes (load-bearing proof — see §9 results below once run)
+Probe A (neutralize `completeTruncatedBeacon`) diverges ONLY `main.py`/`tests/test_pkg.py`/`walk_rename.py`
+(NOT `pkg/b.py` — its truncated beacon is independently repaired by `seedStaleEditBases` via the later
+Edit). Probe B (neutralize `completeElidedBeacons`) diverges ONLY `pkg/a.py`. So the unique cruxes are S27
+⇒ main/test_pkg/walk (engine test T3) and S28 ⇒ pkg/a.py (engine test T5).
+
+### Design decisions
+- GROUND-TRUTH GAP (differs from every prior script-rename scenario): the executed-scenario folder captured
+  only `main.py`/`walk_rename.py`/`tests/test_pkg.py`; the `pkg/` subtree was NOT rendered to disk. So the
+  `pkg/a.py`/`pkg/b.py` cruxes are locked via INLINE file-history backup blobs (`38dbed748662c3cb@v3/@v4`,
+  `e5663c2564dcb2d1@v2/@v3`) captured raw and embedded as escaped string literals in the engine test — the
+  hermetic reader never touches the real file-history tree. The three rendered files are byte-locked against
+  the rendered originals; the CLI test covers `pkg/*` via the real reader.
+- CLI `finalRevisionSlice` helper: `pkg/a.py`'s INTERMEDIATE revision (the elided beacon) legitimately
+  carries a windowed `| ...` line, so the "no window survived" check is scoped to the FINAL revision slice,
+  not the whole verbose block.
+
+### Deviations
+- None. Every plan literal (8 ladders, final byte lengths, synthetic-overwrite changeIds + version
+  selection, the reader/poison matrix, `extractFileEvents` counts, and the CLI spacing) was re-verified LIVE
+  against the real sidecar reader before being baked into the tests; all matched the plan exactly.
+
+### Tradeoffs
+- Inlining the four `pkg/*` backup blobs (vs reading them from `~/.claude/file-history` at test time) keeps
+  the engine test hermetic and stable against file-history pruning, at the cost of ~12 KB of escaped-string
+  literals — the same trade S28 made for `catalog_view@v3`.
+
+### Open questions
+- None blocking. S29 is the last `s`-series script-rename LOCK before S30 (script-rename-count-mismatch).
+  Commit is USER-APPROVAL-ONLY; the uncommitted S28 `src/` work must NOT be swallowed by the S29 commit
+  (stage only the S29 files).
+
+## 2026-06-24:16:55:00 — S28 reconstruction (SCOPED script rename + ELIDED/WINDOWED BEACONS) — COMPLETE; REAL ENGINE FIX (second in the script-rename series, after S27); reader-dependent; 398 tests green
+Chat title: api-from-scenarios — S28 impl (/impl-scenario 28) → implement S28 (script-rename-scope)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/49ee63cb-c784-4f25-ae43-dd24641d3ad0.jsonl
+
+### References
+- MUST READ: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/script-handling.txt (HAS-BEACON vs NO-BEACON premise; S28 extends it to the ELIDED/WINDOWED beacon)
+- Plan: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s28/s28-reconstruction-plan.md
+- Handoff (in): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s28/handoff-api-from-scenarios-20260624-1634.md
+- S27 LOCK this is disjoint from (TERMINAL PREFIX truncation): /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/plans/s27/s27-reconstruction-plan.md
+- Scenario: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/s28-script-rename-scope.txt
+- Executed output: /Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s28-script-rename-scope/
+
+### What S28 is
+A single `python3 scoped_rename.py` Bash run rewrites tracked sources from a SCOPED-rename CSV
+(`scoped_renames.csv`, rows `old,new,isExported,file`): an exported `load_all→load_catalog,Y` row renames
+across ALL files (`catalog.py`, `catalog_view.py`, `tests/test_catalog.py`); a local
+`_norm→normalize_entry,N,catalog.py` row renames only the named file. Pre-script: `catalog.py` (terse) +
+`count_entries` Edit; `catalog_view.py` (imports `catalog`, `render` calls `load_all`) and
+`tests/test_catalog.py` written. Post-script: one `preview()` Edit on `catalog_view.py` calling the NEW
+`load_catalog`. The rename surfaces via THREE `edited_text_file` beacons (uuids `9d5b50af…` catalog /
+`888a7d75…` test_catalog / `c264b1e3…` catalog_view); the `python3` run is opaque (ZERO file events).
+Linear — one surviving branch (tip #2114511a), six surviving files incl. the stray `/tmp/cat.txt`
+cat-redirect side file, no rewound branch.
+
+### Why S28 needed a REAL engine fix — the elided-beacon gap
+Two of the three beacons are ELIDED (the harness showed only a WINDOW of the file, marking omissions with
+bare `...` separators and/or by starting past line 1). `extractFileEvents` turns each beacon into a
+`user-edit` whose content is the snippet with line-number prefixes STRIPPED
+(`stripLineNumberPrefixes`) — which DISCARDS the line numbers that reveal the gaps — so the engine adopts
+the windowed snippet verbatim. `tests/test_catalog.py`'s beacon is TERMINAL MID-ELIDED (lines 1–9, `...`,
+17–33, `...`, 39–102), NOT a byte-prefix, so S27's `completeTruncatedBeacon` (a `startsWith` prefix test)
+cannot fire — leaving the file at 92 ln / 2393 ch (true 102 / 2665). THE FIX (reader-only): a new
+`completeElidedBeacons` transform detects elision from the RAW numbered snippet, finds the file-history
+backup version whose numbered content reproduces every visible beacon line (forward-validation), and
+splices a synthetic `write` of it immediately after the beacon (replay turns write-on-present into an
+`overwrite`).
+
+### The fix (the four §3 changes, applied verbatim from the plan)
+- `src/reconstruction_user_edit.ts` (+`beaconSnippetFor`/`BeaconLine`/`BeaconSnippet`, `parseNumberedSnippet`,
+  import `Uuid`): re-reads the RAW `cat -n` snippet preserving line numbers + an ellipsis flag. → 85 ln.
+- `src/reconstruction_sidecar.ts` (+`backupWritesFor` enumerating ALL non-null backup versions
+  time-ascending; `latestBackupWriteFor` REWRITTEN to reuse it — required to stay ≤ 250). → 241 ln.
+- `src/reconstruction_reseed.ts` (+`beaconIsElided`/`backupMatchesBeacon`/`elidedBeaconSeed`/
+  `completeElidedBeacons`; third module header bullet). → 216 ln.
+- `src/reconstruction_branches.ts` (wire `completeElidedBeacons` as a reader-only stage BEFORE
+  `seedStaleEditBases` and `completeTruncatedBeacon`). → 186 ln.
+All four ≤ 250; `tsc` clean. 14 new tests (8 engine `tests/reconstruction_engine_s28.test.ts` + 6 CLI
+`tests/reconstruction_cli_s28.test.ts`); fixture `S28_JSONL` added. 384 → 398 green; S1–S27 + m1–m7
+byte-for-byte unchanged.
+
+### Design decisions
+- VERSION SELECTION BY CONTENT, not recency (the load-bearing new behaviour): `backupWritesFor` enumerates
+  every backup version and `completeElidedBeacons` keeps the LATEST that validates. For `catalog_view.py`
+  this picks `a8b61336832f339e@v3` (post-script, pre-`preview`) over the newer `@v4` (post-`preview`),
+  because `@v4`'s lines 11–41 shifted under the `preview` insertion and fail `backupMatchesBeacon`. FIRST
+  scenario to select a non-latest backup. Engine test 5 + the s28Reader deliberately returns real content
+  for `@v4` so the rejection is exercised.
+- DISJOINT FROM S27: `beaconIsElided` excludes a snippet that starts at line 1 with contiguous numbers and
+  no `...` (a pure terminal tail-truncation, still `completeTruncatedBeacon`'s job). After S28 injects the
+  overwrite, a terminal beacon's last event is the write/overwrite, so `completeTruncatedBeacon`'s
+  `last.kind === userEdit` guard skips it — the two never double-fire.
+- NEVER FABRICATE: a backup is accepted only if every visible `(lineNo,text)` matches and it has more
+  lines than the beacon showed, so a poison/wrong backup injects nothing (engine test 7).
+
+### Deviations (from the plan — all VERIFIED LIVE against the engine at HEAD)
+1. **catalog_view.py was ALREADY correct pre-fix with a reader.** The plan (§1.2, §2.3, §5, §9) asserts
+   catalog_view reconstructs WRONG (1538 ch / 5 revs) until the new fix, and that crux B is RED pre-fix.
+   EMPIRICALLY at HEAD (src clean, prototype reverted), catalog_view WITH the real reader already
+   reconstructs to the correct `[write,userEdit,overwrite(@v3),edit,edit,edit]` / 2067 via the PRE-EXISTING
+   `seedStaleEditBases` (s19/s23): the window renumbers the two `preview` Edit anchors, so `editBaseIsStale`
+   returns TRUE (the plan claimed it returns false). Only `tests/test_catalog.py` (the TERMINAL elided
+   beacon, no downstream Edit) genuinely needs the new code. I kept the plan's generic
+   `completeElidedBeacons` (it runs first and is catalog_view's explicit primary handler, with
+   `seedStaleEditBases` as an inert fallback) because it is the more principled/robust design and produces
+   byte-identical results — but the test comments + mutation-probe expectations were corrected to reality.
+2. **Mutation probe (§9): neutralizing `beaconIsElided` turns ONLY the test_catalog crux red, NOT both.**
+   Because catalog_view is also served by `seedStaleEditBases`, crux B stays green when the new code is
+   disabled. The isolated proof of the new code is crux A (`test_S28_test_catalog_terminal_elided_beacon_overwrite`).
+   Verified directly (forced `beaconIsElided` to `return false`: test_catalog → 2393 WRONG, catalog_view →
+   2067 still correct).
+3. **Raw events carry ONE overwrite, not zero.** The plan's extract assertion expected 0 overwrites; the
+   transcript has a stray `/tmp/cat.txt` cat-redirect that extracts as 1 overwrite. The test
+   (`test_S28_extractFileEvents_three_userEdits_seed_stays_synthetic`) now asserts exactly that one
+   overwrite targets `/tmp/cat.txt` (NOT any renamed source), still proving the synthetic seed stays out of
+   the event stream / graphs.
+4. **Poison test scoped to test_catalog only.** The plan's poison test asserted catalog_view keeps a
+   no-overwrite ladder under a poison reader; in reality the pre-existing `seedStaleEditBases` injects the
+   poison content for catalog_view (degenerate test-only input, s19/s23 behaviour). The poison test now
+   asserts ONLY `tests/test_catalog.py` — the file governed solely by the new `completeElidedBeacons` —
+   keeps `[write,userEdit]` with no overwrite and no `POISONED` leak.
+5. **Line counts:** reseed is 216 (plan predicted 211) — the extra 5 lines are the third module-header
+   bullet documenting `completeElidedBeacons`. Still ≤ 250.
+6. **`S28_JSONL` fixture path** uses the Desktop canonical-store absolute path (matching S24–S27's
+   constant style), not the worktree-relative path the plan's Task 1 text quotes.
+
+### Tradeoffs
+- Generic `completeElidedBeacons` (handles head/interior/terminal elision; fires on BOTH elided files)
+  vs. a minimal terminal-only fix (would touch only test_catalog and leave catalog_view to
+  `seedStaleEditBases`). Chose generic: it is the plan's design, makes catalog_view's correctness EXPLICIT
+  rather than an `editBaseIsStale` coincidence, and the full suite stays green — at the cost of crux B not
+  isolating the new code (documented above, and covered by crux A which does).
+
+### Open questions
+- None blocking. The deviations above mean the plan's §9 mutation-probe wording ("EXACTLY the two crux
+  tests red") is inaccurate for this engine state; I implemented to the verified reality. Nothing is
+  committed — awaiting explicit user approval per the plan's Task 7 gate.
+
 ## 2026-06-24:16:10:00 — S27 reconstruction (script rename EDITED BEFORE RUN + TERMINAL TRUNCATED BEACON) — COMPLETE; REAL ENGINE FIX (first since S19/S23/m6), reader-dependent; 384 tests green
 Chat title: api-from-scenarios — S27 impl (/impl-scenario 27) → implement S27 (script-rename-edited-before-run)
 Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Programming-RevEng-worktrees-api-from-scenarios/c640dd17-a9c5-4fe2-bf93-8ef7b736debc.jsonl

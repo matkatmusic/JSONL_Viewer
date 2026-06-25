@@ -13,7 +13,8 @@ import { replayEvents } from "./reconstruction_replay.ts";
 import { findConversationBranches, selectBranchRecords } from "./reconstruction_branch.ts";
 import { fillRedirectContent, seedEditBaseFromBackup } from "./reconstruction_sidecar.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
-import { completeTruncatedBeacon, seedStaleEditBases } from "./reconstruction_reseed.ts";
+import { completeElidedBeacons, completeTruncatedBeacon } from "./reconstruction_beacons.ts";
+import { seedStaleEditBases } from "./reconstruction_reseed.ts";
 import {
     buildRenameChain,
     distinctFinalPaths,
@@ -47,7 +48,8 @@ export function reconstructFileOver(
     const seeded = seedCopyEvents(records, lineage, resolving, reader);
     const filled = reader ? fillRedirectContent(records, seeded, reader) : seeded;
     const based = reader ? seedEditBaseFromBackup(records, filled, reader) : filled;
-    const restaged = reader ? seedStaleEditBases(records, based, reader) : based;
+    const unelided = reader ? completeElidedBeacons(records, based, reader) : based;
+    const restaged = reader ? seedStaleEditBases(records, unelided, reader) : unelided;
     const completed = reader ? completeTruncatedBeacon(records, restaged, reader) : restaged;
     return replayEvents(completed);
 }

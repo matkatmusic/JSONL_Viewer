@@ -103,3 +103,33 @@ export const S26_JSONL =
 
 export const S27_JSONL =
     "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s27-script-rename-edited-before-run/d1b02f2f-eda1-49f1-9cc7-075bf02104c2.jsonl";
+
+export const S28_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s28-script-rename-scope/08e627ff-de50-4de7-aa03-5133366d9f25.jsonl";
+
+export const S29_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s29-script-rename-repo-walk/543492c4-1d45-47b7-a4a1-a2d14857161f.jsonl";
+
+export const S30_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s30-script-rename-count-mismatch/29634d79-a1f4-4a26-9a2d-0c79798e42e7.jsonl";
+
+export const S31_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s31-script-rename-many-rows/ef17241e-1775-4003-9141-92f5b6f334e7.jsonl";
+
+export const S32_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s32-script-rename-mcp-exec/f4ff047f-3cef-4303-8da0-d34cfe2e0f7f.jsonl";
+
+export const S33_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s33-script-rename-csv-user-edit/b54eafa5-e6c9-4c78-a5c6-52129f2e6503.jsonl";
+
+export const S34_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s34-script-rename-driver-back-and-forth/709c9b35-62d2-44c9-84ed-5e63ca90073e.jsonl";
+
+export const S35_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s35-script-rename-script-user-edit/2a208e10-4881-4f85-8006-2e24dfd523b7.jsonl";
+
+export const S36_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s36-script-rename-csv-user-edit-mcp/e8fa105c-74ae-414f-8208-aa95820af08e.jsonl";
+
+export const S37_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s37-script-rename-driver-back-and-forth-mcp/8f4366d3-271d-4116-a9e0-6da462fed449.jsonl";

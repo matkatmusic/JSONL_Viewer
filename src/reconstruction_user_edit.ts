@@ -7,8 +7,15 @@
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { getAttachmentEntry } from "./structures/session-meta.ts";
 import { AttachmentPayloadType, EventKind } from "./structures/vocabulary.ts";
-import { Path } from "./structures/domain.ts";
+import { Path, Uuid } from "./structures/domain.ts";
 import type { UserEditEvent } from "./reconstruction_engine.ts";
+
+// One numbered line of an `edited_text_file` snippet (`lineNo` is the file line the harness showed).
+export type BeaconLine = { lineNo: number; text: string };
+// The PARSED `cat -n` snippet of a beacon: every numbered line plus whether a literal `...` elision
+// separator is present. Unlike the UserEditEvent's `content`, the line NUMBERS are preserved here so
+// the reseed stage can detect a windowed (elided) snippet. See plans/s28/s28-reconstruction-plan.md.
+export type BeaconSnippet = { lines: BeaconLine[]; hasEllipsis: boolean };
 
 // Strip the `<lineNo>\t` prefix every line of an `edited_text_file` snippet carries, recovering the
 // file's actual post-edit text. `1\t# user edit\n2\tdef hello():` -> `# user edit\ndef hello():`.
@@ -39,4 +46,40 @@ export function userEditEventFrom(record: TranscriptRecord): UserEditEvent | und
         content: stripLineNumberPrefixes(snippet),
         timestamp: entry.timestamp,
     };
+}
+
+// Parse the raw `edited_text_file` snippet of the attachment whose record uuid === `changeId` into its
+// numbered lines (preserving line numbers) plus an ellipsis flag. A snippet line carries an `N\t`
+// prefix; an elision separator is a bare `...` line with NO prefix, so the two are unambiguous.
+// Returns undefined when no such attachment exists.
+export function beaconSnippetFor(
+    records: TranscriptRecord[],
+    changeId: Uuid,
+): BeaconSnippet | undefined {
+    for (const record of records) {
+        const entry = getAttachmentEntry(record);
+        if (entry === undefined || entry.attachment.type !== AttachmentPayloadType.edited_text_file) {
+            continue;
+        }
+        if (entry.uuid.toString() !== changeId.toString()) {
+            continue;
+        }
+        return parseNumberedSnippet(entry.attachment.snippet as string);
+    }
+    return undefined;
+}
+
+// Split a `cat -n` snippet into numbered lines + ellipsis flag (see beaconSnippetFor).
+function parseNumberedSnippet(snippet: string): BeaconSnippet {
+    const lines: BeaconLine[] = [];
+    let hasEllipsis = false;
+    for (const raw of snippet.split("\n")) {
+        const match = raw.match(/^(\d+)\t(.*)$/);
+        if (match) {
+            lines.push({ lineNo: Number(match[1]), text: match[2]! });
+        } else if (raw === "...") {
+            hasEllipsis = true;
+        }
+    }
+    return { lines, hasEllipsis };
 }

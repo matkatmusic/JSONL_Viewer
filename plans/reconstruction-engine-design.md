@@ -401,6 +401,272 @@ The engine is split by concern, one paired test each (files kept well under the
   reader-DEPENDENT (without a backup it is the truncated 1594-ch 2-rev wrong result; a poison reader is
   rejected by the `startsWith` guard). Linear: one surviving branch (tip #7e94e313), three files, no
   rewound branch. REAL fix (first since S19/S23/m6).
+  S28 (`s28-script-rename-scope`) is the SECOND script-rename `src/` change, handling the ELIDED
+  (WINDOWED) beacon and the first selection of a NON-latest backup version. ONE `python3
+  scoped_rename.py` Bash run rewrites sources from a `scoped_renames.csv` with an `isExported` column
+  (`Y` = rename across all files, `N` = rename only the named file). The new failure mode: two of the
+  three post-script `edited_text_file` beacons are ELIDED — the harness showed only a WINDOW of the file
+  (bare `...` separators and/or starting past line 1), and `stripLineNumberPrefixes` discards the line
+  numbers that reveal the gaps, so the engine adopts the windowed snippet verbatim. `tests/test_catalog.py`'s
+  beacon is TERMINAL MID-ELIDED (lines 1–9, `...`, 17–33, `...`, 39–102) — NOT a byte-prefix, so S27's
+  `completeTruncatedBeacon` cannot fire. The fix is a new reader-only event-list transform
+  `completeElidedBeacons` (in `reconstruction_reseed.ts`): for EACH `user-edit` beacon whose RAW `cat -n`
+  snippet is elided (a new `beaconSnippetFor`/`BeaconSnippet` parser in `reconstruction_user_edit.ts`
+  re-reads the numbered snippet `stripLineNumberPrefixes` threw away, detecting elision as first
+  line# > 1, a line-number gap, or a literal `...`), find the file-history backup version whose numbered
+  content reproduces EVERY visible beacon line (forward-validation via `backupMatchesBeacon`) and splice
+  a synthetic Write of it immediately AFTER the beacon. A new `backupWritesFor` (reconstruction_sidecar.ts)
+  enumerates ALL backup versions — `latestBackupWriteFor` now reuses it — because VERSION SELECTION IS BY
+  CONTENT, not recency: `catalog_view.py`'s correct base is `a8b61336832f339e@v3` (post-script,
+  pre-`preview`), NOT the latest `@v4` (whose lines 11–41 shifted under the `preview` insertion and fail
+  validation). Wired BEFORE `seedStaleEditBases` and `completeTruncatedBeacon`, and disjoint from S27 (a
+  contiguous-from-1 prefix is NOT elided, so S27's terminal tail-truncation stays its job). MIXED
+  reader-dependence: `catalog.py` (5 revs → 6749 ch, COMPLETE beacon), `scoped_rename.py`/`scoped_renames.csv`
+  (1 write each → 1898 / 83 ch) reader-INDEPENDENT; `tests/test_catalog.py` (3 revs
+  [write,userEdit,overwrite] → 2665 ch) and `catalog_view.py` (6 revs [write,userEdit,overwrite,edit,edit,edit]
+  → 2067 ch) reader-DEPENDENT. NOTE (verified, deviation from the plan): only `tests/test_catalog.py`
+  genuinely depends on the new code — `catalog_view.py`'s non-terminal beacon was ALREADY completed to
+  2067 by the pre-existing `seedStaleEditBases` (the window renumbers its `preview` Edit anchors so
+  `editBaseIsStale` is true); `completeElidedBeacons` is its explicit primary handler with that path as an
+  inert fallback. Linear: one surviving branch (tip #2114511a), six surviving (incl. the stray
+  `/tmp/cat.txt`), no rewound. REAL fix.
+
+  S29 (`s29-script-rename-repo-walk`) adds NO code — it is the COMPOSITION / regression lock for
+  `completeTruncatedBeacon` (S27) + `completeElidedBeacons` (S28) + the no-beacon vendor CONTROL, all
+  exercised under a single recursive-walk script run. ONE `python3 walk_rename.py` Bash run `os.walk`s the
+  tree, SKIPS any directory named `vendor`, and whole-word renames `helper→compute_value` in every other
+  `.py` file (the file list is DISCOVERED by walking, not hardcoded). The run emits SIX `edited_text_file`
+  beacons in every shape the engine already handles, all at once: ONE COMPLETE (`pkg/__init__.py`, adopted
+  verbatim), FOUR TRUNCATED (`tests/test_pkg.py`, `main.py`, `pkg/b.py`, `walk_rename.py` →
+  `completeTruncatedBeacon`), ONE ELIDED (`pkg/a.py` → `completeElidedBeacons`). The two `pkg/vendor/*`
+  files get NO beacon (the walk skipped them), so the engine keeps their original `write` — they must still
+  read `helper`, never `compute_value`, reader-INDEPENDENT and poison-stable (the headline control). Version
+  selection stays BY CONTENT, not recency: `pkg/a.py`→`38dbed748662c3cb@v4` over the same-128-line `@v3`,
+  `pkg/b.py`→`e5663c2564dcb2d1@v3` over the same-101-line `@v2` (then the `pipeline` Edit replays on top).
+  `walk_rename.py` is SELF-MODIFYING (the walk rewrites its own string literals). MIXED reader-dependence:
+  `pkg/__init__.py` + the two vendor controls are reader-INDEPENDENT; the four truncated/elided files +
+  `pkg/b.py` are reader-DEPENDENT. `pkg/b.py` leaks poison under a degenerate reader via the pre-existing
+  `seedStaleEditBases` path (prior-scenario behaviour, excluded from poison asserts). GROUND-TRUTH GAP: the
+  `pkg/` subtree was not rendered to disk, so the `pkg/*` cruxes are locked via inline file-history backup
+  blobs (engine test) and the real reader (CLI test). Linear: one surviving branch (tip #e6bfddf3), eight
+  files, no rewound. Characterization LOCK — no `src/` change.
+
+  S30 (`s30-script-rename-count-mismatch`) adds NO code — it is the regression lock for
+  `completeElidedBeacons` (S28) under a CONDITIONAL / partial-apply script run, plus the reader-independence
+  of a COMPLETE beacon followed by a downstream Edit. ONE `python3 safe_rename.py` Bash run reads
+  `count_renames.csv` (`old,new,count`) and applies each rename to BOTH `pricing.py` and
+  `tests/test_pricing.py` ONLY when the whole-word occurrence count of `old` matches the row's `count`,
+  else prints `MISMATCH` and leaves that name unchanged everywhere. `round_price→round_to_cents` (8==8)
+  APPLIES; `base_price→unit_price` (11!=10, off by one) is REFUSED. The engine adopts the post-script
+  beacons and never re-derives the rename, so the refusal costs nothing: the beacons already show the
+  applied rename and the retained `base_price`, and nothing in the pipeline can fabricate `unit_price` (it
+  exists only as a string in the CSV — in no beacon, edit, or backup). `pricing.py` has a COMPLETE 155-line
+  beacon then the downstream `receipt` Edit, so it is reader-INDEPENDENT (real==without==poison; the
+  `seedStaleEditBases` reseed is INERT — the Edit replays off the complete beacon); `tests/test_pricing.py`
+  has an ELIDED 39-line beacon (lines 1–40, `...` eliding 19–20) completed by `completeElidedBeacons` to the
+  content-validated `b1770edab554937c@v3` (post-rename) over the same-40-line `@v2` (pre-rename) —
+  reader-DEPENDENT. `count_renames.csv` and `safe_rename.py` get no beacon and reconstruct from their
+  `write` events alone. NO poison leak anywhere (a clean matrix, unlike S29's `pkg/b.py`). Mutation: only
+  neutralizing `completeElidedBeacons` diverges (test_pricing.py 1035→977); `completeTruncatedBeacon` and
+  `seedStaleEditBases` are both inert. Linear: one surviving branch (tip #e61d0ae0), four files, no rewound.
+  Characterization LOCK — no `src/` change.
+  S31 (`s31-script-rename-many-rows`) adds NO code — it is the MANY-ROW regression lock, the sibling of
+  S25/S26/S29 that pins SCALE: twelve whole-word renames applied in a single run with no per-row
+  degradation, via the ordinary HAS-BEACON path (no rescue stage). ONE `python3 bulk_rename.py` Bash run
+  reads a TWELVE-row `many_renames.csv` (header `old,new`) and applies every `\bold\b`→`new` rename across
+  `textutil.py` and `tests/test_textutil.py`. Both files are HAS-BEACON with COMPLETE beacons (textutil
+  205 L full file `98ce2cbf`, test 71 L full file `590f882d`), so the engine adopts the fully-renamed state
+  for free and NO rescue stage fires — `completeTruncatedBeacon` (S27), `completeElidedBeacons` (S28), and
+  `seedStaleEditBases` (S19) are all inert; every file is reader-INDEPENDENT with a clean poison matrix.
+  The edit-ordering crux: `normalize` was added BEFORE the run (its body referenced the OLD `trim`/`low`),
+  so the script renamed its body (final docstring references `trim_whitespace`/`lowercase`); `headline` was
+  added AFTER the run and replays on top of the renamed beacon (rev 3), referencing the NEW
+  `capitalize`/`slugify`. Whole-word vs substring: 11 of 12 old names have ZERO whole-word matches in final
+  `textutil.py`, but `\bslug\b` appears TWICE as English prose in `headline`'s post-rename docstring (not a
+  missed rename) — absence assertions use `\bname\b`, never bare `includes()`. `extractFileEvents`:
+  writes=4, edits=2 (`normalize`+`headline`, both on textutil.py — 2, not 3), userEdits=2, overwrites=0.
+  Linear: one surviving branch (tip #1349c502), four files, no rewound. Characterization LOCK — no `src/`
+  change.
+  S32 (`s32-script-rename-mcp-exec`) is the FIRST script-rename whose rename script runs through the
+  **context-mode MCP sandbox** (`mcp__plugin_context-mode_context-mode__ctx_execute`, shell
+  `python3 rename_config.py`) instead of the Bash tool — and the FIRST scenario to touch the PARSER
+  (`src/parse/loadTranscript.ts`) rather than the reconstruction/replay layer. The MCP-invoking assistant
+  records carry two novel top-level keys (`attributionMcpServer` = `plugin:context-mode:context-mode`,
+  `attributionMcpTool` = `ctx_execute`) on all 19 MCP turns; at HEAD the field-gate
+  `assertOnlyKnownTopLevelKeys` throws `UnmodeledFieldError` at parse time, gating EVERY file. The fix is
+  ONE line — add the two keys to the assistant entry of `ALLOWED_TOP_LEVEL_KEYS` (assistant-only attribution
+  fields; NOT added to `ENVELOPE_KEYS` — only MCP-calling assistant records carry them). No downstream code
+  reads them; `assertOnlyKnownTopLevelKeys` is purely permissive. After the fix the whole scenario
+  reconstructs byte-perfectly with no further change: the rename `get_val`→`get_value`, `set_val`→`set_value`,
+  `del_val`→`delete_value` across `config_utils.py` and `tests/test_config_utils.py` (`has_val`/`merge_val`
+  kept) surfaces via TWO COMPLETE `edited_text_file` beacons the harness injects right after the MCP run
+  (uuids `d9cbc214` config / `c7922fde` test) — the same HAS-BEACON mechanism as s24/s31, so both renamed
+  files are reader-INDEPENDENT (every rescue stage INERT: `completeTruncatedBeacon` S27,
+  `completeElidedBeacons` S28, `seedStaleEditBases` S19). `plans/script-handling.txt` already names the MCP
+  sandbox as a HAS-BEACON-governed invisible-mutation source. Edit-ordering crux: `get_or_default` (added
+  BEFORE the run) had its body renamed by the script (final references `get_value`); `apply_overrides` (added
+  AFTER the run) replays on the renamed beacon and references `get_value`/`set_value`. `extractFileEvents`:
+  writes=3, edits=6 (all on config_utils.py), userEdits=2 (`c7922fde`,`d9cbc214`), overwrites=0. Per-file:
+  `config_utils.py` 11 revisions → 260 L, `tests/test_config_utils.py` 2 revisions → 87 L, `rename_config.py`
+  1 revision → 62 L. Linear: one surviving branch (tip #1be0133f), three files, no rewound. The ONE-LINE
+  parser fix is the first `src/` change in the s25–s32 series; mutation proof: reverting it sends 7 s32
+  tests RED with `UnmodeledFieldError` — the parser-gate test + all 6 CLI tests (which load through the
+  GATED `loadTranscript` via `runCli`) — and re-applying restores green. The 8 engine tests build via the
+  UNGATED `loadRecords` (`parseRecord`, no field gate — the s31 pattern), so they lock reconstruction OUTPUT
+  but stay green across the revert; the fix's necessity rests on the gated CLI + parser-gate tests.
+  S33 (`s33-script-rename-csv-user-edit`) adds NO code — it is the CSV-USER-EDIT regression lock, the
+  sibling of S25/S29/S31/S32 whose NOVEL twist is that the rename MAPPING file itself is USER-EDITED
+  before the script consumes it. ONE `python3 apply_renames.py` Bash run reads `renames.csv` and applies
+  each `\bold\b`→`new` whole-word rename across `billing.py` and `tests/test_billing.py`. The novel
+  element: `renames.csv` is WRITTEN with a header + 3 rows (`calc_tot,calculate_total` /
+  `fmt_money,format_currency` / `apply_disc,apply_discount`) then USER-EDITED to APPEND a 4th row
+  `chk_stock,check_stock` BEFORE the run — so `renames.csv` reconstructs to a 2-revision ladder (rev 0 =
+  4 lines without the 4th row, rev 1 = 5 lines with it). That CSV user-edit is LOAD-BEARING: the
+  post-script `reorder` Edit on `billing.py` calls `check_stock`, a name that exists ONLY because the
+  manual 4th row flowed through the script — so `billing.py`'s final correctness depends transitively on
+  the manual CSV edit. Both renamed files are HAS-BEACON with COMPLETE beacons (billing `4480f645`, test
+  `c7415420`), so the engine adopts the fully-renamed state for free and NO rescue stage fires
+  (`completeTruncatedBeacon` S27, `completeElidedBeacons` S28, `seedStaleEditBases` S19 all inert); every
+  file is reader-INDEPENDENT with a clean poison matrix. THREE user-edits, mixed provenance:
+  `4480f645`/`c7415420` are the two script-run beacons, `b8591d24` is the GENUINE manual `renames.csv`
+  edit (not a beacon) — the engine treats all three uniformly, which is why no engine change is needed.
+  Edit-ordering crux: `validate` was added BEFORE the run and references no terse name, so the rename
+  left it untouched (neither old nor new terse names appear in it); `reorder` was added AFTER the run and
+  replays on the renamed beacon, calling `check_stock`/`calculate_total`. No kept-name hazard here (unlike
+  S31/S32 — the test method names embed no terse substring), but absence assertions still use `\bname\b`
+  because the new names appear ~16× in `billing.py` docstrings (prose hazard). `extractFileEvents`:
+  writes=4, edits=2 (`validate`+`reorder`, both on billing.py), userEdits=3
+  (`4480f645,b8591d24,c7415420`), overwrites=0. Per-file: `billing.py` 4 revisions → 187 L
+  (146→164→164→187), `tests/test_billing.py` 2 revisions → 51 L, `renames.csv` 2 revisions → 5 L (4→5),
+  `apply_renames.py` 1 revision → 51 L. Linear: one surviving branch (tip #c3d6846d), four files, no
+  rewound. Characterization LOCK — no `src/` change.
+  S34 (`s34-script-rename-driver-back-and-forth`) is a REAL engine fix — the first since m6/S28 — plus a
+  mandatory module split. ONE `python3 apply_renames.py` Bash run reads `renames.csv` and applies four
+  `\bold\b`→`new` whole-word renames (`add_entry→record_entry`/`rm_entry→remove_entry`/
+  `tot_debits→total_debits`/`tot_credits→total_credits`) across `ledger.py` and `tests/test_ledger.py`.
+  The "back and forth" is the interleaving around the driver: `renames.csv` is written with 2 rows, the
+  driver `apply_renames.py` is written, and a 3rd CSV row (`tot_credits,total_credits`) is appended manually
+  — the driver write sits BETWEEN two manual CSV edits. THE SOLE ENGINE GAP: `ledger.py` gets a manual
+  trailing append (`# names normalized via rename script`) AFTER the script-rename beacon but BEFORE a later
+  Claude `report` Edit. That append left NO `edited_text_file` beacon and NO tool_use, and it lands OUTSIDE
+  the `report` edit's hunk window — whose context (`if __name__ == "__main__":`) still matches the 173-line
+  beacon base perfectly. So the existing hunk-context staleness test (`editBaseIsStale`) returns FALSE, no
+  reseed fires, and the trailing line is silently dropped → `ledger.py` reconstructs to 186, ground truth
+  187. THE FIX (REAL, reader-only): a SECOND staleness trigger in `staleEditSeedFor` — `outOfWindowEditSeed`
+  detects an Edit whose hunk context matches the reconstructed base but whose real pre-edit disk carried an
+  uncaptured change OUTSIDE the window, by content: a file-history backup (`d5ade1bd80e08f91@v4`, 174 L,
+  taken after the beacon and at/before the edit) that is STRICTLY NEWER than the file's last captured event,
+  whose content DIFFERS from the reconstructed base, AND onto which the edit's first hunk still splices
+  cleanly (forward-validation — a poison/wrong backup is rejected, never fabricated). `editBaseIsStale` is
+  refactored to share `firstHunkMatchesBase` with this new path; the two triggers are DISJOINT (the s19/s23/m6
+  path fires only when the hunk context is stale; the s34 path only when it is clean). Gated so it runs only
+  inside `seedStaleEditBases` (reader present) → reader-free reconstruction is byte-for-byte untouched, and
+  the full pre-s34 suite stays green. MODULE SPLIT (mandatory, `split, never condense`): the fix pushes
+  `reconstruction_reseed.ts` past the 250-line cap, so the beacon-completion family (`completeTruncatedBeacon`
+  S27 / `completeElidedBeacons` S28 + their private helpers) MOVED to a new `src/reconstruction_beacons.ts`;
+  `reconstruction_branches.ts` imports each directly (no re-export shim — no-forwarding-layers). Both modules
+  end at 145 lines. `renames.csv` reconstructs via the EXISTING S27 `completeTruncatedBeacon` (its step-7
+  append left a 4-line beacon that is a prefix of the 5-line `@v3` backup) — the s34 fix does NOT touch it.
+  S34 is reader-DEPENDENT (no-reader: `ledger.py`=186, `renames.csv`=4 — the RED proof; real reader after
+  fix: 187/5). The post-script `report` (calls renamed `record_entry`/`total_debits`) and pre-script `audit`
+  (body renamed in place to `total_debits`/`total_credits`) both reach the renamed names. `extractFileEvents`:
+  writes=4, edits=2 (`audit`+`report`, both on ledger.py), userEdits=4 (`0ee68aad,2a0d75ba,720ee20c,ba8ee917`
+  — the step-7 and step-9 appends left no beacon, so they are NOT in the multiset; recovered from backups at
+  replay), overwrites=0. Per-file (real reader): `ledger.py` 6 revisions → 187 L (156→157→173→173→174→187, the
+  174 = the synthetic out-of-window reseed), `tests/test_ledger.py` 2 → 57 L, `renames.csv` 3 → 5 L (3→4→5),
+  `apply_renames.py` 1 → 54 L. The synthetic reseed Write's changeId is the backup blob name, kept out of the
+  DAGs (spec 40), so it surfaces only as a `--verbose` revision — `ledger.py`'s fileDAG stays 5 nodes. Linear:
+  one surviving branch (tip #97e510eb), four files, no rewound. 12 new tests (6 engine + 6 CLI); 463 → 475.
+  S35 (`s35-script-rename-script-user-edit`) adds NO code — it is the COMPLEMENT of S33: the same
+  "a file is user-edited before the script run" shape, but the script-phase beacons here are INCOMPLETE, so
+  the EXISTING rescue stages FIRE (where S33's were all INERT). ONE `python3 rename_inv.py` Bash run applies
+  three `\bold\b`→`new` whole-word renames (`qty_chk→check_quantity`/`add_item→insert_item`/
+  `rm_item→remove_item`) across `inventory.py` and `tests/test_inventory.py`. THE NOVEL ELEMENT: the file
+  user-edited before the run is the RENAME SCRIPT ITSELF — `rename_inv.py` is written with ONE rename tuple,
+  then user-edited TWICE (steps 4 & 5 add the 2nd/3rd tuples), and those two edits COALESCE into a SINGLE
+  ELIDED `edited_text_file` beacon (`#c67cfd9c`, a 17-line head+tail-cut fragment); S28 `completeElidedBeacons`
+  recovers the full 45-line 3-tuple script from backup `41364cab6ad88cbb@v2`. MIXED beacon completeness in one
+  run: `inventory.py`'s script beacon is COMPLETE (no rescue, reader-INDEPENDENT, 244 L) while
+  `tests/test_inventory.py`'s is TRUNCATED (a 51-line prefix completed by S27 `completeTruncatedBeacon` from
+  backup `5ea404c2628560f6@v3` → 79 L). S35 is reader-DEPENDENT (MIXED, like S25): with NO reader the two
+  incomplete beacons fall back to their raw fragments (`test`=51/2-revs, `rename`=17/2-revs) while inventory is
+  unaffected (244); a poison reader is rejected by the S27/S28 content guards (no `"POISONED"` leak). The
+  post-script `restock` Edit replays on the renamed beacon and calls the NEW `check_quantity`/`insert_item`;
+  pre-script `low_stock` references no rename-set name (left untouched). KEPT-NAME hazard (S31/S32): terse-but-
+  unrenamed `find_item`/`tot_value` survive, and `test_inventory.py` method names `test_qty_chk_*` keep
+  `qty_chk` as a SUBSTRING (`_`-bounded, so `\bqty_chk\b` does not match) — absence assertions use `\bname\b`
+  ONLY. `extractFileEvents`: writes=3, edits=2 (`low_stock`+`restock`, both on inventory.py), userEdits=3
+  (`c67cfd9c` script edit + `dbc2e4c1`/`f3e90535` run beacons), overwrites=0. Per-file (real reader):
+  `inventory.py` 4 revisions → 244 L (172→192→192→244), `tests/test_inventory.py` 3 → 79 L (79→51→79),
+  `rename_inv.py` 3 → 45 L (43→17→45). The synthetic completion changeIds are backup blob names, kept out of
+  the DAGs (spec 40) → fileDAG: inventory 4 nodes, test 2, rename 2. Linear: one surviving branch (tip
+  #72049b4a), three files, no rewound. 12 new tests (6 engine + 6 CLI); 475 → 487.
+
+  S36 (`s36-script-rename-csv-user-edit-mcp`) adds NO code — it is the MCP-SANDBOX TWIN of S33: the same
+  CSV-user-edit whole-word rename shape, but the rename driver runs through the context-mode MCP sandbox
+  (`ctx_execute`) instead of the Bash tool. The ONE thing that makes s36 distinct from S33: loading the JSONL
+  depends on S32's ALREADY-SHIPPED parser fix — the MCP-run assistant records carry
+  `attributionMcpServer:"plugin:context-mode:context-mode"`/`attributionMcpTool:"ctx_execute"` (7 such
+  records), keys S32 added to the assistant allow-set in `src/parse/loadTranscript.ts`; with that fix present
+  the engine clears s36 end-to-end with no new code (were it reverted, `loadRecords` would throw
+  `UnmodeledFieldError`). ONE `apply_renames.py` MCP run reads `renames.csv` and applies each `\bold\b`→`new`
+  whole-word rename across `billing.py` and `tests/test_billing.py`. THE CSV ELEMENT (shared with S33):
+  `renames.csv` is written with a header + 3 rows then USER-EDITED to append a 4th row `chk_stock,check_stock`
+  BEFORE the run, so it reconstructs to a 2-revision ladder (rev0 = 4 lines WITHOUT the 4th row; rev1 = 5 lines
+  WITH it). THE CSV USER-EDIT IS LOAD-BEARING: the post-script `reorder` Edit on `billing.py` calls
+  `check_stock`, a name that exists ONLY because that manual 4th row flowed through the MCP run. Both run
+  beacons are COMPLETE (`#de1f5023` billing / `#aecbb827` test), so the engine adopts the fully-renamed state
+  FOR FREE — no rescue stage fires (`completeTruncatedBeacon` S27 / `completeElidedBeacons` S28 /
+  `seedStaleEditBases` S19 all INERT), every file reader-INDEPENDENT (a poison reader changes nothing and
+  leaks no `"POISONED"`). The engine treats all three user-edits UNIFORMLY (`96b40a66` manual CSV edit +
+  `de1f5023`/`aecbb827` run beacons) — why no engine change is needed. WHOLE-WORD HAZARD — `apply_disc`: the
+  renamed `apply_discount` contains `apply_disc` as a prefix substring 5× in final `billing.py`, so absence
+  assertions use `\bold\b` (count 0), never bare `includes()`. NO kept-name hazard (unlike S31/S32). The
+  post-script `reorder` replays on the renamed beacon (calls NEW `check_stock`/`calculate_total`); pre-script
+  `validate` references no rename-set name (left untouched). `extractFileEvents`: writes=4, edits=2
+  (`validate`+`reorder`, both on billing.py), userEdits=3 (`96b40a66,aecbb827,de1f5023`), overwrites=0.
+  Per-file: `billing.py` 4 revisions → 219 L (156→184→184→219), `tests/test_billing.py` 2 → 50 L (50→50),
+  `renames.csv` 2 → 5 L (4→5), `apply_renames.py` 1 → 51 L. Linear: one surviving branch (tip #a7ed17a3),
+  four files, no rewound. 12 new tests (6 engine + 6 CLI); 487 → 499.
+
+  S37 (`s37-script-rename-driver-back-and-forth-mcp`) adds NO code — it is the MCP-SANDBOX TWIN of S34 (as
+  S36 is to S33): the same `ledger.py` driver-back-and-forth whole-word rename shape, but the driver runs
+  through the context-mode MCP sandbox (`ctx_execute`) instead of the Bash tool. As with S36, loading the
+  JSONL depends on S32's ALREADY-SHIPPED parser fix — the MCP-run assistant records carry
+  `attributionMcpServer:"plugin:context-mode:context-mode"`/`attributionMcpTool:"ctx_execute"` (6 such
+  records), keys S32 added to the assistant allow-set in `src/parse/loadTranscript.ts` (were it reverted,
+  `loadRecords` would throw `UnmodeledFieldError`). Every rescue stage s37 leans on is already shipped (S27
+  `completeTruncatedBeacon` / S28 `completeElidedBeacons` / S34 `outOfWindowEditSeed`), so the engine clears
+  s37 end-to-end with no new code. ONE `apply_renames.py` MCP run reads `renames.csv` and applies four
+  `\bold\b`→`new` renames (`add_entry→record_entry`/`rm_entry→remove_entry`/`tot_debits→total_debits`/
+  `tot_credits→total_credits`) across `ledger.py` and `tests/test_ledger.py`. THE "BACK AND FORTH" (shared
+  with S34): `renames.csv` is written with header + 2 rows → manual user-edit appends `tot_debits,total_debits`
+  (step-5 beacon `#22de8fa9`, 4 lines) → `apply_renames.py` is written → manual user-edit appends
+  `tot_credits,total_credits` (step-7, 5 lines, NO BEACON, recovered via the EXISTING S27
+  `completeTruncatedBeacon`) — the driver write sits BETWEEN the two manual CSV edits, and the last two
+  renames exist ONLY because of those interleaved rows. Both MCP-run beacons (`#9022d09a` ledger / `#a4d3d115`
+  test) arrive INCOMPLETE and are completed by the existing rescue stages; the step-9 `ledger.py` trailing
+  append `# names normalized via rename script` left NO beacon and is recovered by S34's
+  `outOfWindowEditSeed`. MIXED reader-dependence (like S25/S35, NOT uniform like S34): `ledger.py` (151) and
+  `apply_renames.py` (66) are reader-INDEPENDENT; `tests/test_ledger.py` (real 69 / no-reader 68) and
+  `renames.csv` (real 5 / no-reader 4) are reader-DEPENDENT. POISON CAVEAT (s34's T6 shape is WRONG for s37):
+  a poison reader is rejected for the three GUARDED files (`test_ledger.py` 68 / `renames.csv` 4 /
+  `apply_renames.py` 66, no `"POISONED"`), but `ledger.py`'s rescue path ACCEPTS the poison backup (collapses
+  to 19, leaks `"POISONED"`) — a LATENT robustness gap in a rescue stage, NOT a correctness gap (real-reader
+  AND no-reader both give the correct 151), OUT OF SCOPE for this char-lock; the poison test asserts
+  cleanliness ONLY on the three guarded files and documents the ledger.py exclusion. EDIT-ORDERING CRUX:
+  `report` (added AFTER the run) calls the NEW `record_entry`/`total_debits`; `audit` (added BEFORE the run)
+  had its body RENAMED in place; both reaching the renamed names proves the CSV edits flowed through the MCP
+  run. WHOLE-WORD hazard: new names recur in docstrings — absence assertions target OLD whole-word names ONLY;
+  NO rename-pair substring hazard (simpler than S36's `apply_disc`). `apply_renames.py` uses the PRECOMPILED
+  two-line `pattern = r"\b" + re.escape(old) + r"\b"` / `text = re.sub(pattern, new, text)` form (NOT s34's
+  inline form). `extractFileEvents`: writes=4, edits=2 (`audit`+`report`, both on ledger.py), userEdits=4
+  (`22de8fa9,9022d09a,a4d3d115,d6a766e2` — the step-7/step-9 appends left NO beacon), overwrites=0. Per-file
+  (real reader): `ledger.py` 7 revisions → 151 L (119→9→120→137→137→138→151), `tests/test_ledger.py` 3 → 69 L
+  (69→68→69), `renames.csv` 3 → 5 L (3→4→5, the 5th via S27), `apply_renames.py` 1 → 66 L. fileDAG (synthetic
+  completion/reseed changeIds are backup blob names, kept out of the DAGs, spec 40): `ledger.py` 5 nodes
+  (B,D,E,J,K), `test_ledger.py` 2 (C,I), `renames.csv` 2 (F,G), `apply_renames.py` 1 (H). Linear: one
+  surviving branch (tip #b86404ef), four files, no rewound. 12 new tests (6 engine + 6 CLI); 499 → 511.
 - `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
   resolver of a path to an absolute string against the transcript `cwd` (idempotent for
   already-absolute paths). A leaf module (imports only node `path`) shared by extraction

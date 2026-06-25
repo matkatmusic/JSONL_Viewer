@@ -22,7 +22,9 @@ function keys(
 // carry a subset of these keys, but never a key outside its set.
 export const ALLOWED_TOP_LEVEL_KEYS: Record<RecordType, ReadonlySet<string>> = {
     [RecordType.aiTitle]: keys(META_KEYS, "aiTitle"),
-    [RecordType.assistant]: keys(ENVELOPE_KEYS, "message", "requestId"),
+    [RecordType.assistant]: keys(
+        ENVELOPE_KEYS, "message", "requestId", "attributionMcpServer", "attributionMcpTool",
+    ),
     [RecordType.attachment]: keys(ENVELOPE_KEYS, "attachment"),
     [RecordType.bridgeSession]: keys(META_KEYS, "bridgeSessionId", "lastSequenceNum"),
     [RecordType.fileHistorySnapshot]: keys(
