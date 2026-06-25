@@ -133,3 +133,6 @@ export const S36_JSONL =
 
 export const S37_JSONL =
     "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s37-script-rename-driver-back-and-forth-mcp/8f4366d3-271d-4116-a9e0-6da462fed449.jsonl";
+
+export const S38_JSONL =
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s38-script-rename-script-user-edit-mcp/fa5ad942-4316-406b-95a5-65995b112970.jsonl";

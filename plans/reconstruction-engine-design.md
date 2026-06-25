@@ -667,6 +667,30 @@ The engine is split by concern, one paired test each (files kept well under the
   completion/reseed changeIds are backup blob names, kept out of the DAGs, spec 40): `ledger.py` 5 nodes
   (B,D,E,J,K), `test_ledger.py` 2 (C,I), `renames.csv` 2 (F,G), `apply_renames.py` 1 (H). Linear: one
   surviving branch (tip #b86404ef), four files, no rewound. 12 new tests (6 engine + 6 CLI); 499 → 511.
+
+  S38 (`s38-script-rename-script-user-edit-mcp`) adds NO code — it is the MCP-SANDBOX TWIN of S35 (as S37 is
+  to S34, S36 is to S33): the same "the RENAME SCRIPT ITSELF is user-edited before the run" shape, but the
+  script runs through the context-mode MCP sandbox (`ctx_execute`) instead of the Bash tool. As with S36/S37,
+  loading the JSONL depends on S32's ALREADY-SHIPPED parser fix — the MCP-run assistant records carry
+  `attributionMcpServer:"plugin:context-mode:context-mode"`/`attributionMcpTool:"ctx_execute"`, keys S32 added
+  to the assistant allow-set in `src/parse/loadTranscript.ts` (were it reverted, `loadRecords` would throw
+  `UnmodeledFieldError`). Every rescue stage s38 leans on is already shipped (S27 `completeTruncatedBeacon` /
+  S28 `completeElidedBeacons` / S15 native user-edit), so the engine clears s38 end-to-end with no new code.
+  ONE `python3 rename_inv.py` MCP run applies three `\bold\b`→`new` renames
+  (`qty_chk→check_quantity`/`add_item→insert_item`/`rm_item→remove_item`) across `inventory.py` and
+  `tests/test_inventory.py`. THE NOVEL ELEMENT (shared with S35): the file user-edited before the run is the
+  RENAME SCRIPT ITSELF — `rename_inv.py` is written (45 L), then user-edited (node F `#2b4f98a9`) whose
+  `edited_text_file` beacon arrives INCOMPLETE (17 L) and is completed by the existing S27/S28 rescue from a
+  file-history backup → 47 L, carrying all three RENAMES tuples and the INLINE substitution
+  `text = re.sub(r"\b" + re.escape(old) + r"\b", new, text)` (NOT s37's precompiled two-line form). Both
+  MCP-run beacons (`#059c4112` inventory / `#e61245c5` test) and the script user-edit beacon arrive INCOMPLETE
+  and are completed by the existing rescue stages. KEPT-NAME hazard (S31/S35 pattern), PRESENT: terse-but-
+  unrenamed `find_item`/`tot_value` SURVIVE as whole words; every absence assertion uses `\bname\b` (count 0),
+  never bare `includes()`. Per-file (real reader): `inventory.py` 4 revisions → 229 L (169→190→190→229),
+  `tests/test_inventory.py` 3 → 74 L (74→50→74), `rename_inv.py` 3 → 47 L (45→17→47). fileDAG (synthetic
+  completion changeIds are backup blob names, kept out of the DAGs, spec 40): `inventory.py` 4 nodes
+  (B,D,H,I), `test_inventory.py` 2 (C,G), `rename_inv.py` 2 (E,F). Linear: one surviving branch
+  (tip #ef548232), three files, no rewound; prompt #20f20b89. 6 new CLI tests; 511 → 517.
 - `src/structures/path-resolve.ts` — `resolveAgainstCwd(cwd, path)`, the one canonical
   resolver of a path to an absolute string against the transcript `cwd` (idempotent for
   already-absolute paths). A leaf module (imports only node `path`) shared by extraction
