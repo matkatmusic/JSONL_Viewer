@@ -6,6 +6,7 @@ import {
     type FileHistorySnapshotMessage,
 } from "../src/structures/file-history.ts";
 import { Path, Uuid } from "../src/structures/domain.ts";
+import { RecordType } from "../src/structures/vocabulary.ts";
 import { loadRecords } from "./utilities.ts";
 import { S1_JSONL } from "./fixtures.ts";
 
@@ -27,9 +28,14 @@ test("test_file_history_snapshot_exposes_tracked_file_backups", () => {
     // s1_delete.py is tracked with a numeric version and a nullable backupFileName.
     // Steps:
     // collect every file-history-snapshot record in s1.
-    const snapshots = collectSnapshots(loadRecords(S1_JSONL));
-    // s1 has 5 of them.
-    assert.equal(snapshots.length, 5);
+    const records = loadRecords(S1_JSONL);
+    const snapshots = collectSnapshots(records);
+    // every file-history-snapshot record is exposed — none dropped.
+    const snapshotRecords = records.filter(
+        (record) => record.type === RecordType.fileHistorySnapshot,
+    );
+    assert.equal(snapshots.length, snapshotRecords.length);
+    assert.ok(snapshots.length > 0);
     // the snapshot's ids and times are domain objects, not primitives.
     const first = snapshots[0]!;
     assert.ok(first.messageId instanceof Uuid);

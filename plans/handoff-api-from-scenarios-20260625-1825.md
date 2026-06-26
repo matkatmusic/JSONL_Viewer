@@ -23,10 +23,9 @@ Implemented:
 `npm test`: **232 tests, 198 pass, 34 fail.** The 34 = **23 intended** scenario-coverage engine-gap reds (rename s29/32/35/37/38; git-baseline s40-47; compact s63-72) + **11 out-of-scope pre-existing** failures: 8 real parser/vocab gaps (`loadTranscript` ×4, `parseRecord` ×1, `session-meta`/`vocabulary` attachment-kind, `file-history`) and 3 tree/graph (`reconstruction_tree` ×2, `reconstruction_graph` ×1) the user chose to keep.
 
 ## What Remains
-The user was asked 3 decisions at session end and has NOT yet answered. Do these only on their instruction:
+The user was asked 2 decisions at session end and has NOT yet answered. Do these only on their instruction:
 1. **Fix the real parser/vocab gaps (8 failing tests).** The all-scenario re-run introduced new wire vocabulary the parser doesn't model: `command_permissions` attachment kind, and `attribution_plugin`/`attribution_skill`/`mcp_attribution` assistant keys. Add them to the allow-sets/vocabulary (follow the s32 `attributionMcpServer`/`attributionMcpTool` precedent in `src/parse/loadTranscript.ts` and `src/structures/vocabulary.ts`). These are genuine gaps — do NOT delete the tests.
 2. **Decide on tree/graph (3 failing tests).** User kept `reconstruction_tree`/`graph` as a different module. They are red only from pinned run-specific data (fork uuid `8faab841`, a "last assistant" structural pick). Either apply the same trim (de-pin → green) or leave red — user's call.
-3. **Commit.** Nothing is committed. When the user approves, commit the working tree on `api-from-scenarios` (branch is not master, safe to commit). Ensure the untracked `tests/fixtures/broken-step-states/` and `tests/scenario_coverage.test.ts` are staged so the broken fixture cannot vanish again.
 
 ## Key Files
 - `scripts/check_scenario_coverage.ts` — the tool; `checkScenario`/`checkScenarioResilient` (exported), `main()` single-scenario filter.

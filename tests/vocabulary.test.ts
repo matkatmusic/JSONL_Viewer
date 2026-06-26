@@ -52,17 +52,24 @@ test("test_tool_name_enum_holds_the_observed_wire_strings", () => {
 
 test("test_attachment_payload_type_enum_holds_the_observed_wire_strings", () => {
     // Scenario: AttachmentPayloadType's member values are the payload kinds seen
-    // so far — the 6 from s1, the 3 added by s2-move-file, and edited_text_file
-    // added by s15-user-edit-then-conv-rewind.
+    // so far — the 6 from s1, the 3 added by s2-move-file, edited_text_file added
+    // by s15-user-edit-then-conv-rewind, and the 5 added by the all-scenario
+    // re-run (command_permissions, hook_cancelled, selected_lines_in_ide from
+    // s1/s2/s19; file, invoked_skills from the compact-session scenarios).
     assert.deepEqual(Object.values(AttachmentPayloadType).sort(), [
         "agent_listing_delta",
+        "command_permissions",
         "deferred_tools_delta",
         "diagnostics",
         "edited_text_file",
+        "file",
         "hook_additional_context",
+        "hook_cancelled",
         "hook_success",
         "hook_system_message",
+        "invoked_skills",
         "opened_file_in_ide",
+        "selected_lines_in_ide",
         "skill_listing",
         "task_reminder",
     ]);
@@ -101,5 +108,6 @@ test("test_envelope_key_groups_mirror_the_envelope_field_names", () => {
         "timestamp",
         "userType",
         "entrypoint",
+        "slug",
     ]);
 });

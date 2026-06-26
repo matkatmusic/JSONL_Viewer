@@ -40,11 +40,13 @@ export const ALLOWED_TOP_LEVEL_KEYS: Record<RecordType, ReadonlySet<string>> = {
         "subtype", "level", "content", "isMeta", "durationMs", "messageCount",
         "hasOutput", "hookAdditionalContext", "hookCount", "hookErrors",
         "hookInfos", "preventedContinuation", "stopReason", "toolUseID",
+        "logicalParentUuid", "compactMetadata",
     ),
     [RecordType.user]: keys(
         ENVELOPE_KEYS,
         "message", "promptId", "origin", "permissionMode", "promptSource",
         "sourceToolAssistantUUID", "toolUseResult", "isMeta",
+        "isVisibleInTranscriptOnly", "isCompactSummary",
     ),
 };
 

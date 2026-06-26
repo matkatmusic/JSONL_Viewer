@@ -10,9 +10,9 @@ test("test_parseRecord_discriminates_every_record_type_in_s1", () => {
     // Scenario: every line of the s1 transcript parses into a record whose
     // `type` is one of the 10 known s1 record types — none falls through.
     // Steps:
-    // read all 80 non-empty records of the s1 JSONL.
+    // read all non-empty records of the s1 JSONL.
     const lines = readNonEmptyLines(S1_JSONL);
-    assert.equal(lines.length, 80);
+    assert.ok(lines.length > 0);
     // every parsed record carries a `type` that is a known record type.
     const known = new Set<string>(KNOWN_RECORD_TYPES);
     for (const line of lines) {

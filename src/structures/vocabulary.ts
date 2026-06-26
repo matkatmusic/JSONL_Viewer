@@ -45,8 +45,11 @@ export enum ToolName {
 // Attachment payload kinds observed across scenarios: 6 in s1; s2-move-file adds
 // opened_file_in_ide, task_reminder, diagnostics; s15-user-edit-then-conv-rewind
 // adds edited_text_file (a user's out-of-band disk edit, snippet = full post-edit
-// content in `cat -n` form). Modeled as discriminant only; per-kind payload fields
-// are deferred (edited_text_file's filename/snippet are read via getAttachmentEntry).
+// content in `cat -n` form). The all-scenario re-run on a newer Claude Code adds
+// command_permissions, hook_cancelled, selected_lines_in_ide (seen in s1/s2/s19),
+// plus file and invoked_skills (seen in the compact-session scenarios, s63+).
+// Modeled as discriminant only; per-kind payload fields are deferred
+// (edited_text_file's filename/snippet are read via getAttachmentEntry).
 export enum AttachmentPayloadType {
     hook_success = "hook_success",
     hook_system_message = "hook_system_message",
@@ -58,6 +61,11 @@ export enum AttachmentPayloadType {
     task_reminder = "task_reminder",
     diagnostics = "diagnostics",
     edited_text_file = "edited_text_file",
+    command_permissions = "command_permissions",
+    hook_cancelled = "hook_cancelled",
+    selected_lines_in_ide = "selected_lines_in_ide",
+    file = "file",
+    invoked_skills = "invoked_skills",
 }
 
 export const ATTACHMENT_PAYLOAD_TYPES: AttachmentPayloadType[] =
@@ -85,6 +93,7 @@ export const ENVELOPE_KEYS = [
     "timestamp",
     "userType",
     "entrypoint",
+    "slug",
 ] as const;
 
 // --- Engine-side discriminants -----------------------------------------------
