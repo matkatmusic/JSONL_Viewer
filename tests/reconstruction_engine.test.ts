@@ -9,6 +9,8 @@ import {
 } from "../src/reconstruction_engine.ts";
 import { extractFileEvents } from "../src/reconstruction_extract.ts";
 import { EventKind } from "../src/structures/vocabulary.ts";
+import type { FileEvent } from "../src/reconstruction_engine.ts";
+import type { ScriptExecutionEvent } from "../src/reconstruction_script_execution.ts";
 import { DOES_NOT_EXIST_YET } from "../src/structures/line-model.ts";
 import { Uuid } from "../src/structures/domain.ts";
 import { Path } from "../src/structures/domain.ts";
@@ -24,6 +26,19 @@ function reconstructDeleted(file: string): FileRevision[] {
 }
 
 // Extraction specs live in reconstruction_extract.test.ts.
+
+// C1 — a ScriptExecutionEvent literal type-checks as a FileEvent and discriminates on its kind, so
+// the engine's event union admits the script-execution evidence kind.
+test("test_script_execution_event_is_a_member_of_the_file_event_union", () => {
+    const event: FileEvent = {
+        kind: EventKind.scriptExecution,
+        changeId: new Uuid("toolu_script_exec"),
+        target: new Path("ledger.py"),
+        content: "def record_entry():\n    pass",
+        timestamp: new Date("2026-06-26T10:29:42.415Z"),
+    } satisfies ScriptExecutionEvent;
+    assert.equal(event.kind, EventKind.scriptExecution);
+});
 
 // Spec 2 + 3 — target auto-detection yields exactly two revisions for that file
 // (the sibling tests/test_s1_delete.py write is excluded).

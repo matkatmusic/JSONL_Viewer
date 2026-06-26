@@ -23,6 +23,7 @@ import {
     reconstructFilesOver,
 } from "./reconstruction_branches.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
+import type { ScriptExecutionEvent } from "./reconstruction_script_execution.ts";
 
 // --- The per-line model ------------------------------------------------------
 
@@ -147,7 +148,8 @@ export type FileEvent =
     | CopyEvent
     | AppendEvent
     | OverwriteEvent
-    | UserEditEvent;
+    | UserEditEvent
+    | ScriptExecutionEvent;
 
 // --- Reconstruction: the public API ------------------------------------------
 

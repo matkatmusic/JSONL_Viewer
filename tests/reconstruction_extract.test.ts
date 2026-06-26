@@ -1,12 +1,28 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { extractFileEvents } from "../src/reconstruction_extract.ts";
-import { BlockType, EventKind, RecordType, ToolName } from "../src/structures/vocabulary.ts";
+import { recordVerdict } from "../src/reconstruction_parse_lines.ts";
+import { BlockType, EventKind, RecordType, ToolName, Verdict } from "../src/structures/vocabulary.ts";
 import type { AppendEvent, OverwriteEvent } from "../src/reconstruction_engine.ts";
 import type { TranscriptRecord } from "../src/structures/envelope.ts";
 import { Path } from "../src/structures/domain.ts";
-import { loadRecords } from "./utilities.ts";
+import { loadRecords, jsonlPathsForScenario } from "./utilities.ts";
 import { S1_JSONL, S2_JSONL, S3_JSONL, S4_JSONL } from "./fixtures.ts";
+
+// Phase B parity: extraction's `ignore` gate is a no-op. Dropping every record the classifier marks
+// `ignore` BEFORE extraction yields the same file events as extracting from the full record list —
+// so `evaluateLine`/`recordVerdict` is a safe single gate: it never withholds a record extraction
+// needs. Not tautological even though extractFileEvents now gates internally: hunk-indexing runs over
+// the un-gated input, so a misclassified hunk-bearing edit-result would make the evidence-only run
+// lose its hunks and diverge here.
+test("test_extraction_ignore_gate_changes_no_s37_events", () => {
+    const full = jsonlPathsForScenario("s37").flatMap((path) => loadRecords(path.toString()));
+    const evidence = full.filter((record) => recordVerdict(record) !== Verdict.ignore);
+    // The gate is non-vacuous: s37 carries records the classifier ignores (prose, thinking, the
+    // ctx_execute run, non-file-op bash).
+    assert.ok(evidence.length < full.length);
+    assert.deepStrictEqual(extractFileEvents(evidence), extractFileEvents(full));
+});
 
 // A synthetic Bash tool_use content block running `command`.
 function buildBashBlock(id: string, command: string): Record<string, unknown> {

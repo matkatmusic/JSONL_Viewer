@@ -43,12 +43,16 @@ test("test_block_type_enum_holds_the_s1_wire_strings", () => {
 
 test("test_tool_name_enum_holds_the_observed_wire_strings", () => {
     // Scenario: ToolName's member values are the tool names used so far —
-    // Bash/Write (s1) plus Read/Edit (s2-move-file).
+    // Bash/Write (s1) plus Read/Edit (s2-move-file), plus the context-mode MCP
+    // execution tools (s37 runs a rename script through ctx_execute).
     assert.deepEqual(Object.values(ToolName).sort(), [
         "Bash",
         "Edit",
         "Read",
         "Write",
+        "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+        "mcp__plugin_context-mode_context-mode__ctx_execute",
+        "mcp__plugin_context-mode_context-mode__ctx_execute_file",
     ]);
 });
 
@@ -81,7 +85,9 @@ test("test_event_kind_enum_holds_the_observed_wire_strings", () => {
     // Scenario: EventKind's member values are the engine's evidence kinds seen so
     // far — write/delete (s1), edit/rename (s2), copy (s3), overwrite (s4),
     // append (s5), plus user-edit added by s15-user-edit-then-conv-rewind (a
-    // user's out-of-band disk edit, captured as an edited_text_file attachment).
+    // user's out-of-band disk edit, captured as an edited_text_file attachment), plus
+    // script-execution added by s37-script-rename-driver-back-and-forth-mcp (the post-execution
+    // state of a recorded script run, replayed and validated).
     assert.deepEqual(Object.values(EventKind).sort(), [
         "append",
         "copy",
@@ -89,6 +95,7 @@ test("test_event_kind_enum_holds_the_observed_wire_strings", () => {
         "edit",
         "overwrite",
         "rename",
+        "script-execution",
         "user-edit",
         "write",
     ]);

@@ -34,12 +34,19 @@ export enum BlockType {
 export const KNOWN_CONTENT_BLOCK_TYPES: BlockType[] = Object.values(BlockType);
 
 // Tool names observed across scenarios: Bash/Write in s1; Read/Edit added by
-// s2-move-file (a move done as Read -> Edit -> Write -> Bash `mv`).
+// s2-move-file (a move done as Read -> Edit -> Write -> Bash `mv`). The
+// context-mode MCP execution tools (ctx_execute / ctx_execute_file /
+// ctx_batch_execute) run a script in a sandbox — s37 applies a rename script
+// through ctx_execute; each carries its source as `input.code`. Their values are
+// the full `mcp__<server>__<tool>` wire strings.
 export enum ToolName {
     Bash = "Bash",
     Write = "Write",
     Read = "Read",
     Edit = "Edit",
+    CtxExecute = "mcp__plugin_context-mode_context-mode__ctx_execute",
+    CtxExecuteFile = "mcp__plugin_context-mode_context-mode__ctx_execute_file",
+    CtxBatchExecute = "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
 }
 
 // Attachment payload kinds observed across scenarios: 6 in s1; s2-move-file adds
@@ -106,7 +113,10 @@ export const ENVELOPE_KEYS = [
 // second Write to a present file). s5-bash-redirect adds append (a >> redirect to
 // a present file). s15-user-edit-then-conv-rewind adds user-edit (a user's
 // out-of-band disk edit, captured as an edited_text_file attachment, replayed as a
-// full-content revision like overwrite). Later scenarios add read, etc.
+// full-content revision like overwrite). s37-script-rename-driver-back-and-forth-mcp adds
+// script-execution (the post-execution state of a recorded script run — Bash or MCP ctx_execute —
+// replayed as a full-content revision and validated against the first confirmed post-execution
+// beacon; distinct from `rename`, which is a path move). Later scenarios add read, etc.
 export enum EventKind {
     write = "write",
     delete = "delete",
@@ -116,6 +126,7 @@ export enum EventKind {
     overwrite = "overwrite",
     append = "append",
     userEdit = "user-edit",
+    scriptExecution = "script-execution",
 }
 
 // The classification Step 1 assigns to each raw JSONL line (s37 script-replay diagnostic). Anything

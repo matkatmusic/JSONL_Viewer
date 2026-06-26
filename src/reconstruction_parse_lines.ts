@@ -99,7 +99,9 @@ function resultVerdict(record: TranscriptRecord): Verdict | undefined {
 
 // The verdict of a parsed record, in the order extraction reads it: a file-history-snapshot record, then a
 // user-edit attachment, then a file-affecting tool_use, then a tool result (read-beacon / edit-result).
-function recordVerdict(record: TranscriptRecord): Verdict {
+// Exported so extraction gates event emission on the SAME decision (Phase B: evaluateLine is the sole
+// keep/ignore gate for file evidence — see extractFileEvents).
+export function recordVerdict(record: TranscriptRecord): Verdict {
     if (record.type === RecordType.fileHistorySnapshot) {
         return Verdict.fileHistorySnapshot;
     }

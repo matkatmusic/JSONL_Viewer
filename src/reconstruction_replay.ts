@@ -23,6 +23,7 @@ import type {
     UserEditEvent,
     WriteEvent,
 } from "./reconstruction_engine.ts";
+import type { ScriptExecutionEvent } from "./reconstruction_script_execution.ts";
 
 // Thrown when replay meets an event kind it cannot apply, so an unmodeled kind
 // cannot pass silently (fog-of-war guard; mirrors UnknownToolNameError).
@@ -108,6 +109,20 @@ function userEditRevision(event: UserEditEvent): FileRevision {
     };
 }
 
+// A script-execution run: a wholesale full-content revision (every line genesis), like userEdit/
+// overwrite, but kept its own `script-execution` kind so the render attributes it to the recorded
+// script run rather than an agent write. `content` is the precomputed post-script state (the forward
+// transform already applied), so the revision is independent of replay ordering.
+function scriptExecutionRevision(event: ScriptExecutionEvent): FileRevision {
+    const lines = splitLines(event.content).map((line) => genesisLine(line, event.timestamp));
+    return {
+        kind: EventKind.scriptExecution,
+        changeId: event.changeId,
+        timestamp: event.timestamp,
+        lines,
+    };
+}
+
 // The believed current text of a file: the latest value of each line in its last revision.
 function currentText(revisions: FileRevision[]): string[] {
     return lastLinesOf(revisions).map(
@@ -169,6 +184,10 @@ function appendRevisionsForEvent(
         if (userEditChangesContent(event, revisions)) {
             revisions.push(userEditRevision(event));
         }
+        return;
+    }
+    if (event.kind === EventKind.scriptExecution) {
+        revisions.push(scriptExecutionRevision(event));
         return;
     }
     throw new UnsupportedEventKindError((event as { kind: string }).kind);

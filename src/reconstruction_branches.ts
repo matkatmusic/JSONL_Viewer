@@ -14,6 +14,7 @@ import { findConversationBranches, selectBranchRecords } from "./reconstruction_
 import { fillRedirectContent, seedEditBaseFromBackup } from "./reconstruction_sidecar.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
 import { completeElidedBeacons, completeTruncatedBeacon } from "./reconstruction_beacons.ts";
+import { injectScriptExecutions } from "./reconstruction_script_stage.ts";
 import { seedStaleEditBases } from "./reconstruction_reseed.ts";
 import { noteStage } from "./reconstruction_provenance.ts";
 import {
@@ -49,7 +50,8 @@ export function reconstructFileOver(
     const seeded = seedCopyEvents(records, lineage, resolving, reader);
     const filled = reader ? fillRedirectContent(records, seeded, reader) : seeded;
     const based = reader ? seedEditBaseFromBackup(records, filled, reader) : filled;
-    const unelided = reader ? completeElidedBeacons(records, based, reader) : based;
+    const scripted = reader ? injectScriptExecutions(records, based, reader) : based;
+    const unelided = reader ? completeElidedBeacons(records, scripted, reader) : scripted;
     const restaged = reader ? seedStaleEditBases(records, unelided, reader) : unelided;
     const completed = reader ? completeTruncatedBeacon(records, restaged, reader) : restaged;
     return replayEvents(completed);

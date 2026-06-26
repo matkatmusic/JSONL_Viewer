@@ -11,7 +11,8 @@ import {
     type EditResult,
     type StructuredPatchHunk,
 } from "./structures/tool-results.ts";
-import { BlockType, EventKind, ToolName } from "./structures/vocabulary.ts";
+import { BlockType, EventKind, ToolName, Verdict } from "./structures/vocabulary.ts";
+import { recordVerdict } from "./reconstruction_parse_lines.ts";
 import { Path } from "./structures/domain.ts";
 import { resolveAgainstCwd } from "./structures/path-resolve.ts";
 import type {
@@ -174,6 +175,12 @@ function collectEventsFromRecord(
     events: FileEvent[],
     hunksById: Map<string, StructuredPatchHunk[]>,
 ): void {
+    // The single keep/ignore gate: a record the classifier marks `ignore` carries no file evidence,
+    // so it can produce no event. Today this is a no-op (extraction already only emits from
+    // Write/Edit/Bash-file-op/user-edit records); Phase C admits the script-rename run through it.
+    if (recordVerdict(record) === Verdict.ignore) {
+        return;
+    }
     const timestamp = record.timestamp;
     if (!(timestamp instanceof Date)) {
         return;
