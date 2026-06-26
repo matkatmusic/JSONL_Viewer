@@ -5,7 +5,9 @@ import { runCli } from "../src/reconstruction_cli.ts";
 import {
     countStepsInTranscript,
     reconstructStepStates,
-    type RepoSnapshot,
+    snapshotFileText,
+    stripTrailingNewline,
+    someStepReproduces,
 } from "../src/reconstruction_steps.ts";
 import type { BackupReader } from "../src/reconstruction_sidecar.ts";
 import {
@@ -44,23 +46,6 @@ function realReader(records: ReturnType<typeof loadRecords>): BackupReader {
     return createSidecarReader(findSessionId(records)!, getDefaultFileHistoryRoot());
 }
 
-// Drop a single trailing newline so the engine's newline-joined text (which omits it) compares equal to
-// the rendered on-disk ground-truth files (which keep it).
-function stripTrailingNewline(text: string): string {
-    return text.endsWith("\n") ? text.slice(0, -1) : text;
-}
-
-// The content the engine reconstructed for a source file at a step, found by path suffix (undefined when
-// the file does not exist yet at that step).
-function snapshotFileText(snapshot: RepoSnapshot, relativePath: string): string | undefined {
-    for (const [path, text] of snapshot) {
-        if (path.toString().endsWith(relativePath)) {
-            return text;
-        }
-    }
-    return undefined;
-}
-
 // Read the authoritative source-file contents of one .step_states/step-NNN folder.
 function readStepStateSourceFiles(stepNumber: number): Map<string, string> {
     const label = `step-${String(stepNumber).padStart(3, "0")}`;
@@ -69,16 +54,6 @@ function readStepStateSourceFiles(stepNumber: number): Map<string, string> {
         files.set(relativePath, readFileSync(`${S19_STEP_STATES_DIR}/${label}/${relativePath}`, "utf8"));
     }
     return files;
-}
-
-// Whether some engine step reproduces every authoritative source file in this step-state, byte-for-byte.
-function someStepReproduces(steps: RepoSnapshot[], groundTruth: Map<string, string>): boolean {
-    return steps.some((snapshot) =>
-        [...groundTruth].every(([relativePath, content]) => {
-            const reconstructed = snapshotFileText(snapshot, relativePath);
-            return reconstructed !== undefined && reconstructed === stripTrailingNewline(content);
-        }),
-    );
 }
 
 test("test_countStepsInTranscript_returns_five_code_change_steps_for_s19", () => {

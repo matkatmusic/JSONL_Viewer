@@ -19,6 +19,7 @@ import { EventKind } from "./structures/vocabulary.ts";
 import { splitLines } from "./reconstruction_replay_edit.ts";
 import { backupWritesFor, latestBackupWriteFor } from "./reconstruction_sidecar.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
+import { noteStage } from "./reconstruction_provenance.ts";
 import { beaconSnippetFor } from "./reconstruction_user_edit.ts";
 import type { BeaconSnippet } from "./reconstruction_user_edit.ts";
 import type { FileEvent, UserEditEvent, WriteEvent } from "./reconstruction_engine.ts";
@@ -56,6 +57,13 @@ export function completeTruncatedBeacon(
     if (seed === undefined || !beaconIsTruncated(last, seed.content)) {
         return events;
     }
+    noteStage({
+        stage: "completeTruncatedBeacon",
+        target: last.target,
+        changeId: last.changeId,
+        detail: "appended a synthetic Write completing a truncated terminal user-edit beacon",
+        when: seed.timestamp,
+    });
     return [...events, seed];
 }
 
@@ -136,6 +144,17 @@ function elidedBeaconSeed(
     return match;
 }
 
+// Record that an elided-beacon completion fired, tagging the beacon (its changeId) and the backup time used.
+function noteElidedSeed(beacon: UserEditEvent, seed: WriteEvent): void {
+    noteStage({
+        stage: "completeElidedBeacons",
+        target: beacon.target,
+        changeId: beacon.changeId,
+        detail: "spliced a synthetic Write completing an elided (windowed) user-edit beacon",
+        when: seed.timestamp,
+    });
+}
+
 // For each ELIDED user-edit beacon (s28: a script rewrote the file and the post-script
 // `edited_text_file` snippet is only a WINDOW onto the new content — omitting head/tail/interior
 // lines), splice a synthetic Write of the matching file-history backup immediately AFTER the beacon, so
@@ -156,6 +175,7 @@ export function completeElidedBeacons(
         const next = events[index + 1];
         const seed = elidedBeaconSeed(records, event, reader, next?.timestamp);
         if (seed) {
+            noteElidedSeed(event, seed);
             result.push(seed);
         }
     }

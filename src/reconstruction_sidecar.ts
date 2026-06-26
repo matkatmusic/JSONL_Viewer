@@ -12,6 +12,7 @@ import { getFileHistorySnapshot } from "./structures/file-history.ts";
 import { Path, Uuid } from "./structures/domain.ts";
 import { EventKind } from "./structures/vocabulary.ts";
 import { resolveAgainstCwd } from "./structures/path-resolve.ts";
+import { noteStage } from "./reconstruction_provenance.ts";
 import type { FileEvent, WriteEvent } from "./reconstruction_engine.ts";
 
 export type BackupReader = (backupFileName: Path) => string;
@@ -120,6 +121,9 @@ export function seedEditBaseFromBackup(
         return events;
     }
     const seed = backupSeedWriteFor(records, first.target, first.timestamp, reader);
+    if (seed) {
+        noteStage({ stage: "seedEditBaseFromBackup", target: first.target, changeId: first.changeId, detail: "seeded an edit-first file's pre-edit content from backup", when: seed.timestamp });
+    }
     return seed ? [seed, ...events] : events;
 }
 
@@ -213,6 +217,7 @@ export function fillRedirectContent(
         if (!backupFileName) {
             return event;
         }
+        noteStage({ stage: "fillRedirectContent", target: event.target, changeId: event.changeId, detail: `filled ${event.kind} content from the file-history backup` });
         return { ...event, content: reader(backupFileName) };
     });
 }

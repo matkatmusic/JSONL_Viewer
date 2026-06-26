@@ -15,6 +15,7 @@ import { fillRedirectContent, seedEditBaseFromBackup } from "./reconstruction_si
 import type { BackupReader } from "./reconstruction_sidecar.ts";
 import { completeElidedBeacons, completeTruncatedBeacon } from "./reconstruction_beacons.ts";
 import { seedStaleEditBases } from "./reconstruction_reseed.ts";
+import { noteStage } from "./reconstruction_provenance.ts";
 import {
     buildRenameChain,
     distinctFinalPaths,
@@ -87,6 +88,7 @@ function seedOneCopy(
     if (!atCopy) {
         return { ...event, seedLines: [] };
     }
+    noteStage({ stage: "seedCopyEvents", target: event.to, changeId: event.changeId, detail: `seeded copy genesis from ${event.from}`, when: event.timestamp });
     return { ...event, seedLines: linesTextOf(atCopy) };
 }
 

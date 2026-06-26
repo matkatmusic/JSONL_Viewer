@@ -19,6 +19,7 @@ import { replayEvents } from "./reconstruction_replay.ts";
 import { lastLinesOf, splitLines } from "./reconstruction_replay_edit.ts";
 import { backupSeedWriteFor } from "./reconstruction_sidecar.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
+import { noteStage } from "./reconstruction_provenance.ts";
 import type { EditEvent, FileEvent, WriteEvent } from "./reconstruction_engine.ts";
 
 // --- stale mid-stream edit bases (s19 / s23) -------------------------------------------------------
@@ -124,6 +125,18 @@ function staleEditSeedFor(
     return outOfWindowEditSeed(records, event, priorEvents, reader); // s34
 }
 
+// Record that a stale-edit-base reseed fired, tagging the edit it seeds (its changeId is the producing
+// record) and the backup time used.
+function noteStaleSeed(event: FileEvent, seed: WriteEvent): void {
+    noteStage({
+        stage: "seedStaleEditBases",
+        target: seed.target,
+        changeId: event.kind === EventKind.edit ? event.changeId : seed.changeId,
+        detail: "reseeded a stale mid-stream edit base from the file-history backup",
+        when: seed.timestamp,
+    });
+}
+
 // Generalises spec 39's edit-base seeding to MID-stream edits: walk the lineage and, before each edit
 // whose base is stale (off-branch changes persisted across a rewind — s19), splice the synthetic
 // backup-seed Write so the hunk's context lands on the real pre-edit disk content. Edits whose base is
@@ -137,6 +150,7 @@ export function seedStaleEditBases(
     for (const event of lineage) {
         const seed = staleEditSeedFor(records, event, result, reader);
         if (seed) {
+            noteStaleSeed(event, seed);
             result.push(seed);
         }
         result.push(event);

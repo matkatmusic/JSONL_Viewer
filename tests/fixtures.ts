@@ -1,203 +1,100 @@
-// Absolute paths to the executed scenario transcripts the tests read from. One
-// `<scenario>_JSONL` constant per scenario; each test imports the scenario(s) it
-// exercises. The scenario JSONLs live outside this worktree (see handoff), so
-// these are absolute paths.
-export const S1_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s1-delete-file/b3634dc4-a385-40b9-8e23-6695a4f7bb7e.jsonl";
+// The executed-scenario transcripts the tests read from. Each `<scenario>_JSONL` constant resolves its
+// transcript by SCENARIO DIRECTORY NAME, not by a hard-coded uuid filename: re-running a scenario writes
+// a fresh `<uuid>.jsonl` (new uuid, new timestamps) into the same dir, so binding to the dir survives every
+// re-run while binding to the uuid path breaks the whole suite. `findScenarioJsonl` scans the known roots
+// (the in-worktree capture dir first, then the original Desktop dir) for the dir and returns its single
+// `*.jsonl`. The legacy m1–m7 scenarios were folded into the sequential numbering as s46–s52 by the re-run,
+// so the M*_JSONL constants point at those dirs.
 
-export const S2_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s2-move-file/1e82511e-05a3-4712-9a95-206b24128694.jsonl";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
 
-export const S3_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s3-copy-file/ac6edd6f-cc4e-4423-87f9-468530849db5.jsonl";
+// Where executed scenarios live, in resolution order: the in-worktree capture root (the authoritative
+// re-run copies, with `.step_states`), then the original Desktop root.
+const SCENARIO_ROOTS = [
+    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed",
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed",
+] as const;
 
-export const S4_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s4-overwrite-file/58f8c26c-48d5-4e8f-953c-265005a6ee73.jsonl";
+// The single transcript JSONL inside a scenario's executed dir, found by dir name. Searches each root in
+// order; returns the first dir holding exactly one `*.jsonl`. Throws (loudly, at import) when the dir is
+// missing everywhere or does not hold exactly one transcript — a clear failure beats an opaque per-test
+// ENOENT.
+export function findScenarioJsonl(dirName: string): string {
+    for (const root of SCENARIO_ROOTS) {
+        const dir = join(root, dirName);
+        let jsonls: string[];
+        try {
+            jsonls = readdirSync(dir).filter((name) => name.endsWith(".jsonl"));
+        } catch {
+            continue;
+        }
+        if (jsonls.length === 1) {
+            return join(dir, jsonls[0]!);
+        }
+        if (jsonls.length > 1) {
+            throw new Error(`scenario ${dirName}: expected one .jsonl, found ${jsonls.length} in ${dir}`);
+        }
+    }
+    throw new Error(`scenario ${dirName}: no .jsonl found under known roots`);
+}
 
-export const S5_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s5-bash-redirect/621364dd-a153-42f4-b44f-b6b5232c57e9.jsonl";
+export const S1_JSONL = findScenarioJsonl("s1-delete-file");
+export const S2_JSONL = findScenarioJsonl("s2-move-file");
+export const S3_JSONL = findScenarioJsonl("s3-copy-file");
+export const S4_JSONL = findScenarioJsonl("s4-overwrite-file");
+export const S5_JSONL = findScenarioJsonl("s5-bash-redirect");
+export const S6_JSONL = findScenarioJsonl("s6-git-mv");
+export const S7_JSONL = findScenarioJsonl("s7-minimal-code-restore");
+export const S8_JSONL = findScenarioJsonl("s8-repeated-code-restore-rewinds");
+export const S9_JSONL = findScenarioJsonl("s9-code-restore-no-post-edit");
+export const S10_JSONL = findScenarioJsonl("s10-conv-only-no-post-edit");
+export const S11_JSONL = findScenarioJsonl("s11-write-code-restore-rewrite");
+export const S12_JSONL = findScenarioJsonl("s12-write-conv-only-rewrite");
+export const S13_JSONL = findScenarioJsonl("s13-multi-edit-code-restore-read");
+export const S14_JSONL = findScenarioJsonl("s14-multi-edit-conv-only-read");
+export const S15_JSONL = findScenarioJsonl("s15-user-edit-then-conv-rewind");
+export const S16_JSONL = findScenarioJsonl("s16-multi-edit-code-restore-re-edit");
+export const S17_JSONL = findScenarioJsonl("s17-multi-edit-conv-only-re-edit");
+export const S18_JSONL = findScenarioJsonl("s18-user-edit-no-rewind");
+export const S19_JSONL = findScenarioJsonl("s19-user-edit-conv-rewind");
+export const S20_JSONL = findScenarioJsonl("s20-user-edit-code-rewind");
+export const S21_JSONL = findScenarioJsonl("s21-multiple-user-edits");
+export const S22_JSONL = findScenarioJsonl("s22-user-edits-conv-rewind");
+export const S23_JSONL = findScenarioJsonl("s23-user-edits-code-rewind");
 
-export const S6_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s6-git-mv/4ad1d191-23e8-41de-adfa-d182b6a1cf55.jsonl";
+// m1–m7 were renumbered to s46–s52 by the all-scenario re-run; the M*_JSONL names are kept for the
+// existing m-series tests but resolve to the new sequential dirs.
+export const M1_JSONL = findScenarioJsonl("s46-cp-fork");
+export const M2_JSONL = findScenarioJsonl("s47-mv-rename");
+export const M3_JSONL = findScenarioJsonl("s48-bash-redirect");
+export const M4_JSONL = findScenarioJsonl("s49-delete-recreate");
+export const M5_JSONL = findScenarioJsonl("s50-full-interleave");
+export const M6_JSONL = findScenarioJsonl("s51-cp-user-edit-rewind");
+export const M7_JSONL = findScenarioJsonl("s52-conv-rewind-no-user-edits");
 
-export const S7_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s7-minimal-code-restore/d0d14660-4477-40fa-824c-e7f0bb91cd66.jsonl";
+export const S24_JSONL = findScenarioJsonl("s24-script-rename-functions");
+export const S25_JSONL = findScenarioJsonl("s25-script-rename-multi-file");
+export const S26_JSONL = findScenarioJsonl("s26-script-rename-csv-map");
+export const S27_JSONL = findScenarioJsonl("s27-script-rename-edited-before-run");
+export const S28_JSONL = findScenarioJsonl("s28-script-rename-scope");
+export const S29_JSONL = findScenarioJsonl("s29-script-rename-repo-walk");
+export const S30_JSONL = findScenarioJsonl("s30-script-rename-count-mismatch");
+export const S31_JSONL = findScenarioJsonl("s31-script-rename-many-rows");
+export const S32_JSONL = findScenarioJsonl("s32-script-rename-mcp-exec");
+export const S33_JSONL = findScenarioJsonl("s33-script-rename-csv-user-edit");
+export const S34_JSONL = findScenarioJsonl("s34-script-rename-driver-back-and-forth");
+export const S35_JSONL = findScenarioJsonl("s35-script-rename-script-user-edit");
+export const S36_JSONL = findScenarioJsonl("s36-script-rename-csv-user-edit-mcp");
+export const S37_JSONL = findScenarioJsonl("s37-script-rename-driver-back-and-forth-mcp");
+export const S38_JSONL = findScenarioJsonl("s38-script-rename-script-user-edit-mcp");
 
-export const S8_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s8-repeated-code-restore-rewinds/ac304418-47fe-4c2b-be86-ea62783110e0.jsonl";
-
-export const S9_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s9-code-restore-no-post-edit/b381c39b-e81e-45e8-b400-03edc4ee4be3.jsonl";
-
-export const S10_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s10-conv-only-no-post-edit/517dcc05-8809-43cd-86d4-7f6907b9ee76.jsonl";
-
-export const S11_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s11-write-code-restore-rewrite/a26b3dcb-cf00-4b17-a595-86dd57d4df83.jsonl";
-
-export const S12_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s12-write-conv-only-rewrite/e320b4f6-c7ec-4084-90b9-44ca935d7577.jsonl";
-
-export const S13_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s13-multi-edit-code-restore-read/546faa49-72b6-4b57-9557-d54e2ff7aa56.jsonl";
-
-export const S14_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s14-multi-edit-conv-only-read/6d632174-79b3-4c11-953f-1308a957d748.jsonl";
-
-export const S15_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s15-user-edit-then-conv-rewind/7365140d-8666-4dbf-81bc-9d92e9d6cac9.jsonl";
-
-export const S16_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s16-multi-edit-code-restore-re-edit/1ae6a672-d55d-41a6-add3-46123a227440.jsonl";
-
-export const S17_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s17-multi-edit-conv-only-re-edit/4c41e3a3-a213-40f4-8df7-169bf61a8e40.jsonl";
-
-export const S18_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s18-user-edit-no-rewind/a2146944-adfe-408d-b9be-0de8cc1d4c72.jsonl";
-
-// s19 was re-run with the code-change-only step capture; its executed data now lives in-worktree
-// (the durable, tracked location), matching the s39 `scenarios/executed/` convention.
-export const S19_JSONL =
-    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s19-user-edit-conv-rewind/d8a5cf41-43ef-41b0-a9db-45e76873ff04.jsonl";
-
-export const S20_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s20-user-edit-code-rewind/cff07216-e002-4839-9e95-42547049332e.jsonl";
-
-export const S21_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s21-multiple-user-edits/7a7ce498-01f6-469d-ba3f-a8ba0ee748cb.jsonl";
-
-export const S22_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s22-user-edits-conv-rewind/64ab0dde-e737-4ba6-9d31-64ead32f6ff4.jsonl";
-
-export const S23_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s23-user-edits-code-rewind/2bb895d4-b58b-483e-bc3a-d6a4505cbf08.jsonl";
-
-export const M1_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m1-cp-fork/6dd28b9c-6553-4a42-ba00-0b681bd890bb.jsonl";
-
-export const M2_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m2-mv-rename/70c5989e-017b-425f-8a8b-89daec0c4528.jsonl";
-
-export const M3_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m3-bash-redirect/0a7f5fa5-deda-4208-823e-1cfe7d650a74.jsonl";
-
-export const M4_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m4-delete-recreate/c8422976-8d07-4c16-8b0a-30c582c1cf7c.jsonl";
-
-export const M5_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m5-full-interleave/d61d30ab-ced9-402a-ba99-60caf334ca63.jsonl";
-
-export const M6_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m6-cp-user-edit-rewind/134feae4-4eb0-4008-9ef7-05e27ad3113d.jsonl";
-
-export const M7_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/m7-conv-rewind-no-user-edits/725204e2-8678-4c45-82d0-262557bff0ad.jsonl";
-
-export const S24_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s24-script-rename-functions/c46c3db9-b5ac-4c20-adf8-9f33caa8359c.jsonl";
-
-export const S25_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s25-script-rename-multi-file/354de589-44a9-4f52-a1a0-0cd57738f713.jsonl";
-
-export const S26_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s26-script-rename-csv-map/fd98c8aa-7264-4945-a83c-0d23a3d3a2ab.jsonl";
-
-export const S27_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s27-script-rename-edited-before-run/d1b02f2f-eda1-49f1-9cc7-075bf02104c2.jsonl";
-
-export const S28_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s28-script-rename-scope/08e627ff-de50-4de7-aa03-5133366d9f25.jsonl";
-
-export const S29_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s29-script-rename-repo-walk/543492c4-1d45-47b7-a4a1-a2d14857161f.jsonl";
-
-export const S30_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s30-script-rename-count-mismatch/29634d79-a1f4-4a26-9a2d-0c79798e42e7.jsonl";
-
-export const S31_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s31-script-rename-many-rows/ef17241e-1775-4003-9141-92f5b6f334e7.jsonl";
-
-export const S32_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s32-script-rename-mcp-exec/f4ff047f-3cef-4303-8da0-d34cfe2e0f7f.jsonl";
-
-export const S33_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s33-script-rename-csv-user-edit/b54eafa5-e6c9-4c78-a5c6-52129f2e6503.jsonl";
-
-export const S34_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s34-script-rename-driver-back-and-forth/709c9b35-62d2-44c9-84ed-5e63ca90073e.jsonl";
-
-export const S35_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s35-script-rename-script-user-edit/2a208e10-4881-4f85-8006-2e24dfd523b7.jsonl";
-
-export const S36_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s36-script-rename-csv-user-edit-mcp/e8fa105c-74ae-414f-8208-aa95820af08e.jsonl";
-
-export const S37_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s37-script-rename-driver-back-and-forth-mcp/8f4366d3-271d-4116-a9e0-6da462fed449.jsonl";
-
-export const S38_JSONL =
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed/s38-script-rename-script-user-edit-mcp/fa5ad942-4316-406b-95a5-65995b112970.jsonl";
-
-// s39 is the first `git-baseline-seed` scenario. Unlike the others above it points at the LOCAL
-// worktree copy: the baseline session was excluded (`--excludeJSONL`), so this transcript opens
-// mid-stream with a single `orders.py` Edit, and the engine test byte-matches against the rendered
-// `orders.py` sitting beside this JSONL in the same local executed dir.
-export const S39_JSONL =
-    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s39-git-baseline-seed/356cbd5e-009f-457d-9c05-d56aa944b25c.jsonl";
-
-// s40 = s39 + two interleaved USER edits on `orders.py`. Same `git-baseline` family, same LOCAL-copy
-// convention: the baseline session was excluded (`--excludeJSONL`) so this transcript opens mid-stream,
-// and the s40 CLI test byte-matches the tip against the rendered `orders.py` beside this JSONL.
-export const S40_JSONL =
-    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s40-git-baseline-user-edits/e2fee02a-29c1-4710-9146-8d8055e7fe94.jsonl";
-
-// s41 = s40 + a mid-stream `git commit "wip"` between the two interleaved USER edits on `orders.py`. The commit
-// is INERT (Bash git records produce no file events), and the `subtotal` step in the scenario never executed —
-// so the tip is a 43-line `orders.py` (count + both appended comments, no subtotal). Same LOCAL-copy convention.
-export const S41_JSONL =
-    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s41-git-baseline-mid-commit/6d01aabb-79c5-4ca9-88b9-7834a050bf6d.jsonl";
-
-// s42 = the `git-baseline` family composed with an s38-style MCP script-rename IN THE BASELINE. The baseline
-// session (which ran the rename) is excluded (`--excludeJSONL`), so this transcript opens mid-stream with
-// three `inventory.py` events (Claude adds `reorder`, a user edit appends `# reviewed by ops`, Claude adds
-// `shrink`); rev 0 is seeded from the file-history backup that already carries the post-rename names. Same
-// LOCAL-copy convention — the s42 CLI test byte-matches the tip against the rendered `inventory.py` beside it.
-export const S42_JSONL =
-    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s42-git-baseline-from-s38/58525cea-c958-449a-894a-1c562a18a2bd.jsonl";
-
-// s43 = the `git-baseline` family, structural twin of s42, with the baseline leaving `inventory.py` UNTRACKED
-// in git (only `rename_inv.py` + `tests/` committed) — a no-op for reconstruction since git state never enters
-// the JSONL. The baseline session (write `inventory.py` terse-named, add `low_stock`, run `rename_inv.py`
-// through the MCP sandbox to rename qty_chk→check_quantity / add_item→insert_item / rm_item→remove_item, add
-// `restock`, `git commit "baseline"`) is dropped by `--excludeJSONL`, so this transcript opens MID-STREAM with
-// three `inventory.py` events (Claude adds `reorder`, a user edit appends `# reviewed by ops`, Claude adds
-// `shrink`); rev 0 is seeded from the file-history backup that already carries the post-rename names AND
-// `low_stock` (added before the backup point). `restock` was added after and left no trace. Same LOCAL-copy
-// convention — the s43 CLI test byte-matches the tip against the rendered `inventory.py` beside it.
-export const S43_JSONL =
-    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s43-git-baseline-uncommitted-module/bc144725-0013-4991-8994-4ee99efab8f4.jsonl";
-
-// s44 = the `git-baseline` family with the script-rename running MID-STREAM (not in the excluded baseline as in
-// s42/s43). `--excludeJSONL` fires at step 4, BEFORE the rename script exists, so the mid-stream transcript
-// CONTAINS the full rename machinery: `rename_inv.py` is Written (one tuple qty_chk→check_quantity) + 2 USER
-// edits (add_item→insert_item, rm_item→remove_item), then the MCP sandbox runs it. That is why `rename_inv.py`
-// IS reconstructed here (3-rev ladder, tip 38 lines) — the new assertion vs s43. The MCP rename leaves NO
-// `inventory.py` DAG node: its effect surfaces only because rev 0 of `inventory.py` (175 lines) is backup-seeded
-// AFTER the rename ran, so it already carries the post-rename names (check_quantity / insert_item / remove_item).
-// `inventory.py` then takes four mid-stream edits — restock, reorder, `# reviewed by ops` (user), shrink — to a
-// 264-line tip. NOTE: unlike s43, there is NO `low_stock` anywhere in s44. Reader-DEPENDENT (rev 0 needs the
-// file-history backup). Same LOCAL-copy convention — the s44 CLI test byte-matches both tips against the rendered
-// files beside it.
-export const S44_JSONL =
-    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s44-git-baseline-then-rename/56f60db2-0bf0-4685-99dd-ef8f65685245.jsonl";
-
-// s45 = the first CODE-REWIND scenario after the git-baseline family. The transcript writes `calc.py` (`add`) +
-// `tests/test_calc.py`, edits `calc.py` to add `subtract`, then `Rewind: 2, code` abandons that edit and restores
-// `calc.py` on disk, then edits `calc.py` to add `multiply`. Both code edits are Claude's (no user authoring). The
-// rewound/abandoned branch (tip #836ea480) keeps `add`+`subtract`; the surviving branch (tip #c3457a61) is
-// `add`+`multiply`. Reader-DEPENDENT: the rewind restore is carried only by file-history backups (no explicit
-// "revert to add" event). Same LOCAL-copy convention — the s45 CLI test byte-matches the tips against the rendered
-// `calc.py` / `tests/test_calc.py` / `.abandoned_branches/abandoned-branch-1/calc.py` beside this JSONL.
-export const S45_JSONL =
-    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s45-rewind-abandoned-branch/6bdd9f73-5ab9-4c7c-bb41-5fdf9da5a09a.jsonl";
+// s39+ are the `git-baseline` family; see plans/ and the per-scenario ground-truth notes for the full
+// scenario shapes. They resolve from the in-worktree capture root like every other scenario.
+export const S39_JSONL = findScenarioJsonl("s39-git-baseline-seed");
+export const S40_JSONL = findScenarioJsonl("s40-git-baseline-user-edits");
+export const S41_JSONL = findScenarioJsonl("s41-git-baseline-mid-commit");
+export const S42_JSONL = findScenarioJsonl("s42-git-baseline-from-s38");
+export const S43_JSONL = findScenarioJsonl("s43-git-baseline-uncommitted-module");
+export const S44_JSONL = findScenarioJsonl("s44-git-baseline-then-rename");
+export const S45_JSONL = findScenarioJsonl("s45-rewind-abandoned-branch");

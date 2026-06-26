@@ -7,13 +7,13 @@
 // tests/reconstruction_cli_s19_steps.test.ts.
 
 import type { TranscriptRecord } from "./structures/envelope.ts";
-import type { Path } from "./structures/domain.ts";
+import type { Path, Uuid } from "./structures/domain.ts";
 import {
     lastRevisionAtOrBefore,
     linesTextOf,
     reconstructFilesOver,
 } from "./reconstruction_branches.ts";
-import type { FileHistory, FileRevision } from "./reconstruction_engine.ts";
+import type { FileHistory, FileRevision, RenameInfo } from "./reconstruction_engine.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
 
 // One file's reconstructed text at a step, keyed by the path it lives at (a file absent at the step is
@@ -38,14 +38,35 @@ function collectChangeTimes(histories: FileHistory[]): Date[] {
     return [...byMillis.values()].sort((a, b) => a.getTime() - b.getTime());
 }
 
-// The repo's disk state at an instant: each file's latest revision at or before `when`, rendered to text.
-// Files with no revision yet at `when` are omitted (they do not exist on disk at that instant).
+// The path a file's lineage went by at instant `when`: the latest rename revision's `to` at or before
+// `when`; the first rename's `from` when `when` precedes all renames; else history.target (no rename).
+// ponytail: if two lineages ever resolve to the same name-at-time the later wins — impossible on a real
+// disk; revisit only if it occurs.
+function pathAtTime(history: FileHistory, when: Date): Path {
+    const renames = history.revisions
+        .filter((revision): revision is FileRevision & { rename: RenameInfo } => revision.rename !== undefined)
+        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    if (renames.length === 0) {
+        return history.target;
+    }
+    const latestAtOrBefore = renames
+        .filter((revision) => revision.timestamp.getTime() <= when.getTime())
+        .at(-1);
+    if (latestAtOrBefore !== undefined) {
+        return latestAtOrBefore.rename.to;
+    }
+    return renames[0]!.rename.from;
+}
+
+// The repo's disk state at an instant: each file's latest revision at or before `when`, rendered to text
+// and keyed by the name the file held AT `when` (not its final path), so a step before a rename shows the
+// old name. Files with no revision yet at `when` are omitted (they do not exist on disk at that instant).
 function produceRepoStateAtTime(histories: FileHistory[], when: Date): RepoSnapshot {
     const snapshot = new Map<Path, string>();
     for (const history of histories) {
         const revision = lastRevisionAtOrBefore(history.revisions, when);
         if (revision !== undefined) {
-            snapshot.set(history.target, renderRevisionText(revision));
+            snapshot.set(pathAtTime(history, when), renderRevisionText(revision));
         }
     }
     return snapshot;
@@ -68,6 +89,75 @@ export function countStepsInTranscript(
     reader?: BackupReader,
 ): number {
     return reconstructStepStates(records, reader).length;
+}
+
+// --- Comparison helpers (the single home for per-step ground-truth diffing) ------------------------
+
+// Whether an engine snapshot key (an absolute temp path) denotes the file at this repo-relative path,
+// matched on a path boundary so `s2_original.py` does not spuriously match `tests/test_s2_original.py`.
+function keyDenotes(keyPath: Path, relativePath: string): boolean {
+    const key = keyPath.toString();
+    return key === relativePath || key.endsWith(`/${relativePath}`);
+}
+
+// The engine text reconstructed for a file at a step, found by repo-relative path; undefined when the file
+// does not exist at that step.
+export function snapshotFileText(snapshot: RepoSnapshot, relativePath: string): string | undefined {
+    for (const [path, text] of snapshot) {
+        if (keyDenotes(path, relativePath)) {
+            return text;
+        }
+    }
+    return undefined;
+}
+
+// Drop a single trailing newline so the engine's newline-joined text (which omits it) compares equal to
+// on-disk ground-truth files (which keep it).
+export function stripTrailingNewline(text: string): string {
+    return text.endsWith("\n") ? text.slice(0, -1) : text;
+}
+
+// Whether one snapshot reproduces every file in the ground-truth folder, byte-for-byte (each on-disk file's
+// single trailing newline stripped before comparing).
+function snapshotReproduces(snapshot: RepoSnapshot, groundTruth: ReadonlyMap<string, string>): boolean {
+    return [...groundTruth].every(([relativePath, content]) => {
+        const reconstructed = snapshotFileText(snapshot, relativePath);
+        return reconstructed !== undefined && reconstructed === stripTrailingNewline(content);
+    });
+}
+
+// Whether SOME engine step reproduces the ground-truth folder. Pass/fail is "some step matches", never a
+// positional alignment between engine steps and instruction-numbered folders.
+export function someStepReproduces(
+    steps: RepoSnapshot[],
+    groundTruth: ReadonlyMap<string, string>,
+): boolean {
+    return steps.some((snapshot) => snapshotReproduces(snapshot, groundTruth));
+}
+
+// --- Per-step triggering changeIds (aligned 1:1 with reconstructStepStates) -------------------------
+
+// One step's change instant and the changeIds of every revision that landed at it (one step = one
+// millisecond), so a mismatch can name the JSONL record(s) that produced the step's bytes.
+export type StepChange = { when: Date; changeIds: Uuid[] };
+
+// The changeIds of every revision occurring at exactly `when`, across all files.
+function changeIdsAt(histories: FileHistory[], when: Date): Uuid[] {
+    return histories.flatMap((history) =>
+        history.revisions
+            .filter((revision) => revision.timestamp.getTime() === when.getTime())
+            .map((revision) => revision.changeId),
+    );
+}
+
+// Each code-change step's triggering changeIds, in the SAME order and count as reconstructStepStates (both
+// map over collectChangeTimes), so stepChanges[i] explains steps[i].
+export function reconstructStepChanges(
+    records: TranscriptRecord[],
+    reader?: BackupReader,
+): StepChange[] {
+    const histories = reconstructFilesOver(records, reader);
+    return collectChangeTimes(histories).map((when) => ({ when, changeIds: changeIdsAt(histories, when) }));
 }
 
 // Render one step's repo snapshot: each file under its `### <path>` header (sorted by path), raw content,
