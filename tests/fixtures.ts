@@ -16,24 +16,23 @@ const SCENARIO_ROOTS = [
     "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed",
 ] as const;
 
-// The single transcript JSONL inside a scenario's executed dir, found by dir name. Searches each root in
-// order; returns the first dir holding exactly one `*.jsonl`. Throws (loudly, at import) when the dir is
-// missing everywhere or does not hold exactly one transcript — a clear failure beats an opaque per-test
-// ENOENT.
+// A scenario's transcript JSONL, found by dir name. Searches each root in order and returns the first
+// `*.jsonl` (sorted) in the first dir that has one. Single-session scenarios (every fixture a test actually
+// reads) hold exactly one; multi-session scenarios (/clear, git-baseline, concurrent) hold several — those
+// are reconstructed by merging ALL of a dir's jsonl via the coverage suite (scripts/coverage_scenarios.ts),
+// so this single-transcript resolver is only for the legacy single-session per-scenario fixtures. Throws
+// (loudly, at import) only when the dir is missing everywhere — a clear failure beats an opaque ENOENT.
 export function findScenarioJsonl(dirName: string): string {
     for (const root of SCENARIO_ROOTS) {
         const dir = join(root, dirName);
         let jsonls: string[];
         try {
-            jsonls = readdirSync(dir).filter((name) => name.endsWith(".jsonl"));
+            jsonls = readdirSync(dir).filter((name) => name.endsWith(".jsonl")).sort();
         } catch {
             continue;
         }
-        if (jsonls.length === 1) {
+        if (jsonls.length > 0) {
             return join(dir, jsonls[0]!);
-        }
-        if (jsonls.length > 1) {
-            throw new Error(`scenario ${dirName}: expected one .jsonl, found ${jsonls.length} in ${dir}`);
         }
     }
     throw new Error(`scenario ${dirName}: no .jsonl found under known roots`);

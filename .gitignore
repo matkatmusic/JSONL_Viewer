@@ -147,3 +147,4 @@ vite.config.ts.timestamp-*
 # Local symlink to scenario data in the main worktree (machine-specific
 # absolute path; lets sandboxed subagents read the scenario JSONLs)
 /scenarios
+.DS_Store

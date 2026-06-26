@@ -7,16 +7,21 @@ import { fileURLToPath } from "node:url";
 import { join, relative } from "node:path";
 import { Path } from "../src/structures/domain.ts";
 
-// A scenario that has captured ground truth: its id (s19), dir name, transcript, and `.step_states` dir.
+// A scenario that has captured ground truth: its id (s19), dir name, all session transcripts, and
+// `.step_states` dir. A run can split into several JSONL — pre/post a /clear, baseline + scenario for a
+// git-baseline, one per agent for a concurrent run — all merged into one record stream at reconstruction.
 export type CoveredScenario = {
     scenarioId: string;
     dirName: string;
-    jsonlPath: Path;
+    jsonlPaths: Path[];
     stepStatesDir: string;
 };
 
-// Names that are never scenario source files in a `.step_states` folder.
-const NON_SOURCE_NAMES = new Set(["manifest.json", "__pycache__", ".pytest_cache"]);
+// Names that are never scenario source files in a `.step_states` folder: the capture manifest, the
+// Python caches, and `.claude` (harness permission/config metadata, e.g. settings.local.json written by
+// Claude Code's permission system on first MCP-tool use — not an agent edit, has no JSONL event or
+// file-history backup, so it is outside what the engine reconstructs from the transcript).
+const NON_SOURCE_NAMES = new Set(["manifest.json", "__pycache__", ".pytest_cache", ".claude"]);
 
 // Whether a path is a directory (false for files / dangling entries).
 export function isDirectory(path: string): boolean {
@@ -29,14 +34,18 @@ function scenarioIdOf(dirName: string): string {
     return dirName.match(/^[a-z]+\d+/)?.[0] ?? dirName;
 }
 
-// The single `*.jsonl` in a dir, or undefined when there is not exactly one.
-export function soleJsonl(dir: string): string | undefined {
-    const jsonls = readdirSync(dir).filter((name) => name.endsWith(".jsonl"));
-    return jsonls.length === 1 ? join(dir, jsonls[0]!) : undefined;
+// Every `*.jsonl` in a dir, sorted for deterministic order — the scenario's session transcript(s). Several
+// arise when a run splits into multiple sessions (pre/post /clear, baseline + scenario, one per concurrent
+// agent); they are merged into one record stream at reconstruction, so all are returned.
+export function allJsonls(dir: string): string[] {
+    return readdirSync(dir)
+        .filter((name) => name.endsWith(".jsonl"))
+        .sort()
+        .map((name) => join(dir, name));
 }
 
-// Every scenario under `executedRoot` that has a `.step_states/` dir AND exactly one transcript. A dir with
-// `.step_states` but zero/multiple jsonl is logged and skipped (it cannot be checked unambiguously).
+// Every scenario under `executedRoot` that has a `.step_states/` dir AND at least one transcript. A dir with
+// `.step_states` but no jsonl is logged and skipped (nothing to reconstruct from).
 export function findCoveredScenarios(executedRoot: URL): CoveredScenario[] {
     const root = fileURLToPath(executedRoot);
     const covered: CoveredScenario[] = [];
@@ -46,12 +55,13 @@ export function findCoveredScenarios(executedRoot: URL): CoveredScenario[] {
         if (!isDirectory(dir) || !existsSync(stepStatesDir)) {
             continue;
         }
-        const jsonl = soleJsonl(dir);
-        if (jsonl === undefined) {
-            console.warn(`skip ${dirName}: expected exactly one .jsonl`);
+        const jsonls = allJsonls(dir);
+        if (jsonls.length === 0) {
+            console.warn(`skip ${dirName}: no .jsonl transcript`);
             continue;
         }
-        covered.push({ scenarioId: scenarioIdOf(dirName), dirName, jsonlPath: new Path(jsonl), stepStatesDir });
+        const jsonlPaths = jsonls.map((jsonl) => new Path(jsonl));
+        covered.push({ scenarioId: scenarioIdOf(dirName), dirName, jsonlPaths, stepStatesDir });
     }
     return covered;
 }
@@ -61,14 +71,14 @@ export function listCoveredScenarios(): CoveredScenario[] {
     return findCoveredScenarios(new URL("../scenarios/executed/", import.meta.url));
 }
 
-// The scenario dir names that look like scenarios (one jsonl) but have no `.step_states` — reported as
-// uncovered (informational).
+// The scenario dir names that have a jsonl transcript but no `.step_states` — reported as uncovered
+// (informational).
 export function findUncovered(executedRoot: URL, covered: CoveredScenario[]): string[] {
     const root = fileURLToPath(executedRoot);
     const coveredDirs = new Set(covered.map((scenario) => scenario.dirName));
     return readdirSync(root).filter((dirName) => {
         const dir = join(root, dirName);
-        return isDirectory(dir) && !coveredDirs.has(dirName) && soleJsonl(dir) !== undefined;
+        return isDirectory(dir) && !coveredDirs.has(dirName) && allJsonls(dir).length > 0;
     });
 }
 
@@ -85,17 +95,24 @@ function uuidOfLine(line: string): string | undefined {
     }
 }
 
-// A map from each transcript record's uuid to its 1-based line number, for attributing a step to its JSONL
-// line. Non-JSON or uuid-less lines are skipped but still counted (line numbers stay true to the file).
-export function buildUuidLineIndex(jsonlPath: Path): Map<string, number> {
-    const index = new Map<string, number>();
-    const lines = readFileSync(jsonlPath.toString(), "utf8").split("\n");
-    lines.forEach((line, offset) => {
+// Index one jsonl file's uuids into `index` by 1-based line number. Non-JSON/uuid-less lines are skipped
+// but still counted (line numbers stay true to the file).
+function indexOneJsonl(jsonlPath: Path, index: Map<string, number>): void {
+    readFileSync(jsonlPath.toString(), "utf8").split("\n").forEach((line, offset) => {
         const uuid = uuidOfLine(line);
         if (uuid !== undefined) {
             index.set(uuid, offset + 1);
         }
     });
+}
+
+// A map from each transcript record's uuid to its 1-based line number, for attributing a step to its JSONL
+// line. Spans every session jsonl (uuids are globally unique, so the merged index is unambiguous).
+export function buildUuidLineIndex(jsonlPaths: Path[]): Map<string, number> {
+    const index = new Map<string, number>();
+    for (const jsonlPath of jsonlPaths) {
+        indexOneJsonl(jsonlPath, index);
+    }
     return index;
 }
 

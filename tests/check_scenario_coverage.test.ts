@@ -48,7 +48,7 @@ test("test_findCoveredScenarios_includes_s19", () => {
 test("test_buildUuidLineIndex_maps_a_record_uuid_to_its_one_based_line_number", () => {
     // Behavior: a record's uuid maps to its true 1-based line number (the first uuid-bearing line, since the
     // transcript may open with a uuid-less meta line).
-    const index = buildUuidLineIndex(new Path(S19_JSONL));
+    const index = buildUuidLineIndex([new Path(S19_JSONL)]);
     const lines = readFileSync(S19_JSONL, "utf8").split("\n");
     const firstUuidLine = lines.findIndex((line) => {
         try {
@@ -96,7 +96,7 @@ test("test_checkScenario_reports_every_step_passes_for_s19", () => {
     const scenario: CoveredScenario = {
         scenarioId: "s19",
         dirName: "s19-user-edit-conv-rewind",
-        jsonlPath: new Path(S19_JSONL),
+        jsonlPaths: [new Path(S19_JSONL)],
         stepStatesDir: S19_STEP_STATES,
     };
     const result = checkScenario(scenario);
@@ -131,7 +131,7 @@ test("test_checkScenario_reports_a_mismatch_with_the_broken_fixture", () => {
     const scenario: CoveredScenario = {
         scenarioId: "s19",
         dirName: "broken-step-states",
-        jsonlPath: new Path(S19_JSONL),
+        jsonlPaths: [new Path(S19_JSONL)],
         stepStatesDir: BROKEN_STEP_STATES,
     };
     const result = checkScenario(scenario);

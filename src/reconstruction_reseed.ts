@@ -125,6 +125,19 @@ function staleEditSeedFor(
     return outOfWindowEditSeed(records, event, priorEvents, reader); // s34
 }
 
+// A seed spliced BEFORE an edit is that edit's PRE-edit base, so it must sort before the edit on the
+// timeline. The backup it was recovered from can carry a timestamp at/after the edit — e.g. a post-/clear
+// edit (s64) whose only base backup was taken later, or an includeAfter backup (s19/s23/m6). When it does,
+// pull the seed to just before the edit so the per-step timeline shows the base THEN the edited state, not
+// only the edited one (lastRevisionAtOrBefore would otherwise resolve both steps to the edited revision).
+// Backups already earlier than the edit (s19/s23/s34/s45) are left untouched.
+function seedBeforeEdit(seed: WriteEvent, event: FileEvent): WriteEvent {
+    if (seed.timestamp.getTime() < event.timestamp.getTime()) {
+        return seed;
+    }
+    return { ...seed, timestamp: new Date(event.timestamp.getTime() - 1) };
+}
+
 // Record that a stale-edit-base reseed fired, tagging the edit it seeds (its changeId is the producing
 // record) and the backup time used.
 function noteStaleSeed(event: FileEvent, seed: WriteEvent): void {
@@ -148,8 +161,9 @@ export function seedStaleEditBases(
 ): FileEvent[] {
     const result: FileEvent[] = [];
     for (const event of lineage) {
-        const seed = staleEditSeedFor(records, event, result, reader);
-        if (seed) {
+        const rawSeed = staleEditSeedFor(records, event, result, reader);
+        if (rawSeed) {
+            const seed = seedBeforeEdit(rawSeed, event);
             noteStaleSeed(event, seed);
             result.push(seed);
         }

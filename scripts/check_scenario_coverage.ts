@@ -10,7 +10,6 @@
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { loadTranscript } from "../src/parse/loadTranscript.ts";
-import type { TranscriptRecord } from "../src/structures/envelope.ts";
 import {
     reconstructStepStates,
     reconstructStepChanges,
@@ -20,12 +19,7 @@ import {
     type RepoSnapshot,
     type StepChange,
 } from "../src/reconstruction_steps.ts";
-import {
-    createSidecarReader,
-    getDefaultFileHistoryRoot,
-    findSessionId,
-    type BackupReader,
-} from "../src/reconstruction_sidecar.ts";
+import { buildSidecarReader } from "./coverage_sidecar.ts";
 import { Path } from "../src/structures/domain.ts";
 import {
     enableProvenance,
@@ -89,12 +83,6 @@ export type ScenarioResult = {
     mismatches: StepMismatch[];
 };
 
-// The on-disk file-history reader for a transcript's session (the CLI's buildSidecarReader pattern), or
-// undefined when there is no session id.
-function buildSidecarReader(records: TranscriptRecord[]): BackupReader | undefined {
-    const sessionId = findSessionId(records);
-    return sessionId ? createSidecarReader(sessionId, getDefaultFileHistoryRoot()) : undefined;
-}
 
 // The first changeId of the best step that resolves to a JSONL line, formatted; a sentinel when none do
 // (a seeded/synthetic revision has no producing record).
@@ -147,9 +135,9 @@ function buildStepMismatch(
 // Run one scenario: reconstruct its steps once, then for each captured folder record PASS (some engine step
 // reproduces it) or a mismatch.
 export function checkScenario(scenario: CoveredScenario): ScenarioResult {
-    const records = loadTranscript(scenario.jsonlPath.toString());
+    const records = scenario.jsonlPaths.flatMap((path) => loadTranscript(path.toString()));
     const reader = buildSidecarReader(records);
-    const uuidLineIndex = buildUuidLineIndex(scenario.jsonlPath);
+    const uuidLineIndex = buildUuidLineIndex(scenario.jsonlPaths);
     enableProvenance();
     const steps = reconstructStepStates(records, reader);
     const provenance = drainProvenance();
