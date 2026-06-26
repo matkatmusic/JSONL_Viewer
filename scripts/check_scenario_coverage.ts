@@ -34,7 +34,7 @@ import {
     type ProvenanceEntry,
 } from "../src/reconstruction_provenance.ts";
 import {
-    findCoveredScenarios,
+    listCoveredScenarios,
     findUncovered,
     buildUuidLineIndex,
     readStepStateFiles,
@@ -173,7 +173,7 @@ export function checkScenario(scenario: CoveredScenario): ScenarioResult {
 
 // Run a scenario, turning any thrown error into an ERROR result (one synthetic mismatch) so one bad scenario
 // never aborts the sweep.
-function checkScenarioResilient(scenario: CoveredScenario): ScenarioResult {
+export function checkScenarioResilient(scenario: CoveredScenario): ScenarioResult {
     try {
         return checkScenario(scenario);
     } catch (error) {
@@ -199,17 +199,27 @@ function printResult(result: ScenarioResult): void {
     }
 }
 
-// Sweep every covered scenario, print the matrix and the uncovered list, and exit 1 when any covered step
-// failed or errored.
+// Sweep every covered scenario (or just the one named by argv[2], matched on scenarioId or dir name), print
+// the matrix and the uncovered list, and exit 1 when any covered step failed or errored. Exit 2 when a name
+// filter matches nothing.
 function main(): void {
     const executedRoot = new URL("../scenarios/executed/", import.meta.url);
-    const covered = findCoveredScenarios(executedRoot);
+    const filter = process.argv[2];
+    const covered = listCoveredScenarios().filter(
+        (scenario) => filter === undefined || scenario.scenarioId === filter || scenario.dirName === filter,
+    );
+    if (covered.length === 0 && filter !== undefined) {
+        console.error(`no covered scenario matches "${filter}"`);
+        process.exit(2);
+    }
     const results = covered.map(checkScenarioResilient);
     for (const result of results) {
         printResult(result);
     }
-    const uncovered = findUncovered(executedRoot, covered);
-    console.log(`\nUncovered (no .step_states): ${uncovered.length === 0 ? "none" : uncovered.join(", ")}`);
+    if (filter === undefined) {
+        const uncovered = findUncovered(executedRoot, covered);
+        console.log(`\nUncovered (no .step_states): ${uncovered.length === 0 ? "none" : uncovered.join(", ")}`);
+    }
     const failed = results.filter((result) => result.mismatches.length > 0);
     console.log(`${results.length - failed.length}/${results.length} scenarios fully reproduced.`);
     process.exit(failed.length > 0 ? 1 : 0);

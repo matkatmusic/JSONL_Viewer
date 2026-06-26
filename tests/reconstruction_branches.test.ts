@@ -14,9 +14,9 @@ import { S13_JSONL, S15_JSONL } from "./fixtures.ts";
 test("test_collectAcceptedUserEditIds_includes_the_genuine_S15_user_edit", () => {
     // Collect the accepted user-edit changeIds for the S15 transcript.
     const accepted = collectAcceptedUserEditIds(loadRecords(S15_JSONL));
-    // The genuine user edit d675bbfe (it added `# user edit`, changing content) is accepted.
-    const acceptedShort = [...accepted].map((id) => id.slice(0, 8));
-    assert.ok(acceptedShort.includes("d675bbfe"));
+    // S15 has exactly one genuine, content-changing user edit (it added `# user edit`), so the accepted set
+    // holds exactly one id. (The specific changeId rotates on re-run, so it isn't pinned here.)
+    assert.equal(accepted.size, 1);
 });
 
 // S13's `edited_text_file` snapshot echoes the read branch's restored `greet` content — it changes
@@ -24,9 +24,9 @@ test("test_collectAcceptedUserEditIds_includes_the_genuine_S15_user_edit", () =>
 test("test_collectAcceptedUserEditIds_excludes_the_S13_disk_echo", () => {
     // Collect the accepted user-edit changeIds for the S13 transcript.
     const accepted = collectAcceptedUserEditIds(loadRecords(S13_JSONL));
-    // The S13 disk-echo snapshot ea58b24f is absent (it matched current content, so recorded no change).
-    const acceptedShort = [...accepted].map((id) => id.slice(0, 8));
-    assert.ok(!acceptedShort.includes("ea58b24f"));
+    // S13's only `edited_text_file` is a disk echo that matched current content, so it records NO change:
+    // the accepted set is empty. (Asserting the empty set is re-run-stable; the old id pin was not.)
+    assert.equal(accepted.size, 0);
 });
 
 // extractRenderableEvents drops the redundant disk-echo user edit so views never show a phantom turn:

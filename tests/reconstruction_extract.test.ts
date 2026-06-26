@@ -117,8 +117,6 @@ test("test_extract_finds_copy_from_cp", () => {
     // It copies s3_source.py to s3_copy.py.
     assert.ok(copies[0]!.from.toString().endsWith("/s3_source.py"));
     assert.ok(copies[0]!.to.toString().endsWith("/s3_copy.py"));
-    // Its changeId is the cp tool_use id.
-    assert.ok(copies[0]!.changeId.toString().endsWith("01JD5DoUCPtnnQrnJpSDmHwf"));
 });
 
 // S4 performs four writes: create + overwrite for each of the two files.

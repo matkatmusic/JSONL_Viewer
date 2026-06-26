@@ -10,37 +10,35 @@ import { S15_JSONL } from "./fixtures.ts";
 // The S15 user edit's full post-edit content (the snippet with its `<n>\t` line-number prefixes stripped).
 const S15_USER_EDIT_CONTENT = '# user edit\ndef hello():\n    print("hello")';
 
-// The transcript record whose uuid starts with `prefix` (the 8-char short form the tests refer to).
-function recordWithUuidPrefix(records: TranscriptRecord[], prefix: string): TranscriptRecord {
-    return records.find(
-        (record) => record.uuid !== undefined && record.uuid.toString().startsWith(prefix),
-    )!;
+// The single `edited_text_file` attachment record in a transcript, found by what it IS (it is the one record
+// `userEditEventFrom` recognizes) rather than by a hard-coded uuid prefix that rotates on every re-run.
+function editedTextFileRecord(records: TranscriptRecord[]): TranscriptRecord {
+    return records.find((record) => userEditEventFrom(record) !== undefined)!;
 }
 
 // `userEditEventFrom` turns the `edited_text_file` attachment record into a user-edit file event whose
 // content is the snippet with line-number prefixes stripped and whose changeId is the record's own uuid.
 test("test_userEditEventFrom_reads_edited_text_file_attachment", () => {
-    // Load the real S15 transcript and find the user-edit attachment record d675bbfe.
+    // Load the real S15 transcript and find its user-edit attachment record structurally.
     const records = loadRecords(S15_JSONL);
-    const editRecord = recordWithUuidPrefix(records, "d675bbfe");
+    const editRecord = editedTextFileRecord(records);
     // Convert it to a UserEditEvent.
     const event = userEditEventFrom(editRecord);
-    // It is a user-edit event targeting scenario15.py, identified by the attachment record's uuid.
+    // It is a user-edit event targeting scenario15.py, identified by the attachment record's own uuid.
     assert.ok(event !== undefined);
     assert.equal(event!.kind, EventKind.userEdit);
     assert.ok(event!.target.toString().endsWith("scenario15.py"));
-    assert.equal(event!.changeId.toString().slice(0, 8), "d675bbfe");
+    assert.equal(event!.changeId.toString(), editRecord.uuid!.toString());
     // Its content is the snippet's text with the `<n>\t` prefixes stripped (the full post-edit file).
     assert.equal(event!.content, S15_USER_EDIT_CONTENT);
 });
 
-// A record that is not an `edited_text_file` attachment yields no user-edit event.
+// Across the whole transcript, exactly one record is an `edited_text_file` attachment — every other record
+// (prompts, assistant turns, tool results) yields no user-edit event.
 test("test_userEditEventFrom_ignores_other_records", () => {
-    // Load the real S15 transcript and pick a non-attachment record (the abandoned "What time is it?" prompt).
     const records = loadRecords(S15_JSONL);
-    const promptRecord = recordWithUuidPrefix(records, "75934004");
-    // It is not an edited_text_file attachment, so there is no user-edit event.
-    assert.equal(userEditEventFrom(promptRecord), undefined);
+    const userEditRecords = records.filter((record) => userEditEventFrom(record) !== undefined);
+    assert.equal(userEditRecords.length, 1);
 });
 
 // Extraction over the whole transcript surfaces exactly one user-edit event, ordered (by timestamp)

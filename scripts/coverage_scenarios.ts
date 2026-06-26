@@ -56,6 +56,11 @@ export function findCoveredScenarios(executedRoot: URL): CoveredScenario[] {
     return covered;
 }
 
+// Every covered scenario under the in-worktree executed root (the default the CLI and tests both check).
+export function listCoveredScenarios(): CoveredScenario[] {
+    return findCoveredScenarios(new URL("../scenarios/executed/", import.meta.url));
+}
+
 // The scenario dir names that look like scenarios (one jsonl) but have no `.step_states` — reported as
 // uncovered (informational).
 export function findUncovered(executedRoot: URL, covered: CoveredScenario[]): string[] {
