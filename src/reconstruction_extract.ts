@@ -36,7 +36,7 @@ function writeEventFrom(block: ToolUseBlock, timestamp: Date): WriteEvent {
 }
 
 // Parse the target path out of an `rm <path>` Bash command (s1 has no flags).
-function parseRmTarget(command: string): Path | undefined {
+export function parseRmTarget(command: string): Path | undefined {
     const match = command.trim().match(/^rm\s+(.+)$/);
     if (!match) {
         return undefined;
@@ -46,7 +46,7 @@ function parseRmTarget(command: string): Path | undefined {
 
 // Parse `mv <src> <dst>` or `git mv <src> <dst>` (two space-separated paths, no flags).
 // s2 used plain `mv` with absolute paths; s6 uses `git mv` with cwd-relative paths.
-function parseMvPaths(command: string): RenameInfo | undefined {
+export function parseMvPaths(command: string): RenameInfo | undefined {
     const match = command.trim().match(/^(?:git\s+)?mv\s+(\S+)\s+(\S+)$/);
     if (!match) {
         return undefined;
@@ -55,7 +55,7 @@ function parseMvPaths(command: string): RenameInfo | undefined {
 }
 
 // Parse `cp <src> <dst>` (two space-separated paths, no flags — the s3 form).
-function parseCpPaths(command: string): CopyInfo | undefined {
+export function parseCpPaths(command: string): CopyInfo | undefined {
     const match = command.trim().match(/^cp\s+(\S+)\s+(\S+)$/);
     if (!match) {
         return undefined;
@@ -73,7 +73,7 @@ type ParsedRedirect = {
 // Parse a bash output redirection target: `>>` appends, `>` overwrites/creates. Returns the
 // target and whether it appends, or undefined when there is no redirect. The content is NOT
 // parsed from the command — it is recovered from the file-history sidecar (locked decision 3).
-function parseRedirect(command: string): ParsedRedirect | undefined {
+export function parseRedirect(command: string): ParsedRedirect | undefined {
     const appended = command.match(/>>\s*(\S+)\s*$/);
     if (appended) {
         return { target: new Path(appended[1]!), appends: true };

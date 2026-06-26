@@ -6,6 +6,8 @@ import {
     ToolName,
     AttachmentPayloadType,
     EventKind,
+    Verdict,
+    KNOWN_VERDICTS,
     ENVELOPE_ID_KEYS,
     ENVELOPE_KEYS,
 } from "../src/structures/vocabulary.ts";
@@ -90,6 +92,14 @@ test("test_event_kind_enum_holds_the_observed_wire_strings", () => {
         "user-edit",
         "write",
     ]);
+});
+
+test("test_known_verdicts_contains_every_verdict_member", () => {
+    // Scenario: KNOWN_VERDICTS is the runtime mirror of the Verdict enum — it holds one entry per
+    // member (including the two anchors `ignore` and `scriptExecution`) and nothing more.
+    assert.equal(KNOWN_VERDICTS.length, Object.values(Verdict).length);
+    assert.ok(KNOWN_VERDICTS.includes(Verdict.ignore));
+    assert.ok(KNOWN_VERDICTS.includes(Verdict.scriptExecution));
 });
 
 test("test_envelope_key_groups_mirror_the_envelope_field_names", () => {

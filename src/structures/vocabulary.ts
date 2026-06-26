@@ -118,6 +118,30 @@ export enum EventKind {
     userEdit = "user-edit",
 }
 
+// The classification Step 1 assigns to each raw JSONL line (s37 script-replay diagnostic). Anything
+// not `ignore` lands in the kept partition; the member names the line-class richly enough that a later
+// stage can do the full parse without re-classifying. Same string-enum style as EventKind.
+export enum Verdict {
+    write = "write",
+    edit = "edit",
+    bashFileOp = "bash-file-op",
+    userEdit = "user-edit",
+    editResult = "edit-result",
+    readBeacon = "read-beacon",
+    fileHistorySnapshot = "file-history-snapshot",
+    scriptExecution = "script-execution",
+    ignore = "ignore",
+}
+
+export const KNOWN_VERDICTS: Verdict[] = Object.values(Verdict);
+
+// How a `--details` trace row is rendered: a short content preview, or the whole record
+// pretty-printed. Enum so the renderer compares members, not bare strings (coding-req §4).
+export enum TraceDetailMode {
+    previewOnly = "preview-only",
+    full = "full",
+}
+
 // The role a conversation branch plays in the two-DAG render (s12-write-conv-only-rewrite). The
 // surviving branch holds the on-disk working tree; a rewound branch forked at a rewind point and was
 // abandoned. Same string-enum style as EventKind so the renderer and the CLI speak one vocabulary.

@@ -32,6 +32,7 @@ import {
     findSessionId,
     type BackupReader,
 } from "./reconstruction_sidecar.ts";
+import { parseTraceArgs, runTrace } from "./reconstruction_cli_trace.ts";
 
 const USAGE =
     "usage: reconstruction_cli <transcript.jsonl> [--target <path>] [--count-steps|--step <n>] [--verbose|--diff] [--graphConvo|--graphFile|--surviving|--list-branches|--branch <id>]";
@@ -223,6 +224,8 @@ function renderStep(
 // graph flags take precedence, then the branch selectors, then the surviving content view (the
 // back-compat path for --surviving and for --verbose/--diff with no selector).
 export function runCli(argv: string[]): string {
+    const traced = parseTraceArgs(argv);
+    if (traced !== undefined) return runTrace(traced);
     const options = parseArgs(argv);
     const records = loadTranscript(options.jsonlPath);
     const reader = buildSidecarReader(records);
@@ -244,7 +247,4 @@ export function runCli(argv: string[]): string {
     }
     return renderChosen(branched.surviving, options);
 }
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    console.log(runCli(process.argv.slice(2)));
-}
+if (process.argv[1] === fileURLToPath(import.meta.url)) console.log(runCli(process.argv.slice(2)));
