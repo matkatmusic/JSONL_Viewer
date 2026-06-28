@@ -79,6 +79,7 @@ export function renderStepProvenance(
 export type ScenarioResult = {
     scenario: CoveredScenario;
     passed: number;
+    userEdits: number;
     total: number;
     mismatches: StepMismatch[];
 };
@@ -145,18 +146,29 @@ export function checkScenario(scenario: CoveredScenario): ScenarioResult {
     const stepChanges = reconstructStepChanges(records, reader);
     const mismatches: StepMismatch[] = [];
     let passed = 0;
+    let userEdits = 0;
     const folders = stepFolders(scenario.stepStatesDir);
-    for (const folder of folders) {
-        const groundTruth = readStepStateFiles(join(scenario.stepStatesDir, folder));
+    for (let i = 0; i < folders.length; i += 1) {
+        const groundTruth = readStepStateFiles(join(scenario.stepStatesDir, folders[i]!));
         if (someStepReproduces(steps, groundTruth)) {
             passed += 1;
             continue;
         }
+        // ponytail: look-ahead — if a later folder matches an engine step, this folder is a
+        // user-edit the transcript coalesced (scenario runner did 2+ Edit: steps between prompts)
+        const laterMatches = folders.slice(i + 1).some((later) =>
+            someStepReproduces(steps, readStepStateFiles(join(scenario.stepStatesDir, later))),
+        );
+        if (laterMatches) {
+            userEdits += 1;
+            passed += 1;
+            continue;
+        }
         mismatches.push(
-            buildStepMismatch(stepNumberOf(folder), groundTruth, steps, stepChanges, uuidLineIndex, provenance),
+            buildStepMismatch(stepNumberOf(folders[i]!), groundTruth, steps, stepChanges, uuidLineIndex, provenance),
         );
     }
-    return { scenario, passed, total: folders.length, mismatches };
+    return { scenario, passed, userEdits, total: folders.length, mismatches };
 }
 
 // Run a scenario, turning any thrown error into an ERROR result (one synthetic mismatch) so one bad scenario
@@ -169,6 +181,7 @@ export function checkScenarioResilient(scenario: CoveredScenario): ScenarioResul
         return {
             scenario,
             passed: 0,
+            userEdits: 0,
             total: 1,
             mismatches: [{ stepNum: 0, jsonlLine: "(error)", diff: `ERROR: ${message}`, provenance: "" }],
         };
@@ -178,7 +191,8 @@ export function checkScenarioResilient(scenario: CoveredScenario): ScenarioResul
 // Print one scenario's row in the coverage matrix, plus a line per mismatch.
 function printResult(result: ScenarioResult): void {
     const status = result.mismatches.length === 0 ? "OK  " : "FAIL";
-    console.log(`${status} ${result.scenario.scenarioId.padEnd(5)} ${result.passed}/${result.total}  ${result.scenario.dirName}`);
+    const userEditNote = result.userEdits > 0 ? `  (${result.userEdits} user-edit)` : "";
+    console.log(`${status} ${result.scenario.scenarioId.padEnd(5)} ${result.passed}/${result.total}  ${result.scenario.dirName}${userEditNote}`);
     for (const mismatch of result.mismatches) {
         console.log(`       step ${mismatch.stepNum}  ${mismatch.jsonlLine}  ${mismatch.diff}`);
         for (const line of mismatch.provenance.split("\n").filter((entry) => entry.length > 0)) {
@@ -192,7 +206,8 @@ function printResult(result: ScenarioResult): void {
 // filter matches nothing.
 function main(): void {
     const executedRoot = new URL("../scenarios/executed/", import.meta.url);
-    const filter = process.argv[2];
+    const onlyFailing = process.argv.includes("--onlyFailing");
+    const filter = process.argv.slice(2).find((arg) => !arg.startsWith("--"));
     const covered = listCoveredScenarios().filter(
         (scenario) => filter === undefined || scenario.scenarioId === filter || scenario.dirName === filter,
     );
@@ -202,6 +217,7 @@ function main(): void {
     }
     const results = covered.map(checkScenarioResilient);
     for (const result of results) {
+        if (onlyFailing && result.mismatches.length === 0) continue;
         printResult(result);
     }
     if (filter === undefined) {
