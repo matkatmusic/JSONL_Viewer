@@ -130,9 +130,53 @@ function runsInRecord(record: TranscriptRecord): ScriptRun[] {
     return runs;
 }
 
+// The authored content of the Write in one record whose file basename matches `basename`, else
+// undefined. Content sibling of writtenPathInRecord (which returns the path).
+function writtenContentInRecord(record: TranscriptRecord, basename: string): string | undefined {
+    for (const block of getContentBlocks(record)) {
+        if (block.type !== BlockType.tool_use || block.name !== ToolName.Write) {
+            continue;
+        }
+        const input = block.input as { file_path?: string; content?: string };
+        if (input.file_path !== undefined && pathBasename(input.file_path) === basename) {
+            return input.content;
+        }
+    }
+    return undefined;
+}
+
+// The authored body of the Write that created the file whose basename matches `basename`, or
+// undefined when no such Write exists. The indirection sibling of writtenPathByBasename: a run that
+// merely invokes a script file (`python3 apply_renames.py`) needs the file's CONTENT, not its path.
+function writtenContentByBasename(records: TranscriptRecord[], basename: string): string | undefined {
+    for (const record of records) {
+        const found = writtenContentInRecord(record, basename);
+        if (found !== undefined) {
+            return found;
+        }
+    }
+    return undefined;
+}
+
+// Resolve `python <file>.py` indirection: when a run merely invokes a written Python script (s34/s44
+// run the rename as Bash `python3 apply_renames.py`), the TARGETS/CSV literals the rename-CSV
+// machinery needs live in that file, not in the invoking command. Replace the run's code with the
+// invoked script's authored Write body so parseScriptTargets/csvBasenameOf see the real source. A run
+// that already inlines its code (MCP ctx_execute — s37), or whose invoked file has no Write, is
+// returned unchanged.
+function resolveScriptIndirection(run: ScriptRun, records: TranscriptRecord[]): ScriptRun {
+    const invoked = run.code.match(/\bpython[\d.]*\s+(\S+\.py)\b/);
+    if (invoked === null) {
+        return run;
+    }
+    const body = writtenContentByBasename(records, pathBasename(invoked[1]!));
+    return body === undefined ? run : { ...run, code: body };
+}
+
 // Every script-execution run in the transcript, in record order, each with its source and timestamp.
+// A run that invokes a written script file is resolved to that file's body (resolveScriptIndirection).
 export function findScriptExecutionRuns(records: TranscriptRecord[]): ScriptRun[] {
-    return records.flatMap(runsInRecord);
+    return records.flatMap(runsInRecord).map((run) => resolveScriptIndirection(run, records));
 }
 
 // The final path segment of a "/"-separated path string.

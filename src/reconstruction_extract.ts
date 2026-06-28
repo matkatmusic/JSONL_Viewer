@@ -128,23 +128,27 @@ function bashEventFrom(
     return undefined;
 }
 
-// Turn an Edit tool_use into an edit event, attaching the structuredPatch hunks
+// The per-Edit detail from its result record: structuredPatch hunks + the literal pre-edit content.
+type EditDetail = { hunks: StructuredPatchHunk[]; originalFile: string };
+
+// Turn an Edit tool_use into an edit event, attaching the structuredPatch hunks and pre-edit content
 // reported for it (looked up by tool_use id), or undefined when none are found.
 function editEventFrom(
     block: ToolUseBlock,
     timestamp: Date,
-    hunksById: Map<string, StructuredPatchHunk[]>,
+    detailById: Map<string, EditDetail>,
 ): EditEvent | undefined {
     const input = block.input as { file_path: string };
-    const hunks = hunksById.get(block.id.toString());
-    if (!hunks) {
+    const detail = detailById.get(block.id.toString());
+    if (!detail) {
         return undefined;
     }
     return {
         kind: EventKind.edit,
         changeId: block.id,
         target: new Path(input.file_path),
-        hunks,
+        hunks: detail.hunks,
+        originalFile: detail.originalFile,
         timestamp,
     };
 }
@@ -155,7 +159,7 @@ function editEventFrom(
 function toFileEvent(
     block: ToolUseBlock,
     timestamp: Date,
-    hunksById: Map<string, StructuredPatchHunk[]>,
+    detailById: Map<string, EditDetail>,
     cwd: Path | undefined,
 ): FileEvent | undefined {
     if (block.name === ToolName.Write) {
@@ -165,7 +169,7 @@ function toFileEvent(
         return bashEventFrom(block, timestamp, cwd);
     }
     if (block.name === ToolName.Edit) {
-        return editEventFrom(block, timestamp, hunksById);
+        return editEventFrom(block, timestamp, detailById);
     }
     return undefined;
 }
@@ -173,7 +177,7 @@ function toFileEvent(
 function collectEventsFromRecord(
     record: TranscriptRecord,
     events: FileEvent[],
-    hunksById: Map<string, StructuredPatchHunk[]>,
+    detailById: Map<string, EditDetail>,
 ): void {
     // The single keep/ignore gate: a record the classifier marks `ignore` carries no file evidence,
     // so it can produce no event. Today this is a no-op (extraction already only emits from
@@ -190,7 +194,7 @@ function collectEventsFromRecord(
         if (block.type !== BlockType.tool_use) {
             continue;
         }
-        const event = toFileEvent(block, timestamp, hunksById, cwd);
+        const event = toFileEvent(block, timestamp, detailById, cwd);
         if (event) {
             events.push(event);
         }
@@ -201,23 +205,23 @@ function collectEventsFromRecord(
     }
 }
 
-// Map each Edit's tool_use id -> its structuredPatch hunks, read from the user
+// Map each Edit's tool_use id -> its structuredPatch hunks and pre-edit content, read from the user
 // record that reports the result (toolUseResult), keyed back via tool_use_id.
-function indexEditHunksByToolUseId(
+function indexEditDetailByToolUseId(
     records: TranscriptRecord[],
-): Map<string, StructuredPatchHunk[]> {
+): Map<string, EditDetail> {
     const nameById = indexToolUseNamesById(records);
-    const hunksById = new Map<string, StructuredPatchHunk[]>();
+    const detailById = new Map<string, EditDetail>();
     for (const record of records) {
-        collectEditHunksFromRecord(record, nameById, hunksById);
+        collectEditDetailFromRecord(record, nameById, detailById);
     }
-    return hunksById;
+    return detailById;
 }
 
-function collectEditHunksFromRecord(
+function collectEditDetailFromRecord(
     record: TranscriptRecord,
     nameById: Map<string, string>,
-    hunksById: Map<string, StructuredPatchHunk[]>,
+    detailById: Map<string, EditDetail>,
 ): void {
     for (const block of getContentBlocks(record)) {
         if (block.type !== BlockType.tool_result) {
@@ -228,18 +232,19 @@ function collectEditHunksFromRecord(
             continue;
         }
         const result = record.toolUseResult as EditResult | undefined;
-        if (result) {
-            hunksById.set(block.tool_use_id.toString(), result.structuredPatch);
+        // Require structuredPatch — an Edit result lacking it produced no event before; don't build a hunkless edit.
+        if (result && result.structuredPatch) {
+            detailById.set(block.tool_use_id.toString(), { hunks: result.structuredPatch, originalFile: result.originalFile });
         }
     }
 }
 
 // Extract every file event across the transcript, ordered by timestamp.
 export function extractFileEvents(records: TranscriptRecord[]): FileEvent[] {
-    const hunksById = indexEditHunksByToolUseId(records);
+    const detailById = indexEditDetailByToolUseId(records);
     const events: FileEvent[] = [];
     for (const record of records) {
-        collectEventsFromRecord(record, events, hunksById);
+        collectEventsFromRecord(record, events, detailById);
     }
     return events.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 }

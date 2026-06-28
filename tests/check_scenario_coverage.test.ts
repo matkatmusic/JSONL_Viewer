@@ -9,6 +9,7 @@ import type { ProvenanceEntry } from "../src/reconstruction_provenance.ts";
 import { checkScenario, renderStepProvenance } from "../scripts/check_scenario_coverage.ts";
 import {
     findCoveredScenarios,
+    listCoveredScenarios,
     buildUuidLineIndex,
     readStepStateFiles,
     type CoveredScenario,
@@ -100,6 +101,50 @@ test("test_checkScenario_reports_every_step_passes_for_s19", () => {
         stepStatesDir: S19_STEP_STATES,
     };
     const result = checkScenario(scenario);
+    assert.equal(result.mismatches.length, 0, JSON.stringify(result.mismatches));
+    assert.equal(result.passed, result.total);
+});
+
+// The discovered CoveredScenario for a scenario id, reproducing the sweep's own discovery exactly (all
+// session jsonls merged, the real .step_states dir). Used for the recoverable-gap scenarios — git-baseline
+// s40/s41 especially, whose baseline session must come through the SAME discovery, never hand-excluded.
+function discoverScenario(scenarioId: string): CoveredScenario {
+    const scenario = listCoveredScenarios().find((covered) => covered.scenarioId === scenarioId);
+    assert.ok(scenario, `${scenarioId} should be a covered scenario`);
+    return scenario!;
+}
+
+test("test_checkScenario_reports_every_step_passes_for_s28", () => {
+    // Behavior: every captured step folder of s28 (scoped script rename) is reproduced by some engine step —
+    // catalog_view.py's renamed-no-preview state (load_catalog) is recovered, not the stale pre-rename load_all.
+    const result = checkScenario(discoverScenario("s28"));
+    assert.equal(result.mismatches.length, 0, JSON.stringify(result.mismatches));
+    assert.equal(result.passed, result.total);
+});
+
+test("test_checkScenario_reports_every_step_passes_for_s40", () => {
+    // Behavior: every captured step folder of s40 (git-baseline user edits) is reproduced — orders.py's
+    // intermediate "# reviewed by ops"-only state becomes its own revision, not coalesced into the final echo.
+    const result = checkScenario(discoverScenario("s40"));
+    assert.equal(result.mismatches.length, 0, JSON.stringify(result.mismatches));
+    assert.equal(result.passed, result.total);
+});
+
+test("test_checkScenario_reports_every_step_passes_for_s41", () => {
+    // Behavior: every captured step folder of s41 (git-baseline mid-commit) is reproduced — same intermediate
+    // reviewed-only orders.py revision as s40, surfaced from the distinct earlier in-window backup.
+    const result = checkScenario(discoverScenario("s41"));
+    assert.equal(result.mismatches.length, 0, JSON.stringify(result.mismatches));
+    assert.equal(result.passed, result.total);
+});
+
+test("test_checkScenario_reports_every_step_passes_for_s34", () => {
+    // Behavior: every captured step folder of s34 (script-rename driver-back-and-forth) is reproduced.
+    // The rename runs via `python3 apply_renames.py` (an indirected Bash script), so the clean
+    // post-rename ledger.py (record_entry, no comment) is computed by script replay and surfaces as
+    // its own revision — the out-of-band "# names normalized via rename script" append is NOT spliced
+    // onto that clean step's ledger.py.
+    const result = checkScenario(discoverScenario("s34"));
     assert.equal(result.mismatches.length, 0, JSON.stringify(result.mismatches));
     assert.equal(result.passed, result.total);
 });

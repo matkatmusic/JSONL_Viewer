@@ -74,12 +74,15 @@ export type DeleteEvent = {
     timestamp: Date;
 };
 
-// An in-place Edit; its structuredPatch hunks drive the line splice.
+// An in-place Edit; its structuredPatch hunks drive the line splice. `originalFile` is the literal
+// pre-edit file content the Edit result reports (when present — a later scenario may omit it); it is the
+// exact pre-edit disk, used to recover an out-of-hunk-window append the reconstructed base missed (s40).
 export type EditEvent = {
     kind: EventKind.edit;
     changeId: Uuid;
     target: Path;
     hunks: StructuredPatchHunk[];
+    originalFile?: string;
     timestamp: Date;
 };
 

@@ -7,7 +7,7 @@ import {
     createSidecarReader,
     getDefaultFileHistoryRoot,
     findSessionId,
-} from "../src/reconstruction_sidecar.ts";
+} from "../src/reconstruction_sidecar_reader.ts";
 import { jsonlPathsForScenario, loadRecords } from "./utilities.ts";
 
 const COMMENT = "# names normalized via rename script";

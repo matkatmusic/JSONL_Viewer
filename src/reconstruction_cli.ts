@@ -26,12 +26,12 @@ import {
     reconstructStepStates,
     renderRepoSnapshot,
 } from "./reconstruction_steps.ts";
+import type { BackupReader } from "./reconstruction_sidecar.ts";
 import {
     createSidecarReader,
     getDefaultFileHistoryRoot,
     findSessionId,
-    type BackupReader,
-} from "./reconstruction_sidecar.ts";
+} from "./reconstruction_sidecar_reader.ts";
 import { parseTraceArgs, runTrace } from "./reconstruction_cli_trace.ts";
 
 const USAGE =

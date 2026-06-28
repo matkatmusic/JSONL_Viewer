@@ -119,21 +119,45 @@ function backupIsWithinBound(candidate: WriteEvent, notAfter: Date | undefined):
     return candidate.timestamp.getTime() <= notAfter.getTime();
 }
 
+// The instant a backup-completed user edit most likely landed: the midpoint between the latest backup
+// that still lacks the completed content and the earliest backup that carries it — the tightest bracket
+// the file's OWN snapshots provide. A beacon echoed only at an agent's closeout (s62: orders.py goes
+// quiet after its last edit, so its sole echo lands ~20s late, past the window where a concurrent sibling
+// file still matches its step) would otherwise be dated at that far-off echo/backup time. The bracket
+// midpoint lands inside the real edit window without needing the instruction order. Falls back to the
+// seed's own backup time when no earlier differing backup exists (single-session beacons — s28/s30/s35).
+function bracketMidpointTime(seed: WriteEvent, backups: WriteEvent[]): Date {
+    const firstWith = backups.find((backup) => backup.content === seed.content) ?? seed;
+    let lastWithout: WriteEvent | undefined;
+    for (const backup of backups) {
+        if (backup.timestamp.getTime() < firstWith.timestamp.getTime() && backup.content !== seed.content) {
+            lastWithout = backup;
+        }
+    }
+    if (lastWithout === undefined) {
+        return seed.timestamp;
+    }
+    return new Date((lastWithout.timestamp.getTime() + firstWith.timestamp.getTime()) / 2);
+}
+
 // The synthetic Write completing an ELIDED beacon: the latest file-history backup (taken no later than
-// the next lineage event) whose numbered content matches every visible beacon line. undefined when the
-// beacon is not elided or no backup matches (reader-only; never fabricated).
+// the next lineage event) whose numbered content matches every visible beacon line, re-timed to the
+// bracket midpoint (when the edit most likely landed) rather than the late backup snapshot. undefined
+// when the beacon is not elided or no backup matches (reader-only; never fabricated).
 function elidedBeaconSeed(
     records: TranscriptRecord[],
     beacon: UserEditEvent,
     reader: BackupReader,
     notAfter: Date | undefined,
+    lineage: FileEvent[],
 ): WriteEvent | undefined {
     const snippet = beaconSnippetFor(records, beacon.changeId);
     if (snippet === undefined || !beaconIsElided(snippet)) {
         return undefined;
     }
+    const backups = backupWritesFor(records, beacon.target, reader);
     let match: WriteEvent | undefined;
-    for (const candidate of backupWritesFor(records, beacon.target, reader)) {
+    for (const candidate of backups) {
         if (!backupIsWithinBound(candidate, notAfter)) {
             continue;
         }
@@ -141,7 +165,24 @@ function elidedBeaconSeed(
             match = candidate; // time-ascending; keep the latest in-bound version consistent with the window
         }
     }
-    return match;
+    if (match === undefined) {
+        return undefined;
+    }
+    // Only a TERMINAL beacon (no later lineage event) can be a closeout-stale echo dated long after the
+    // edit; a mid-stream beacon's echo already sits near the real edit. Even then, only pull it back to the
+    // bracket midpoint if no real same-file edit sits between — else the retimed completion would land
+    // before that edit, which then reverts it (s56: a windowed echo following a tracked edit).
+    const midpoint = bracketMidpointTime(match, backups);
+    const crossesEdit = lineage.some(
+        (event) =>
+            event !== beacon &&
+            event.timestamp.getTime() > midpoint.getTime() &&
+            event.timestamp.getTime() < beacon.timestamp.getTime(),
+    );
+    if (notAfter !== undefined || midpoint.getTime() >= beacon.timestamp.getTime() || crossesEdit) {
+        return match;
+    }
+    return { ...match, timestamp: midpoint };
 }
 
 // Record that an elided-beacon completion fired, tagging the beacon (its changeId) and the backup time used.
@@ -168,16 +209,22 @@ export function completeElidedBeacons(
     const result: FileEvent[] = [];
     for (let index = 0; index < events.length; index += 1) {
         const event = events[index]!;
-        result.push(event);
         if (event.kind !== EventKind.userEdit) {
+            result.push(event);
             continue;
         }
-        const next = events[index + 1];
-        const seed = elidedBeaconSeed(records, event, reader, next?.timestamp);
-        if (seed) {
-            noteElidedSeed(event, seed);
-            result.push(seed);
+        const seed = elidedBeaconSeed(records, event, reader, events[index + 1]?.timestamp, events);
+        if (seed === undefined) {
+            result.push(event);
+            continue;
         }
+        // When the seed was pulled EARLIER than the beacon's echo (a terminal closeout-stale beacon),
+        // move the beacon to that instant too: left at its late echo time, its WINDOWED content would be
+        // the file's latest revision after the (now earlier) seed, masking it. Otherwise leave it put.
+        const beacon = seed.timestamp.getTime() < event.timestamp.getTime() ? { ...event, timestamp: seed.timestamp } : event;
+        noteElidedSeed(event, seed);
+        result.push(beacon);
+        result.push(seed);
     }
     return result;
 }

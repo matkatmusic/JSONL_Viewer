@@ -12,7 +12,7 @@ import {
     createSidecarReader,
     getDefaultFileHistoryRoot,
     findSessionId,
-} from "../src/reconstruction_sidecar.ts";
+} from "../src/reconstruction_sidecar_reader.ts";
 import { loadRecords } from "./utilities.ts";
 import { S19_JSONL } from "./fixtures.ts";
 

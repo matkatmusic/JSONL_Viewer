@@ -185,3 +185,44 @@ export function applyEdit(event: EditEvent, revisions: FileRevision[]): void {
         }
     }
 }
+
+// Un-apply one hunk against POST-edit content: at newStart-1 the hunk's new-side region (' ' and '+'
+// lines) sits in `afterLines`; replace it with the old-side region (' ' and '-' lines) to recover the
+// pre-hunk lines. Returns undefined when the after content does not carry the hunk's ' '/'+' lines where
+// newStart says — the after-backup is the wrong blob, so never fabricate.
+function unapplyHunkAgainstAfter(afterLines: string[], hunk: StructuredPatchHunk): string[] | undefined {
+    const head = afterLines.slice(0, hunk.newStart - 1);
+    const preEditRegion: string[] = [];
+    let afterIndex = hunk.newStart - 1;
+    for (const line of hunk.lines) {
+        const text = line.slice(1);
+        if (line.startsWith("-")) {
+            preEditRegion.push(text); // removed by the edit, so present pre-edit; absent from after
+            continue;
+        }
+        // ' ' and '+' both occupy an after line; it must match here, else the after-backup is the wrong blob.
+        if (afterLines[afterIndex] !== text) {
+            return undefined;
+        }
+        afterIndex += 1;
+        if (!line.startsWith("+")) {
+            preEditRegion.push(text); // a context line survives into the pre-edit region too
+        }
+    }
+    return [...head, ...preEditRegion, ...afterLines.slice(afterIndex)];
+}
+
+// The pre-edit lines recovered by un-applying ALL of `event`'s hunks against post-edit `afterLines`,
+// latest hunk first so earlier hunks' indices stay valid. undefined when any hunk fails to match (the
+// after content is the wrong blob — recover nothing rather than fabricate).
+export function reverseEditFromAfter(afterLines: string[], event: EditEvent): string[] | undefined {
+    let lines = afterLines;
+    for (let index = event.hunks.length - 1; index >= 0; index -= 1) {
+        const reversed = unapplyHunkAgainstAfter(lines, event.hunks[index]!);
+        if (reversed === undefined) {
+            return undefined;
+        }
+        lines = reversed;
+    }
+    return lines;
+}

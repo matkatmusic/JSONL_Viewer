@@ -4,9 +4,6 @@
 // backup blob holding the file's full new content. Blobs live at
 // <root>/<sessionId>/<backupFileName>; backupFileName already embeds hash@vN, so no hashing.
 // The reader is injected so the engine stays pure and tests use an in-memory map.
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { readFileSync } from "node:fs";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { getFileHistorySnapshot } from "./structures/file-history.ts";
 import { Path, Uuid } from "./structures/domain.ts";
@@ -15,9 +12,10 @@ import { resolveAgainstCwd } from "./structures/path-resolve.ts";
 import { noteStage } from "./reconstruction_provenance.ts";
 import type { FileEvent, WriteEvent } from "./reconstruction_engine.ts";
 
-export type BackupReader = (backupFileName: Path) => string;
+// sessionId names the owning file-history dir: a merged multi-session transcript reuses `@vN` blob names.
+export type BackupReader = (backupFileName: Path, sessionId?: Uuid) => string;
 
-type BackupPoint = { backupTime: Date; backupFileName: Path | null };
+type BackupPoint = { backupTime: Date; backupFileName: Path | null; sessionId?: Uuid };
 
 // The transcript's working directory, used to make the snapshots' cwd-relative paths
 // absolute. file-history-snapshot records carry none, so scan for the first record that
@@ -38,7 +36,10 @@ function buildBackupTimeline(
     cwd: Path | undefined,
 ): Map<string, BackupPoint[]> {
     const timeline = new Map<string, BackupPoint[]>();
+    // snapshot records carry no sessionId; the owner is the latest envelope sessionId seen so far.
+    let session: Uuid | undefined;
     for (const record of records) {
+        session = (record as { sessionId?: Uuid }).sessionId ?? session;
         const message = getFileHistorySnapshot(record);
         if (!message) {
             continue;
@@ -46,7 +47,7 @@ function buildBackupTimeline(
         for (const [path, backup] of message.snapshot.trackedFileBackups.entries()) {
             const key = resolveAgainstCwd(cwd, path);
             const points = timeline.get(key) ?? [];
-            points.push({ backupTime: backup.backupTime, backupFileName: backup.backupFileName });
+            points.push({ backupTime: backup.backupTime, backupFileName: backup.backupFileName, sessionId: session });
             timeline.set(key, points);
         }
     }
@@ -151,8 +152,33 @@ export function backupSeedWriteFor(
         kind: EventKind.write,
         changeId: new Uuid(base.backupFileName.toString()),
         target,
-        content: reader(base.backupFileName),
+        content: reader(base.backupFileName, base.sessionId),
         timestamp: base.backupTime,
+    };
+}
+
+// A synthetic Write of `target`'s content from the FIRST file-history backup taken strictly AFTER
+// `when`. The source for reversing an edit to recover its pre-edit base when the sidecar holds no
+// at-or-before full content (s28: a scoped rename leaves no per-file Write, so catalog_view.py's only
+// full content is the post-preview-edit backup). undefined when no later backup blob exists.
+export function backupAfterWriteFor(
+    records: TranscriptRecord[],
+    target: Path,
+    when: Date,
+    reader: BackupReader,
+): WriteEvent | undefined {
+    const cwd = findCwd(records);
+    const timeline = buildBackupTimeline(records, cwd);
+    const after = findBackupPointAfter(timeline, cwd, target, when);
+    if (after === undefined || after.backupFileName === null) {
+        return undefined;
+    }
+    return {
+        kind: EventKind.write,
+        changeId: new Uuid(after.backupFileName.toString()),
+        target,
+        content: reader(after.backupFileName, after.sessionId),
+        timestamp: after.backupTime,
     };
 }
 
@@ -177,7 +203,7 @@ export function backupWritesFor(
             kind: EventKind.write,
             changeId: new Uuid(point.backupFileName.toString()),
             target,
-            content: reader(point.backupFileName),
+            content: reader(point.backupFileName, point.sessionId),
             timestamp: point.backupTime,
         });
     }
@@ -220,27 +246,4 @@ export function fillRedirectContent(
         noteStage({ stage: "fillRedirectContent", target: event.target, changeId: event.changeId, detail: `filled ${event.kind} content from the file-history backup` });
         return { ...event, content: reader(backupFileName) };
     });
-}
-
-// The default on-disk reader: <root>/<sessionId>/<backupFileName>.
-export function createSidecarReader(sessionId: Uuid, root: Path): BackupReader {
-    return (backupFileName) =>
-        readFileSync(join(root.toString(), sessionId.toString(), backupFileName.toString()), "utf8");
-}
-
-// Claude Code's default file-history root: ~/.claude/file-history.
-export function getDefaultFileHistoryRoot(): Path {
-    return new Path(join(homedir(), ".claude", "file-history"));
-}
-
-// The session id from the transcript's envelope records (the file-history dir is named for
-// it). file-history-snapshot records carry none, so scan for the first that has one.
-export function findSessionId(records: TranscriptRecord[]): Uuid | undefined {
-    for (const record of records) {
-        const sessionId = (record as { sessionId?: Uuid }).sessionId;
-        if (sessionId) {
-            return sessionId;
-        }
-    }
-    return undefined;
 }

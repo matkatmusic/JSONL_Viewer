@@ -14,10 +14,11 @@
 
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import type { Path } from "./structures/domain.ts";
+import { Uuid } from "./structures/domain.ts";
 import { EventKind } from "./structures/vocabulary.ts";
 import { replayEvents } from "./reconstruction_replay.ts";
-import { lastLinesOf, splitLines } from "./reconstruction_replay_edit.ts";
-import { backupSeedWriteFor } from "./reconstruction_sidecar.ts";
+import { lastLinesOf, splitLines, reverseEditFromAfter } from "./reconstruction_replay_edit.ts";
+import { backupSeedWriteFor, backupAfterWriteFor } from "./reconstruction_sidecar.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
 import { noteStage } from "./reconstruction_provenance.ts";
 import type { EditEvent, FileEvent, WriteEvent } from "./reconstruction_engine.ts";
@@ -75,6 +76,24 @@ function lastPriorTimeFor(target: Path, priorEvents: FileEvent[]): Date | undefi
     return latest;
 }
 
+// A synthetic Write of an edit's literal pre-edit content (its result's `originalFile`), or undefined when
+// the result omitted it. This is the exact pre-edit disk — used to recover an out-of-hunk-window trailing
+// append the reconstructed base missed (s40: the user's "# reviewed by ops" line). The changeId is
+// synthetic so the seed stays out of the graphs (spec 40); the timestamp is the edit's, which
+// seedBeforeEdit pulls to just before the edit when this seed is used.
+function originalFileSeedFor(event: EditEvent): WriteEvent | undefined {
+    if (event.originalFile === undefined) {
+        return undefined;
+    }
+    return {
+        kind: EventKind.write,
+        changeId: new Uuid(`originalFile:${event.changeId}`),
+        target: event.target,
+        content: event.originalFile,
+        timestamp: event.timestamp,
+    };
+}
+
 // s34: an Edit whose hunk context matches the reconstructed base (so editBaseIsStale is FALSE) but whose
 // real pre-edit disk state carried an UNCAPTURED manual change OUTSIDE the hunk window (a trailing append
 // left no `edited_text_file` beacon and no tool_use). The drift is invisible to the hunk-context test, so
@@ -88,21 +107,63 @@ function outOfWindowEditSeed(
     priorEvents: FileEvent[],
     reader: BackupReader,
 ): WriteEvent | undefined {
-    const seed = backupSeedWriteFor(records, event.target, event.timestamp, reader);
-    if (seed === undefined) {
-        return undefined;
-    }
-    const lastPrior = lastPriorTimeFor(event.target, priorEvents);
-    if (lastPrior !== undefined && seed.timestamp.getTime() <= lastPrior.getTime()) {
-        return undefined;
-    }
-    const seedLines = splitLines(seed.content);
     const base = reconstructedBaseText(priorEvents);
-    const unchanged = seedLines.length === base.length && seedLines.every((line, index) => line === base[index]);
-    if (unchanged || !firstHunkMatchesBase(event, seedLines)) {
+    // Two sources for the real pre-edit disk, each forward-validated the same way (the candidate must
+    // EXTEND the reconstructed base by a trailing append — base is its prefix — AND the hunk must still
+    // splice cleanly; a mid-file divergence is a STALE older version, s70, and is rejected, never
+    // fabricated). The at/before file-history backup (s34: the uncaptured append predates the edit), then
+    // the edit's OWN `originalFile` — the literal pre-edit content (s40: the user's "# reviewed by ops"
+    // append was snapshotted 46ms AFTER the subtotal Edit, so no at/before backup holds it, but the edit
+    // result records the exact pre-edit file). originalFile is exact, so it cannot false-match a later
+    // backup the way a strictly-after backup would. seedBeforeEdit re-times the seed to just before the
+    // edit, so the recovered append becomes its own revision (s40 step-4) and the edit replays on it (step-5).
+    const backup = backupSeedWriteFor(records, event.target, event.timestamp, reader);
+    const original = originalFileSeedFor(event);
+    for (const seed of [backup, original]) {
+        if (seed === undefined) {
+            continue;
+        }
+        const lastPrior = lastPriorTimeFor(event.target, priorEvents);
+        if (lastPrior !== undefined && seed.timestamp.getTime() <= lastPrior.getTime()) {
+            continue;
+        }
+        const seedLines = splitLines(seed.content);
+        const extendsBase = seedLines.length > base.length && base.every((line, index) => line === seedLines[index]);
+        if (extendsBase && firstHunkMatchesBase(event, seedLines)) {
+            return seed;
+        }
+    }
+    return undefined;
+}
+
+// The pre-edit base recovered by reversing `event` off its after-backup, forward-validated: the reversed
+// base must be a clean splice target for the edit's first hunk, else the after-backup is the wrong blob and
+// we fall through. Recovers s28's renamed-no-preview catalog_view.py, which exists in no standalone backup
+// (the at-or-before backup is the pre-rename version, and the only full post-rename content is the
+// after-backup carrying the preview Edit). Reader-only; never fabricated.
+function reversedEditBaseSeed(
+    records: TranscriptRecord[],
+    event: EditEvent,
+    reader: BackupReader,
+): WriteEvent | undefined {
+    const after = backupAfterWriteFor(records, event.target, event.timestamp, reader);
+    if (after === undefined) {
         return undefined;
     }
-    return seed;
+    const reversed = reverseEditFromAfter(splitLines(after.content), event);
+    if (reversed === undefined || !firstHunkMatchesBase(event, reversed)) {
+        return undefined;
+    }
+    // Reverse only when an at-or-before backup ALSO exists but holds DIFFERENT content than the reversed
+    // base — the rename-between-backups signature unique to s28 (at/before is the stale pre-rename version,
+    // and reversing the after-backup recovers the renamed-no-preview base it lacks). When no at/before
+    // backup exists, the old after-fallback already yields the right base (s25/m6 geo_report), so leave it.
+    const reversedContent = reversed.join("\n") + "\n";
+    const atOrBefore = backupSeedWriteFor(records, event.target, event.timestamp, reader);
+    if (atOrBefore === undefined || atOrBefore.content === reversedContent) {
+        return undefined;
+    }
+    return { ...after, content: reversedContent };
 }
 
 // The synthetic backup-seed Write to splice before `event`, or undefined when its base is intact (the
@@ -120,7 +181,8 @@ function staleEditSeedFor(
         return undefined;
     }
     if (editBaseIsStale(event, priorEvents)) {
-        return backupSeedWriteFor(records, event.target, event.timestamp, reader, true); // s19/s23/m6
+        return reversedEditBaseSeed(records, event, reader)                              // s28
+            ?? backupSeedWriteFor(records, event.target, event.timestamp, reader, true); // s19/s23/m6
     }
     return outOfWindowEditSeed(records, event, priorEvents, reader); // s34
 }

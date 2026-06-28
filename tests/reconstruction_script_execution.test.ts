@@ -19,7 +19,7 @@ import {
     createSidecarReader,
     getDefaultFileHistoryRoot,
     findSessionId,
-} from "../src/reconstruction_sidecar.ts";
+} from "../src/reconstruction_sidecar_reader.ts";
 
 // A synthetic tool_use block of `name` carrying `input` — for the run-detection predicate.
 function toolUse(name: ToolName, input: Record<string, unknown>): ToolUseBlock {

@@ -10,7 +10,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { TranscriptRecord } from "../src/structures/envelope.ts";
 import type { Uuid } from "../src/structures/domain.ts";
-import { getDefaultFileHistoryRoot, type BackupReader } from "../src/reconstruction_sidecar.ts";
+import type { BackupReader } from "../src/reconstruction_sidecar.ts";
+import { getDefaultFileHistoryRoot } from "../src/reconstruction_sidecar_reader.ts";
 
 // The distinct session ids across the merged records, in first-seen order. A multi-session scenario carries
 // several; each session's backups live under its OWN file-history dir, so the reader must know all of them.
@@ -37,9 +38,12 @@ export function buildSidecarReader(records: TranscriptRecord[]): BackupReader | 
         return undefined;
     }
     const root = getDefaultFileHistoryRoot().toString();
-    return (backupFileName) => {
+    return (backupFileName, sessionId) => {
         const name = backupFileName.toString();
-        const owner = sessionIds.find((id) => existsSync(join(root, id.toString(), name)));
+        // The engine passes the snapshot's OWNING session: across merged sessions the same `@vN` blob name
+        // recurs with different content, so we MUST read the owner's copy. Fall back to a first-existing
+        // search only when the owner is unknown (single-session or a pre-sessionId caller).
+        const owner = sessionId ?? sessionIds.find((id) => existsSync(join(root, id.toString(), name)));
         return readFileSync(join(root, (owner ?? sessionIds[0]!).toString(), name), "utf8");
     };
 }
