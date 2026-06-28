@@ -2,8 +2,9 @@
 // running the pre-script state through the actual script (in a temp dir) and comparing the result
 // to the expected post-execution state derived from the file-history beacon.
 
+import { randomUUID } from "node:crypto";
 import { EventKind } from "./structures/vocabulary.ts";
-import type { Path } from "./structures/domain.ts";
+import { Uuid, type Path } from "./structures/domain.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { splitLines } from "./reconstruction_replay_edit.ts";
 import { noteStage } from "./reconstruction_provenance.ts";
@@ -115,12 +116,12 @@ function scriptExecutionForBeacon(
     return undefined;
 }
 
-function noteInjection(event: ScriptExecutionEvent): void {
+function noteInjection(event: ScriptExecutionEvent, detail: string): void {
     noteStage({
         stage: "injectScriptExecutions",
         target: event.target,
         changeId: event.changeId,
-        detail: "replaced a script-echo user-edit beacon with the validated forward transform",
+        detail,
         when: event.timestamp,
     });
 }
@@ -134,18 +135,68 @@ function rebuiltEvent(
     if (event.kind !== EventKind.userEdit) return event;
     const replacement = scriptExecutionForBeacon(event, runs, records, reader);
     if (replacement === undefined) return event;
-    noteInjection(replacement);
+    noteInjection(replacement, "replaced a script-echo user-edit beacon with the validated forward transform");
     return replacement;
 }
 
+// When a script modifies a file but no user-edit beacon echoes the result (e.g. multi-session
+// baseline+main where the baseline Write predates the script run), detect the modification by
+// running the script and inject a ScriptExecutionEvent directly.
+function beaconlessScriptExecution(
+    target: Path,
+    runs: ScriptRun[],
+    records: TranscriptRecord[],
+    reader: BackupReader,
+): ScriptExecutionEvent | undefined {
+    const targetStr = target.toString();
+    const basename = targetStr.split("/").pop() ?? "";
+    for (const run of runs) {
+        if (!run.code.includes(basename)) continue;
+        const preState = getPreExecutionState(run, records, reader);
+        if (preState.size === 0) continue;
+        const postState = runScriptAgainstState(run.code, preState);
+        if (postState === undefined) continue;
+        const ref = [...preState.keys()].find(
+            (r) => targetStr === r || targetStr.endsWith(`/${r}`),
+        );
+        if (ref === undefined) continue;
+        const pre = preState.get(ref);
+        const post = postState.get(ref);
+        if (!pre || !post || pre === post) continue;
+        return {
+            kind: EventKind.scriptExecution,
+            changeId: new Uuid(randomUUID()),
+            target,
+            content: post,
+            timestamp: run.timestamp,
+        };
+    }
+    return undefined;
+}
+
 // Reconstruction stage: replace each user-edit beacon that is the validated echo of a script-execution
-// run with a synthetic ScriptExecutionEvent. Falls back to completeElidedBeacons on mismatch.
+// run with a synthetic ScriptExecutionEvent, OR inject a new event when the script modified a file
+// that has no beacon (multi-session transcripts where the baseline Write predates the script run).
 export function injectScriptExecutions(
     records: TranscriptRecord[],
     events: FileEvent[],
     reader: BackupReader,
+    target?: Path,
 ): FileEvent[] {
     const runs = findScriptExecutionRuns(records);
     if (runs.length === 0) return events;
-    return events.map((event) => rebuiltEvent(event, runs, records, reader));
+    let anyReplaced = false;
+    const result = events.map((event) => {
+        const rebuilt = rebuiltEvent(event, runs, records, reader);
+        if (rebuilt !== event) anyReplaced = true;
+        return rebuilt;
+    });
+    if (anyReplaced || target === undefined) return result;
+    const injection = beaconlessScriptExecution(target, runs, records, reader);
+    if (injection === undefined) return result;
+    noteInjection(injection, "injected script-execution effect for a file with no user-edit beacon");
+    const insertAt = result.findIndex((e) => e.timestamp > injection.timestamp);
+    if (insertAt < 0) result.push(injection);
+    else result.splice(insertAt, 0, injection);
+    return result;
 }

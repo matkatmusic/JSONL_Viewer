@@ -50,7 +50,7 @@ export function reconstructFileOver(
     const seeded = seedCopyEvents(records, lineage, resolving, reader);
     const filled = reader ? fillRedirectContent(records, seeded, reader) : seeded;
     const based = reader ? seedEditBaseFromBackup(records, filled, reader) : filled;
-    const scripted = reader ? injectScriptExecutions(records, based, reader) : based;
+    const scripted = reader ? injectScriptExecutions(records, based, reader, finalTarget) : based;
     const unelided = reader ? completeElidedBeacons(records, scripted, reader) : scripted;
     const restaged = reader ? seedStaleEditBases(records, unelided, reader) : unelided;
     const completed = reader ? completeTruncatedBeacon(records, restaged, reader) : restaged;
