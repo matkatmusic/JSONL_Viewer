@@ -1,19 +1,16 @@
-// Script-execution replay (s37-script-rename-driver-back-and-forth-mcp), part 1 of 2: the event type,
-// the rename transform, run detection, and transform derivation. A recorded script run — a Bash
-// command or an MCP ctx_execute/ctx_batch_execute — transforms many tracked files at time T but leaves
-// NO per-file Write/Edit in the transcript. This module turns a run into the substitutions it applies
-// and the forward transform; the reconstruction stage that validates and injects it lives in
-// reconstruction_script_stage.ts (split to keep both within the 250-line cap — split, never condense).
-// Design: ~/.claude/plans/task-implement-script-replay-partitioned-puppy.md + this session's algorithm.
+// Script-execution replay, part 1 of 2: event types, run detection, indirection resolution, and the
+// forward-execution pipeline (getPreExecutionState + runScriptAgainstState). The validation/injection
+// stage lives in reconstruction_script_stage.ts.
 
 import { BlockType, EventKind, ToolName } from "./structures/vocabulary.ts";
 import { Path, type Uuid } from "./structures/domain.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { getContentBlocks, type ToolUseBlock } from "./structures/content-blocks.ts";
 import { backupSeedWriteFor, type BackupReader } from "./reconstruction_sidecar.ts";
-
-// One whole-token substitution a rename-script run applies: every `\bold\b` becomes `new`.
-export type RenameSub = { old: string; new: string };
+import { execSync } from "node:child_process";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, mkdirSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { tmpdir } from "node:os";
 
 // The proven post-execution state of a script run for one target file: the forward transform already
 // applied to the pre-script content. Injected as a synthetic authored event at the run's timestamp and
@@ -27,60 +24,6 @@ export type ScriptExecutionEvent = {
     content: string;
     timestamp: Date;
 };
-
-// --- transform derivation (the rename-CSV script-type) ----------------------------------------------
-
-// Parse a renames CSV (`old,new` header + rows) into whole-token substitutions. Blank lines are
-// skipped (a trailing newline is harmless) and the `old,new` header row is dropped.
-export function parseRenameSubs(csvContent: string): RenameSub[] {
-    const rows = csvContent
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
-    const subs: RenameSub[] = [];
-    for (const row of rows) {
-        const [oldToken, newToken] = row.split(",");
-        if (oldToken === undefined || newToken === undefined) {
-            continue;
-        }
-        if (oldToken === "old" && newToken === "new") {
-            continue;
-        }
-        subs.push({ old: oldToken, new: newToken });
-    }
-    return subs;
-}
-
-// The target file paths a script run rewrites: the quoted strings in its `TARGETS = ...` line. Works
-// whether TARGETS is a literal list (`["a.py", "b.py"]`) or a comprehension over one
-// (`[os.path.join(BASE, p) for p in ["a.py", "b.py"]]`) — only the relative names are quoted, so an
-// absolute BASE prefix (a bare variable) is ignored. Relative names match the engine's cwd-resolved
-// targets.
-export function parseScriptTargets(code: string): Path[] {
-    const assignment = code.match(/TARGETS\s*=\s*(.+)/);
-    if (!assignment) {
-        return [];
-    }
-    const quoted = assignment[1]!.match(/"([^"]+)"/g) ?? [];
-    return quoted.map((token) => new Path(token.slice(1, -1)));
-}
-
-// Escape a literal string for safe use inside a RegExp pattern.
-export function escapeRegExp(value: string): string {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-// Apply each whole-token substitution across the joined text: `\bold\b` -> `new`, case-sensitive.
-// This is the forward script transform — the same `re.sub(rf"\b{re.escape(old)}\b", new, text)` the
-// recorded run performs.
-export function applyRenameSubs(lines: string[], subs: RenameSub[]): string[] {
-    let text = lines.join("\n");
-    for (const sub of subs) {
-        const pattern = new RegExp(`\\b${escapeRegExp(sub.old)}\\b`, "g");
-        text = text.replace(pattern, sub.new);
-    }
-    return text.split("\n");
-}
 
 // --- run detection ----------------------------------------------------------------------------------
 
@@ -130,46 +73,76 @@ function runsInRecord(record: TranscriptRecord): ScriptRun[] {
     return runs;
 }
 
-// The authored content of the Write in one record whose file basename matches `basename`, else
-// undefined. Content sibling of writtenPathInRecord (which returns the path).
-function writtenContentInRecord(record: TranscriptRecord, basename: string): string | undefined {
-    for (const block of getContentBlocks(record)) {
-        if (block.type !== BlockType.tool_use || block.name !== ToolName.Write) {
-            continue;
-        }
-        const input = block.input as { file_path?: string; content?: string };
-        if (input.file_path !== undefined && pathBasename(input.file_path) === basename) {
-            return input.content;
-        }
-    }
-    return undefined;
-}
-
-// The authored body of the Write that created the file whose basename matches `basename`, or
-// undefined when no such Write exists. The indirection sibling of writtenPathByBasename: a run that
-// merely invokes a script file (`python3 apply_renames.py`) needs the file's CONTENT, not its path.
+// The authored body of the Write whose file basename matches `basename`, or undefined.
 function writtenContentByBasename(records: TranscriptRecord[], basename: string): string | undefined {
     for (const record of records) {
-        const found = writtenContentInRecord(record, basename);
-        if (found !== undefined) {
-            return found;
+        for (const block of getContentBlocks(record)) {
+            if (block.type !== BlockType.tool_use || block.name !== ToolName.Write) continue;
+            const input = block.input as { file_path?: string; content?: string };
+            if (input.file_path !== undefined && pathBasename(input.file_path) === basename) return input.content;
         }
     }
     return undefined;
 }
 
-// Resolve `python <file>.py` indirection: when a run merely invokes a written Python script (s34/s44
-// run the rename as Bash `python3 apply_renames.py`), the TARGETS/CSV literals the rename-CSV
-// machinery needs live in that file, not in the invoking command. Replace the run's code with the
-// invoked script's authored Write body so parseScriptTargets/csvBasenameOf see the real source. A run
-// that already inlines its code (MCP ctx_execute — s37), or whose invoked file has no Write, is
-// returned unchanged.
+// Resolve script-file indirection: when a run merely invokes a written script file, replace
+// the run's code with the invoked file's authored Write body. Handles two forms:
+//   1. Direct invocation: `python3 script.py`, `bash script.sh`, `node script.js`, `npx tsx script.ts`
+//   2. exec(open()) indirection: MCP ctx_execute wraps a script as `exec(open("file.py").read())`
+// A run that already inlines its code, or whose invoked file has no Write, is returned unchanged.
+// The script file extensions we resolve through indirection.
+const SCRIPT_EXTENSIONS = [".py", ".sh", ".js", ".ts"];
+
+// Whether a filename ends with a known script extension.
+function isScriptFile(name: string): boolean {
+    return SCRIPT_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
+
+// Extract the invoked script filename from a direct-invocation command like
+// `python3 script.py`, `bash script.sh`, `node script.js`, `npx tsx script.ts`.
+function parseDirectInvocation(code: string): string | undefined {
+    const runners = ["python3", "python", "bash", "sh", "node", "npx tsx"];
+    for (const runner of runners) {
+        if (!code.includes(runner)) {
+            continue;
+        }
+        const after = code.slice(code.indexOf(runner) + runner.length).trimStart();
+        const filename = after.split(/\s/)[0] ?? "";
+        if (isScriptFile(filename)) {
+            return filename;
+        }
+    }
+    return undefined;
+}
+
+// Extract the script filename from an exec(open()) wrapper like
+// `exec(open("rename_inv.py").read())` — the MCP ctx_execute form.
+function parseExecOpenIndirection(code: string): string | undefined {
+    const marker = 'exec(open("';
+    let start = code.indexOf(marker);
+    if (start < 0) {
+        start = code.indexOf("exec(open('");
+        if (start < 0) {
+            return undefined;
+        }
+        start += "exec(open('".length;
+    } else {
+        start += marker.length;
+    }
+    const end = code.indexOf('"', start) !== -1 ? code.indexOf('"', start) : code.indexOf("'", start);
+    if (end < 0) {
+        return undefined;
+    }
+    const filename = code.slice(start, end);
+    return isScriptFile(filename) ? filename : undefined;
+}
+
 function resolveScriptIndirection(run: ScriptRun, records: TranscriptRecord[]): ScriptRun {
-    const invoked = run.code.match(/\bpython[\d.]*\s+(\S+\.py)\b/);
-    if (invoked === null) {
+    const filename = parseDirectInvocation(run.code) ?? parseExecOpenIndirection(run.code);
+    if (filename === undefined) {
         return run;
     }
-    const body = writtenContentByBasename(records, pathBasename(invoked[1]!));
+    const body = writtenContentByBasename(records, pathBasename(filename));
     return body === undefined ? run : { ...run, code: body };
 }
 
@@ -185,60 +158,69 @@ function pathBasename(value: string): string {
     return slash >= 0 ? value.slice(slash + 1) : value;
 }
 
-// The basename of the first `*.csv` literal a script references, or undefined when it references none
-// (then it is not the rename-CSV script-type — the one script-type modelled so far).
-function csvBasenameOf(code: string): string | undefined {
-    const match = code.match(/"([^"]*\.csv)"/);
-    return match ? pathBasename(match[1]!) : undefined;
-}
-
-// The absolute file_path of the Write in one record whose basename matches `basename`, or undefined.
-function writtenPathInRecord(record: TranscriptRecord, basename: string): Path | undefined {
-    for (const block of getContentBlocks(record)) {
-        if (block.type !== BlockType.tool_use || block.name !== ToolName.Write) {
-            continue;
-        }
-        const filePath = (block.input as { file_path?: string }).file_path;
-        if (filePath !== undefined && pathBasename(filePath) === basename) {
-            return new Path(filePath);
-        }
-    }
-    return undefined;
-}
-
-// The absolute path of the tracked file whose basename matches `basename`, taken from the Write that
-// created it (the rename CSV lives beside the targets). undefined when no such Write exists.
-function writtenPathByBasename(records: TranscriptRecord[], basename: string): Path | undefined {
+// The absolute path of the tracked file whose basename matches `basename`, from any tool_use block.
+function resolvePathByBasename(records: TranscriptRecord[], basename: string): Path | undefined {
     for (const record of records) {
-        const found = writtenPathInRecord(record, basename);
-        if (found !== undefined) {
-            return found;
+        for (const block of getContentBlocks(record)) {
+            if (block.type !== BlockType.tool_use) continue;
+            const filePath = (block.input as { file_path?: string }).file_path;
+            if (filePath !== undefined && pathBasename(filePath) === basename) return new Path(filePath);
         }
     }
     return undefined;
 }
 
-// The whole-token substitutions a rename-CSV run applies, recovered from the run's CSV as of the run
-// time. The CSV's file-history backup is the on-disk data input — preferred over the transcript Write,
-// which can be stale (s37's recorded Write holds 2 rows but the file ran with 4). undefined when the
-// run is not the rename-CSV script-type or its CSV cannot be recovered.
-export function deriveRenameSubs(
+// --- forward execution pipeline --------------------------------------------------------------------
+
+// All file-path-like quoted strings in the script source (e.g. "billing.py", "renames.csv").
+export function parseScriptFileRefs(code: string): string[] {
+    const matches = code.match(/"([^"]+\.[a-z]{1,4})"/g) ?? [];
+    return [...new Set(matches.map((m) => m.slice(1, -1)))];
+}
+
+// The pre-execution state of all files a script references, keyed by the relative path the script
+// uses. Each file's content is recovered from the file-history backup at or before the run time.
+export function getPreExecutionState(
     run: ScriptRun,
     records: TranscriptRecord[],
     reader: BackupReader,
-): RenameSub[] | undefined {
-    const basename = csvBasenameOf(run.code);
-    if (basename === undefined) {
-        return undefined;
+): Map<string, string> {
+    const state = new Map<string, string>();
+    for (const ref of parseScriptFileRefs(run.code)) {
+        const absPath = resolvePathByBasename(records, pathBasename(ref));
+        if (absPath === undefined) continue;
+        const seed = backupSeedWriteFor(records, absPath, run.timestamp, reader);
+        if (seed === undefined) continue;
+        state.set(ref, seed.content);
     }
-    const csvPath = writtenPathByBasename(records, basename);
-    if (csvPath === undefined) {
-        return undefined;
-    }
-    const csv = backupSeedWriteFor(records, csvPath, run.timestamp, reader, true);
-    if (csv === undefined) {
-        return undefined;
-    }
-    const subs = parseRenameSubs(csv.content);
-    return subs.length > 0 ? subs : undefined;
+    return state;
 }
+
+// Execute the script in a temp dir against the pre-execution file state, return post-execution
+// content of every referenced file. undefined if the script fails.
+export function runScriptAgainstState(
+    script: string,
+    preState: Map<string, string>,
+): Map<string, string> | undefined {
+    const tempDir = mkdtempSync(join(tmpdir(), "reveng-"));
+    try {
+        for (const [relativePath, content] of preState) {
+            const dest = join(tempDir, relativePath);
+            mkdirSync(dirname(dest), { recursive: true });
+            writeFileSync(dest, content);
+        }
+        writeFileSync(join(tempDir, "__script__.py"), script);
+        execSync("python3 __script__.py", { cwd: tempDir, timeout: 5000, stdio: "pipe" });
+        const result = new Map<string, string>();
+        for (const relativePath of preState.keys()) {
+            try { result.set(relativePath, readFileSync(join(tempDir, relativePath), "utf8")); }
+            catch { /* file deleted by script */ }
+        }
+        return result;
+    } catch {
+        return undefined;
+    } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+
