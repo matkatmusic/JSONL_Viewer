@@ -26,6 +26,7 @@ export type EnvelopeBase = {
     userType?: string;
     entrypoint?: string;
     slug?: string;
+    origin?: { kind: string };
 };
 
 // A parsed transcript record. Task 1 guarantees only that `type` is a known

@@ -15,6 +15,9 @@ export function isGenuineUserPrompt(record: TranscriptRecord): boolean {
     if (record.type !== RecordType.user) {
         return false;
     }
+    if (record.origin?.kind === "human") {
+        return true;
+    }
     if (record.isMeta === true) {
         return false;
     }
