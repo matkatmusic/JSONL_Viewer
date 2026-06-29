@@ -54,15 +54,15 @@ test("test_finds_deleted_target_and_reconstructs_two_revisions", () => {
 });
 
 // reconstructAll accounts for EVERY touched file, not just the deleted one:
-// s1_delete.py (create + delete) and tests/test_s1_delete.py (create only).
+// s1_delete.py (create + delete) and tests/test_s1_delete.py (create + delete).
 test("test_reconstruct_all_accounts_for_every_touched_file", () => {
     const histories = reconstructAll(loadRecords(S1_JSONL));
     assert.equal(histories.length, 2);
     const source = histories.find((h) => h.target.toString().endsWith("/s1_delete.py"));
     const testFile = histories.find((h) => h.target.toString().includes("test_s1_delete.py"));
-    // the source file is created then deleted; the test file is only created.
+    // both files are created then deleted by the same rm command.
     assert.equal(source?.revisions.length, 2);
-    assert.equal(testFile?.revisions.length, 1);
+    assert.equal(testFile?.revisions.length, 2);
     assert.equal(testFile?.revisions[0]!.lines[0]!.values[0]!.line, "from s1_delete import hello");
 });
 

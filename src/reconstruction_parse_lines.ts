@@ -18,7 +18,7 @@ import {
     parseCpPaths,
     parseMvPaths,
     parseRedirect,
-    parseRmTarget,
+    parseRmTargets,
 } from "./reconstruction_extract.ts";
 
 // Whether a bash command is one of the file ops the engine extracts an event from (rm/mv/cp/redirect),
@@ -26,7 +26,7 @@ import {
 // parsers `bashEventFrom` uses, so a non-file-op bash line is correctly `ignore`d.
 function bashCommandIsFileOp(command: string): boolean {
     return (
-        parseRmTarget(command) !== undefined ||
+        parseRmTargets(command).length > 0 ||
         parseMvPaths(command) !== undefined ||
         parseCpPaths(command) !== undefined ||
         parseRedirect(command) !== undefined

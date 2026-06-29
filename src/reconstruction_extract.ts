@@ -37,12 +37,13 @@ function writeEventFrom(block: ToolUseBlock, timestamp: Date): WriteEvent {
 }
 
 // Parse the target path out of an `rm <path>` Bash command (s1 has no flags).
-export function parseRmTarget(command: string): Path | undefined {
+// ponytail: splits on whitespace — no quoted-path support, add if a scenario needs it
+export function parseRmTargets(command: string): Path[] {
     const match = command.trim().match(/^rm\s+(.+)$/);
     if (!match) {
-        return undefined;
+        return [];
     }
-    return new Path(match[1]!.trim());
+    return match[1]!.trim().split(/\s+/).map((p) => new Path(p));
 }
 
 // Parse `mv <src> <dst>` or `git mv <src> <dst>` (two space-separated paths, no flags).
@@ -89,43 +90,43 @@ export function parseRedirect(command: string): ParsedRedirect | undefined {
 // Turn a Bash tool_use into a file event: `rm` -> delete, `mv`/`git mv` -> rename, `cp` ->
 // copy, else undefined (s1 uses rm; s2 uses mv; s3 uses cp; s6 uses git mv). The rename's
 // relative paths are resolved against `cwd` so they match the absolute Write/Edit targets.
-function bashEventFrom(
+function bashEventsFrom(
     block: ToolUseBlock,
     timestamp: Date,
     cwd: Path | undefined,
-): FileEvent | undefined {
+): FileEvent[] {
     const input = block.input as { command: string };
-    const removed = parseRmTarget(input.command);
-    if (removed) {
-        return { kind: EventKind.delete, changeId: block.id, target: removed, timestamp };
+    const removed = parseRmTargets(input.command);
+    if (removed.length > 0) {
+        return removed.map((target) => ({ kind: EventKind.delete as const, changeId: block.id, target, timestamp }));
     }
     const moved = parseMvPaths(input.command);
     if (moved) {
-        return {
+        return [{
             kind: EventKind.rename,
             changeId: block.id,
             from: new Path(resolveAgainstCwd(cwd, moved.from)),
             to: new Path(resolveAgainstCwd(cwd, moved.to)),
             timestamp,
-        };
+        }];
     }
     const copied = parseCpPaths(input.command);
     if (copied) {
-        return {
+        return [{
             kind: EventKind.copy,
             changeId: block.id,
             from: copied.from,
             to: copied.to,
             seedLines: [],
             timestamp,
-        };
+        }];
     }
     const redirected = parseRedirect(input.command);
     if (redirected) {
         const kind = redirected.appends ? EventKind.append : EventKind.overwrite;
-        return { kind, changeId: block.id, target: redirected.target, content: "", timestamp };
+        return [{ kind, changeId: block.id, target: redirected.target, content: "", timestamp }];
     }
-    return undefined;
+    return [];
 }
 
 // The per-Edit detail from its result record: structuredPatch hunks + the literal pre-edit content.
@@ -156,22 +157,24 @@ function editEventFrom(
 // Map a tool_use block to a file event (Write -> create, Bash rm/mv/git mv -> delete/
 // rename, Edit -> in-place splice). `cwd` is the record's working directory, used to resolve
 // a rename's relative paths to absolute.
-function toFileEvent(
+function toFileEvents(
     block: ToolUseBlock,
     timestamp: Date,
     detailById: Map<string, EditDetail>,
     cwd: Path | undefined,
-): FileEvent | undefined {
+): FileEvent[] {
     if (block.name === ToolName.Write) {
-        return writeEventFrom(block, timestamp);
+        const e = writeEventFrom(block, timestamp);
+        return e ? [e] : [];
     }
     if (block.name === ToolName.Bash) {
-        return bashEventFrom(block, timestamp, cwd);
+        return bashEventsFrom(block, timestamp, cwd);
     }
     if (block.name === ToolName.Edit) {
-        return editEventFrom(block, timestamp, detailById);
+        const e = editEventFrom(block, timestamp, detailById);
+        return e ? [e] : [];
     }
-    return undefined;
+    return [];
 }
 
 function collectEventsFromRecord(
@@ -194,10 +197,7 @@ function collectEventsFromRecord(
         if (block.type !== BlockType.tool_use) {
             continue;
         }
-        const event = toFileEvent(block, timestamp, detailById, cwd);
-        if (event) {
-            events.push(event);
-        }
+        events.push(...toFileEvents(block, timestamp, detailById, cwd));
     }
     const userEdit = userEditEventFrom(record);
     if (userEdit) {

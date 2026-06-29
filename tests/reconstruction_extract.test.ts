@@ -96,9 +96,10 @@ test("test_extract_maps_redirects_to_append_and_overwrite_events", () => {
 test("test_extract_finds_writes_and_one_time_ordered_delete", () => {
     const events = extractFileEvents(loadRecords(S1_JSONL));
     const deletes = events.filter((event) => event.kind === EventKind.delete);
-    // s1 deletes exactly one file, named s1_delete.py.
-    assert.equal(deletes.length, 1);
+    // s1's rm command deletes two files in one invocation.
+    assert.equal(deletes.length, 2);
     assert.ok(deletes[0]!.target.toString().endsWith("s1_delete.py"));
+    assert.ok(deletes[1]!.target.toString().endsWith("test_s1_delete.py"));
     // events come out in timestamp order.
     for (let i = 1; i < events.length; i++) {
         const prev = events[i - 1]!.timestamp.getTime();
