@@ -146,13 +146,13 @@ test("test_a_record_with_one_prompt_child_and_one_attachment_child_is_not_a_fork
     assert.deepEqual(forks, []);
 });
 
-// On the real S13 transcript, the single rewind fork is the system record 8faab841 — the only record
-// parenting two genuine prompts (the abandoned "farewell" prompt and the surviving "Read" prompt).
-test("test_findPromptForkPoints_returns_the_single_S13_fork_8faab841", () => {
+// On the real S13 transcript, the single rewind fork is the record b55cd7c5 — the only record
+// parenting two genuine prompts (the abandoned "Add a function called farewell(name)" prompt and the surviving "Read" prompt).
+test("test_findPromptForkPoints_returns_the_single_S13_fork_b55cd7c5", () => {
     // Load the real S13 transcript.
     const records = loadRecords(S13_JSONL);
-    // The fork-point set, by short id, must be exactly ["8faab841"].
-    assert.deepEqual(shortForkIds(findPromptForkPoints(records)), ["8faab841"]);
+    // The fork-point set, by short id, must be exactly ["b55cd7c5"].
+    assert.deepEqual(shortForkIds(findPromptForkPoints(records)), ["b55cd7c5"]);
 });
 
 // The abandoned subtree threads a prompt → attachment → assistant chain; the descendant walk must
@@ -168,14 +168,15 @@ test("test_collectDescendantUuids_walks_through_attachment_intermediaries", () =
 });
 
 // The abandoned branch's tip is its deepest user/assistant turn (the final "Thanks!" assistant
-// 45cf4bf8), NOT a later trailing `system` bookkeeping record (a4380554).
+// 1623ed02), NOT a later trailing `system` bookkeeping record (15a21160).
 test("test_findDeepestPromptOrReply_returns_the_last_assistant_not_a_trailing_system_record", () => {
-    // Load the real S13 transcript and start from the abandoned prompt-child 5741c77f.
+    // Load the real S13 transcript and start from the abandoned user prompt: 7ceda07f.
     const records = loadRecords(S13_JSONL);
     const abandonedPrompt = records.find(
-        (record) => record.uuid !== undefined && record.uuid.toString().startsWith("5741c77f"),
+        (record) => record.uuid !== undefined && record.uuid.toString().startsWith("7ceda07f"),
     )!;
-    // The deepest user/assistant tip of that subtree is the "Thanks!" assistant 45cf4bf8.
+    // The deepest user/assistant tip of that subtree is the "Thanks!" assistant 1623ed02.
     const tip = findDeepestPromptOrReply(records, abandonedPrompt.uuid!);
-    assert.equal(tip!.toString().slice(0, 8), "45cf4bf8");
+    assert.ok(tip !== undefined);
+    assert.equal(tip!.toString().slice(0, 8), "1623ed02");
 });

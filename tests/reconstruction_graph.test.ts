@@ -149,7 +149,7 @@ test("test_a_file_less_surviving_branch_is_kept_when_a_rewound_branch_exists", (
     // It forks: two branches, no trunk turns, rooted at the rewind point 8faab841.
     assert.equal(dag.trunk.length, 0);
     assert.equal(dag.branches.length, 2);
-    assert.equal(dag.rootUuid!.toString().slice(0, 8), "8faab841");
+    assert.equal(dag.rootUuid!.toString().slice(0, 8), "b55cd7c5");
     // One branch is the rewound edit branch (one `edit` turn); the other a file-less surviving branch.
     const rewound = dag.branches.find((branch) => branch.role === BranchRole.rewound)!;
     const surviving = dag.branches.find((branch) => branch.role === BranchRole.surviving)!;

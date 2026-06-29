@@ -79,7 +79,7 @@ export function parseRedirect(command: string): ParsedRedirect | undefined {
     if (appended) {
         return { target: new Path(appended[1]!), appends: true };
     }
-    const overwritten = command.match(/(?<!>)>\s*(\S+)\s*$/);
+    const overwritten = command.match(/(?<!>)>\s*(?!&)(\S+)\s*$/);
     if (overwritten) {
         return { target: new Path(overwritten[1]!), appends: false };
     }

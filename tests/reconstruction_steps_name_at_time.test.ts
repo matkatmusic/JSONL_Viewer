@@ -8,13 +8,13 @@ import {
     findSessionId,
 } from "../src/reconstruction_sidecar_reader.ts";
 import { loadRecords } from "./utilities.ts";
-import { S19_JSONL } from "./fixtures.ts";
+import { S2_JSONL, S19_JSONL } from "./fixtures.ts";
 
-// s2-move-file as captured in-worktree (the run whose .step_states sit beside it): a Bash `mv` renames
-// `s2_original.py` -> `s2_moved.py` mid-stream, so the per-step snapshot must key the file by the name it
-// held at each step's instant, not by its final path.
-const S2_JSONL =
-    "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s2-move-file/26777e17-3ed6-4962-9a1c-365be9434bde.jsonl";
+// // s2-move-file as captured in-worktree (the run whose .step_states sit beside it): a Bash `mv` renames
+// // `s2_original.py` -> `s2_moved.py` mid-stream, so the per-step snapshot must key the file by the name it
+// // held at each step's instant, not by its final path.
+// const S2_JSONL =
+//     "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed/s2-move-file/26777e17-3ed6-4962-9a1c-365be9434bde.jsonl";
 
 // The on-disk file-history reader for a transcript's session, built exactly as the CLI builds it.
 function realReader(records: ReturnType<typeof loadRecords>): BackupReader | undefined {
