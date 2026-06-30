@@ -15,6 +15,13 @@ import {
     type FileRevision,
 } from "./reconstruction_engine.ts";
 import { findBranchById, shortUuid } from "./reconstruction_branch.ts";
+import { isGenuineUserPrompt } from "./reconstruction_tree.ts";
+import { recordVerdict } from "./reconstruction_parse_lines.ts";
+import {
+    buildStepSnapshots,
+    summarizeBranches,
+    buildReconstructionDocument,
+} from "./reconstruction_json.ts";
 import { renderDiff, renderVerbose } from "./reconstruction_render.ts";
 import {
     renderBranchSummary,
@@ -35,7 +42,7 @@ import {
 import { parseTraceArgs, runTrace } from "./reconstruction_cli_trace.ts";
 
 const USAGE =
-    "usage: reconstruction_cli <transcript.jsonl> [--target <path>] [--count-steps|--step <n>] [--verbose|--diff] [--graphConvo|--graphFile|--surviving|--list-branches|--branch <id>]";
+    "usage: reconstruction_cli <transcript.jsonl> [--target|--file <path>] [--count-steps|--step <n>] [--verbose|--diff] [--graphConvo|--graphFile|--surviving|--list-branches|--branch <id>] [--json] [--allRecords]";
 
 export type CliOptions = {
     jsonlPath: string;
@@ -49,6 +56,8 @@ export type CliOptions = {
     listBranches: boolean;
     graphConvo: boolean;
     graphFile: boolean;
+    json: boolean;
+    allRecords: boolean;
 };
 
 // Pull a value-taking flag (e.g. `--target <path>`) out of argv: return its value (undefined when
@@ -95,7 +104,8 @@ function resolveGraphFlags(
 // boolean view flags. Throws the usage message when no transcript path is given.
 export function parseArgs(argv: string[]): CliOptions {
     const targetFlag = extractValueFlag(argv, "--target");
-    const branchFlag = extractValueFlag(targetFlag.rest, "--branch");
+    const fileAlias = targetFlag.value === undefined ? extractValueFlag(targetFlag.rest, "--file") : targetFlag;
+    const branchFlag = extractValueFlag(fileAlias.rest, "--branch");
     const stepFlag = extractValueFlag(branchFlag.rest, "--step");
     const rest = stepFlag.rest;
     const jsonlPath = rest.find((arg) => !arg.startsWith("--"));
@@ -108,10 +118,12 @@ export function parseArgs(argv: string[]): CliOptions {
     const listBranches = rest.includes("--list-branches");
     const verbose = rest.includes("--verbose");
     const diff = rest.includes("--diff");
+    const allRecords = rest.includes("--allRecords");
+    const json = rest.includes("--json") || allRecords;
     const graphs = resolveGraphFlags(rest, branchFlag.value, surviving, listBranches, verbose, diff);
     return {
         jsonlPath,
-        target: targetFlag.value !== undefined ? new Path(targetFlag.value) : undefined,
+        target: fileAlias.value !== undefined ? new Path(fileAlias.value) : undefined,
         branch: branchFlag.value,
         countSteps,
         stepNumber,
@@ -121,6 +133,8 @@ export function parseArgs(argv: string[]): CliOptions {
         listBranches,
         graphConvo: graphs.convo,
         graphFile: graphs.file,
+        json,
+        allRecords,
     };
 }
 
@@ -220,6 +234,45 @@ function renderStep(
     return renderRepoSnapshot(steps[stepNumber - 1]!);
 }
 
+// Render the reconstruction as JSON, composing with the existing selectors. --allRecords dumps every
+// parsed record enriched with the engine's per-line classification; --step emits one step's file map;
+// --branch / --list-branches narrow as their text twins do; bare --json emits the full document.
+function renderJson(
+    records: TranscriptRecord[],
+    reader: BackupReader | undefined,
+    options: CliOptions,
+): string {
+    if (options.allRecords) {
+        // Full body + the engine's per-line classification on each record (the deep-dump twin of the
+        // document's compact lineVerdicts). Length stays records.length; line-aligned by array order.
+        const enriched = records.map((record) => ({
+            ...record,
+            verdict: recordVerdict(record),
+            isGenuinePrompt: isGenuineUserPrompt(record),
+        }));
+        return JSON.stringify(enriched, null, 2);
+    }
+    if (options.stepNumber !== undefined) {
+        const steps = buildStepSnapshots(records, reader, options.target);
+        if (options.stepNumber < 1 || options.stepNumber > steps.length) {
+            throw new Error(`${USAGE}\nstep must be in 1..${steps.length}`);
+        }
+        return JSON.stringify(steps[options.stepNumber - 1]!.files, null, 2);
+    }
+    const branched = reconstructBranches(records, reader);
+    if (options.branch !== undefined) {
+        const histories = findBranchById(branched, options.branch);
+        if (histories === undefined) {
+            throw new Error(`${USAGE}\navailable branches: ${listAvailableBranchIds(branched)}`);
+        }
+        return JSON.stringify(filterByTarget(histories, options.target), null, 2);
+    }
+    if (options.listBranches) {
+        return JSON.stringify(summarizeBranches(records), null, 2);
+    }
+    return JSON.stringify(buildReconstructionDocument(records, branched, reader, options.target), null, 2);
+}
+
 // Load the transcript and render the chosen view. The bare default (no flags) prints both DAGs; the
 // graph flags take precedence, then the branch selectors, then the surviving content view (the
 // back-compat path for --surviving and for --verbose/--diff with no selector).
@@ -229,6 +282,9 @@ export function runCli(argv: string[]): string {
     const options = parseArgs(argv);
     const records = loadTranscript(options.jsonlPath);
     const reader = buildSidecarReader(records);
+    if (options.json) {
+        return renderJson(records, reader, options);
+    }
     if (options.countSteps) {
         return String(countStepsInTranscript(records, reader));
     }
