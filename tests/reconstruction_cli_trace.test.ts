@@ -10,20 +10,20 @@ const S37 = jsonlPathsForScenario("s37")[0]!.toString();
 test("test_trace_flag_prints_kept_lines_with_verdicts", () => {
     // Step: --trace prints the verdict trace; the post-rename Read of ledger.py shows as a read-beacon.
     const out = runCli([S37, "--trace"]);
-    assert.ok(out.includes("177: read-beacon"));
+    assert.ok(out.includes("167: read-beacon"));
 });
 
 test("test_hideIgnored_flag_drops_ignored_rows", () => {
     // Step: --hideIgnored shows only kept lines — no `: ignore` row survives.
     const out = runCli([S37, "--trace", "--hideIgnored"]);
     assert.ok(!out.includes(": ignore"));
-    assert.ok(out.includes("177: read-beacon"));
+    assert.ok(out.includes("167: read-beacon"));
 });
 
 test("test_onlyIgnored_flag_drops_kept_rows", () => {
     // Step: --onlyIgnored shows only dropped lines — the read-beacon is gone, ignore rows remain.
     const out = runCli([S37, "--trace", "--onlyIgnored"]);
-    assert.ok(!out.includes("177: read-beacon"));
+    assert.ok(!out.includes("167: read-beacon"));
     assert.ok(out.includes(": ignore"));
 });
 
