@@ -23,6 +23,14 @@ import type {
     WriteEvent,
 } from "./reconstruction_engine.ts";
 import { userEditEventFrom } from "./reconstruction_user_edit.ts";
+import {
+    bashAppendRedirect,
+    bashCopyCommand,
+    bashMoveCommand,
+    bashOverwriteRedirect,
+    bashRemoveCommand,
+    whitespaceRun,
+} from "./regex_expressions.ts";
 
 // Turn a Write tool_use into a write event (file_path/content live in its input).
 function writeEventFrom(block: ToolUseBlock, timestamp: Date): WriteEvent {
@@ -39,17 +47,17 @@ function writeEventFrom(block: ToolUseBlock, timestamp: Date): WriteEvent {
 // Parse the target path out of an `rm <path>` Bash command (s1 has no flags).
 // ponytail: splits on whitespace — no quoted-path support, add if a scenario needs it
 export function parseRmTargets(command: string): Path[] {
-    const match = command.trim().match(/^rm\s+(.+)$/);
+    const match = command.trim().match(bashRemoveCommand);
     if (!match) {
         return [];
     }
-    return match[1]!.trim().split(/\s+/).map((p) => new Path(p));
+    return match[1]!.trim().split(whitespaceRun).map((p) => new Path(p));
 }
 
 // Parse `mv <src> <dst>` or `git mv <src> <dst>` (two space-separated paths, no flags).
 // s2 used plain `mv` with absolute paths; s6 uses `git mv` with cwd-relative paths.
 export function parseMvPaths(command: string): RenameInfo | undefined {
-    const match = command.trim().match(/^(?:git\s+)?mv\s+(\S+)\s+(\S+)$/);
+    const match = command.trim().match(bashMoveCommand);
     if (!match) {
         return undefined;
     }
@@ -58,7 +66,7 @@ export function parseMvPaths(command: string): RenameInfo | undefined {
 
 // Parse `cp <src> <dst>` (two space-separated paths, no flags — the s3 form).
 export function parseCpPaths(command: string): CopyInfo | undefined {
-    const match = command.trim().match(/^cp\s+(\S+)\s+(\S+)$/);
+    const match = command.trim().match(bashCopyCommand);
     if (!match) {
         return undefined;
     }
@@ -76,11 +84,11 @@ type ParsedRedirect = {
 // target and whether it appends, or undefined when there is no redirect. The content is NOT
 // parsed from the command — it is recovered from the file-history sidecar (locked decision 3).
 export function parseRedirect(command: string): ParsedRedirect | undefined {
-    const appended = command.match(/>>\s*(\S+)\s*$/);
+    const appended = command.match(bashAppendRedirect);
     if (appended) {
         return { target: new Path(appended[1]!), appends: true };
     }
-    const overwritten = command.match(/(?<!>)>\s*(?!&)(\S+)\s*$/);
+    const overwritten = command.match(bashOverwriteRedirect);
     if (overwritten) {
         return { target: new Path(overwritten[1]!), appends: false };
     }

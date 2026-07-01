@@ -11,6 +11,7 @@ import { execSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
+import { quotedFilename, singleWhitespace } from "./regex_expressions.ts";
 
 // The proven post-execution state of a script run for one target file: the forward transform already
 // applied to the pre-script content. Injected as a synthetic authored event at the run's timestamp and
@@ -107,7 +108,8 @@ function parseDirectInvocation(code: string): string | undefined {
             continue;
         }
         const after = code.slice(code.indexOf(runner) + runner.length).trimStart();
-        const filename = after.split(/\s/)[0] ?? "";
+        // first word after the runner, e.g. "apply.py --dry-run" -> "apply.py".
+        const filename = after.split(singleWhitespace)[0] ?? "";
         if (isScriptFile(filename)) {
             return filename;
         }
@@ -174,7 +176,7 @@ function resolvePathByBasename(records: TranscriptRecord[], basename: string): P
 
 // All file-path-like quoted strings in the script source (e.g. "billing.py", "renames.csv").
 export function parseScriptFileRefs(code: string): string[] {
-    const matches = code.match(/"([^"]+\.[a-z]{1,4})"/g) ?? [];
+    const matches = code.match(quotedFilename) ?? [];
     return [...new Set(matches.map((m) => m.slice(1, -1)))];
 }
 

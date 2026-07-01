@@ -9,6 +9,7 @@ import { getAttachmentEntry } from "./structures/session-meta.ts";
 import { AttachmentPayloadType, EventKind } from "./structures/vocabulary.ts";
 import { Path, Uuid } from "./structures/domain.ts";
 import type { UserEditEvent } from "./reconstruction_engine.ts";
+import { lineNumberPrefix, numberedLine } from "./regex_expressions.ts";
 
 // One numbered line of an `edited_text_file` snippet (`lineNo` is the file line the harness showed).
 export type BeaconLine = { lineNo: number; text: string };
@@ -22,7 +23,7 @@ export type BeaconSnippet = { lines: BeaconLine[]; hasEllipsis: boolean };
 function stripLineNumberPrefixes(snippet: string): string {
     return snippet
         .split("\n")
-        .map((line) => line.replace(/^\d+\t/, ""))
+        .map((line) => line.replace(lineNumberPrefix, ""))
         .join("\n");
 }
 
@@ -74,7 +75,7 @@ function parseNumberedSnippet(snippet: string): BeaconSnippet {
     const lines: BeaconLine[] = [];
     let hasEllipsis = false;
     for (const raw of snippet.split("\n")) {
-        const match = raw.match(/^(\d+)\t(.*)$/);
+        const match = raw.match(numberedLine);
         if (match) {
             lines.push({ lineNo: Number(match[1]), text: match[2]! });
         } else if (raw === "...") {

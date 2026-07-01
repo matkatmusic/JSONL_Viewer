@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseArgs, runCli } from "../src/reconstruction_cli.ts";
 import { S1_JSONL, S2_JSONL, S3_JSONL, S4_JSONL, S5_JSONL, S6_JSONL, S7_JSONL, S8_JSONL, S9_JSONL } from "./fixtures.ts";
+import { branchRewoundHeader, rewoundMention } from "../src/regex_expressions.ts";
 
 // These tests assert re-run-STABLE topology only — branch wrappers, file names, turn kinds, ordering, and
 // linearity. They deliberately do NOT pin short change-ids / branch-tip ids / tmp paths: those rotate every
@@ -146,7 +147,7 @@ test("test_default_view_shows_surviving_vc_plus_two_rewound", () => {
     const out = runCli([S8_JSONL]);
     assert.ok(out.includes("branch surviving"));
     assert.ok(!out.includes("no files touched"));
-    assert.equal((out.match(/branch rewound/g) ?? []).length, 2); // exactly two rewound wrappers
+    assert.equal((out.match(branchRewoundHeader) ?? []).length, 2); // exactly two rewound wrappers
     assert.ok(!out.includes("overwrite"));
 });
 
@@ -161,7 +162,7 @@ test("test_surviving_flag_shows_only_vc", () => {
 test("test_list_branches_lists_surviving_vc_and_two_rewound", () => {
     const out = runCli([S8_JSONL, "--list-branches"]);
     assert.ok(out.includes("surviving"));
-    assert.equal((out.match(/rewound/g) ?? []).length, 2);
+    assert.equal((out.match(rewoundMention) ?? []).length, 2);
 });
 
 // Default (no flag): S9 has one surviving branch and zero rewound branches, so its conversationDAG is

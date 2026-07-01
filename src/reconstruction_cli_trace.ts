@@ -9,6 +9,7 @@ import { KNOWN_VERDICTS, TraceDetailMode, Verdict } from "./structures/vocabular
 import { partitionLines } from "./reconstruction_parse_lines.ts";
 import { renderTrace } from "./reconstruction_trace.ts";
 import type { TraceDetailSelector, TraceOptions } from "./reconstruction_trace.ts";
+import { numbersOnly } from "./regex_expressions.ts";
 
 const KNOWN_VERDICT_SET = new Set<string>(KNOWN_VERDICTS);
 
@@ -17,7 +18,7 @@ const KNOWN_VERDICT_SET = new Set<string>(KNOWN_VERDICTS);
 function isDetailToken(token: string): boolean {
     return (
         KNOWN_VERDICT_SET.has(token) ||
-        /^\d+$/.test(token) ||
+        numbersOnly.test(token) ||
         token === TraceDetailMode.previewOnly ||
         token === TraceDetailMode.full
     );
@@ -34,7 +35,7 @@ function parseSelector(argv: string[], detailsAt: number): TraceDetailSelector {
     if (token !== undefined && KNOWN_VERDICT_SET.has(token)) {
         return { byClass: token as Verdict };
     }
-    if (token !== undefined && /^\d+$/.test(token)) {
+    if (token !== undefined && numbersOnly.test(token)) {
         return { byLine: Number(token) };
     }
     return { all: true };

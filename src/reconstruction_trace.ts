@@ -6,6 +6,7 @@
 
 import { BlockType, RecordType, TraceDetailMode, Verdict } from "./structures/vocabulary.ts";
 import type { LinePartition } from "./reconstruction_parse_lines.ts";
+import { whitespaceRuns } from "./regex_expressions.ts";
 
 // Which rows a `--details` render enriches: every rendered row (the no-selector default), every row of a
 // Verdict class, or one specific line.
@@ -62,7 +63,7 @@ function rowIsSelected(row: TraceRow, selector: TraceDetailSelector): boolean {
 
 // Shorten a preview to a single line of at most 40 chars, ellipsised when cut.
 function truncate(value: string): string {
-    const single = value.replace(/\s+/g, " ").trim();
+    const single = value.replace(whitespaceRuns, " ").trim();
     return single.length > 40 ? `${single.slice(0, 40)}…` : single;
 }
 

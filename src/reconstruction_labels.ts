@@ -4,10 +4,11 @@
 // (reconstruction_branch.ts), which shortens a branch tip's uuid.
 
 import type { Path, Uuid } from "./structures/domain.ts";
+import { toolUseIdPrefix } from "./regex_expressions.ts";
 
 // A change id, shortened for display: drop a leading `toolu_`, keep 8 chars.
 export function shortenChangeId(id: Uuid): string {
-    return id.toString().replace(/^toolu_/, "").slice(0, 8);
+    return id.toString().replace(toolUseIdPrefix, "").slice(0, 8);
 }
 
 // The tail component of a path (its file name).

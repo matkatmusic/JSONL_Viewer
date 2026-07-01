@@ -2,11 +2,10 @@
 // markdown row, so a re-sweep preserves a failing scenario's history instead of clobbering it.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { ledgerRow } from "../src/regex_expressions.ts";
 
-// Mirror of coverage_ledger.ts readPriorTimestamps' per-line regex. Kept in the test (not exported) so the
-// row format and its parser are pinned together — if either drifts, this fails.
 function parseRow(line: string): { id: string; lastPassing: string } | undefined {
-    const m = line.match(/^\|\s*(s\d+)\s*\|[^|]*\|[^|]*\|\s*(.+?)\s*\|$/);
+    const m = line.match(ledgerRow);
     return m ? { id: m[1]!, lastPassing: m[2]! } : undefined;
 }
 

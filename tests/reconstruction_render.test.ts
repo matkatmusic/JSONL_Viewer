@@ -8,6 +8,7 @@ import type { FileRevision, LineEntry } from "../src/reconstruction_engine.ts";
 import { EventKind } from "../src/structures/vocabulary.ts";
 import { DOES_NOT_EXIST_YET } from "../src/structures/line-model.ts";
 import { Path, Uuid } from "../src/structures/domain.ts";
+import { beforeDiffHunkHeader } from "../src/regex_expressions.ts";
 
 // A minimal two-revision history (create 2 lines, then delete) to render against,
 // built from literals so these stay pure unit tests with no transcript.
@@ -61,7 +62,7 @@ function createThenAppendRevs(): FileRevision[] {
 
 // The diff block headed `@@ appended …`, isolated from the full multi-block diff.
 function appendedBlockOf(diff: string): string {
-    const blocks = diff.split(/(?=@@ )/);
+    const blocks = diff.split(beforeDiffHunkHeader);
     return blocks.find((block) => block.startsWith("@@ appended"))!;
 }
 
