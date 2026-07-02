@@ -14,7 +14,9 @@ import { findConversationBranches, selectBranchRecords } from "./reconstruction_
 import { fillRedirectContent, seedEditBaseFromBackup } from "./reconstruction_sidecar.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
 import { completeElidedBeacons, completeTruncatedBeacon } from "./reconstruction_beacons.ts";
-import { injectScriptExecutions } from "./reconstruction_script_stage.ts";
+import { discoverScriptCreatedPaths, injectScriptExecutions } from "./reconstruction_script_stage.ts";
+import { placeGitCommitEvidence } from "./reconstruction_git_evidence.ts";
+import type { LineageContentBefore } from "./reconstruction_script_execution.ts";
 import { seedStaleEditBases } from "./reconstruction_reseed.ts";
 import { noteStage } from "./reconstruction_provenance.ts";
 import {
@@ -50,8 +52,11 @@ export function reconstructFileOver(
     const seeded = seedCopyEvents(records, lineage, resolving, reader);
     const filled = reader ? fillRedirectContent(records, seeded, reader) : seeded;
     const based = reader ? seedEditBaseFromBackup(records, filled, reader) : filled;
-    const scripted = reader ? injectScriptExecutions(records, based, reader, finalTarget) : based;
-    const unelided = reader ? completeElidedBeacons(records, scripted, reader) : scripted;
+    const scripted = reader
+        ? injectScriptExecutions(records, based, reader, finalTarget, getLineageContentBefore(records, reader))
+        : based;
+    const evidenced = reader ? placeGitCommitEvidence(records, scripted, reader, finalTarget) : scripted;
+    const unelided = reader ? completeElidedBeacons(records, evidenced, reader) : evidenced;
     const restaged = reader ? seedStaleEditBases(records, unelided, reader) : unelided;
     const completed = reader ? completeTruncatedBeacon(records, restaged, reader) : restaged;
     return replayEvents(completed);
@@ -108,6 +113,43 @@ export function lastRevisionAtOrBefore(
     return chosen;
 }
 
+// The latest revision whose timestamp is strictly before `when`, or undefined. Strictly-before is
+// required so a script run never seeds itself from its own injected output.
+export function lastRevisionStrictlyBefore(
+    revisions: FileRevision[],
+    when: Date,
+): FileRevision | undefined {
+    let chosen: FileRevision | undefined;
+    for (const revision of revisions) {
+        if (revision.timestamp.getTime() < when.getTime()) {
+            chosen = revision;
+        }
+    }
+    return chosen;
+}
+
+// Files currently being lineage-seeded, keyed "path|beforeMs" — breaks seed→reconstruct→seed cycles.
+const seedingLineages = new Set<string>();
+
+// A LineageContentBefore that replays the target's own reconstruction up to `before`.
+function getLineageContentBefore(records: TranscriptRecord[], reader: BackupReader): LineageContentBefore {
+    return (target, before) => {
+        const cycleKey = `${target.toString()}|${before.getTime()}`;
+        if (seedingLineages.has(cycleKey)) return undefined;
+        seedingLineages.add(cycleKey);
+        try {
+            const revisions = reconstructFileOver(records, target, new Set(), reader);
+            const revisionBefore = lastRevisionStrictlyBefore(revisions, before);
+            if (revisionBefore === undefined) return undefined;
+            // splitLines drops one trailing newline, so restore it — the stage's byte-exact
+            // beacon compare fails without it.
+            return linesTextOf(revisionBefore).join("\n") + "\n";
+        } finally {
+            seedingLineages.delete(cycleKey);
+        }
+    };
+}
+
 // The believed text of each line in a revision (its latest value).
 export function linesTextOf(revision: FileRevision): string[] {
     return revision.lines.map(
@@ -124,7 +166,19 @@ export function reconstructFilesOver(
 ): FileHistory[] {
     const events = extractFileEvents(records);
     const renameChain = buildRenameChain(events);
-    return distinctFinalPaths(events, renameChain).map((target) => ({
+    const targets = distinctFinalPaths(events, renameChain);
+    if (reader) {
+        // Script-born files (an out.txt, a shutil.move destination) leave no Write/Edit event, so
+        // they only become targets through the runs that created them.
+        const known = new Set(targets.map((target) => target.toString()));
+        for (const path of discoverScriptCreatedPaths(records, reader, getLineageContentBefore(records, reader))) {
+            const finalPath = resolveFinalPath(path, renameChain);
+            if (known.has(finalPath.toString())) continue;
+            known.add(finalPath.toString());
+            targets.push(finalPath);
+        }
+    }
+    return targets.map((target) => ({
         target,
         revisions: reconstructFileOver(records, target, new Set<string>(), reader),
     }));

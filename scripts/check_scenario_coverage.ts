@@ -136,6 +136,7 @@ function buildStepMismatch(
 // Run one scenario: reconstruct its steps once, then for each captured folder record PASS (some engine step
 // reproduces it) or a mismatch.
 export function checkScenario(scenario: CoveredScenario): ScenarioResult {
+    console.log(`\n=== scenario ${scenario.scenarioId} (${scenario.dirName}) ===`);
     const records = scenario.jsonlPaths.flatMap((path) => loadTranscript(path.toString()));
     const reader = buildSidecarReader(records);
     const uuidLineIndex = buildUuidLineIndex(scenario.jsonlPaths);

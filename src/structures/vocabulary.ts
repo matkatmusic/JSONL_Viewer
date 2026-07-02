@@ -49,6 +49,17 @@ export enum ToolName {
     CtxBatchExecute = "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
 }
 
+// The tools that EXECUTE a script — and so can modify/create many tracked files with no per-file Write/Edit:
+// the Bash shell and the context-mode MCP execution tools. A "run" is one such tool_use. Lives here (neutral)
+// so both extraction (script-rename recovery) and the script-execution stage can share it without an import
+// cycle between reconstruction_extract.ts and reconstruction_script_execution.ts.
+export const EXECUTOR_TOOL_NAMES = new Set<string>([
+    ToolName.Bash,
+    ToolName.CtxExecute,
+    ToolName.CtxExecuteFile,
+    ToolName.CtxBatchExecute,
+]);
+
 // Attachment payload kinds observed across scenarios: 6 in s1; s2-move-file adds
 // opened_file_in_ide, task_reminder, diagnostics; s15-user-edit-then-conv-rewind
 // adds edited_text_file (a user's out-of-band disk edit, snippet = full post-edit

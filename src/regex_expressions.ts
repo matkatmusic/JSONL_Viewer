@@ -14,6 +14,7 @@
 // these — the hairy ones below stay as literals (a long chain of named tokens is harder to follow, not easier).
 const startAnchor = "^";      // matches the start position (matches nothing, just asserts "we're at the start")
 const digit = "\\d";          // one digit, 0-9 (source is `\d`; the string needs `\\d`)
+const wordChar = "\\w";       // one word char: letter, digit, or underscore (source is `\w`; string needs `\\w`)
 const whitespace = "\\s";     // one whitespace char — space, tab, newline (source is `\s`; string needs `\\s`)
 const nonWhitespace = "\\S";  // one NON-whitespace char (source is `\S`; the string needs `\\S`)
 const anyChar = ".";          // any single character
@@ -47,6 +48,8 @@ const negativeLookahead = (inner: string): string => "(?!" + inner + ")";   // i
 const negativeLookbehind = (inner: string): string => "(?<!" + inner + ")"; // inner must NOT precede
 // A negated character class `[^…]`: any single character that is NOT one of the listed ones.
 const noneOf = (chars: string): string => "[^" + chars + "]";
+// A positive character class `[…]`: any single character that IS one of the listed ones.
+const oneOf = (chars: string): string => "[" + chars + "]";
 // A range quantifier `{min,max}`: the preceding token repeats between min and max times (e.g. `[a-z]{1,4}`).
 const repeatBetween = (min: number, max: number): string => "{" + min + "," + max + "}";
 
@@ -146,3 +149,27 @@ export const rewoundMention = new RegExp("rewound", globalFlag);
 // A "cut here but keep the marker" boundary: splits a diff right BEFORE every "@@ " hunk header without
 // deleting it, so each resulting block still begins with its own "@@ …" header line. Equivalent to /(?=@@ )/.
 export const beforeDiffHunkHeader = new RegExp(lookahead("@@ "));
+
+// A recorded `git commit` command, with or without a `git -C <dir>` repo override. group 1 = the -C
+// directory when present. The trailing negative lookahead rejects a word continuing past "commit"
+// (e.g. a hypothetical "git commitx"). e.g. `git -C /tmp/repo commit -m "baseline"` -> group 1 =
+// "/tmp/repo"; `git commit -m "x"` -> group 1 = undefined. Equivalent to the literal
+// /^git(?:\s+-C\s+(\S+))?\s+commit(?!\w)/.
+export const gitCommitCommand = new RegExp(
+    startAnchor + "git" + optionalGroup(oneOrMoreWhitespace + "-C" + oneOrMoreWhitespace + capturedWord) +
+        oneOrMoreWhitespace + "commit" + negativeLookahead(wordChar),
+);
+
+// A filename token: one or more path chars ("[\w./-]") ending in a dot-extension, e.g. "core_one.py" or
+// "tests/a.py". The class excludes `{ } " ( )`, so an echoed f-string like `{name}.py` is NOT a token.
+const filenameToken = oneOf(wordChar + "./-") + oneOrMore + literalDot + wordChar + oneOrMore; // [\w./-]+\.\w+
+
+// A printed rename line `<old> -> <new>` where BOTH sides are filename tokens (each ends in a dot-extension).
+// group 1 = old path, group 2 = new path. `g` finds every rename a run prints. The dot-extension requirement
+// is the guard: a script's real stdout `one.py -> core_one.py` matches, but a function-rename `f_one -> alpha`
+// (no extension) and the echoed f-string code `{name}.py -> core_{name}.py` (braces aren't path chars) do NOT.
+// Equivalent to the literal /([\w./-]+\.\w+)\s*->\s*([\w./-]+\.\w+)/g.
+export const renameArrowLine = new RegExp(
+    capture(filenameToken) + zeroOrMoreWhitespace + "->" + zeroOrMoreWhitespace + capture(filenameToken),
+    globalFlag,
+);

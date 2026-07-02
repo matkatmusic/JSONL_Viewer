@@ -2,16 +2,18 @@
 // forward-execution pipeline (getPreExecutionState + runScriptAgainstState). The validation/injection
 // stage lives in reconstruction_script_stage.ts.
 
-import { BlockType, EventKind, ToolName } from "./structures/vocabulary.ts";
+import { BlockType, EventKind, EXECUTOR_TOOL_NAMES, ToolName } from "./structures/vocabulary.ts";
 import { Path, type Uuid } from "./structures/domain.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { getContentBlocks, type ToolUseBlock } from "./structures/content-blocks.ts";
 import { backupSeedWriteFor, type BackupReader } from "./reconstruction_sidecar.ts";
 import { execSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync, mkdirSync } from "node:fs";
+import { join, dirname, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { quotedFilename, singleWhitespace } from "./regex_expressions.ts";
+import { extractFileEvents } from "./reconstruction_extract.ts";
+import { buildRenameChain, resolveFinalPath } from "./reconstruction_lineage.ts";
 
 // The proven post-execution state of a script run for one target file: the forward transform already
 // applied to the pre-script content. Injected as a synthetic authored event at the run's timestamp and
@@ -28,17 +30,9 @@ export type ScriptExecutionEvent = {
 
 // --- run detection ----------------------------------------------------------------------------------
 
-// The tools that EXECUTE a script — and so can modify many tracked files with no per-file Write/Edit:
-// the Bash shell and the context-mode MCP execution tools. A "run" is one such tool_use.
-const EXECUTOR_TOOL_NAMES = new Set<string>([
-    ToolName.Bash,
-    ToolName.CtxExecute,
-    ToolName.CtxExecuteFile,
-    ToolName.CtxBatchExecute,
-]);
-
-// A recorded script-execution run: the script source it ran and when.
-export type ScriptRun = { code: string; timestamp: Date };
+// A recorded script-execution run: the script source it ran, when, and the directory it ran from
+// (the MCP executor's input.cwd when present, else the record's cwd).
+export type ScriptRun = { code: string; timestamp: Date; cwd?: Path };
 
 // The runnable source a script-execution block carries: `input.code` (MCP execute) or `input.command`
 // (Bash). undefined for a non-executor tool, or an executor carrying neither.
@@ -61,6 +55,7 @@ function runsInRecord(record: TranscriptRecord): ScriptRun[] {
     if (!(timestamp instanceof Date)) {
         return [];
     }
+    const recordCwd = (record as { cwd?: Path }).cwd;
     const runs: ScriptRun[] = [];
     for (const block of getContentBlocks(record)) {
         if (block.type !== BlockType.tool_use) {
@@ -68,7 +63,9 @@ function runsInRecord(record: TranscriptRecord): ScriptRun[] {
         }
         const code = scriptCodeOf(block);
         if (code !== undefined) {
-            runs.push({ code, timestamp });
+            const blockCwd = (block.input as { cwd?: string }).cwd;
+            const cwd = blockCwd !== undefined ? new Path(blockCwd) : recordCwd;
+            runs.push({ code, timestamp, cwd });
         }
     }
     return runs;
@@ -180,26 +177,75 @@ export function parseScriptFileRefs(code: string): string[] {
     return [...new Set(matches.map((m) => m.slice(1, -1)))];
 }
 
-// The pre-execution state of all files a script references, keyed by the relative path the script
-// uses. Each file's content is recovered from the file-history backup at or before the run time.
+// A callback that returns a file's reconstructed content just before `before`, or undefined
+// when the lineage has no revision strictly before that instant.
+export type LineageContentBefore = (target: Path, before: Date) => string | undefined;
+
+// The name the script uses for this file from the run's cwd: the cwd-relative path when the
+// file lives under cwd (preserving subdirectories like "tests/"), else the flat basename.
+export function computeScriptStateKey(filePath: Path, runCwd: Path | undefined): string {
+    if (runCwd !== undefined) {
+        const cwdRelativePath = relative(runCwd.toString(), filePath.toString());
+        if (cwdRelativePath !== "" && !cwdRelativePath.startsWith("..")) {
+            return cwdRelativePath;
+        }
+    }
+    return pathBasename(filePath.toString());
+}
+
+// The pre-execution state of every file the run could touch, keyed by the path the script uses
+// from its cwd: every file Written before the run (at its rename-resolved current name), plus any
+// file the script source references that only a backup knows.
 export function getPreExecutionState(
     run: ScriptRun,
     records: TranscriptRecord[],
     reader: BackupReader,
+    seedContent?: LineageContentBefore,
 ): Map<string, string> {
+    const events = extractFileEvents(records);
+    const renameChain = buildRenameChain(events);
     const state = new Map<string, string>();
+    for (const event of events) {
+        if (event.kind !== EventKind.write) continue;
+        if (event.timestamp.getTime() > run.timestamp.getTime()) continue;
+        const currentPath = resolveFinalPath(event.target, renameChain);
+        // Lineage first (it carries post-backup Edits and earlier runs' effects); then the
+        // backup at the current name; then the rename source's backup; then the authored Write.
+        const content = seedContent?.(currentPath, run.timestamp)
+            ?? backupSeedWriteFor(records, currentPath, run.timestamp, reader)?.content
+            ?? backupSeedWriteFor(records, event.target, run.timestamp, reader)?.content
+            ?? event.content;
+        state.set(computeScriptStateKey(currentPath, run.cwd), content);
+    }
     for (const ref of parseScriptFileRefs(run.code)) {
-        const absPath = resolvePathByBasename(records, pathBasename(ref));
-        if (absPath === undefined) continue;
-        const seed = backupSeedWriteFor(records, absPath, run.timestamp, reader);
-        if (seed === undefined) continue;
-        state.set(ref, seed.content);
+        if (state.has(ref)) continue;
+        const absolutePath = resolvePathByBasename(records, pathBasename(ref));
+        if (absolutePath === undefined) continue;
+        const content = seedContent?.(absolutePath, run.timestamp)
+            ?? backupSeedWriteFor(records, absolutePath, run.timestamp, reader)?.content;
+        if (content !== undefined) state.set(ref, content);
     }
     return state;
 }
 
-// Execute the script in a temp dir against the pre-execution file state, return post-execution
-// content of every referenced file. undefined if the script fails.
+// Every file under `dir`, as [pathRelativeToBase, utf8 content], recursing into subdirectories.
+function readAllFiles(dir: string, base: string = dir): [string, string][] {
+    const files: [string, string][] = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+            files.push(...readAllFiles(full, base));
+        } else if (entry.isFile()) {
+            files.push([relative(base, full), readFileSync(full, "utf8")]);
+        }
+    }
+    return files;
+}
+
+// Execute the script in a temp dir against the pre-execution file state, return the post-execution
+// content of EVERY file left in the dir — not just the seeded ones — so a file the script CREATES
+// (a redirect target, an out.txt) or RENAMES-TO (a shutil.move destination) is captured, and a file
+// it deletes is absent. undefined if the script fails.
 export function runScriptAgainstState(
     script: string,
     preState: Map<string, string>,
@@ -214,9 +260,9 @@ export function runScriptAgainstState(
         writeFileSync(join(tempDir, "__script__.py"), script);
         execSync("python3 __script__.py", { cwd: tempDir, timeout: 5000, stdio: "pipe" });
         const result = new Map<string, string>();
-        for (const relativePath of preState.keys()) {
-            try { result.set(relativePath, readFileSync(join(tempDir, relativePath), "utf8")); }
-            catch { /* file deleted by script */ }
+        for (const [relativePath, content] of readAllFiles(tempDir)) {
+            if (relativePath === "__script__.py") continue;
+            result.set(relativePath, content);
         }
         return result;
     } catch {

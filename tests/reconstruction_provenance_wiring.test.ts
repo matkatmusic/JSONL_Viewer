@@ -14,12 +14,13 @@ import {
 import { loadRecords } from "./utilities.ts";
 import { S29_JSONL } from "./fixtures.ts";
 
-// The six rescue/reseed/beacon stages instrumented with noteStage — the only stages allowed to appear in
-// the provenance log (the deterministic extraction stages 1–4 are never the culprit).
+// The seven rescue/reseed/beacon stages instrumented with noteStage — the only stages allowed to appear
+// in the provenance log (the deterministic extraction stages 1–4 are never the culprit).
 const INSTRUMENTED_STAGES = new Set([
     "seedCopyEvents",
     "fillRedirectContent",
     "seedEditBaseFromBackup",
+    "injectScriptExecutions",
     "completeElidedBeacons",
     "completeTruncatedBeacon",
     "seedStaleEditBases",
