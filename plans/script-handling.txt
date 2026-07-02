@@ -1,0 +1,52 @@
+SCRIPT-HANDLING — the premise for reconstructing files rewritten by a script
+=============================================================================
+
+When a tracked file is rewritten by a script run through the Bash tool (or the
+context-mode MCP sandbox) rather than by Claude's Edit/Write tools, the script
+write leaves NO Edit/Write record — so on its own it is invisible to the engine.
+
+THE PREMISE (forward-validation)
+--------------------------------
+1. Find the BEACON after the script run — the first content-establishing
+   observation (read / cat / snapshot / edited_text_file / write) with a
+   timestamp AFTER the script-run time (T_exec).
+
+2. Work backwards through the edits: rewind every OBSERVED edit in the window
+   (T_exec, beacon] off the beacon, newest-first, to land on the state as it was
+   the instant the script finished. Call that the "PostScriptBeacon" — the
+   immediate post-script state.
+
+3. Get the PRE-script-run state and run the files forward THROUGH the script.
+
+4. If forward(pre-script state) == PostScriptBeacon, reconstruction for the
+   script-run phase was successful — inject the transform forward as a synthetic
+   authored event at T_exec. If it does NOT match, the file is not (fully)
+   explained by the script — FLAG it, never fabricate.
+
+THE KEY RULE: HAS-BEACON vs NO-BEACON
+-------------------------------------
+Script-replay (deriving + running the transform forward) is ONLY needed for
+NO-BEACON files — files with no post-script observation anywhere. If a beacon
+exists, the file reconstructs correctly FROM THE BEACON ALONE — no script-replay
+required (HAS-BEACON / CLEARS-VIA-ENGINE).
+
+Why forward, not reverse: validate by running forward(pre) and comparing to the
+known post-state, NOT by inverting the script. Forward validation needs no
+invertible transform, so it generalizes to any script (deletions, token
+collapses, non-bijective rewrites), not just clean renames.
+
+How S24 maps onto this (the clean-room HAS-BEACON case):
+  - T_exec = the `python3 rename_funcs.py` Bash run.
+  - The beacon is the harness-injected `edited_text_file` attachment landing as
+    part of that Bash result turn, with ZERO edits between T_exec and the beacon.
+  - So the rewind in step 2 is a no-op: PostScriptBeacon == the beacon directly
+    (the immediate post-script state is DIRECTLY OBSERVED, not synthesized).
+  - The api-from-scenarios engine adopts the beacon as the post-script revision
+    (a `user-edit`) — no transform, no forward-validation, no src change needed.
+    It never reaches the NO-BEACON replay path.
+
+SOURCE DOCUMENTS (sibling RevEng project, APPROVED)
+---------------------------------------------------
+- "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/spec-script-execution-replay.md"
+- "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/plan-script-execution-replay.md"
+- "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/tasks-script-execution-replay.md"

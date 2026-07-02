@@ -1,0 +1,16 @@
+{
+    "name": "jsonl-viewer",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "description": "Reconstruct file change history from Claude Code session JSONL files (clean-room).",
+    "scripts": {
+        "test": "node --import tsx --test tests/*.test.ts",
+        "typecheck": "tsc --noEmit"
+    },
+    "devDependencies": {
+        "@types/node": "^22.20.0",
+        "tsx": "^4.19.0",
+        "typescript": "^5.7.0"
+    }
+}

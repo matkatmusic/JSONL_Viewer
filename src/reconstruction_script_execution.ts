@@ -1,0 +1,274 @@
+// Script-execution replay, part 1 of 2: event types, run detection, indirection resolution, and the
+// forward-execution pipeline (getPreExecutionState + runScriptAgainstState). The validation/injection
+// stage lives in reconstruction_script_stage.ts.
+
+import { BlockType, EventKind, EXECUTOR_TOOL_NAMES, ToolName } from "./structures/vocabulary.ts";
+import { Path, type Uuid } from "./structures/domain.ts";
+import type { TranscriptRecord } from "./structures/envelope.ts";
+import { getContentBlocks, type ToolUseBlock } from "./structures/content-blocks.ts";
+import { backupSeedWriteFor, type BackupReader } from "./reconstruction_sidecar.ts";
+import { execSync } from "node:child_process";
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync, mkdirSync } from "node:fs";
+import { join, dirname, relative } from "node:path";
+import { tmpdir } from "node:os";
+import { quotedFilename, singleWhitespace } from "./regex_expressions.ts";
+import { extractFileEvents } from "./reconstruction_extract.ts";
+import { buildRenameChain, resolveFinalPath } from "./reconstruction_lineage.ts";
+
+// The proven post-execution state of a script run for one target file: the forward transform already
+// applied to the pre-script content. Injected as a synthetic authored event at the run's timestamp and
+// replayed as a full-content revision (like userEdit / overwrite). `content` is precomputed (not subs
+// re-applied at replay) so the revision is independent of replay ordering / earlier beacon completion.
+// One event per target file.
+export type ScriptExecutionEvent = {
+    kind: EventKind.scriptExecution;
+    changeId: Uuid;
+    target: Path;
+    content: string;
+    timestamp: Date;
+};
+
+// --- run detection ----------------------------------------------------------------------------------
+
+// A recorded script-execution run: the script source it ran, when, and the directory it ran from
+// (the MCP executor's input.cwd when present, else the record's cwd).
+export type ScriptRun = { code: string; timestamp: Date; cwd?: Path };
+
+// The runnable source a script-execution block carries: `input.code` (MCP execute) or `input.command`
+// (Bash). undefined for a non-executor tool, or an executor carrying neither.
+function scriptCodeOf(block: ToolUseBlock): string | undefined {
+    if (!EXECUTOR_TOOL_NAMES.has(block.name)) {
+        return undefined;
+    }
+    const input = block.input as { code?: string; command?: string };
+    return input.code ?? input.command;
+}
+
+// True when a tool_use is a script-execution run (a Bash or MCP-execution tool carrying script source).
+export function isScriptExecutionRun(block: ToolUseBlock): boolean {
+    return scriptCodeOf(block) !== undefined;
+}
+
+// The script-execution runs carried by one record's tool_use blocks (at the record's timestamp).
+function runsInRecord(record: TranscriptRecord): ScriptRun[] {
+    const timestamp = record.timestamp;
+    if (!(timestamp instanceof Date)) {
+        return [];
+    }
+    const recordCwd = (record as { cwd?: Path }).cwd;
+    const runs: ScriptRun[] = [];
+    for (const block of getContentBlocks(record)) {
+        if (block.type !== BlockType.tool_use) {
+            continue;
+        }
+        const code = scriptCodeOf(block);
+        if (code !== undefined) {
+            const blockCwd = (block.input as { cwd?: string }).cwd;
+            const cwd = blockCwd !== undefined ? new Path(blockCwd) : recordCwd;
+            runs.push({ code, timestamp, cwd });
+        }
+    }
+    return runs;
+}
+
+// The authored body of the Write whose file basename matches `basename`, or undefined.
+function writtenContentByBasename(records: TranscriptRecord[], basename: string): string | undefined {
+    for (const record of records) {
+        for (const block of getContentBlocks(record)) {
+            if (block.type !== BlockType.tool_use || block.name !== ToolName.Write) continue;
+            const input = block.input as { file_path?: string; content?: string };
+            if (input.file_path !== undefined && pathBasename(input.file_path) === basename) return input.content;
+        }
+    }
+    return undefined;
+}
+
+// Resolve script-file indirection: when a run merely invokes a written script file, replace
+// the run's code with the invoked file's authored Write body. Handles two forms:
+//   1. Direct invocation: `python3 script.py`, `bash script.sh`, `node script.js`, `npx tsx script.ts`
+//   2. exec(open()) indirection: MCP ctx_execute wraps a script as `exec(open("file.py").read())`
+// A run that already inlines its code, or whose invoked file has no Write, is returned unchanged.
+// The script file extensions we resolve through indirection.
+const SCRIPT_EXTENSIONS = [".py", ".sh", ".js", ".ts"];
+
+// Whether a filename ends with a known script extension.
+function isScriptFile(name: string): boolean {
+    return SCRIPT_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
+
+// Extract the invoked script filename from a direct-invocation command like
+// `python3 script.py`, `bash script.sh`, `node script.js`, `npx tsx script.ts`.
+function parseDirectInvocation(code: string): string | undefined {
+    const runners = ["python3", "python", "bash", "sh", "node", "npx tsx"];
+    for (const runner of runners) {
+        if (!code.includes(runner)) {
+            continue;
+        }
+        const after = code.slice(code.indexOf(runner) + runner.length).trimStart();
+        // first word after the runner, e.g. "apply.py --dry-run" -> "apply.py".
+        const filename = after.split(singleWhitespace)[0] ?? "";
+        if (isScriptFile(filename)) {
+            return filename;
+        }
+    }
+    return undefined;
+}
+
+// Extract the script filename from an exec(open()) wrapper like
+// `exec(open("rename_inv.py").read())` — the MCP ctx_execute form.
+function parseExecOpenIndirection(code: string): string | undefined {
+    const marker = 'exec(open("';
+    let start = code.indexOf(marker);
+    if (start < 0) {
+        start = code.indexOf("exec(open('");
+        if (start < 0) {
+            return undefined;
+        }
+        start += "exec(open('".length;
+    } else {
+        start += marker.length;
+    }
+    const end = code.indexOf('"', start) !== -1 ? code.indexOf('"', start) : code.indexOf("'", start);
+    if (end < 0) {
+        return undefined;
+    }
+    const filename = code.slice(start, end);
+    return isScriptFile(filename) ? filename : undefined;
+}
+
+function resolveScriptIndirection(run: ScriptRun, records: TranscriptRecord[]): ScriptRun {
+    const filename = parseDirectInvocation(run.code) ?? parseExecOpenIndirection(run.code);
+    if (filename === undefined) {
+        return run;
+    }
+    const body = writtenContentByBasename(records, pathBasename(filename));
+    return body === undefined ? run : { ...run, code: body };
+}
+
+// Every script-execution run in the transcript, in record order, each with its source and timestamp.
+// A run that invokes a written script file is resolved to that file's body (resolveScriptIndirection).
+export function findScriptExecutionRuns(records: TranscriptRecord[]): ScriptRun[] {
+    return records.flatMap(runsInRecord).map((run) => resolveScriptIndirection(run, records));
+}
+
+// The final path segment of a "/"-separated path string.
+function pathBasename(value: string): string {
+    const slash = value.lastIndexOf("/");
+    return slash >= 0 ? value.slice(slash + 1) : value;
+}
+
+// The absolute path of the tracked file whose basename matches `basename`, from any tool_use block.
+function resolvePathByBasename(records: TranscriptRecord[], basename: string): Path | undefined {
+    for (const record of records) {
+        for (const block of getContentBlocks(record)) {
+            if (block.type !== BlockType.tool_use) continue;
+            const filePath = (block.input as { file_path?: string }).file_path;
+            if (filePath !== undefined && pathBasename(filePath) === basename) return new Path(filePath);
+        }
+    }
+    return undefined;
+}
+
+// --- forward execution pipeline --------------------------------------------------------------------
+
+// All file-path-like quoted strings in the script source (e.g. "billing.py", "renames.csv").
+export function parseScriptFileRefs(code: string): string[] {
+    const matches = code.match(quotedFilename) ?? [];
+    return [...new Set(matches.map((m) => m.slice(1, -1)))];
+}
+
+// A callback that returns a file's reconstructed content just before `before`, or undefined
+// when the lineage has no revision strictly before that instant.
+export type LineageContentBefore = (target: Path, before: Date) => string | undefined;
+
+// The name the script uses for this file from the run's cwd: the cwd-relative path when the
+// file lives under cwd (preserving subdirectories like "tests/"), else the flat basename.
+export function computeScriptStateKey(filePath: Path, runCwd: Path | undefined): string {
+    if (runCwd !== undefined) {
+        const cwdRelativePath = relative(runCwd.toString(), filePath.toString());
+        if (cwdRelativePath !== "" && !cwdRelativePath.startsWith("..")) {
+            return cwdRelativePath;
+        }
+    }
+    return pathBasename(filePath.toString());
+}
+
+// The pre-execution state of every file the run could touch, keyed by the path the script uses
+// from its cwd: every file Written before the run (at its rename-resolved current name), plus any
+// file the script source references that only a backup knows.
+export function getPreExecutionState(
+    run: ScriptRun,
+    records: TranscriptRecord[],
+    reader: BackupReader,
+    seedContent?: LineageContentBefore,
+): Map<string, string> {
+    const events = extractFileEvents(records);
+    const renameChain = buildRenameChain(events);
+    const state = new Map<string, string>();
+    for (const event of events) {
+        if (event.kind !== EventKind.write) continue;
+        if (event.timestamp.getTime() > run.timestamp.getTime()) continue;
+        const currentPath = resolveFinalPath(event.target, renameChain);
+        // Lineage first (it carries post-backup Edits and earlier runs' effects); then the
+        // backup at the current name; then the rename source's backup; then the authored Write.
+        const content = seedContent?.(currentPath, run.timestamp)
+            ?? backupSeedWriteFor(records, currentPath, run.timestamp, reader)?.content
+            ?? backupSeedWriteFor(records, event.target, run.timestamp, reader)?.content
+            ?? event.content;
+        state.set(computeScriptStateKey(currentPath, run.cwd), content);
+    }
+    for (const ref of parseScriptFileRefs(run.code)) {
+        if (state.has(ref)) continue;
+        const absolutePath = resolvePathByBasename(records, pathBasename(ref));
+        if (absolutePath === undefined) continue;
+        const content = seedContent?.(absolutePath, run.timestamp)
+            ?? backupSeedWriteFor(records, absolutePath, run.timestamp, reader)?.content;
+        if (content !== undefined) state.set(ref, content);
+    }
+    return state;
+}
+
+// Every file under `dir`, as [pathRelativeToBase, utf8 content], recursing into subdirectories.
+function readAllFiles(dir: string, base: string = dir): [string, string][] {
+    const files: [string, string][] = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+            files.push(...readAllFiles(full, base));
+        } else if (entry.isFile()) {
+            files.push([relative(base, full), readFileSync(full, "utf8")]);
+        }
+    }
+    return files;
+}
+
+// Execute the script in a temp dir against the pre-execution file state, return the post-execution
+// content of EVERY file left in the dir — not just the seeded ones — so a file the script CREATES
+// (a redirect target, an out.txt) or RENAMES-TO (a shutil.move destination) is captured, and a file
+// it deletes is absent. undefined if the script fails.
+export function runScriptAgainstState(
+    script: string,
+    preState: Map<string, string>,
+): Map<string, string> | undefined {
+    const tempDir = mkdtempSync(join(tmpdir(), "reveng-"));
+    try {
+        for (const [relativePath, content] of preState) {
+            const dest = join(tempDir, relativePath);
+            mkdirSync(dirname(dest), { recursive: true });
+            writeFileSync(dest, content);
+        }
+        writeFileSync(join(tempDir, "__script__.py"), script);
+        execSync("python3 __script__.py", { cwd: tempDir, timeout: 5000, stdio: "pipe" });
+        const result = new Map<string, string>();
+        for (const [relativePath, content] of readAllFiles(tempDir)) {
+            if (relativePath === "__script__.py") continue;
+            result.set(relativePath, content);
+        }
+        return result;
+    } catch {
+        return undefined;
+    } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+    }
+}
+
