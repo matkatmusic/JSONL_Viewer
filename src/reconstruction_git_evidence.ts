@@ -244,11 +244,10 @@ function placeOneCommitDiff(
     if (commit.cwd === undefined) return undefined;
     const blob = readCommittedFileContent(commit.cwd, commit.timestamp, target);
     if (blob === undefined) return undefined;
-    const beforeCommit = events
-        .map((event, index) => ({ event, index }))
-        .filter(({ event }) => event.timestamp.getTime() <= commit.timestamp.getTime())
-        .filter(({ event }) => isFullContentEvent(event))
-        .map(({ index }) => index);
+    const indexedEvents = events.map((event, index) => ({ event, index }));
+    const atOrBeforeCommit = indexedEvents.filter(({ event }) => event.timestamp.getTime() <= commit.timestamp.getTime());
+    const fullContentEvents = atOrBeforeCommit.filter(({ event }) => isFullContentEvent(event));
+    const beforeCommit = fullContentEvents.map(({ index }) => index);
     if (beforeCommit.length === 0) return undefined;
     const atCommit = events[beforeCommit[beforeCommit.length - 1]!] as FullContentEvent;
     if (atCommit.content === blob) return undefined;

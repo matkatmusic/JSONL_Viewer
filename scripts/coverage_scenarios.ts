@@ -38,10 +38,11 @@ function scenarioIdOf(dirName: string): string {
 // arise when a run splits into multiple sessions (pre/post /clear, baseline + scenario, one per concurrent
 // agent); they are merged into one record stream at reconstruction, so all are returned.
 export function allJsonls(dir: string): string[] {
-    return readdirSync(dir)
-        .filter((name) => name.endsWith(".jsonl"))
-        .sort()
-        .map((name) => join(dir, name));
+    const entryNames = readdirSync(dir);
+    const jsonlNames = entryNames.filter((name) => name.endsWith(".jsonl"));
+    jsonlNames.sort();
+    const jsonlPaths = jsonlNames.map((name) => join(dir, name));
+    return jsonlPaths;
 }
 
 // Every scenario under `executedRoot` that has a `.step_states/` dir AND at least one transcript. A dir with
@@ -109,6 +110,7 @@ function indexOneJsonl(jsonlPath: Path, index: Map<string, number>): void {
 // A map from each transcript record's uuid to its 1-based line number, for attributing a step to its JSONL
 // line. Spans every session jsonl (uuids are globally unique, so the merged index is unambiguous).
 export function buildUuidLineIndex(jsonlPaths: Path[]): Map<string, number> {
+    console.log(`   Building uuid→line index from ${jsonlPaths.length} JSONL files`);
     const index = new Map<string, number>();
     for (const jsonlPath of jsonlPaths) {
         indexOneJsonl(jsonlPath, index);
@@ -146,7 +148,8 @@ export function stepNumberOf(folderName: string): number {
 
 // The sorted `step-NNN` folder names under a `.step_states` dir.
 export function stepFolders(stepStatesDir: string): string[] {
-    return readdirSync(stepStatesDir)
-        .filter((name) => name.startsWith("step-"))
-        .sort((a, b) => stepNumberOf(a) - stepNumberOf(b));
+    const entryNames = readdirSync(stepStatesDir);
+    const stepNames = entryNames.filter((name) => name.startsWith("step-"));
+    stepNames.sort((a, b) => stepNumberOf(a) - stepNumberOf(b));
+    return stepNames;
 }

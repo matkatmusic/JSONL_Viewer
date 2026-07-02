@@ -43,15 +43,15 @@ function collectChangeTimes(histories: FileHistory[]): Date[] {
 // ponytail: if two lineages ever resolve to the same name-at-time the later wins — impossible on a real
 // disk; revisit only if it occurs.
 function pathAtTime(history: FileHistory, when: Date): Path {
-    const renames = history.revisions
-        .filter((revision): revision is FileRevision & { rename: RenameInfo } => revision.rename !== undefined)
-        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    const renames = history.revisions.filter(
+        (revision): revision is FileRevision & { rename: RenameInfo } => revision.rename !== undefined,
+    );
+    renames.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
     if (renames.length === 0) {
         return history.target;
     }
-    const latestAtOrBefore = renames
-        .filter((revision) => revision.timestamp.getTime() <= when.getTime())
-        .at(-1);
+    const renamesAtOrBefore = renames.filter((revision) => revision.timestamp.getTime() <= when.getTime());
+    const latestAtOrBefore = renamesAtOrBefore.at(-1);
     if (latestAtOrBefore !== undefined) {
         return latestAtOrBefore.rename.to;
     }
@@ -79,6 +79,7 @@ export function reconstructStepStates(
     records: TranscriptRecord[],
     reader?: BackupReader,
 ): RepoSnapshot[] {
+    console.log(`   Reconstructing step states from ${records.length} transcript records`);
     const histories = reconstructFilesOver(records, reader);
     return collectChangeTimes(histories).map((when) => produceRepoStateAtTime(histories, when));
 }
@@ -143,11 +144,10 @@ export type StepChange = { when: Date; changeIds: Uuid[] };
 
 // The changeIds of every revision occurring at exactly `when`, across all files.
 function changeIdsAt(histories: FileHistory[], when: Date): Uuid[] {
-    return histories.flatMap((history) =>
-        history.revisions
-            .filter((revision) => revision.timestamp.getTime() === when.getTime())
-            .map((revision) => revision.changeId),
-    );
+    return histories.flatMap((history) => {
+        const revisionsAtInstant = history.revisions.filter((revision) => revision.timestamp.getTime() === when.getTime());
+        return revisionsAtInstant.map((revision) => revision.changeId);
+    });
 }
 
 // Each code-change step's triggering changeIds, in the SAME order and count as reconstructStepStates (both

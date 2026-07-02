@@ -62,9 +62,9 @@ test("test_attachment_payload_type_is_within_s1_vocabulary", () => {
     // Steps:
     // collect the attachment payload types present in s1.
     const allowed = new Set<string>(ATTACHMENT_PAYLOAD_TYPES);
-    const attachments = loadRecords(S1_JSONL)
-        .map(getAttachmentEntry)
-        .filter(Boolean);
+    const s1Records = loadRecords(S1_JSONL);
+    const attachmentEntries = s1Records.map(getAttachmentEntry);
+    const attachments = attachmentEntries.filter(Boolean);
     // there are attachments in s1, and each payload type is recognized.
     assert.ok(attachments.length > 0);
     for (const attachment of attachments) {
@@ -86,12 +86,11 @@ test("test_attachment_payload_type_covers_s2_kinds", () => {
     // Steps:
     // collect the attachment payload types present in s2.
     const allowed = new Set<string>(ATTACHMENT_PAYLOAD_TYPES);
-    const present = new Set(
-        loadRecords(S2_JSONL)
-            .map(getAttachmentEntry)
-            .filter(Boolean)
-            .map((attachment) => attachment!.attachment.type),
-    );
+    const s2Records = loadRecords(S2_JSONL);
+    const attachmentEntries = s2Records.map(getAttachmentEntry);
+    const attachments = attachmentEntries.filter(Boolean);
+    const attachmentTypes = attachments.map((attachment) => attachment!.attachment.type);
+    const present = new Set(attachmentTypes);
     // there are attachments in s2, and every payload type is recognized vocabulary.
     assert.ok(present.size > 0);
     for (const type of present) {

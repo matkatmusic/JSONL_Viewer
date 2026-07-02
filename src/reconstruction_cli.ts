@@ -166,9 +166,8 @@ function renderHistories(
     histories: FileHistory[],
     render: (revisions: FileRevision[]) => string,
 ): string {
-    return histories
-        .map((history) => `### ${history.target}\n${render(history.revisions)}`)
-        .join("\n\n");
+    const sections = histories.map((history) => `### ${history.target}\n${render(history.revisions)}`);
+    return sections.join("\n\n");
 }
 
 // The histories matching --target (by exact final path), or all of them when no --target is given.

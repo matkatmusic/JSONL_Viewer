@@ -194,9 +194,9 @@ export function renderTrace(partition: LinePartition, options: TraceOptions): st
         throw new Error("renderTrace: hideIgnored and onlyIgnored are mutually exclusive");
     }
     const only = soleLine(options);
-    return orderRows(partition)
-        .filter((row) => rowPassesFilter(row, options))
-        .filter((row) => only === undefined || row.lineNumber === only)
-        .map((row) => renderRow(row, options))
-        .join("\n");
+    const orderedRows = orderRows(partition);
+    const filteredRows = orderedRows.filter((row) => rowPassesFilter(row, options));
+    const selectedRows = filteredRows.filter((row) => only === undefined || row.lineNumber === only);
+    const renderedRows = selectedRows.map((row) => renderRow(row, options));
+    return renderedRows.join("\n");
 }

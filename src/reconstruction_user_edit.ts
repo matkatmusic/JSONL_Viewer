@@ -21,10 +21,9 @@ export type BeaconSnippet = { lines: BeaconLine[]; hasEllipsis: boolean };
 // Strip the `<lineNo>\t` prefix every line of an `edited_text_file` snippet carries, recovering the
 // file's actual post-edit text. `1\t# user edit\n2\tdef hello():` -> `# user edit\ndef hello():`.
 function stripLineNumberPrefixes(snippet: string): string {
-    return snippet
-        .split("\n")
-        .map((line) => line.replace(lineNumberPrefix, ""))
-        .join("\n");
+    const numberedLines = snippet.split("\n");
+    const strippedLines = numberedLines.map((line) => line.replace(lineNumberPrefix, ""));
+    return strippedLines.join("\n");
 }
 
 // Turn an `edited_text_file` attachment record into a UserEditEvent, or undefined when the record is

@@ -30,9 +30,9 @@ test("test_parseRecord_hydrates_envelope_domain_fields", () => {
     // envelope value is left as a primitive string.
     // Steps:
     // find the first assistant record (carries the full envelope).
-    const assistant = readNonEmptyLines(S1_JSONL)
-        .map(parseRecord)
-        .find((record) => record.type === RecordType.assistant);
+    const lines = readNonEmptyLines(S1_JSONL);
+    const parsedRecords = lines.map(parseRecord);
+    const assistant = parsedRecords.find((record) => record.type === RecordType.assistant);
     if (!assistant) {
         assert.fail("expected an assistant record in s1");
     }

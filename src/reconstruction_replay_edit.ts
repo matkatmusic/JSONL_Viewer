@@ -157,9 +157,8 @@ export function appendRevision(
         };
     }
     const carried = lastLinesOf(revisions).map(carryAt);
-    const appended = newLines
-        .slice(carried.length)
-        .map((line) => genesisLine(line, event.timestamp));
+    const appendedNewLines = newLines.slice(carried.length);
+    const appended = appendedNewLines.map((line) => genesisLine(line, event.timestamp));
     return {
         kind: EventKind.append,
         changeId: event.changeId,

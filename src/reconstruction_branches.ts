@@ -205,9 +205,9 @@ export function collectAcceptedUserEditIds(
 
 // The changeIds of the surviving user-edit revisions in one branch's reconstructed histories.
 function userEditIdsOf(history: FileHistory): string[] {
-    return history.revisions
-        .filter((revision) => revision.kind === EventKind.userEdit)
-        .map((revision) => revision.changeId.toString());
+    const userEditRevisions = history.revisions.filter((revision) => revision.kind === EventKind.userEdit);
+    const changeIds = userEditRevisions.map((revision) => revision.changeId.toString());
+    return changeIds;
 }
 
 // Add every branch history's surviving user-edit changeId into the accumulating accepted set.

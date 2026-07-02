@@ -39,9 +39,9 @@ function scenarioNumber(scenarioId: string): number {
 function main(): void {
     const now = new Date().toISOString();
     const prior = readPriorTimestamps();
-    const results = listCoveredScenarios()
-        .map(checkScenarioResilient)
-        .sort((a, b) => scenarioNumber(a.scenario.scenarioId) - scenarioNumber(b.scenario.scenarioId));
+    const covered = listCoveredScenarios();
+    const results = covered.map(checkScenarioResilient);
+    results.sort((a, b) => scenarioNumber(a.scenario.scenarioId) - scenarioNumber(b.scenario.scenarioId));
 
     const rows = results.map((result) => {
         const id = result.scenario.scenarioId;

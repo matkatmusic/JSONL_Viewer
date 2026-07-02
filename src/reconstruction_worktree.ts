@@ -44,11 +44,10 @@ function buildContentSignature(
     snapshot: FileHistorySnapshotMessage,
     carried: Map<string, string>,
 ): string {
-    return snapshot.snapshot.trackedFileBackups
-        .entries()
-        .map(([path, backup]) => `${path.toString()}@${resolveContentId(path, backup, carried)}`)
-        .sort()
-        .join("|");
+    const backupEntries = snapshot.snapshot.trackedFileBackups.entries();
+    const signatureParts = backupEntries.map(([path, backup]) => `${path.toString()}@${resolveContentId(path, backup, carried)}`);
+    signatureParts.sort();
+    return signatureParts.join("|");
 }
 
 // The messageId of the last file-history-snapshot whose CONTENT signature changed vs. the previous

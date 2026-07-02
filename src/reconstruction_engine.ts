@@ -215,10 +215,9 @@ export function reconstructBranches(
     const branches = findConversationBranches(records);
     const survivingBranch = branches.find((branch) => branch.isSurviving);
     const surviving = reconstructAll(records, reader);
-    const rewound = branches
-        .filter((branch) => !branch.isSurviving)
-        .map((branch) => buildRewoundBranchHistory(records, branch, reader))
-        .filter((entry): entry is RewoundBranchHistory => entry !== undefined);
+    const rewoundBranches = branches.filter((branch) => !branch.isSurviving);
+    const rewoundHistories = rewoundBranches.map((branch) => buildRewoundBranchHistory(records, branch, reader));
+    const rewound = rewoundHistories.filter((entry): entry is RewoundBranchHistory => entry !== undefined);
     return { survivingTip: survivingBranch?.tip, surviving, rewound };
 }
 

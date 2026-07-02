@@ -88,9 +88,9 @@ function removedLines(
 
 // Current entries born here (oldLineNum DOES_NOT_EXIST_YET) are the real additions.
 function addedLines(revision: FileRevision): string[] {
-    return revision.lines
-        .filter((entry) => entry.oldLineNum === DOES_NOT_EXIST_YET)
-        .map((entry) => `+ ${currentText(entry)}`);
+    const bornEntries = revision.lines.filter((entry) => entry.oldLineNum === DOES_NOT_EXIST_YET);
+    const added = bornEntries.map((entry) => `+ ${currentText(entry)}`);
+    return added;
 }
 
 // Render one revision as a diff against the previous one. Real changes only: a

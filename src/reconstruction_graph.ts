@@ -238,10 +238,9 @@ export function buildConversationDag(records: TranscriptRecord[], reader?: Backu
     const branches = findConversationBranches(records);
     const survivingBranch = branches.find((branch) => branch.isSurviving);
     const survivingUuids = collectSurvivingUuids(records);
-    const rewound = branches
-        .filter((branch) => !branch.isSurviving)
-        .map((branch) => buildRewoundConvoBranch(records, branch, survivingUuids, letters, accepted))
-        .filter((branch) => branch.turns.length > 0);
+    const rewoundBranches = branches.filter((branch) => !branch.isSurviving);
+    const rewoundConvoBranches = rewoundBranches.map((branch) => buildRewoundConvoBranch(records, branch, survivingUuids, letters, accepted));
+    const rewound = rewoundConvoBranches.filter((branch) => branch.turns.length > 0);
     const rootUuid = resolveRootUuid(records, rewound);
     const surviving = buildSurvivingConvoBranch(records, survivingBranch, rewound, rootUuid, letters, accepted);
     const kept = surviving === undefined ? rewound : [surviving, ...rewound];

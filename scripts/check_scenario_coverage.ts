@@ -72,7 +72,8 @@ export function renderStepProvenance(
             targetMatchesFile(entry.target, differingFile) &&
             (entry.when === undefined || entry.when.getTime() <= stepTime.getTime()),
     );
-    return matching.map(formatProvenanceEntry).join("\n");
+    const formattedEntries = matching.map(formatProvenanceEntry);
+    return formattedEntries.join("\n");
 }
 
 // A scenario's per-step result: how many captured folders some engine step reproduced, and the misses.
@@ -128,7 +129,8 @@ function buildStepMismatch(
     const best = selectBestEngineStep(steps, groundTruth);
     const file = firstDifferingFile(steps[best]!, groundTruth) ?? [...groundTruth.keys()][0]!;
     const expected = stripTrailingNewline(groundTruth.get(file)!);
-    const diff = describeDiff(file, expected, snapshotFileText(steps[best]!, file) ?? "");
+    const actual = snapshotFileText(steps[best]!, file) ?? "";
+    const diff = describeDiff(file, expected, actual);
     const stepProvenance = renderStepProvenance(provenance, file, stepChanges[best]!.when);
     return { stepNum, jsonlLine: jsonlLineFor(stepChanges[best], uuidLineIndex), diff, provenance: stepProvenance };
 }
@@ -138,6 +140,7 @@ function buildStepMismatch(
 export function checkScenario(scenario: CoveredScenario): ScenarioResult {
     console.log(`\n=== scenario ${scenario.scenarioId} (${scenario.dirName}) ===`);
     const records = scenario.jsonlPaths.flatMap((path) => loadTranscript(path.toString()));
+    console.log(`   Loaded ${records.length} transcript records from ${scenario.jsonlPaths.length} JSONL files`);
     const reader = buildSidecarReader(records);
     const uuidLineIndex = buildUuidLineIndex(scenario.jsonlPaths);
     enableProvenance();
@@ -157,9 +160,11 @@ export function checkScenario(scenario: CoveredScenario): ScenarioResult {
         }
         // ponytail: look-ahead — if a later folder matches an engine step, this folder is a
         // user-edit the transcript coalesced (scenario runner did 2+ Edit: steps between prompts)
-        const laterMatches = folders.slice(i + 1).some((later) =>
-            someStepReproduces(steps, readStepStateFiles(join(scenario.stepStatesDir, later))),
-        );
+        const laterFolders = folders.slice(i + 1);
+        const laterMatches = laterFolders.some((later) => {
+            const laterGroundTruth = readStepStateFiles(join(scenario.stepStatesDir, later));
+            return someStepReproduces(steps, laterGroundTruth);
+        });
         if (laterMatches) {
             userEdits += 1;
             passed += 1;
@@ -196,7 +201,9 @@ function printResult(result: ScenarioResult): void {
     console.log(`${status} ${result.scenario.scenarioId.padEnd(5)} ${result.passed}/${result.total}  ${result.scenario.dirName}${userEditNote}`);
     for (const mismatch of result.mismatches) {
         console.log(`       step ${mismatch.stepNum}  ${mismatch.jsonlLine}  ${mismatch.diff}`);
-        for (const line of mismatch.provenance.split("\n").filter((entry) => entry.length > 0)) {
+        const provenanceLines = mismatch.provenance.split("\n");
+        const nonEmptyProvenanceLines = provenanceLines.filter((entry) => entry.length > 0);
+        for (const line of nonEmptyProvenanceLines) {
             console.log(`         ↳ ${line}`);
         }
     }
@@ -208,8 +215,10 @@ function printResult(result: ScenarioResult): void {
 function main(): void {
     const executedRoot = new URL("../scenarios/executed/", import.meta.url);
     const onlyFailing = process.argv.includes("--onlyFailing");
-    const filter = process.argv.slice(2).find((arg) => !arg.startsWith("--"));
-    const covered = listCoveredScenarios().filter(
+    const cliArgs = process.argv.slice(2);
+    const filter = cliArgs.find((arg) => !arg.startsWith("--"));
+    const allCovered = listCoveredScenarios();
+    const covered = allCovered.filter(
         (scenario) => filter === undefined || scenario.scenarioId === filter || scenario.dirName === filter,
     );
     if (covered.length === 0 && filter !== undefined) {

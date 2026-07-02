@@ -53,10 +53,10 @@ export function findPromptForkPoints(records: TranscriptRecord[]): Uuid[] {
         }
         existing.count += 1;
     }
-    return order
-        .map((key) => promptParents.get(key)!)
-        .filter((entry) => entry.count >= 2)
-        .map((entry) => entry.parent);
+    const orderedEntries = order.map((key) => promptParents.get(key)!);
+    const forkEntries = orderedEntries.filter((entry) => entry.count >= 2);
+    const forkParents = forkEntries.map((entry) => entry.parent);
+    return forkParents;
 }
 
 // Index the records that carry a uuid by that uuid string, for ancestor-chain walks.

@@ -12,9 +12,8 @@ import { checkScenarioResilient, type ScenarioResult } from "../scripts/check_sc
 
 // The failing step folders, one per line, for an assertion message.
 function describeMismatches(result: ScenarioResult): string {
-    return result.mismatches
-        .map((mismatch) => `  step ${mismatch.stepNum}  ${mismatch.jsonlLine}  ${mismatch.diff}`)
-        .join("\n");
+    const mismatchLines = result.mismatches.map((mismatch) => `  step ${mismatch.stepNum}  ${mismatch.jsonlLine}  ${mismatch.diff}`);
+    return mismatchLines.join("\n");
 }
 
 for (const scenario of listCoveredScenarios()) {

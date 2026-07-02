@@ -42,9 +42,8 @@ test("test_extractConversationMessages_keeps_genuine_user_prompts", () => {
     const genuine = userRecords.filter((r) => isGenuineUserPrompt(r));
     const nonPrompt = userRecords.find((r) => !isGenuineUserPrompt(r));
     // Verify: each returned user message corresponds to a genuine prompt, and a non-prompt is absent.
-    const returnedUserUuids = messages
-        .filter((m) => m.role === RecordType.user)
-        .map((m) => m.uuid?.toString());
+    const returnedUserMessages = messages.filter((m) => m.role === RecordType.user);
+    const returnedUserUuids = returnedUserMessages.map((m) => m.uuid?.toString());
     assert.equal(returnedUserUuids.length, genuine.length);
     if (nonPrompt !== undefined) {
         assert.ok(!returnedUserUuids.includes(nonPrompt.uuid?.toString()));
@@ -88,10 +87,9 @@ test("test_extractMessageText_joins_assistant_text_blocks", () => {
     // Verify: its text is the join of the record's text blocks (no tool_use noise).
     if (blockAssistant !== undefined) {
         const blocks = (blockAssistant.message as { content: { type: string; text?: string }[] }).content;
-        const expected = blocks
-            .filter((b) => b.type === BlockType.text)
-            .map((b) => b.text)
-            .join("\n");
+        const textBlocks = blocks.filter((b) => b.type === BlockType.text);
+        const blockTexts = textBlocks.map((b) => b.text);
+        const expected = blockTexts.join("\n");
         const built = messages.find((m) => m.uuid?.toString() === blockAssistant.uuid?.toString());
         if (expected !== "") {
             assert.equal(built?.text, expected);

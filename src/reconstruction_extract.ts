@@ -256,9 +256,8 @@ function toolResultText(record: TranscriptRecord): string {
         return raw;
     }
     if (Array.isArray(raw)) {
-        return raw
-            .map((block) => (block && typeof block === "object" && "text" in block ? String((block as { text: unknown }).text) : ""))
-            .join("\n");
+        const blockTexts = raw.map((block) => (block && typeof block === "object" && "text" in block ? String((block as { text: unknown }).text) : ""));
+        return blockTexts.join("\n");
     }
     if (raw && typeof raw === "object" && typeof (raw as { stdout?: unknown }).stdout === "string") {
         return (raw as { stdout: string }).stdout;

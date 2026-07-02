@@ -84,8 +84,10 @@ export function parseTranscriptLine(line: string): TranscriptRecord {
 // Load a whole transcript file into typed records. Throws on the first unknown
 // record type or unmodeled top-level key.
 export function loadTranscript(filePath: string): TranscriptRecord[] {
-    return readFileSync(filePath, "utf8")
-        .split("\n")
-        .filter((line) => line.trim().length > 0)
-        .map(parseTranscriptLine);
+    console.log(`   Loading transcript from ${filePath}`);
+    const fileText = readFileSync(filePath, "utf8");
+    const lines = fileText.split("\n");
+    const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
+    const records = nonEmptyLines.map(parseTranscriptLine);
+    return records;
 }

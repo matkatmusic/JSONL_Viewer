@@ -80,8 +80,8 @@ test("test_distinct_final_paths_keeps_copy_source_and_destination", () => {
     };
     // A copy is absent from the rename chain, so both paths survive.
     const renameChain = buildRenameChain([write, copy]);
-    const finals = distinctFinalPaths([write, copy], renameChain)
-        .map((path) => path.toString());
+    const finalPaths = distinctFinalPaths([write, copy], renameChain);
+    const finals = finalPaths.map((path) => path.toString());
     // Both the source and the copy destination are distinct histories.
     assert.ok(finals.some((path) => path.endsWith("/s3_source.py")));
     assert.ok(finals.some((path) => path.endsWith("/s3_copy.py")));
