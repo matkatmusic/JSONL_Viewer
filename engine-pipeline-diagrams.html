@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RevEng Reconstruction Engine — Pipeline Diagrams</title>
+<style>
+  body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; background: #fafafa; color: #222; }
+  header { padding: 12px 20px; background: #1e293b; color: #fff; }
+  header h1 { margin: 0; font-size: 18px; }
+  header p { margin: 4px 0 0; font-size: 13px; color: #cbd5e1; }
+  nav { display: flex; gap: 6px; padding: 10px 20px; background: #e2e8f0; position: sticky; top: 0; z-index: 10; }
+  nav button { padding: 8px 14px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; cursor: pointer; font-size: 14px; }
+  nav button.active { background: #1e293b; color: #fff; border-color: #1e293b; }
+  .tab { display: none; padding: 16px 20px; }
+  .tab.active { display: block; }
+  .caption { font-size: 14px; color: #475569; margin: 0 0 12px; max-width: 900px; }
+  .diagram { overflow-x: auto; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; }
+  .legend { font-size: 12px; color: #64748b; margin-top: 8px; }
+  g.node.drill { cursor: pointer; }
+  g.node.jump-hi rect, g.node.jump-hi polygon, g.node.jump-hi path { stroke: #dc2626 !important; stroke-width: 3px !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>RevEng Reconstruction Engine — Pipeline</h1>
+  <p>Input: a Claude Code session transcript (<code>.jsonl</code>) &nbsp;→&nbsp; Output: the reconstructed edit history of every file the session touched. Entry point: <code>src/reconstruction_cli.ts :: runCli(argv)</code></p>
+</header>
+
+<nav>
+  <button data-tab="t1" class="active">1 · Pipeline in 5 steps</button>
+  <button data-tab="t2">2 · Pipeline in 15 steps</button>
+  <button data-tab="t3">3 · Detailed call graph</button>
+  <button data-tab="t4">4 · check_scenario_coverage</button>
+</nav>
+
+<!-- ============================= TAB 1: 5 STEPS ============================= -->
+<div class="tab active" id="t1">
+  <p class="caption">The whole engine at maximum zoom-out. In C++ terms: a pure transform pipeline —
+  <code>vector&lt;TranscriptRecord&gt;</code> flows in, gets enriched into <code>vector&lt;FileEvent&gt;</code> per file,
+  folds into <code>vector&lt;FileRevision&gt;</code>, and one of several renderers stringifies the result.
+  The only I/O is reading the transcript, the backup blobs, and (optionally) shelling out to <code>git</code>/<code>python3</code>.
+  <b>Click any step</b> to jump to the matching steps in the 15-step view.</p>
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    jsonl[("session
+transcript
+*.jsonl")]
+    fh[("~/.claude/file-history/
+backup blobs")]
+
+    S1["<b>1 · LOAD &amp; PARSE</b>
+loadTranscript()
+raw lines → TranscriptRecord[]
+(strict: unknown record types
+or fields throw)"]
+    S2["<b>2 · BACKUP READER</b>
+buildSidecarReader()
+records → BackupReader?
+(closure over file-history dir;
+optional — engine works without it)"]
+    S3["<b>3 · BRANCH DISCOVERY</b>
+findConversationBranches()
+which conversation branch
+survived rewinds/forks?
+records → ConversationBranch[]"]
+    S4["<b>4 · RECONSTRUCT (the heart)</b>
+reconstructBranches() → per file:
+extract FileEvent[] → repair gaps
+(backups, scripts, git, beacons)
+→ replayEvents() → FileRevision[]"]
+    S5["<b>5 · RENDER</b>
+list · verbose · diff ·
+ASCII DAGs · per-step
+snapshots · JSON
+→ stdout"]
+
+    jsonl --> S1 --> S3 --> S4 --> S5
+    S1 --> S2
+    fh --> S2
+    S2 -. "fills content the
+JSONL never stored" .-> S4
+
+    style S4 fill:#fef3c7,stroke:#d97706
+    style jsonl fill:#e0f2fe,stroke:#0284c7
+    style fh fill:#e0f2fe,stroke:#0284c7
+</pre>
+  </div>
+</div>
+
+<!-- ============================= TAB 2: 15 STEPS ============================= -->
+<div class="tab" id="t2">
+  <p class="caption">Same pipeline, one level down. Steps 8–14 are the interesting part: inside
+  <code>reconstructFileOver()</code> the event list is rewritten by a <b>fixed-order chain of repair passes</b>
+  (think: successive passes over an IR in a compiler). Each pass is a no-op unless it finds something to fix,
+  and every pass marked ⛁ silently skips when there is no BackupReader.
+  <b>Click any step</b> to jump to the matching functions in the full call graph.</p>
+  <div class="diagram">
+<pre class="mermaid">
+flowchart TD
+    P1["1 · runCli(argv) — parse flags
+(--trace short-circuits to a separate
+line-classifier diagnostic mode)"]
+    P2["2 · loadTranscript() → parseRecord()
+hydrate ids→Uuid, paths→Path, ts→Date;
+reject unknown types/fields (fog-of-war guard)"]
+    P3["3 · buildSidecarReader()
+find sessionId → closure reading
+~/.claude/file-history/&lt;sessionId&gt;/&lt;blob&gt;"]
+    P4{"4 · CLI dispatch"}
+    P5["5 · findConversationBranches()
+surviving head (worktree owner) +
+abandoned tips + structural forks"]
+    P6["6 · reconstructBranches()
+reconstructAll(surviving records) +
+buildRewoundBranchHistory() per rewound branch"]
+    P7["7 · reconstructFilesOver()
+discover every distinct final path
+(+ paths created by executed scripts)
+→ loop: reconstructFileOver(target)"]
+    P8["8 · extractFileEvents()
+tool_use → FileEvent: Write / Edit(hunks) /
+rm / mv / cp / &gt;&gt; append / &gt; overwrite /
+user-edit attachments; sort by timestamp"]
+    P9["9 · lineage filter
+buildRenameChain() + eventBelongsToLineage():
+keep only events on the rename-chain
+ending at this target"]
+    P10["10 · seedCopyEvents()
+cp genesis: recursively reconstruct the
+source file at the instant of the copy"]
+    P11["11 · sidecar repairs ⛁
+fillRedirectContent(): bash &gt;/&gt;&gt; content from backups
+seedEditBaseFromBackup(): synthetic Write when the
+creating Write lives on an abandoned branch"]
+    P12["12 · injectScriptExecutions() ⛁
+detect script runs, re-execute them via python3
+in a sandbox against the reconstructed pre-state,
+validate against backup beacons"]
+    P13["13 · placeGitCommitEvidence() ⛁
+git log/show by timestamp; splice committed-blob
+line additions no event explains (validated by
+forward re-execution)"]
+    P14["14 · beacon &amp; base repairs ⛁
+completeElidedBeacons() · seedStaleEditBases() ·
+completeTruncatedBeacon(): fix partially-echoed
+user edits and drifted Edit bases"]
+    P15["15 · replayEvents()
+fold FileEvent[] → FileRevision[]
+(per-line splice via applyEdit/hunks)
+→ renderer of choice → stdout"]
+
+    P1 --> P2 --> P3 --> P4
+    P4 -->|"--json / --step /
+--count-steps / DAGs"| ALT["direct views: renderJson ·
+reconstructStepStates · renderGraphs"]
+    P4 -->|"content / branch views
+(default)"| P5
+    P5 --> P6 --> P7 --> P8 --> P9 --> P10 --> P11 --> P12 --> P13 --> P14 --> P15
+    ALT -.->|"steps &amp; DAG views reuse
+the same core (7–15)"| P7
+
+    style P8 fill:#fef3c7,stroke:#d97706
+    style P15 fill:#fef3c7,stroke:#d97706
+    style P11 fill:#ecfdf5,stroke:#059669
+    style P12 fill:#ecfdf5,stroke:#059669
+    style P13 fill:#ecfdf5,stroke:#059669
+    style P14 fill:#ecfdf5,stroke:#059669
+</pre>
+  </div>
+  <p class="legend">⛁ / green = reader-gated repair pass: pure no-op when no file-history backups exist. Amber = the extract/replay core.</p>
+</div>
+
+<!-- ============================= TAB 3: CALL GRAPH ============================= -->
+<div class="tab" id="t3">
+  <p class="caption">Function-level call graph, grouped by module (one subgraph ≈ one <code>.ts</code> file / subsystem).
+  Diamonds are real branch points; everything inside "per-file repair chain" runs unconditionally in the order shown.
+  Red nodes shell out to external processes. Scroll — it's wide.</p>
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    subgraph CLI["reconstruction_cli.ts"]
+        runCli["runCli(argv)"]
+        parseArgs["parseArgs → resolveGraphFlags
+(bare CLI ⇒ both DAGs on)"]
+        buildSR["buildSidecarReader"]
+        dispatch{"flag
+dispatch"}
+        renderChosen{"renderChosen"}
+        renderStepCli["renderStep"]
+    end
+
+    subgraph TRACE["trace mode (reconstruction_cli_trace / _trace / _parse_lines)"]
+        runTrace["runTrace"]
+        partitionLines["partitionLines"]
+        recordVerdict["recordVerdict
+(the keep/ignore gate —
+shared with extraction)"]
+        renderTrace["renderTrace"]
+    end
+
+    subgraph PARSE["src/parse"]
+        loadTranscript["loadTranscript"]
+        parseLine["parseTranscriptLine
++ assertOnlyKnownTopLevelKeys"]
+        parseRecord["parseRecord → hydrateEnvelope
+(Uuid / Path / Date)"]
+    end
+
+    subgraph SIDE["sidecar (reconstruction_sidecar / _sidecar_reader / file-history.ts)"]
+        findSessionId["findSessionId"]
+        createSR["createSidecarReader"]
+        timeline["buildBackupTimeline →
+getFileHistorySnapshot"]
+        backupHelpers["fillRedirectContent ·
+seedEditBaseFromBackup ·
+backupSeedWriteFor ·
+backupWritesFor ·
+latestBackupWriteFor"]
+    end
+
+    subgraph BRANCH["branch discovery (reconstruction_branch / _tree / _fork / _worktree)"]
+        findConvBranches["findConversationBranches"]
+        findSurvHead["findSurvivingHead"]
+        worktreeOwner["findWorkingTreeOwner
+(which branch owns the
+surviving disk state)"]
+        abandonedHeads["collectAbandonedHeads
+(maximal tips)"]
+        structFork["findStructuralRewoundBranches
+→ findPromptForkPoints"]
+        treeUtils["reconstruction_tree:
+collectHeadUuids · collectAncestorUuids ·
+collectDescendantUuids · indexRecordsByUuid"]
+    end
+
+    subgraph ENGINE["orchestration (reconstruction_engine.ts)"]
+        reconstructBranches["reconstructBranches
+→ BranchedReconstruction"]
+        reconstructAll["reconstructAll →
+selectLiveBranch"]
+        rewoundHist["buildRewoundBranchHistory
+(per rewound branch, scoped to
+files it changed post-rewind)"]
+    end
+
+    subgraph CORE["per-file repair chain (reconstruction_branches.ts :: reconstructFileOver) — fixed order"]
+        filesOver["reconstructFilesOver
+(discover final paths +
+script-created paths)"]
+        fileOver["reconstructFileOver(target)"]
+        extract["① extractFileEvents"]
+        lineage["② lineage filter
+buildRenameChain ·
+eventBelongsToLineage"]
+        seedCopy["③ seedCopyEvents
+(recursive reconstructFileOver
+of the cp source)"]
+        redirects["④ fillRedirectContent ⛁"]
+        seedEdit["⑤ seedEditBaseFromBackup ⛁"]
+        injectScripts["⑥ injectScriptExecutions ⛁"]
+        gitEvidence["⑦ placeGitCommitEvidence ⛁"]
+        elided["⑧ completeElidedBeacons ⛁"]
+        reseed["⑨ seedStaleEditBases ⛁"]
+        truncated["⑩ completeTruncatedBeacon ⛁"]
+        replay["⑪ replayEvents"]
+    end
+
+    subgraph EXTRACT["extraction (reconstruction_extract / _user_edit / regex_expressions)"]
+        collectEv["collectEventsFromRecord
+(gated by recordVerdict)"]
+        blocks["getContentBlocks"]
+        toEvents{"toFileEvents
+by tool"}
+        writeEv["writeEventFrom"]
+        bashEv["bashEventsFrom →
+parseRmTargets · parseMvPaths ·
+parseCpPaths · parseRedirect"]
+        editEv["editEventFrom
+(StructuredPatchHunk[])"]
+        userEditEv["userEditEventFrom
+(edited_text_file attachments)"]
+        scriptRename["extractScriptRenameEvents
+('old -> new' echoes)"]
+    end
+
+    subgraph REPLAY["replay (reconstruction_replay / _replay_edit)"]
+        appendRev{"appendRevisionsForEvent
+dispatch by EventKind"}
+        wholeFile["write / overwrite / copy /
+user-edit / script-execution
+⇒ whole-file genesis revision"]
+        applyEdit["applyEdit
+(hunk splice: keepSurvivingLines
++ insertHunkAdditions)"]
+        appendOne["appendRevision"]
+        echoDrop["userEditChangesContent
+(drop no-op echo edits)"]
+    end
+
+    subgraph SCRIPT["script execution (reconstruction_script_stage / _script_execution)"]
+        findRuns["findScriptExecutionRuns
+(+ resolveScriptIndirection)"]
+        beaconExec["scriptExecutionForBeacon"]
+        execOnce["executeRunOnce →
+getPreExecutionState"]
+        runPy["runScriptAgainstState
+execSync('python3 …')
+in a temp sandbox"]
+        beaconless["beaconlessScriptExecutions"]
+        discoverPaths["discoverScriptCreatedPaths"]
+    end
+
+    subgraph GIT["git evidence (reconstruction_git_evidence.ts)"]
+        findCommits["findGitCommitEvents"]
+        placeDiff["placeOneCommitDiff →
+pureAdditionsFrom → placementAfter
+(validated by forward re-execution)"]
+        readBlob["readCommittedFileContent
+execSync('git log / git show')"]
+    end
+
+    subgraph REPAIR["beacons &amp; reseed (reconstruction_beacons / _reseed / _user_edit)"]
+        beaconSnippet["beaconSnippetFor
+(parse 'cat -n' snippets)"]
+        staleSeed["staleEditSeedFor →
+reverseEditFromAfter"]
+    end
+
+    subgraph VIEWS["renderers"]
+        renderList["renderHistoryList
+(default compact list)"]
+        renderVerbose["renderVerbose"]
+        renderDiff["renderDiff"]
+        renderBranchSum["renderBranchSummary /
+renderOneBranch → findBranchById"]
+        steps["reconstruction_steps:
+reconstructStepStates →
+produceRepoStateAtTime →
+RepoSnapshot[] (branch-AGNOSTIC)"]
+        graphs["reconstruction_graph(+_render):
+buildConversationDag · buildFileDag
+→ ASCII DAGs"]
+        json["reconstruction_json:
+buildReconstructionDocument →
+messages · branches · steps ·
+lineVerdicts"]
+    end
+
+    %% entry / dispatch
+    runCli -->|"--trace"| runTrace
+    runTrace --> partitionLines --> recordVerdict
+    runTrace --> renderTrace
+    runCli --> parseArgs
+    runCli --> loadTranscript
+    loadTranscript --> parseLine --> parseRecord
+    runCli --> buildSR --> findSessionId
+    buildSR --> createSR
+    runCli --> dispatch
+    dispatch -->|"--json / --allRecords"| json
+    dispatch -->|"--count-steps / --step"| renderStepCli --> steps
+    dispatch -->|"--graphConvo / --graphFile
+(also bare default)"| graphs
+    dispatch -->|"--list-branches / --branch"| renderBranchSum
+    dispatch -->|"content views"| reconstructBranches
+    dispatch --> renderChosen
+    renderChosen -->|"default"| renderList
+    renderChosen -->|"--verbose"| renderVerbose
+    renderChosen -->|"--diff"| renderDiff
+
+    %% branch discovery
+    reconstructBranches --> findConvBranches
+    findConvBranches --> findSurvHead --> worktreeOwner
+    findSurvHead --> treeUtils
+    findConvBranches --> abandonedHeads
+    findConvBranches --> structFork --> treeUtils
+
+    %% orchestration
+    reconstructBranches --> reconstructAll --> filesOver
+    reconstructBranches --> rewoundHist --> filesOver
+
+    %% per-file chain
+    filesOver --> extract
+    filesOver --> discoverPaths
+    filesOver --> fileOver
+    fileOver --> extract --> lineage --> seedCopy --> redirects --> seedEdit --> injectScripts --> gitEvidence --> elided --> reseed --> truncated --> replay
+    seedCopy -.->|"recursion"| fileOver
+
+    %% extraction detail
+    extract --> collectEv --> blocks
+    collectEv --> recordVerdict
+    collectEv --> toEvents
+    toEvents -->|Write| writeEv
+    toEvents -->|Bash| bashEv
+    toEvents -->|Edit| editEv
+    collectEv --> userEditEv
+    extract --> scriptRename
+
+    %% replay detail
+    replay --> appendRev
+    appendRev -->|"genesis kinds"| wholeFile
+    appendRev -->|Edit| applyEdit
+    appendRev -->|Append| appendOne
+    appendRev --> echoDrop
+
+    %% script subsystem
+    injectScripts --> findRuns
+    injectScripts --> beaconExec --> execOnce --> runPy
+    injectScripts --> beaconless --> execOnce
+    beaconExec --> beaconSnippet
+    discoverPaths --> findRuns
+    discoverPaths --> execOnce
+
+    %% git subsystem
+    gitEvidence --> findCommits
+    gitEvidence --> placeDiff --> readBlob
+    placeDiff --> execOnce
+
+    %% repair subsystems
+    elided --> beaconSnippet
+    elided --> backupHelpers
+    reseed --> staleSeed --> backupHelpers
+    truncated --> backupHelpers
+    redirects --> backupHelpers
+    seedEdit --> backupHelpers
+    backupHelpers --> timeline
+    worktreeOwner --> timeline
+
+    %% alt views reuse the core
+    steps --> filesOver
+    graphs --> findConvBranches
+    graphs --> filesOver
+    json --> steps
+    json --> reconstructBranches
+
+    style runPy fill:#fee2e2,stroke:#dc2626
+    style readBlob fill:#fee2e2,stroke:#dc2626
+    style fileOver fill:#fef3c7,stroke:#d97706
+    style replay fill:#fef3c7,stroke:#d97706
+    style extract fill:#fef3c7,stroke:#d97706
+</pre>
+  </div>
+  <p class="legend">⛁ = reader-gated (no-op without file-history backups) · red = shells out (<code>python3</code> sandbox / <code>git</code>) · amber = extract→replay core.</p>
+</div>
+
+<!-- ============================= TAB 4: COVERAGE CHECKER ============================= -->
+<div class="tab" id="t4">
+  <p class="caption"><code>scripts/check_scenario_coverage.ts</code> is the engine's integration-test harness.
+  For every executed scenario it asks: <i>can the engine, given only the session JSONL(s) + file-history backups,
+  byte-for-byte reproduce the ground-truth snapshots captured in <code>.step_states/step-NNN/</code>?</i>
+  The dashed box is the <b>engine boundary</b> — the only functions the checker imports from <code>src/</code>.
+  Note the deliberate seam: the checker injects its own cross-session <code>BackupReader</code> through
+  <code>reconstructStepStates(records, reader?)</code> instead of using the engine's single-session default.</p>
+  <div class="diagram">
+<pre class="mermaid">
+flowchart TD
+    subgraph CHECKER["scripts/ — the checker"]
+        main["main(argv)
+filter = scenario id · --onlyFailing"]
+        listCov["listCoveredScenarios
+scan scenarios/executed/ for dirs with
+.step_states/ + ≥1 *.jsonl"]
+        emptyGate{"filter set but
+matched nothing?"}
+        resilient["checkScenarioResilient
+(try/catch — one bad scenario
+never aborts the sweep)"]
+        check["checkScenario"]
+        buildReader["buildSidecarReader (coverage_sidecar)
+CUSTOM cross-session BackupReader:
+read blob from its OWNING session's
+file-history dir, fallback search
+across all sessions in the stream"]
+        uuidIdx["buildUuidLineIndex
+uuid → 1-based JSONL line#
+(for blame output)"]
+        folders["stepFolders → sorted
+step-NNN ground-truth dirs"]
+        loop{"per step folder:
+does ANY engine snapshot
+reproduce every file
+byte-for-byte?"}
+        lookahead{"look-ahead: does a
+LATER folder match?"}
+        mismatch["buildStepMismatch
+selectBestEngineStep → firstDifferingFile
+→ firstLineDifference ('expected… got…')
++ jsonlLineFor + renderStepProvenance"]
+        printRes["printResult
+OK/FAIL id passed/total (+N user-edit)
++ per-mismatch blame lines"]
+        uncov["findUncovered
+(jsonl but no .step_states)"]
+        exit0["exit 0 — all reproduced"]
+        exit1["exit 1 — mismatches"]
+        exit2["exit 2 — bad filter"]
+    end
+
+    subgraph ENGINEB["src/ — ENGINE BOUNDARY (everything the checker imports)"]
+        loadT["loadTranscript(path)
+→ TranscriptRecord[]
+(flat-merged across sessions)"]
+        stepStates["reconstructStepStates(records, reader?)
+→ RepoSnapshot[]
+one whole-repo Map&lt;Path,string&gt;
+per disk-mutation instant"]
+        stepChanges["reconstructStepChanges(records, reader?)
+→ StepChange[] {when, changeIds}
+aligned 1:1 with snapshots"]
+        oracle["someStepReproduces(steps, groundTruth)
+THE PASS/FAIL ORACLE
+(set-membership, never positional —
+engine step count ≠ folder count is fine)"]
+        snapText["snapshotFileText ·
+stripTrailingNewline
+(newline-normalized compare)"]
+        prov["reconstruction_provenance:
+enableProvenance → drainProvenance
+→ disableProvenance
+(which repair stage touched
+the differing file?)"]
+        fhRoot["getDefaultFileHistoryRoot
+~/.claude/file-history"]
+    end
+
+    gt[("scenarios/executed/&lt;dir&gt;/
+.step_states/step-NNN/
+ground-truth file trees")]
+    jsonls[("scenario session
+*.jsonl files")]
+    ledger["coverage_ledger.ts
+(sibling entrypoint: same sweep,
+persists PASS/FAIL + timestamps
+to plans/coverage-ledger.md)"]
+
+    main --> listCov --> emptyGate
+    emptyGate -->|yes| exit2
+    emptyGate -->|no| resilient --> check
+    jsonls --> loadT
+    check --> loadT
+    check --> buildReader --> fhRoot
+    check --> uuidIdx
+    check --> prov
+    check --> stepStates
+    buildReader -->|"reader? param
+(the injection seam)"| stepStates
+    check --> stepChanges
+    check --> folders
+    gt --> folders
+    folders --> loop
+    loop -->|"reads"| oracle
+    oracle --> snapText
+    loop -->|"yes → passed++"| printRes
+    loop -->|no| lookahead
+    lookahead -->|"yes → coalesced user edit
+userEdits++ · passed++"| printRes
+    lookahead -->|no| mismatch --> printRes
+    mismatch -->|"blame via"| prov
+    mismatch --> snapText
+    stepChanges -->|"changeId → JSONL line"| mismatch
+    uuidIdx --> mismatch
+    printRes --> uncov
+    uncov -->|"no failures"| exit0
+    uncov -->|"any failure"| exit1
+    ledger -.->|"imports
+checkScenarioResilient"| resilient
+
+    style ENGINEB fill:#f0f9ff,stroke:#0284c7,stroke-dasharray: 6 4
+    style oracle fill:#fef3c7,stroke:#d97706
+    style buildReader fill:#ecfdf5,stroke:#059669
+    style gt fill:#e0f2fe,stroke:#0284c7
+    style jsonls fill:#e0f2fe,stroke:#0284c7
+</pre>
+  </div>
+  <p class="legend">Run: <code>npx tsx scripts/check_scenario_coverage.ts [scenarioId] [--onlyFailing]</code> · exit 0 = all reproduced, 1 = mismatches, 2 = filter matched nothing.</p>
+</div>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: false, theme: "neutral", flowchart: { useMaxWidth: false, curve: "basis" }, maxTextSize: 400000 });
+
+  // drill-down maps: node in coarse tab -> node ids in the next-finer tab
+  const DRILL = {
+    t1: { target: "t2", map: {
+      S1: ["P1", "P2"],
+      S2: ["P3"],
+      S3: ["P4", "P5"],
+      S4: ["P6", "P7", "P8", "P9", "P10", "P11", "P12", "P13", "P14"],
+      S5: ["P15", "ALT"],
+    }},
+    t2: { target: "t3", map: {
+      P1:  ["runCli", "parseArgs", "dispatch"],
+      P2:  ["loadTranscript", "parseLine", "parseRecord"],
+      P3:  ["buildSR", "findSessionId", "createSR"],
+      P4:  ["dispatch", "renderChosen"],
+      ALT: ["json", "steps", "graphs", "renderStepCli"],
+      P5:  ["findConvBranches", "findSurvHead", "worktreeOwner", "abandonedHeads", "structFork", "treeUtils"],
+      P6:  ["reconstructBranches", "reconstructAll", "rewoundHist"],
+      P7:  ["filesOver", "fileOver"],
+      P8:  ["extract", "collectEv", "blocks", "toEvents", "writeEv", "bashEv", "editEv", "userEditEv", "scriptRename"],
+      P9:  ["lineage"],
+      P10: ["seedCopy"],
+      P11: ["redirects", "seedEdit", "backupHelpers", "timeline"],
+      P12: ["injectScripts", "findRuns", "beaconExec", "execOnce", "runPy", "beaconless", "discoverPaths"],
+      P13: ["gitEvidence", "findCommits", "placeDiff", "readBlob"],
+      P14: ["elided", "reseed", "truncated", "beaconSnippet", "staleSeed"],
+      P15: ["replay", "appendRev", "wholeFile", "applyEdit", "appendOne", "echoDrop", "renderList", "renderVerbose", "renderDiff"],
+    }},
+  };
+
+  // mermaid 11 renders each node as <g class="node" id="mermaid-<ts>-flowchart-<name>-<n>">
+  const nameOf = el => (el.id.match(/flowchart-(.+)-\d+$/) || [])[1];
+
+  function wireDrill(tabId) {
+    const drill = DRILL[tabId];
+    if (!drill) return;
+    document.querySelectorAll("#" + tabId + " g.node").forEach(el => {
+      const targets = drill.map[nameOf(el)];
+      if (!targets) return;
+      el.classList.add("drill");
+      el.addEventListener("click", () => jump(drill.target, targets));
+    });
+  }
+
+  async function jump(tabId, ids) {
+    await show(tabId);
+    document.querySelectorAll("g.node.jump-hi").forEach(el => el.classList.remove("jump-hi"));
+    const hits = [...document.querySelectorAll("#" + tabId + " g.node")].filter(el => ids.includes(nameOf(el)));
+    hits.forEach(el => el.classList.add("jump-hi"));
+    hits[0]?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+  }
+
+  const rendered = new Set();
+  async function show(id) {
+    document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.id === id));
+    document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b.dataset.tab === id));
+    if (!rendered.has(id)) {           // render only while visible: mermaid measures 0-width in hidden tabs
+      rendered.add(id);
+      await mermaid.run({ nodes: document.querySelectorAll("#" + id + " .mermaid") });
+      wireDrill(id);
+    }
+  }
+  document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => show(b.dataset.tab)));
+  show("t1");
+</script>
+
+</body>
+</html>
