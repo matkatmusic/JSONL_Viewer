@@ -1,0 +1,4 @@
+[submodule "tmux_lib"]
+	path = tmux_lib
+	url = https://github.com/matkatmusic/tmux_lib.git
+	branch = develop
