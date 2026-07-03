@@ -6,7 +6,8 @@
     "description": "Reconstruct file change history from Claude Code session JSONL files (clean-room).",
     "scripts": {
         "test": "node --import tsx --test tests/*.test.ts",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "app": "tsx src/viewer_server.ts"
     },
     "devDependencies": {
         "@types/node": "^22.20.0",

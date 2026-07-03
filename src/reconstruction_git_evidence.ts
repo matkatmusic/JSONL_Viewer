@@ -5,6 +5,7 @@
 
 import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { isImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { relative } from "node:path";
 import { BlockType, EventKind, ToolName } from "./structures/vocabulary.ts";
 import { Path, Uuid } from "./structures/domain.ts";
@@ -283,6 +284,7 @@ export function placeGitCommitEvidence(
     reader: BackupReader,
     target: Path,
 ): FileEvent[] {
+    if (!isImpureExecutionAllowed()) return events;
     const commits = findGitCommitEvents(records);
     if (commits.length === 0) return events;
     const runs = findScriptExecutionRuns(records);

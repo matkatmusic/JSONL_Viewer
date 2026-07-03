@@ -19,7 +19,7 @@ import {
     type RepoSnapshot,
     type StepChange,
 } from "../src/reconstruction_steps.ts";
-import { buildSidecarReader } from "./coverage_sidecar.ts";
+import { buildSidecarReader } from "../src/reconstruction_sidecar_reader.ts";
 import { Path } from "../src/structures/domain.ts";
 import {
     enableProvenance,

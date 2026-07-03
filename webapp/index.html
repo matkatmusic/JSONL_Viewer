@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>JFRED - JSONL File Reverse Engineer Debugger</title>
+    <link rel="stylesheet" href="/app/styles.css">
+</head>
+<body>
+    <header class="toolbar">
+        <h1><a href="#/" title="JSONL File Reverse Engineer Debugger">JFRED</a></h1>
+        <span id="breadcrumb" class="breadcrumb"></span>
+        <span class="toolbar-spacer"></span>
+        <label class="dir-label" for="projects-dir-input">Projects folder</label>
+        <input id="projects-dir-input" class="dir-input" type="text" spellcheck="false">
+        <button id="projects-dir-change" class="toolbar-btn">Change folder…</button>
+    </header>
+    <main class="layout">
+        <nav id="drawer" class="drawer hidden"></nav>
+        <section id="view" class="view-pane"></section>
+        <aside id="inspector" class="inspector-pane hidden"></aside>
+    </main>
+    <script type="module" src="/app/app.js"></script>
+</body>
+</html>

@@ -3,6 +3,7 @@
 // to the expected post-execution state derived from the file-history beacon.
 
 import { randomUUID } from "node:crypto";
+import { isImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { EventKind } from "./structures/vocabulary.ts";
 import { Path, Uuid } from "./structures/domain.ts";
 import { resolveAgainstCwd } from "./structures/path-resolve.ts";
@@ -308,6 +309,7 @@ export function injectScriptExecutions(
     target?: Path,
     seedContent?: LineageContentBefore,
 ): FileEvent[] {
+    if (!isImpureExecutionAllowed()) return events;
     const runs = findScriptExecutionRuns(records);
     if (runs.length === 0) return events;
     let anyReplaced = false;

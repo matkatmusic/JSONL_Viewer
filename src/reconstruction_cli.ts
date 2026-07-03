@@ -34,11 +34,7 @@ import {
     renderRepoSnapshot,
 } from "./reconstruction_steps.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
-import {
-    createSidecarReader,
-    getDefaultFileHistoryRoot,
-    findSessionId,
-} from "./reconstruction_sidecar_reader.ts";
+import { buildSidecarReader } from "./reconstruction_sidecar_reader.ts";
 import { parseTraceArgs, runTrace } from "./reconstruction_cli_trace.ts";
 
 const USAGE =
@@ -149,16 +145,6 @@ function parseStepNumber(value: string | undefined): number | undefined {
         throw new Error(USAGE);
     }
     return stepNumber;
-}
-
-// The on-disk file-history reader for this transcript's session, or undefined when the
-// session id can't be determined (then redirects resolve to empty content).
-function buildSidecarReader(records: TranscriptRecord[]): BackupReader | undefined {
-    const sessionId = findSessionId(records);
-    if (!sessionId) {
-        return undefined;
-    }
-    return createSidecarReader(sessionId, getDefaultFileHistoryRoot());
 }
 
 // Render histories in the verbose/diff mode, each under its `### <path>` header.

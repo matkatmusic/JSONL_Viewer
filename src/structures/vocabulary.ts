@@ -171,3 +171,10 @@ export enum BranchRole {
     surviving = "surviving",
     rewound = "rewound",
 }
+
+// The viewer server's answer to "may I build this document?": build it, or first ask the user to
+// consent to running the transcript's scripts (the /api/document 428 payload's discriminant).
+export enum DocumentResponseKind {
+    document = "document",
+    consentRequired = "consent-required",
+}
