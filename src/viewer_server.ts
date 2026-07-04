@@ -16,7 +16,7 @@ import {
     setProjectsDir,
 } from "./viewer_api.ts";
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
-import { loadTranscript } from "./parse/loadTranscript.ts";
+import { loadTranscript, type ProgressEvent } from "./parse/loadTranscript.ts";
 import { DocumentResponseKind } from "./structures/vocabulary.ts";
 import { Path } from "./structures/domain.ts";
 
@@ -83,22 +83,80 @@ function resolveJsonlPaths(projectName: string, jsonlName: string | null): Path[
     );
 }
 
-// GET /api/document — 428 + scripts when consent is needed, else the built document.
+// GET /api/document — the built document, or a consent-required decision when scripts need a
+// yes. With progress=1 the same result streams as NDJSON: one progress line per unit of work, the
+// normal response object as the final line. The progress path opens the stream up front and then
+// runs AND logs every stage the non-progress path does silently (file resolution, the
+// consent-decision parse of every file, the script scan), so a gap in the console maps to a named
+// stage rather than a blind wait before the first byte.
 function handleDocumentRequest(response: ServerResponse, query: URLSearchParams): void {
-    const jsonlPaths = resolveJsonlPaths(requireParam(query, "project"), query.get("jsonl"));
+    const projectName = requireParam(query, "project");   // a missing project still 400s (before any header)
+    const jsonlName = query.get("jsonl");
     const allowScripts = query.get("allowScripts") === "1";
     const targetValue = query.get("target");
     const target = targetValue === null ? undefined : new Path(targetValue);
-    const records = jsonlPaths.flatMap((path) => loadTranscript(path.toString()));
-    const decision = decideDocumentResponse(records, allowScripts);
     // declined=1 is the client's remembered "Continue without running" — build degraded, no re-prompt.
-    // Consent-required is HTTP 200 with the kind discriminant (not 428): browsers log every non-2xx
-    // fetch as a console error, and the smoke gate requires a clean console on this expected flow.
-    if (decision.kind === DocumentResponseKind.consentRequired && query.get("declined") !== "1") {
-        sendJson(response, 200, decision);
+    const declined = query.get("declined") === "1";
+
+    // Non-progress path: resolve + consent-decide + respond, all BEFORE any header, so a resolver
+    // refusal (bad project, traversal) still becomes a 400 via the outer catch. Consent-required is
+    // HTTP 200 with the kind discriminant (not 428) so browsers don't log the expected flow as an error.
+    if (query.get("progress") !== "1") {
+        const jsonlPaths = resolveJsonlPaths(projectName, jsonlName);
+        // ponytail: records are parsed twice (consent decision + build); collapse when it measurably hurts.
+        const records = jsonlPaths.flatMap((path) => loadTranscript(path.toString(), undefined, true));
+        const decision = decideDocumentResponse(records, allowScripts);
+        if (decision.kind === DocumentResponseKind.consentRequired && !declined) {
+            sendJson(response, 200, decision);
+            return;
+        }
+        sendJson(response, 200, buildDocumentWithConsent(jsonlPaths, target, allowScripts));
         return;
     }
-    sendJson(response, 200, buildDocumentWithConsent(jsonlPaths, target, allowScripts));
+
+    // Progress stream: open it now so the pre-build work is visible. Headers are already out, so any
+    // failure here is the terminal error line, not a 400 (a client-facing viewer request is always
+    // progress=1; a bad project already 400'd above at requireParam). The final line is the same
+    // object the non-progress path sends — the client keys off the `kind` discriminant.
+    response.writeHead(200, { "Content-Type": "application/x-ndjson; charset=utf-8" });
+    response.socket?.setNoDelay(true);   // sync build between writes — do not let Nagle batch the lines
+    const writeNdjsonLine = (value: unknown): void => {
+        response.write(JSON.stringify(value) + "\n");
+        // res.write corks the socket and uncorks on nextTick — which never runs during the
+        // synchronous build, so every line would sit buffered until the build ends. Uncork NOW
+        // so each line flushes to the wire as it is written.
+        response.socket?.uncork();
+    };
+    const reportStage = (label: string): void => {
+        writeNdjsonLine({ kind: DocumentResponseKind.progress, label });
+    };
+    try {
+        reportStage(`resolving transcript files for ${projectName}`);
+        const jsonlPaths = resolveJsonlPaths(projectName, jsonlName);
+        reportStage(`resolved ${jsonlPaths.length} transcript file(s)`);
+        // The consent-decision pass parses EVERY file. Forward only its per-file "loading …" marker
+        // (the build pass below streams the full per-record detail), so this scan is visible file by
+        // file without duplicating the detailed stream.
+        const consentScanSink = (event: ProgressEvent): void => {
+            if (event.current === undefined && event.label.startsWith("loading ")) {
+                reportStage(`consent scan: ${event.label}`);
+            }
+        };
+        const records = jsonlPaths.flatMap((path) => loadTranscript(path.toString(), consentScanSink, true));
+        reportStage("scanning parsed records for recorded script executions");
+        const decision = decideDocumentResponse(records, allowScripts);
+        reportStage(decision.kind === DocumentResponseKind.consentRequired
+            ? `consent required — ${decision.scripts.length} recorded script execution(s)`
+            : "no script-execution consent needed");
+        if (decision.kind === DocumentResponseKind.consentRequired && !declined) {
+            response.end(JSON.stringify(decision) + "\n");
+            return;
+        }
+        const document = buildDocumentWithConsent(jsonlPaths, target, allowScripts, writeNdjsonLine);
+        response.end(JSON.stringify(document) + "\n");
+    } catch (error) {
+        response.end(JSON.stringify({ kind: DocumentResponseKind.error, label: String(error) }) + "\n");
+    }
 }
 
 // GET /api/diff — the revision-timeline or vs-base diff text for one file.

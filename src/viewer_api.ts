@@ -5,7 +5,7 @@
 import { readdirSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, sep } from "node:path";
-import { loadTranscript } from "./parse/loadTranscript.ts";
+import { loadTranscript, type ProgressSink } from "./parse/loadTranscript.ts";
 import {
     buildReconstructionDocument,
     type ReconstructionDocument,
@@ -14,6 +14,7 @@ import { reconstructBranches, type FileHistory } from "./reconstruction_engine.t
 import { buildSidecarReader } from "./reconstruction_sidecar_reader.ts";
 import { findScriptExecutionRuns, type ScriptRun } from "./reconstruction_script_execution.ts";
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
+import { setReconstructionProgressSink } from "./reconstruction_progress.ts";
 import { renderDiff } from "./reconstruction_render.ts";
 import { DocumentResponseKind } from "./structures/vocabulary.ts";
 import { Path } from "./structures/domain.ts";
@@ -33,6 +34,17 @@ export type ProjectListing = {
 // The synthetic project holding .jsonl files that sit directly in the scanned folder (an
 // alternate folder that isn't .claude/projects-shaped), so any folder of JSONLs is loadable.
 export const ROOT_PROJECT_NAME = "(root)";
+
+// The build's post-parse stage announcements, in the order buildProjectDocument runs them. Tests
+// compare against these constants, never string literals (coding-req §2 — one vocabulary home).
+export const PROGRESS_LABEL_READING_SIDECAR = "reading sidecar backups";
+export const PROGRESS_LABEL_CONSTRUCTING_BRANCHES = "constructing branches";
+export const PROGRESS_LABEL_BUILDING_DOCUMENT = "building document";
+
+// Announce one build stage (a no-op when no sink is listening).
+function reportStage(onProgress: ProgressSink | undefined, label: string): void {
+    onProgress?.({ kind: DocumentResponseKind.progress, label });
+}
 
 // The app's runtime-switchable scan root (POST /api/config swaps it; Claude Code's default first).
 let activeProjectsDir = new Path(join(homedir(), ".claude", "projects"));
@@ -90,10 +102,15 @@ export function scanProjects(projectsDir: Path): ProjectListing[] {
 
 // One-or-many JSONLs -> one ReconstructionDocument. Exactly the CLI --json composition,
 // generalized to a merged multi-JSONL record stream (the coverage checker's proven pattern).
-export function buildProjectDocument(jsonlPaths: Path[], target: Path | undefined): ReconstructionDocument {
-    const records = jsonlPaths.flatMap((path) => loadTranscript(path.toString()));
+export function buildProjectDocument(jsonlPaths: Path[], target: Path | undefined, onProgress?: ProgressSink): ReconstructionDocument {
+    // The viewer opens arbitrary real sessions: tolerate (and log) fields the scenarios never
+    // modeled instead of hard-failing the whole document. Unknown record types still throw.
+    const records = jsonlPaths.flatMap((path) => loadTranscript(path.toString(), onProgress, true));
+    reportStage(onProgress, PROGRESS_LABEL_READING_SIDECAR);
     const reader = buildSidecarReader(records);
+    reportStage(onProgress, PROGRESS_LABEL_CONSTRUCTING_BRANCHES);
     const branched = reconstructBranches(records, reader);
+    reportStage(onProgress, PROGRESS_LABEL_BUILDING_DOCUMENT);
     return buildReconstructionDocument(records, branched, reader, target);
 }
 
@@ -119,12 +136,17 @@ export function buildDocumentWithConsent(
     jsonlPaths: Path[],
     target: Path | undefined,
     allowScripts: boolean,
+    onProgress?: ProgressSink,
 ): ReconstructionDocument {
     setImpureExecutionAllowed(allowScripts);
+    // The deep engine stages (script sandbox runs, per-file reconstruction) announce through the
+    // build-scoped module sink — same lifecycle as the exec gate: on for the build, off after.
+    setReconstructionProgressSink(onProgress);
     try {
-        return buildProjectDocument(jsonlPaths, target);
+        return buildProjectDocument(jsonlPaths, target, onProgress);
     } finally {
         setImpureExecutionAllowed(false);
+        setReconstructionProgressSink(undefined);
     }
 }
 

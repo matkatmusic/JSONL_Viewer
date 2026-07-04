@@ -21,6 +21,7 @@ import {
 } from "./reconstruction_engine.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
 import { findSessionId } from "./reconstruction_sidecar_reader.ts";
+import { reportReconstructionProgress } from "./reconstruction_progress.ts";
 
 export type ConversationMessage = {
     uuid: Uuid | undefined;
@@ -126,7 +127,9 @@ export function buildStepSnapshots(
     target: Path | undefined,
 ): StepSnapshot[] {
     const states = reconstructStepStates(records, reader);
+    reportReconstructionProgress("reconstructing step changes");
     const changes = reconstructStepChanges(records, reader);
+    reportReconstructionProgress("indexing change ids across surviving files");
     const pathOf = indexChangeIdsToPaths(reconstructAll(records, reader));
     return states.map((snapshot, index) => {
         const changeIds = changes[index]!.changeIds;
@@ -185,12 +188,22 @@ export function buildReconstructionDocument(
         target === undefined
             ? branched.surviving
             : branched.surviving.filter((history) => history.target.equals(target));
+    // Sequenced (not an inline object literal) so each sub-phase announces before it runs and the
+    // console's line timestamps attribute the build time to the right phase.
+    reportReconstructionProgress("extracting conversation messages");
+    const messages = extractConversationMessages(records);
+    reportReconstructionProgress("summarizing branches");
+    const branches = summarizeBranches(records);
+    reportReconstructionProgress("building step snapshots");
+    const steps = buildStepSnapshots(records, reader, target);
+    reportReconstructionProgress("building line verdicts");
+    const lineVerdicts = buildLineVerdicts(records);
     return {
         sessionId: findSessionId(records),
-        messages: extractConversationMessages(records),
-        branches: summarizeBranches(records),
+        messages,
+        branches,
         filesTouched,
-        steps: buildStepSnapshots(records, reader, target),
-        lineVerdicts: buildLineVerdicts(records),
+        steps,
+        lineVerdicts,
     };
 }
