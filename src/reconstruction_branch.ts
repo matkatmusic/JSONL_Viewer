@@ -167,9 +167,34 @@ export function findConversationBranches(
     return branches;
 }
 
+// Branch selections memoized per records-array identity. Downstream caches (executeRunOnce's
+// per-array script memo, reconstructFileOver's history memo) key on the records array's IDENTITY;
+// re-filtering a fresh array for the same (records, tip) on every call silently defeated them,
+// so every document pass re-ran every sandbox script. Same inputs → the same array instance.
+const branchSelections = new WeakMap<TranscriptRecord[], Map<string, TranscriptRecord[]>>();
+
 // Select the records on one branch: its tip's ancestor chain plus every uuid-less meta/header
 // record. Falls back to all records when the tip resolves to nothing (cannot identify the branch).
 export function selectBranchRecords(
+    records: TranscriptRecord[],
+    tip: Uuid,
+): TranscriptRecord[] {
+    let byTip = branchSelections.get(records);
+    if (byTip === undefined) {
+        byTip = new Map<string, TranscriptRecord[]>();
+        branchSelections.set(records, byTip);
+    }
+    const tipKey = tip.toString();
+    const cached = byTip.get(tipKey);
+    if (cached !== undefined) {
+        return cached;
+    }
+    const selected = computeBranchRecords(records, tip);
+    byTip.set(tipKey, selected);
+    return selected;
+}
+
+function computeBranchRecords(
     records: TranscriptRecord[],
     tip: Uuid,
 ): TranscriptRecord[] {

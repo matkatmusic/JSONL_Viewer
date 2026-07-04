@@ -73,6 +73,24 @@ function produceRepoStateAtTime(histories: FileHistory[], when: Date): RepoSnaps
     return snapshot;
 }
 
+// Both per-step projections — the repo state at each change instant AND the changeIds that landed
+// there — derived from ONE reconstruction pass. They were separate functions each re-running
+// reconstructFilesOver over the same records for projections of the same histories.
+export type StepTimeline = { states: RepoSnapshot[]; changes: StepChange[] };
+
+export function reconstructStepTimeline(
+    records: TranscriptRecord[],
+    reader?: BackupReader,
+): StepTimeline {
+    reportReconstructionProgress(`reconstructing step states from ${records.length} transcript records`);
+    const histories = reconstructFilesOver(records, reader);
+    const changeTimes = collectChangeTimes(histories);
+    return {
+        states: changeTimes.map((when) => produceRepoStateAtTime(histories, when)),
+        changes: changeTimes.map((when) => ({ when, changeIds: changeIdsAt(histories, when) })),
+    };
+}
+
 // The repo's disk state after each code-change step, in chronological order. Reconstructs over EXACTLY
 // the given records (no surviving-branch filter) so the timeline is literal disk, then snapshots the repo
 // at each change instant.
@@ -80,9 +98,7 @@ export function reconstructStepStates(
     records: TranscriptRecord[],
     reader?: BackupReader,
 ): RepoSnapshot[] {
-    reportReconstructionProgress(`reconstructing step states from ${records.length} transcript records`);
-    const histories = reconstructFilesOver(records, reader);
-    return collectChangeTimes(histories).map((when) => produceRepoStateAtTime(histories, when));
+    return reconstructStepTimeline(records, reader).states;
 }
 
 // The number of code-change steps in the transcript (one per chronological disk mutation).
@@ -157,8 +173,7 @@ export function reconstructStepChanges(
     records: TranscriptRecord[],
     reader?: BackupReader,
 ): StepChange[] {
-    const histories = reconstructFilesOver(records, reader);
-    return collectChangeTimes(histories).map((when) => ({ when, changeIds: changeIdsAt(histories, when) }));
+    return reconstructStepTimeline(records, reader).changes;
 }
 
 // Render one step's repo snapshot: each file under its `### <path>` header (sorted by path), raw content,

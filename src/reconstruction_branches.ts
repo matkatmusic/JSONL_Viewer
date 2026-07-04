@@ -15,6 +15,7 @@ import { fillRedirectContent, seedEditBaseFromBackup } from "./reconstruction_si
 import type { BackupReader } from "./reconstruction_sidecar.ts";
 import { completeElidedBeacons, completeTruncatedBeacon } from "./reconstruction_beacons.ts";
 import { discoverScriptCreatedPaths, injectScriptExecutions } from "./reconstruction_script_stage.ts";
+import { isImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { placeGitCommitEvidence } from "./reconstruction_git_evidence.ts";
 import type { LineageContentBefore } from "./reconstruction_script_execution.ts";
 import { seedStaleEditBases } from "./reconstruction_reseed.ts";
@@ -33,12 +34,48 @@ import type {
     FileRevision,
 } from "./reconstruction_engine.ts";
 
+// One file's reconstruction memoized per records-array identity. reconstructFileOver is
+// deterministic for (records, target, reader, exec-gate), and the document build re-requests the
+// same file's history once per pass. Only PURE top-level calls are cached — a call inside copy
+// seeding (`resolving` non-empty) or lineage seeding (`seedingLineages` non-empty) is
+// stack-dependent (the cycle guards alter what it can see) and computes fresh, exactly as before.
+type FileOverCache = {
+    reader: BackupReader | undefined;
+    impureAllowed: boolean;
+    byTarget: Map<string, FileRevision[]>;
+};
+const fileOverCaches = new WeakMap<TranscriptRecord[], FileOverCache>();
+
 // The branch-agnostic core: reconstruct one file's history over EXACTLY the records given (no branch
 // selection here) — follow any rename to its final path, keep only that lineage's events, seed any
 // copy from its source, then replay. resolving holds the destination paths currently being seeded,
 // so a copy cycle (cp a b; cp b a) breaks instead of recursing forever. reader fills bash-redirect
 // content from the file-history sidecar before replay (undefined for S1-S4).
 export function reconstructFileOver(
+    records: TranscriptRecord[],
+    target: Path,
+    resolving: Set<string>,
+    reader?: BackupReader,
+): FileRevision[] {
+    if (resolving.size > 0 || seedingLineages.size > 0) {
+        return computeFileRevisionsOver(records, target, resolving, reader);
+    }
+    let cache = fileOverCaches.get(records);
+    if (cache === undefined || cache.reader !== reader || cache.impureAllowed !== isImpureExecutionAllowed()) {
+        cache = { reader, impureAllowed: isImpureExecutionAllowed(), byTarget: new Map<string, FileRevision[]>() };
+        fileOverCaches.set(records, cache);
+    }
+    const targetKey = target.toString();
+    const cached = cache.byTarget.get(targetKey);
+    if (cached !== undefined) {
+        return cached;
+    }
+    const revisions = computeFileRevisionsOver(records, target, resolving, reader);
+    cache.byTarget.set(targetKey, revisions);
+    return revisions;
+}
+
+function computeFileRevisionsOver(
     records: TranscriptRecord[],
     target: Path,
     resolving: Set<string>,

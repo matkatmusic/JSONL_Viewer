@@ -10,8 +10,7 @@ import { isGenuineUserPrompt } from "./reconstruction_tree.ts";
 import { recordVerdict } from "./reconstruction_parse_lines.ts";
 import { findConversationBranches } from "./reconstruction_branch.ts";
 import {
-    reconstructStepStates,
-    reconstructStepChanges,
+    reconstructStepTimeline,
     type RepoSnapshot,
 } from "./reconstruction_steps.ts";
 import {
@@ -121,16 +120,17 @@ function indexChangeIdsToPaths(histories: FileHistory[]): Map<string, string> {
     return byChangeId;
 }
 
+// `surviving` lets a caller that already reconstructed the surviving branch (the document
+// builder's BranchedReconstruction) share it; absent, it is derived here (the CLI path).
 export function buildStepSnapshots(
     records: TranscriptRecord[],
     reader: BackupReader | undefined,
     target: Path | undefined,
+    surviving?: FileHistory[],
 ): StepSnapshot[] {
-    const states = reconstructStepStates(records, reader);
-    reportReconstructionProgress("reconstructing step changes");
-    const changes = reconstructStepChanges(records, reader);
+    const { states, changes } = reconstructStepTimeline(records, reader);
     reportReconstructionProgress("indexing change ids across surviving files");
-    const pathOf = indexChangeIdsToPaths(reconstructAll(records, reader));
+    const pathOf = indexChangeIdsToPaths(surviving ?? reconstructAll(records, reader));
     return states.map((snapshot, index) => {
         const changeIds = changes[index]!.changeIds;
         // ponytail: best-effort — a step's triggering changeId is not always a surviving revision's
@@ -195,7 +195,7 @@ export function buildReconstructionDocument(
     reportReconstructionProgress("summarizing branches");
     const branches = summarizeBranches(records);
     reportReconstructionProgress("building step snapshots");
-    const steps = buildStepSnapshots(records, reader, target);
+    const steps = buildStepSnapshots(records, reader, target, branched.surviving);
     reportReconstructionProgress("building line verdicts");
     const lineVerdicts = buildLineVerdicts(records);
     return {

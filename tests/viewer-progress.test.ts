@@ -121,9 +121,10 @@ test("test_buildDocumentWithConsent_with_sink_returns_document_identical_to_no_s
 // -------------------- deep engine progress (module sink) --------------------
 
 test("test_buildDocumentWithConsent_streams_deep_engine_progress_and_clears_the_sink_after", () => {
-    // Scenario: the deep reconstruction passes announce through the build-scoped module sink —
-    // step-state reconstruction and counted per-file events — and the sink is cleared when the
-    // build ends, so reporting afterwards reaches nothing.
+    // Scenario: the deep reconstruction pass announces through the build-scoped module sink —
+    // the unified step-timeline reconstruction (states + changes in one pass) and counted
+    // per-file events — and the sink is cleared when the build ends, so reporting afterwards
+    // reaches nothing.
     // Steps: build s19 with a collecting sink, assert the deep labels arrived, then report after
     // the build and assert nothing more was collected.
     const progressEvents: ProgressEvent[] = [];
@@ -134,7 +135,6 @@ test("test_buildDocumentWithConsent_streams_deep_engine_progress_and_clears_the_
         labels.some((label) => label.startsWith("reconstructing step states")),
         `expected a step-states label; got ${JSON.stringify(labels.filter((l) => l.startsWith("recon")))}`,
     );
-    assert.ok(labels.includes("reconstructing step changes"));
     const countedFileEvents = progressEvents.filter(
         (event) => event.current !== undefined && event.label.startsWith("reconstructing /"),
     );
