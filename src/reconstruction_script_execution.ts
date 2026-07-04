@@ -15,6 +15,7 @@ import { quotedFilename, singleWhitespace } from "./regex_expressions.ts";
 import { extractFileEvents } from "./reconstruction_extract.ts";
 import { buildRenameChain, resolveFinalPath } from "./reconstruction_lineage.ts";
 import { reportReconstructionProgress } from "./reconstruction_progress.ts";
+import { getRecordSource, type RecordSource } from "./parse/loadTranscript.ts";
 
 // The proven post-execution state of a script run for one target file: the forward transform already
 // applied to the pre-script content. Injected as a synthetic authored event at the run's timestamp and
@@ -31,9 +32,17 @@ export type ScriptExecutionEvent = {
 
 // --- run detection ----------------------------------------------------------------------------------
 
-// A recorded script-execution run: the script source it ran, when, and the directory it ran from
-// (the MCP executor's input.cwd when present, else the record's cwd).
-export type ScriptRun = { code: string; timestamp: Date; cwd?: Path };
+// A recorded script-execution run: the script source it ran, when, the directory it ran from
+// (the MCP executor's input.cwd when present, else the record's cwd), and the transcript
+// file:line the run was parsed from (absent for synthetic test records).
+export type ScriptRun = { code: string; timestamp: Date; cwd?: Path; source?: RecordSource };
+
+// " [file.jsonl:123]" for a run parsed from a transcript line, or "" for a synthetic run —
+// appended to progress labels so a console line points at the exact JSONL line being processed.
+export function formatRunSource(run: ScriptRun): string {
+    if (run.source === undefined) return "";
+    return ` [${pathBasename(run.source.filePath)}:${run.source.lineNumber}]`;
+}
 
 // The runnable source a script-execution block carries: `input.code` (MCP execute) or `input.command`
 // (Bash). undefined for a non-executor tool, or an executor carrying neither.
@@ -57,6 +66,7 @@ function runsInRecord(record: TranscriptRecord): ScriptRun[] {
         return [];
     }
     const recordCwd = (record as { cwd?: Path }).cwd;
+    const source = getRecordSource(record);
     const runs: ScriptRun[] = [];
     for (const block of getContentBlocks(record)) {
         if (block.type !== BlockType.tool_use) {
@@ -66,7 +76,7 @@ function runsInRecord(record: TranscriptRecord): ScriptRun[] {
         if (code !== undefined) {
             const blockCwd = (block.input as { cwd?: string }).cwd;
             const cwd = blockCwd !== undefined ? new Path(blockCwd) : recordCwd;
-            runs.push({ code, timestamp, cwd });
+            runs.push({ code, timestamp, cwd, source });
         }
     }
     return runs;
@@ -203,7 +213,7 @@ export function getPreExecutionState(
     reader: BackupReader,
     seedContent?: LineageContentBefore,
 ): Map<string, string> {
-    reportReconstructionProgress(`building pre-execution state for run @ ${run.timestamp.toISOString()}`);
+    reportReconstructionProgress(`building pre-execution state for run @ ${run.timestamp.toISOString()}${formatRunSource(run)}`);
     const events = extractFileEvents(records);
     const renameChain = buildRenameChain(events);
     const state = new Map<string, string>();
@@ -260,9 +270,10 @@ function summarizeScriptForProgress(script: string): string {
 export function runScriptAgainstState(
     script: string,
     preState: Map<string, string>,
+    sourceLabel = "",
 ): Map<string, string> | undefined {
     reportReconstructionProgress(
-        `running script in sandbox (${preState.size} seeded files): ${summarizeScriptForProgress(script)}`,
+        `running script in sandbox (${preState.size} seeded files)${sourceLabel}: ${summarizeScriptForProgress(script)}`,
     );
     const tempDir = mkdtempSync(join(tmpdir(), "reveng-"));
     try {

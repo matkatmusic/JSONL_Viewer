@@ -6,6 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { basename } from "node:path";
 import {
+    getRecordSource,
     loadTranscript,
     PROGRESS_LABEL_PARSING_RECORDS,
     type ProgressEvent,
@@ -59,6 +60,22 @@ test("test_loadTranscript_reports_file_then_parsing_then_per_record_classificati
         assert.equal(event.current, index + 1);
         assert.equal(event.total, records.length);
         assert.equal(event.label, records[index]!.type);
+    }
+});
+
+test("test_loadTranscript_stamps_each_record_with_its_source_file_and_line", () => {
+    // Scenario: every parsed record can be traced back to the transcript file and 1-based line
+    // it came from (console labels append this so a broken line is findable in an editor), and
+    // the stamp rides beside the record — its own top-level shape is untouched.
+    // Steps: load the s19 fixture, check the first record's source, and that line numbers
+    // strictly increase in file order.
+    const records = loadTranscript(S19_JSONL);
+    const firstSource = getRecordSource(records[0]!);
+    assert.equal(firstSource?.filePath, S19_JSONL);
+    assert.equal(firstSource?.lineNumber, 1);
+    const lineNumbers = records.map((record) => getRecordSource(record)?.lineNumber ?? 0);
+    for (let i = 1; i < lineNumbers.length; i += 1) {
+        assert.ok(lineNumbers[i]! > lineNumbers[i - 1]!, `line numbers must increase (index ${i})`);
     }
 });
 

@@ -1,7 +1,31 @@
 import { readFileSync } from "node:fs";
+import { basename } from "node:path";
 import { parseRecord } from "./parseRecord.ts";
 import type { TranscriptRecord } from "../structures/envelope.ts";
-import { ENVELOPE_KEYS, RecordType } from "../structures/vocabulary.ts";
+import { DocumentResponseKind, ENVELOPE_KEYS, RecordType } from "../structures/vocabulary.ts";
+
+// One announcement emitted while a document builds. `current`/`total` ride only on the
+// counted per-record parse events. Lives in the lowest module in the import chain
+// (viewer_api.ts imports from here, never the reverse) so no module needs to import upward.
+export type ProgressEvent = {
+    kind: DocumentResponseKind.progress;
+    label: string;
+    current?: number;   // present only on counted per-record events
+    total?: number;     // present only on counted per-record events
+};
+export type ProgressSink = (event: ProgressEvent) => void;
+
+export const PROGRESS_LABEL_PARSING_RECORDS = "parsing records";
+
+// Where a parsed record came from: the transcript file and its 1-based line number in it. Held
+// in a WeakMap keyed by record identity (not stamped ON the record) so the record's top-level
+// shape stays exactly the file's — the fog-of-war field gate never sees a synthetic key.
+export type RecordSource = { filePath: string; lineNumber: number };
+const recordSources = new WeakMap<TranscriptRecord, RecordSource>();
+
+export function getRecordSource(record: TranscriptRecord): RecordSource | undefined {
+    return recordSources.get(record);
+}
 
 // The keys every session-meta record carries (file-history-snapshot excepted —
 // it has `type` but no `sessionId`). ENVELOPE_KEYS (the conversational-record
@@ -22,6 +46,8 @@ function keys(
 // carry a subset of these keys, but never a key outside its set.
 export const ALLOWED_TOP_LEVEL_KEYS: Record<RecordType, ReadonlySet<string>> = {
     [RecordType.aiTitle]: keys(META_KEYS, "aiTitle"),
+    [RecordType.agentName]: keys(META_KEYS, "agentName"),
+    [RecordType.customTitle]: keys(META_KEYS, "customTitle"),
     [RecordType.assistant]: keys(
         ENVELOPE_KEYS, "message", "requestId", "attributionMcpServer", "attributionMcpTool",
         "attributionPlugin", "attributionSkill",
@@ -64,12 +90,16 @@ export class UnmodeledFieldError extends Error {
     }
 }
 
-function assertOnlyKnownTopLevelKeys(record: TranscriptRecord): void {
+// The top-level keys a record carries that are not modeled for its type (empty when all known).
+function findUnmodeledTopLevelKeys(record: TranscriptRecord): string[] {
     const allowed = ALLOWED_TOP_LEVEL_KEYS[record.type];
-    for (const key of Object.keys(record)) {
-        if (!allowed.has(key)) {
-            throw new UnmodeledFieldError(record.type, key);
-        }
+    return Object.keys(record).filter((key) => !allowed.has(key));
+}
+
+function assertOnlyKnownTopLevelKeys(record: TranscriptRecord): void {
+    const unmodeled = findUnmodeledTopLevelKeys(record);
+    if (unmodeled.length > 0) {
+        throw new UnmodeledFieldError(record.type, unmodeled[0]!);
     }
 }
 
@@ -83,11 +113,47 @@ export function parseTranscriptLine(line: string): TranscriptRecord {
 
 // Load a whole transcript file into typed records. Throws on the first unknown
 // record type or unmodeled top-level key.
-export function loadTranscript(filePath: string): TranscriptRecord[] {
-    console.log(`   Loading transcript from ${filePath}`);
+// Load a whole transcript file into typed records. Strict by default: throws on the first unknown
+// record type or unmodeled top-level key (the engine's fog-of-war guard — kept for the CLI and the
+// tests). When `tolerateUnmodeledFields` is set (the viewer, which opens arbitrary real sessions
+// that carry fields the scenarios never modeled), an unmodeled field is reported through
+// `onProgress` — once per (type, field) per file — instead of thrown. An unknown record *type*
+// still throws either way: its whole shape is unknown, not just one extra field.
+export function loadTranscript(
+    filePath: string,
+    onProgress?: ProgressSink,
+    tolerateUnmodeledFields = false,
+): TranscriptRecord[] {
+    console.log(`   Loading transcript from ${filePath}`);   // pre-existing CLI line — keep
+    onProgress?.({ kind: DocumentResponseKind.progress, label: `loading ${basename(filePath)}` });
     const fileText = readFileSync(filePath, "utf8");
     const lines = fileText.split("\n");
-    const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
-    const records = nonEmptyLines.map(parseTranscriptLine);
+    // Pair each line with its 1-based FILE line number before dropping blanks, so a record's
+    // source line matches what an editor shows for the .jsonl.
+    const numberedLines = lines
+        .map((text, index) => ({ lineNumber: index + 1, text }))
+        .filter((entry) => entry.text.trim().length > 0);
+    onProgress?.({ kind: DocumentResponseKind.progress, label: PROGRESS_LABEL_PARSING_RECORDS });
+    const records: TranscriptRecord[] = [];
+    const reportedUnmodeled = new Set<string>();
+    for (const [lineIndex, { lineNumber, text }] of numberedLines.entries()) {
+        const record = parseRecord(text);
+        recordSources.set(record, { filePath, lineNumber });
+        if (tolerateUnmodeledFields) {
+            for (const key of findUnmodeledTopLevelKeys(record)) {
+                const reportId = `${record.type}::${key}`;
+                if (!reportedUnmodeled.has(reportId)) {
+                    reportedUnmodeled.add(reportId);
+                    onProgress?.({ kind: DocumentResponseKind.progress, label: `unmodeled field "${key}" on ${record.type} record` });
+                }
+            }
+        } else {
+            assertOnlyKnownTopLevelKeys(record);
+        }
+        records.push(record);
+        // ponytail: unthrottled — one event per record by user decision; add a stride
+        // throttle here if a 100k-line file ever makes the stream measurably slow.
+        onProgress?.({ kind: DocumentResponseKind.progress, label: record.type, current: lineIndex + 1, total: numberedLines.length });
+    }
     return records;
 }

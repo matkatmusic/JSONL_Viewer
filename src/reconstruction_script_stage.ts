@@ -15,6 +15,7 @@ import { beaconSnippetFor, type BeaconSnippet } from "./reconstruction_user_edit
 import { backupSeedWriteFor, type BackupReader } from "./reconstruction_sidecar.ts";
 import {
     findScriptExecutionRuns,
+    formatRunSource,
     getPreExecutionState,
     runScriptAgainstState,
     type LineageContentBefore,
@@ -42,9 +43,9 @@ export function executeRunOnce(
     const key = `${run.timestamp.getTime()}|${run.code}`;
     const cached = byRun.get(key);
     if (cached !== undefined) return cached;
-    reportReconstructionProgress(`executing script run @ ${run.timestamp.toISOString()}`);
+    reportReconstructionProgress(`executing script run @ ${run.timestamp.toISOString()}${formatRunSource(run)}`);
     const pre = getPreExecutionState(run, records, reader, seedContent);
-    const post = pre.size === 0 ? undefined : runScriptAgainstState(run.code, pre);
+    const post = pre.size === 0 ? undefined : runScriptAgainstState(run.code, pre, formatRunSource(run));
     const execution: RunExecution = { pre, post };
     byRun.set(key, execution);
     return execution;
@@ -240,7 +241,7 @@ function runOutcomeForTarget(
     const { pre: preState } = executeRunOnce(run, records, reader, seedContent);
     const augmentedPre = new Map(preState);
     augmentedPre.set(rolling.key, rolling.content);
-    const postState = runScriptAgainstState(run.code, augmentedPre);
+    const postState = runScriptAgainstState(run.code, augmentedPre, formatRunSource(run));
     if (postState === undefined) return undefined;
     const content = postState.get(rolling.key);
     if (content === undefined || content === rolling.content) return undefined;
