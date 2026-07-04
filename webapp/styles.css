@@ -203,3 +203,19 @@ a:hover { text-decoration: underline; }
 .json-number { color: var(--orange); }
 .json-null, .json-bool { color: var(--red); }
 .inspector-close { float: right; }
+
+/* Persistent loading console docked at the bottom, full width. Height is auto: the terminal is
+   pinned to 10 text rows (see ensureProgressTerminal), so the strip is exactly 10 lines tall. */
+.progress-console {
+    position: relative;
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    background: var(--code-bg);
+    padding: 4px 8px;
+}
+.progress-copy {
+    position: absolute;
+    top: 6px;
+    right: 12px;
+    z-index: 1;
+}

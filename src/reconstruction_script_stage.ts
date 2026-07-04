@@ -10,6 +10,7 @@ import { resolveAgainstCwd } from "./structures/path-resolve.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { splitLines } from "./reconstruction_replay_edit.ts";
 import { noteStage } from "./reconstruction_provenance.ts";
+import { reportReconstructionProgress } from "./reconstruction_progress.ts";
 import { beaconSnippetFor, type BeaconSnippet } from "./reconstruction_user_edit.ts";
 import { backupSeedWriteFor, type BackupReader } from "./reconstruction_sidecar.ts";
 import {
@@ -41,6 +42,7 @@ export function executeRunOnce(
     const key = `${run.timestamp.getTime()}|${run.code}`;
     const cached = byRun.get(key);
     if (cached !== undefined) return cached;
+    reportReconstructionProgress(`executing script run @ ${run.timestamp.toISOString()}`);
     const pre = getPreExecutionState(run, records, reader, seedContent);
     const post = pre.size === 0 ? undefined : runScriptAgainstState(run.code, pre);
     const execution: RunExecution = { pre, post };
@@ -286,8 +288,15 @@ export function discoverScriptCreatedPaths(
     reader: BackupReader,
     seedContent?: LineageContentBefore,
 ): Path[] {
+    // Consent gate: discovery EXECUTES every recorded run, so a declined build must skip it
+    // entirely — same contract as injectScriptExecutions.
+    if (!isImpureExecutionAllowed()) return [];
     const created = new Map<string, Path>();
-    for (const run of findScriptExecutionRuns(records)) {
+    const runs = findScriptExecutionRuns(records);
+    if (runs.length > 0) {
+        reportReconstructionProgress(`discovering script-created files (${runs.length} runs)`);
+    }
+    for (const run of runs) {
         const execution = executeRunOnce(run, records, reader, seedContent);
         if (execution.post === undefined) continue;
         for (const key of execution.post.keys()) {
@@ -312,6 +321,8 @@ export function injectScriptExecutions(
     if (!isImpureExecutionAllowed()) return events;
     const runs = findScriptExecutionRuns(records);
     if (runs.length === 0) return events;
+    const targetSuffix = target === undefined ? "" : ` for ${target}`;
+    reportReconstructionProgress(`script stage: ${runs.length} runs${targetSuffix}`);
     let anyReplaced = false;
     const result = events.map((event) => {
         const rebuilt = rebuiltEvent(event, runs, records, reader, seedContent);

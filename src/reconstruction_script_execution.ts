@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { quotedFilename, singleWhitespace } from "./regex_expressions.ts";
 import { extractFileEvents } from "./reconstruction_extract.ts";
 import { buildRenameChain, resolveFinalPath } from "./reconstruction_lineage.ts";
+import { reportReconstructionProgress } from "./reconstruction_progress.ts";
 
 // The proven post-execution state of a script run for one target file: the forward transform already
 // applied to the pre-script content. Injected as a synthetic authored event at the run's timestamp and
@@ -202,6 +203,7 @@ export function getPreExecutionState(
     reader: BackupReader,
     seedContent?: LineageContentBefore,
 ): Map<string, string> {
+    reportReconstructionProgress(`building pre-execution state for run @ ${run.timestamp.toISOString()}`);
     const events = extractFileEvents(records);
     const renameChain = buildRenameChain(events);
     const state = new Map<string, string>();
@@ -246,10 +248,22 @@ function readAllFiles(dir: string, base: string = dir): [string, string][] {
 // content of EVERY file left in the dir — not just the seeded ones — so a file the script CREATES
 // (a redirect target, an out.txt) or RENAMES-TO (a shutil.move destination) is captured, and a file
 // it deletes is absent. undefined if the script fails.
+// The script's first line, capped, so a progress line identifies which run is executing.
+function summarizeScriptForProgress(script: string): string {
+    const firstLine = script.split("\n", 1)[0] ?? "";
+    if (firstLine.length <= 60) {
+        return firstLine;
+    }
+    return `${firstLine.slice(0, 59)}…`;
+}
+
 export function runScriptAgainstState(
     script: string,
     preState: Map<string, string>,
 ): Map<string, string> | undefined {
+    reportReconstructionProgress(
+        `running script in sandbox (${preState.size} seeded files): ${summarizeScriptForProgress(script)}`,
+    );
     const tempDir = mkdtempSync(join(tmpdir(), "reveng-"));
     try {
         for (const [relativePath, content] of preState) {

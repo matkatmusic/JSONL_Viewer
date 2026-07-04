@@ -8,7 +8,7 @@ import {
     isImpureExecutionAllowed,
     setImpureExecutionAllowed,
 } from "../src/reconstruction_exec_gate.ts";
-import { injectScriptExecutions } from "../src/reconstruction_script_stage.ts";
+import { discoverScriptCreatedPaths, injectScriptExecutions } from "../src/reconstruction_script_stage.ts";
 import { placeGitCommitEvidence } from "../src/reconstruction_git_evidence.ts";
 import type { BackupReader } from "../src/reconstruction_sidecar.ts";
 import { BlockType, RecordType, ToolName } from "../src/structures/vocabulary.ts";
@@ -55,6 +55,28 @@ test("test_exec_gate_disable_blocks_script_injection", () => {
         const result = injectScriptExecutions(records, events, emptyReader, new Path("/proj/out.txt"));
         // assert the stage passed its events argument through untouched.
         assert.equal(result, events);
+    } finally {
+        setImpureExecutionAllowed(true);
+    }
+});
+
+test("test_exec_gate_disable_blocks_script_created_path_discovery", () => {
+    // Scenario: with the gate off, discoverScriptCreatedPaths must execute nothing and return
+    // no paths — discovery runs every recorded script, so a declined build must skip it (the
+    // same fixture discovers out.txt when the gate is on, per reconstruction_script_stage.test.ts).
+    const records = [
+        buildToolRecord(ToolName.Write, { file_path: "/proj/runit.py", content: "x" }, "2026-01-01T00:00:01Z"),
+        buildToolRecord(
+            ToolName.CtxExecute,
+            { cwd: "/proj", code: 'open("out.txt", "w").write("created\\n")\n' },
+            "2026-01-01T00:00:02Z",
+        ),
+    ];
+    try {
+        // disable the gate.
+        setImpureExecutionAllowed(false);
+        // run the discovery that would otherwise execute the run and report out.txt as born.
+        assert.deepEqual(discoverScriptCreatedPaths(records, emptyReader), []);
     } finally {
         setImpureExecutionAllowed(true);
     }

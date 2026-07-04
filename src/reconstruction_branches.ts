@@ -19,6 +19,7 @@ import { placeGitCommitEvidence } from "./reconstruction_git_evidence.ts";
 import type { LineageContentBefore } from "./reconstruction_script_execution.ts";
 import { seedStaleEditBases } from "./reconstruction_reseed.ts";
 import { noteStage } from "./reconstruction_provenance.ts";
+import { reportReconstructionProgress } from "./reconstruction_progress.ts";
 import {
     buildRenameChain,
     distinctFinalPaths,
@@ -138,6 +139,7 @@ function getLineageContentBefore(records: TranscriptRecord[], reader: BackupRead
         if (seedingLineages.has(cycleKey)) return undefined;
         seedingLineages.add(cycleKey);
         try {
+            reportReconstructionProgress(`replaying lineage of ${target}`);
             const revisions = reconstructFileOver(records, target, new Set(), reader);
             const revisionBefore = lastRevisionStrictlyBefore(revisions, before);
             if (revisionBefore === undefined) return undefined;
@@ -178,10 +180,13 @@ export function reconstructFilesOver(
             targets.push(finalPath);
         }
     }
-    return targets.map((target) => ({
-        target,
-        revisions: reconstructFileOver(records, target, new Set<string>(), reader),
-    }));
+    return targets.map((target, index) => {
+        reportReconstructionProgress(`reconstructing ${target}`, index + 1, targets.length);
+        return {
+            target,
+            revisions: reconstructFileOver(records, target, new Set<string>(), reader),
+        };
+    });
 }
 
 // The changeIds of every user edit that ACTUALLY changed a file, across all conversation branches. A

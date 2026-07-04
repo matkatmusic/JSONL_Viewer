@@ -15,6 +15,7 @@ import {
 } from "./reconstruction_branches.ts";
 import type { FileHistory, FileRevision, RenameInfo } from "./reconstruction_engine.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
+import { reportReconstructionProgress } from "./reconstruction_progress.ts";
 
 // One file's reconstructed text at a step, keyed by the path it lives at (a file absent at the step is
 // simply not a key).
@@ -79,7 +80,7 @@ export function reconstructStepStates(
     records: TranscriptRecord[],
     reader?: BackupReader,
 ): RepoSnapshot[] {
-    console.log(`   Reconstructing step states from ${records.length} transcript records`);
+    reportReconstructionProgress(`reconstructing step states from ${records.length} transcript records`);
     const histories = reconstructFilesOver(records, reader);
     return collectChangeTimes(histories).map((when) => produceRepoStateAtTime(histories, when));
 }

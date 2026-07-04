@@ -27,16 +27,120 @@ export function el(tag, attrs = {}, children = []) {
 const documentCache = new Map();
 const rawLinesCache = new Map();
 
-export async function fetchJson(url) {
+// ─── loading console (xterm.js, lazily created) ──────────────────────────────
+
+let progressTerminal = null;
+let progressFitAddon = null;
+
+// The loading console is a persistent, full-width strip docked at the bottom of the window
+// (#progress-console in index.html), exactly 10 text rows tall. It is created once and reused for
+// every load, so it survives route re-renders (which wipe #view) — progress lines accumulate and
+// the last load's output stays visible until the next. The theme reads the app's live CSS vars.
+function ensureProgressTerminal() {
+    if (progressTerminal !== null) return;
+    const rootStyles = getComputedStyle(document.documentElement);
+    progressTerminal = new Terminal({
+        rows: 10,
+        disableStdin: true,
+        convertEol: true,
+        scrollback: 10000,
+        // Right-click selects the word under the cursor; xterm then mirrors the selection into
+        // its hidden textarea, so the browser's NATIVE context menu (Copy etc.) works on it.
+        rightClickSelectsWord: true,
+        theme: {
+            background: rootStyles.getPropertyValue("--code-bg").trim(),
+            foreground: rootStyles.getPropertyValue("--muted").trim(),
+            // xterm's DEFAULT selection overlay is translucent white — invisible on the light
+            // palette's white --code-bg, so selecting "didn't work" visually. Accent at ~35%
+            // alpha (hex AA suffix) is visible on both palettes.
+            selectionBackground: rootStyles.getPropertyValue("--accent").trim() + "59",
+        },
+    });
+    // Debug handle: lets devtools (and headless tests) drive the selection API directly,
+    // e.g. progressTerminal.select(0, 0, 20) — this app is itself a debugging surface.
+    window.progressTerminal = progressTerminal;
+    progressFitAddon = new FitAddon.FitAddon();
+    progressTerminal.loadAddon(progressFitAddon);
+    // Copy-on-select, like a real terminal: xterm draws its own selection layer instead of the
+    // browser's, so mirror every selection straight to the clipboard via the selection API
+    // (getSelection/onSelectionChange — xtermjs.org/docs/api/terminal/classes/terminal/#select).
+    // ponytail: clipboard failure is silently ignored — a copy convenience, not a data path.
+    progressTerminal.onSelectionChange(() => {
+        const selection = progressTerminal.getSelection();
+        if (selection) navigator.clipboard.writeText(selection).catch(() => {});
+    });
+    progressTerminal.open(document.getElementById("progress-console"));
+    document.getElementById("progress-copy").onclick = copyConsoleText;
+    fitProgressColumns();
+    window.addEventListener("resize", fitProgressColumns);
+}
+
+// The console's full scrollback as plain text — what the copy button puts on the clipboard.
+function collectConsoleText() {
+    const buffer = progressTerminal.buffer.active;
+    const lines = [];
+    for (let i = 0; i < buffer.length; i += 1) {
+        lines.push(buffer.getLine(i)?.translateToString(true) ?? "");
+    }
+    return lines.join("\n").trimEnd();
+}
+
+function copyConsoleText() {
+    const button = document.getElementById("progress-copy");
+    navigator.clipboard.writeText(collectConsoleText()).then(() => {
+        button.textContent = "copied";
+        setTimeout(() => { button.textContent = "copy"; }, 1200);
+    }).catch(() => {});
+}
+
+// Fit the column count to the window width, holding the height fixed at 10 rows.
+function fitProgressColumns() {
+    const dimensions = progressFitAddon?.proposeDimensions();
+    if (dimensions?.cols) progressTerminal.resize(dimensions.cols, 10);
+}
+
+// Local wall-clock HH:MM:SS.mmm — ms precision because most loading work is sub-second.
+function formatConsoleTime() {
+    const now = new Date();
+    const pad = (value, width = 2) => String(value).padStart(width, "0");
+    return `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${pad(now.getMilliseconds(), 3)}`;
+}
+
+export function logProgress(text) {
+    ensureProgressTerminal();
+    progressTerminal.writeln(`${formatConsoleTime()} ${text}`);
+}
+
+// Split buffered NDJSON text into complete lines plus the trailing partial line.
+export function splitNdjsonChunk(bufferedText, chunkText) {
+    const combinedText = bufferedText + chunkText;
+    const splitLines = combinedText.split("\n");
+    const remainder = splitLines.pop();
+    const lines = splitLines.filter((line) => line.length > 0);
+    return { remainder, lines };
+}
+
+// Every server request announces itself in the loading console — its start AND its timed
+// completion — so a silent stretch in the console points at the exact endpoint that stalled
+// (e.g. a slow /api/projects scan over a huge projects dir). The streamed /api/document endpoint
+// goes through fetchDocument instead and logs its own detail.
+async function fetchLogged(url, readBody) {
+    const path = new URL(url, location.origin).pathname;
+    logProgress(`GET ${path}`);
+    const startMs = Date.now();
     const response = await fetch(url);
     if (!response.ok) throw new Error(`${url} -> ${response.status}: ${await response.text()}`);
-    return response.json();
+    const body = await readBody(response);
+    logProgress(`  ↳ ${path} ${response.status} (${Date.now() - startMs}ms)`);
+    return body;
+}
+
+export async function fetchJson(url) {
+    return fetchLogged(url, (response) => response.json());
 }
 
 export async function fetchText(url) {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`${url} -> ${response.status}: ${await response.text()}`);
-    return response.text();
+    return fetchLogged(url, (response) => response.text());
 }
 
 // The raw JSONL lines of one transcript, parsed, cached per (project, jsonl).
@@ -75,20 +179,44 @@ export function peekCachedDocument(project) {
 export async function fetchDocument(project, jsonl) {
     const cacheKey = `${project}|${jsonl ?? "*"}`;
     if (documentCache.has(cacheKey)) return { document: documentCache.get(cacheKey) };
-    const params = new URLSearchParams({ project });
+    const params = new URLSearchParams({ project, progress: "1" });
     if (jsonl !== undefined) params.set("jsonl", jsonl);
     const choice = sessionStorage.getItem(computeConsentKey(project));
     params.set("allowScripts", choice === "1" ? "1" : "0");
     if (choice === "0") params.set("declined", "1");
+    // The server does its consent-decision parse (and, for a project view, a full projects scan)
+    // BEFORE it writes headers — that work is silent until the stream opens. Time to first byte
+    // exposes it, so a gap before the first "loading …" line is attributable to the server.
+    logProgress(`GET /api/document jsonl=${jsonl ?? "(all)"}`);
+    const requestStartMs = Date.now();
     const response = await fetch(`/api/document?${params}`);
     if (!response.ok) throw new Error(`document ${response.status}: ${await response.text()}`);
-    const payload = await response.json();
-    // A real document has no `kind` field; the consent decision rides the kind discriminant.
-    if (payload.kind === "consent-required") {
-        return { consentRequired: payload.scripts };
+    logProgress(`  ↳ /api/document responding (${Date.now() - requestStartMs}ms to first byte)`);
+    // NDJSON stream: each progress line lands in the console; the last non-progress line is the
+    // terminal payload — a document, a consent decision, or a build error.
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let remainder = "";
+    let finalPayload;
+    for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        let lines;
+        ({ remainder, lines } = splitNdjsonChunk(remainder, decoder.decode(value, { stream: true })));
+        for (const line of lines) {
+            const parsed = JSON.parse(line);
+            if (parsed.kind === "progress") {
+                logProgress(parsed.current !== undefined ? `${parsed.current}/${parsed.total} ${parsed.label}` : parsed.label);
+            } else {
+                finalPayload = parsed;
+            }
+        }
     }
-    documentCache.set(cacheKey, payload);
-    return { document: payload };
+    // A real document has no `kind` field; consent/error ride the kind discriminant.
+    if (finalPayload.kind === "error") throw new Error(finalPayload.label);
+    if (finalPayload.kind === "consent-required") return { consentRequired: finalPayload.scripts };
+    documentCache.set(cacheKey, finalPayload);
+    return { document: finalPayload };
 }
 
 // The consent dialog (plan 3.2): every script's code shown verbatim; running is opt-in;
@@ -213,6 +341,7 @@ async function initializeHeader() {
 // Bootstrap only in a real browser: the node test suite imports the view modules (for their
 // DOM-free view-model functions), which transitively loads this module without a window.
 if (typeof window !== "undefined") {
+    ensureProgressTerminal();   // show the empty 10-row console immediately, before any load
     window.addEventListener("hashchange", renderRoute);
     initializeHeader().then(renderRoute);
 }
