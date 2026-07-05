@@ -20,6 +20,7 @@ import {
 import { reportReconstructionProgress } from "../src/reconstruction_progress.ts";
 import { Path } from "../src/structures/domain.ts";
 import { S19_JSONL } from "./fixtures.ts";
+import { copyFixtureIntoTempDir } from "./utilities.ts";
 import { splitNdjsonChunk } from "../webapp/app.js";
 
 // The uncounted (stageless) labels of a progress stream, in order — drops the per-record events.
@@ -96,7 +97,7 @@ test("test_buildDocumentWithConsent_emits_stage_labels_in_order", () => {
     // Steps: build the s19 document with a collecting sink; assert the three stage labels appear
     // as an in-order subsequence of the uncounted labels.
     const progressEvents: ProgressEvent[] = [];
-    buildDocumentWithConsent([new Path(S19_JSONL)], undefined, false, (event) => progressEvents.push(event));
+    buildDocumentWithConsent([copyFixtureIntoTempDir(S19_JSONL)], undefined, false, (event) => progressEvents.push(event));
     const stageLabels = stageLabelsOf(progressEvents);
     assert.ok(
         isOrderedSubsequence(stageLabels, [
@@ -128,7 +129,7 @@ test("test_buildDocumentWithConsent_streams_deep_engine_progress_and_clears_the_
     // Steps: build s19 with a collecting sink, assert the deep labels arrived, then report after
     // the build and assert nothing more was collected.
     const progressEvents: ProgressEvent[] = [];
-    buildDocumentWithConsent([new Path(S19_JSONL)], undefined, false, (event) => progressEvents.push(event));
+    buildDocumentWithConsent([copyFixtureIntoTempDir(S19_JSONL)], undefined, false, (event) => progressEvents.push(event));
 
     const labels = progressEvents.map((event) => event.label);
     assert.ok(

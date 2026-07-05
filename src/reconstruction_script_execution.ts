@@ -8,6 +8,7 @@ import type { TranscriptRecord } from "./structures/envelope.ts";
 import { getContentBlocks, type ToolUseBlock } from "./structures/content-blocks.ts";
 import { backupSeedWriteFor, type BackupReader } from "./reconstruction_sidecar.ts";
 import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync, mkdirSync } from "node:fs";
 import { join, dirname, relative } from "node:path";
 import { tmpdir } from "node:os";
@@ -15,6 +16,7 @@ import { quotedFilename, singleWhitespace } from "./regex_expressions.ts";
 import { extractFileEvents } from "./reconstruction_extract.ts";
 import { buildRenameChain, resolveFinalPath } from "./reconstruction_lineage.ts";
 import { reportReconstructionProgress } from "./reconstruction_progress.ts";
+import { getCachedValueRefreshingRecency, evictLeastRecentlyUsedEntries } from "./cache_lru.ts";
 import { getRecordSource, type RecordSource } from "./parse/loadTranscript.ts";
 
 // The proven post-execution state of a script run for one target file: the forward transform already
@@ -267,14 +269,59 @@ function summarizeScriptForProgress(script: string): string {
     return `${firstLine.slice(0, 59)}…`;
 }
 
+export const PROGRESS_LABEL_SANDBOX_SPAWN_PREFIX = "running script in sandbox";
+export const PROGRESS_LABEL_SANDBOX_MEMO_PREFIX = "reusing sandbox result";
+
+// Sandbox outcomes per (script, seeded state) content hash. The engine's replay premise is
+// that a recorded script is a deterministic transform of its seeded files, so one spawn per
+// distinct input suffices — lineage replays and rolling re-seeds re-ask constantly (s84:
+// 208 asks, 14 distinct inputs, ~23s of the 25s load). Failed runs memoize too. The outcome
+// wrapper makes a memoized failure (`post: undefined`) distinguishable from a cache miss.
+// ponytail: outcomes are returned by reference — every caller treats post-states as read-only.
+type SandboxOutcome = { post: Map<string, string> | undefined };
+const sandboxOutcomesByInput = new Map<string, SandboxOutcome>();
+const SANDBOX_MEMO_CAPACITY = 256;
+
+// One collision-safe key per distinct sandbox input: the script plus every seeded (path,
+// content) pair in sorted-path order, NUL-separated, hashed.
+function computeSandboxInputKey(script: string, preState: Map<string, string>): string {
+    const hash = createHash("sha256");
+    hash.update(script);
+    const sortedPaths = [...preState.keys()].sort();
+    for (const path of sortedPaths) {
+        hash.update("\0");
+        hash.update(path);
+        hash.update("\0");
+        hash.update(preState.get(path)!);
+    }
+    return hash.digest("hex");
+}
+
 export function runScriptAgainstState(
     script: string,
     preState: Map<string, string>,
     sourceLabel = "",
 ): Map<string, string> | undefined {
+    const inputKey = computeSandboxInputKey(script, preState);
+    const memoizedOutcome = getCachedValueRefreshingRecency(sandboxOutcomesByInput, inputKey);
+    if (memoizedOutcome !== undefined) {
+        reportReconstructionProgress(
+            `${PROGRESS_LABEL_SANDBOX_MEMO_PREFIX}${sourceLabel}: ${summarizeScriptForProgress(script)}`,
+        );
+        return memoizedOutcome.post;
+    }
     reportReconstructionProgress(
-        `running script in sandbox (${preState.size} seeded files)${sourceLabel}: ${summarizeScriptForProgress(script)}`,
+        `${PROGRESS_LABEL_SANDBOX_SPAWN_PREFIX} (${preState.size} seeded files)${sourceLabel}: ${summarizeScriptForProgress(script)}`,
     );
+    const post = spawnSandboxRun(script, preState);
+    sandboxOutcomesByInput.set(inputKey, { post });
+    evictLeastRecentlyUsedEntries(sandboxOutcomesByInput, SANDBOX_MEMO_CAPACITY);
+    return post;
+}
+
+// The sandbox execution itself, extracted verbatim from the pre-memo body: seed a temp dir,
+// run python3, read back the resulting tree (undefined on any script failure).
+function spawnSandboxRun(script: string, preState: Map<string, string>): Map<string, string> | undefined {
     const tempDir = mkdtempSync(join(tmpdir(), "reveng-"));
     try {
         for (const [relativePath, content] of preState) {

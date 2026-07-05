@@ -9,6 +9,7 @@ import {
     scanProjects,
     buildDocumentWithConsent,
     decideDocumentResponse,
+    loadProjectRecords,
     renderRevisionDiff,
     renderDiffVsBase,
     renderRangePatch,
@@ -18,7 +19,6 @@ import {
     setProjectsDir,
 } from "./viewer_api.ts";
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
-import { loadTranscript, type ProgressEvent } from "./parse/loadTranscript.ts";
 import { DocumentResponseKind } from "./structures/vocabulary.ts";
 import { Path } from "./structures/domain.ts";
 
@@ -105,8 +105,7 @@ function handleDocumentRequest(response: ServerResponse, query: URLSearchParams)
     // HTTP 200 with the kind discriminant (not 428) so browsers don't log the expected flow as an error.
     if (query.get("progress") !== "1") {
         const jsonlPaths = resolveJsonlPaths(projectName, jsonlName);
-        // ponytail: records are parsed twice (consent decision + build); collapse when it measurably hurts.
-        const records = jsonlPaths.flatMap((path) => loadTranscript(path.toString(), undefined, true));
+        const records = loadProjectRecords(jsonlPaths);
         const decision = decideDocumentResponse(records, allowScripts);
         if (decision.kind === DocumentResponseKind.consentRequired && !declined) {
             sendJson(response, 200, decision);
@@ -136,15 +135,9 @@ function handleDocumentRequest(response: ServerResponse, query: URLSearchParams)
         reportStage(`resolving transcript files for ${projectName}`);
         const jsonlPaths = resolveJsonlPaths(projectName, jsonlName);
         reportStage(`resolved ${jsonlPaths.length} transcript file(s)`);
-        // The consent-decision pass parses EVERY file. Forward only its per-file "loading …" marker
-        // (the build pass below streams the full per-record detail), so this scan is visible file by
-        // file without duplicating the detailed stream.
-        const consentScanSink = (event: ProgressEvent): void => {
-            if (event.current === undefined && event.label.startsWith("loading ")) {
-                reportStage(`consent scan: ${event.label}`);
-            }
-        };
-        const records = jsonlPaths.flatMap((path) => loadTranscript(path.toString(), consentScanSink, true));
+        // This parse is the only one (the build below reuses these records from the cache), so
+        // it streams the full per-record detail the console shows during a cold load.
+        const records = loadProjectRecords(jsonlPaths, writeNdjsonLine);
         reportStage("scanning parsed records for recorded script executions");
         const decision = decideDocumentResponse(records, allowScripts);
         reportStage(decision.kind === DocumentResponseKind.consentRequired
@@ -166,7 +159,10 @@ function handleDiffRequest(response: ServerResponse, query: URLSearchParams): vo
     const jsonlPaths = resolveJsonlPaths(requireParam(query, "project"), query.get("jsonl"));
     const filePath = new Path(requireParam(query, "file"));
     const allowScripts = query.get("allowScripts") === "1";
-    const document = buildDocumentWithConsent(jsonlPaths, filePath, allowScripts);
+    // Untargeted on purpose: both diff views send no jsonl param, so this reuses the very
+    // project-wide artifact the views already built (equality certified by
+    // test_revision_diff_from_untargeted_document_matches_targeted_build).
+    const document = buildDocumentWithConsent(jsonlPaths, undefined, allowScripts);
     if (query.get("mode") === "vsbase") {
         sendText(response, 200, renderDiffVsBase(document, filePath, Number(query.get("rev") ?? "0")));
         return;
@@ -184,7 +180,7 @@ function handleRangePatchRequest(response: ServerResponse, query: URLSearchParam
     const allowScripts = query.get("allowScripts") === "1";
     const declined = query.get("declined") === "1";
     const jsonlPaths = resolveJsonlPaths(projectName, null);
-    const records = jsonlPaths.flatMap((path) => loadTranscript(path.toString(), undefined, true));
+    const records = loadProjectRecords(jsonlPaths);
     const decision = decideDocumentResponse(records, allowScripts);
     if (decision.kind === DocumentResponseKind.consentRequired && !declined) {
         sendJson(response, 200, decision);

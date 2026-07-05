@@ -6,8 +6,10 @@ import {
     isScriptExecutionRun,
     parseScriptFileRefs,
     runScriptAgainstState,
+    PROGRESS_LABEL_SANDBOX_SPAWN_PREFIX,
     type ScriptRun,
 } from "../src/reconstruction_script_execution.ts";
+import { setReconstructionProgressSink } from "../src/reconstruction_progress.ts";
 import type { BackupReader } from "../src/reconstruction_sidecar.ts";
 import { replayEvents } from "../src/reconstruction_replay.ts";
 import { linesTextOf } from "../src/reconstruction_branches.ts";
@@ -167,4 +169,72 @@ test("test_runScriptAgainstState_applies_rename", () => {
     const result = runScriptAgainstState(script, preState);
     assert.ok(result !== undefined);
     assert.equal(result!.get("demo.py"), "def record():\n    record()");
+});
+
+// Collect sandbox-SPAWN announcements while `action` runs (memo hits announce differently).
+function collectSandboxSpawnLabels(action: () => void): string[] {
+    const spawnLabels: string[] = [];
+    setReconstructionProgressSink((event) => {
+        if (event.label.startsWith(PROGRESS_LABEL_SANDBOX_SPAWN_PREFIX)) {
+            spawnLabels.push(event.label);
+        }
+    });
+    try {
+        action();
+    } finally {
+        setReconstructionProgressSink(undefined);
+    }
+    return spawnLabels;
+}
+
+test("test_runScriptAgainstState_memoizes_identical_input", () => {
+    // Scenario: two calls with byte-identical (script, seeded state) spawn ONE sandbox — the
+    // second returns the memoized outcome (s84 in logs1.txt asked 208 times for 14 distinct
+    // inputs; this memo is the fix).
+    // Steps:
+    // run the same transform twice, counting spawn announcements.
+    const preState = new Map([["data.txt", "before\n"]]);
+    const script = 'open("data.txt", "w").write("after\\n")\n';
+    let firstResult: Map<string, string> | undefined;
+    let secondResult: Map<string, string> | undefined;
+    const spawnLabels = collectSandboxSpawnLabels(() => {
+        firstResult = runScriptAgainstState(script, preState);
+        secondResult = runScriptAgainstState(script, preState);
+    });
+    // one spawn, the same result object back, and the transform is correct.
+    assert.equal(spawnLabels.length, 1);
+    assert.equal(secondResult, firstResult);
+    assert.equal(firstResult?.get("data.txt"), "after\n");
+});
+
+test("test_runScriptAgainstState_distinguishes_seeded_content", () => {
+    // Scenario: same script, different seeded CONTENT — the memo must key on content, never on
+    // path names or file counts.
+    // Steps:
+    // run one appending script over two different seeds.
+    const script = 'data = open("data.txt").read()\nopen("data.txt", "w").write(data + "x\\n")\n';
+    const firstResult = runScriptAgainstState(script, new Map([["data.txt", "a\n"]]));
+    const secondResult = runScriptAgainstState(script, new Map([["data.txt", "b\n"]]));
+    // each seed got its own execution and its own correct output.
+    assert.equal(firstResult?.get("data.txt"), "a\nx\n");
+    assert.equal(secondResult?.get("data.txt"), "b\nx\n");
+});
+
+test("test_runScriptAgainstState_memoizes_failed_runs", () => {
+    // Scenario: a failing script memoizes too — its repeats must not re-pay the spawn (or its
+    // 5-second timeout) for a run already known to fail.
+    // Steps:
+    // run a script that exits nonzero, twice, counting spawn announcements.
+    const preState = new Map([["data.txt", "x\n"]]);
+    const script = "raise SystemExit(1)\n";
+    let firstResult: Map<string, string> | undefined;
+    let secondResult: Map<string, string> | undefined;
+    const spawnLabels = collectSandboxSpawnLabels(() => {
+        firstResult = runScriptAgainstState(script, preState);
+        secondResult = runScriptAgainstState(script, preState);
+    });
+    // one spawn; both calls report the failure as undefined.
+    assert.equal(spawnLabels.length, 1);
+    assert.equal(firstResult, undefined);
+    assert.equal(secondResult, undefined);
 });

@@ -1,6 +1,7 @@
-import { readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, mkdirSync, writeFileSync, mkdtempSync, copyFileSync, utimesSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join, relative, dirname } from "node:path";
+import { tmpdir } from "node:os";
 import { parseRecord } from "../src/parse/parseRecord.ts";
 import type { TranscriptRecord } from "../src/structures/envelope.ts";
 import { Path } from "../src/structures/domain.ts";
@@ -97,4 +98,19 @@ export function listRepositoryFiles(dir: string): string[] {
     const entries = readdirSync(dir, { recursive: true, withFileTypes: true });
     const files = entries.filter((entry) => entry.isFile() && !join(entry.parentPath).includes("/.git"));
     return files.map((entry) => relative(dir, join(entry.parentPath, entry.name))).sort();
+}
+
+// A private temp copy of one fixture JSONL, so mtime edits and cache-coldness needs never
+// touch the shared fixture tree (a fresh path = a fresh transcript-set stamp).
+export function copyFixtureIntoTempDir(fixturePath: string): Path {
+    const tempDir = mkdtempSync(join(tmpdir(), "reveng-artifact-"));
+    const copyPath = join(tempDir, "session.jsonl");
+    copyFileSync(fixturePath, copyPath);
+    return new Path(copyPath);
+}
+
+// Push a file's mtime one second past NOW — the smallest change the stamp must notice.
+export function advanceFileMtimeByOneSecond(filePath: Path): void {
+    const futureSeconds = Date.now() / 1000 + 1;
+    utimesSync(filePath.toString(), futureSeconds, futureSeconds);
 }

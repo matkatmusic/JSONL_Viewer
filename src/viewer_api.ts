@@ -15,6 +15,7 @@ import { buildSidecarReader } from "./reconstruction_sidecar_reader.ts";
 import { findScriptExecutionRuns, type ScriptRun } from "./reconstruction_script_execution.ts";
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { setReconstructionProgressSink } from "./reconstruction_progress.ts";
+import { getCachedValueRefreshingRecency, evictLeastRecentlyUsedEntries } from "./cache_lru.ts";
 import { renderDiff, renderGitFileDiff } from "./reconstruction_render.ts";
 import { DocumentResponseKind } from "./structures/vocabulary.ts";
 import { Path } from "./structures/domain.ts";
@@ -64,6 +65,48 @@ export function setProjectsDir(requested: string): Path {
     return activeProjectsDir;
 }
 
+// One string identifying a transcript set's on-disk state: sorted "path:mtimeMs:size" segments.
+// Two calls agree exactly when no file was added, removed, or modified. ponytail: mtimeMs+size
+// misses a same-millisecond same-size rewrite — switch to content hashing if that ever bites.
+export function computeTranscriptSetStamp(jsonlPaths: Path[]): string {
+    const stampSegments = jsonlPaths.map((path) => {
+        const stats = statSync(path.toString());
+        return `${path.toString()}:${stats.mtimeMs}:${stats.size}`;
+    });
+    stampSegments.sort();
+    return stampSegments.join("|");
+}
+
+export const PROGRESS_LABEL_RECORDS_CACHE_HIT = "reusing cached transcript records";
+
+// Bound for both viewer caches. Documents carry full per-step file snapshots, so unbounded
+// growth is a real leak on a long-running localhost server. 8 fits one project-wide artifact
+// plus a healthy run of per-conversation entries without evicting the big one (reads refresh
+// recency). ponytail: raise if hit/miss thrash ever shows in the loading console.
+export const ARTIFACT_CACHE_CAPACITY = 8;
+
+// Parsed records per transcript-set stamp. Entries never go stale silently: a file touch
+// changes the stamp, so a stale entry is simply never keyed again and ages out via LRU.
+const parsedRecordsCache = new Map<string, TranscriptRecord[]>();
+
+// The parsed, merged record stream for a transcript set — parsed at most once per on-disk
+// state. Returning the SAME array object also keeps the engine's per-records WeakMap memos
+// (reconstruction_branches.ts) warm across requests.
+export function loadProjectRecords(jsonlPaths: Path[], onProgress?: ProgressSink): TranscriptRecord[] {
+    const stamp = computeTranscriptSetStamp(jsonlPaths);
+    const cachedRecords = getCachedValueRefreshingRecency(parsedRecordsCache, stamp);
+    if (cachedRecords !== undefined) {
+        reportStage(onProgress, PROGRESS_LABEL_RECORDS_CACHE_HIT);
+        return cachedRecords;
+    }
+    // The viewer opens arbitrary real sessions: tolerate (and log) fields the scenarios never
+    // modeled instead of hard-failing the whole document. Unknown record types still throw.
+    const records = jsonlPaths.flatMap((path) => loadTranscript(path.toString(), onProgress, true));
+    parsedRecordsCache.set(stamp, records);
+    evictLeastRecentlyUsedEntries(parsedRecordsCache, ARTIFACT_CACHE_CAPACITY);
+    return records;
+}
+
 // The .jsonl entries directly inside `dir`, newest first.
 function listJsonlFiles(dir: string): JsonlFileEntry[] {
     const entries: JsonlFileEntry[] = [];
@@ -103,9 +146,7 @@ export function scanProjects(projectsDir: Path): ProjectListing[] {
 // One-or-many JSONLs -> one ReconstructionDocument. Exactly the CLI --json composition,
 // generalized to a merged multi-JSONL record stream (the coverage checker's proven pattern).
 export function buildProjectDocument(jsonlPaths: Path[], target: Path | undefined, onProgress?: ProgressSink): ReconstructionDocument {
-    // The viewer opens arbitrary real sessions: tolerate (and log) fields the scenarios never
-    // modeled instead of hard-failing the whole document. Unknown record types still throw.
-    const records = jsonlPaths.flatMap((path) => loadTranscript(path.toString(), onProgress, true));
+    const records = loadProjectRecords(jsonlPaths, onProgress);
     reportStage(onProgress, PROGRESS_LABEL_READING_SIDECAR);
     const reader = buildSidecarReader(records);
     reportStage(onProgress, PROGRESS_LABEL_CONSTRUCTING_BRANCHES);
@@ -129,21 +170,40 @@ export function decideDocumentResponse(records: TranscriptRecord[], allowScripts
     return { kind: DocumentResponseKind.document };
 }
 
+export const PROGRESS_LABEL_ARTIFACT_CACHE_HIT = "reusing cached document artifact";
+
+// Built documents per (transcript-set stamp, consent, target). allowScripts is in the key
+// because consented and degraded builds yield different documents and must never share an
+// entry. target is in the key only to keep the /api/document?target= contract intact — the
+// webapp never sends it, so in practice this holds one entry per (project, consent).
+const builtDocumentCache = new Map<string, ReconstructionDocument>();
+
 // Build a document under the consent decision: the exec gate is on only for a consented build's
 // own (synchronous) duration, and always off afterwards — the server's resting posture. A declined
-// build still yields a document, just degraded (no script-derived revisions).
+// build still yields a document, just degraded (no script-derived revisions). A cache hit returns
+// before the gate/sink lifecycle: nothing impure runs when no build runs.
 export function buildDocumentWithConsent(
     jsonlPaths: Path[],
     target: Path | undefined,
     allowScripts: boolean,
     onProgress?: ProgressSink,
 ): ReconstructionDocument {
+    const targetKey = target === undefined ? "" : target.toString();
+    const cacheKey = `${computeTranscriptSetStamp(jsonlPaths)}|${allowScripts}|${targetKey}`;
+    const cachedDocument = getCachedValueRefreshingRecency(builtDocumentCache, cacheKey);
+    if (cachedDocument !== undefined) {
+        reportStage(onProgress, PROGRESS_LABEL_ARTIFACT_CACHE_HIT);
+        return cachedDocument;
+    }
     setImpureExecutionAllowed(allowScripts);
     // The deep engine stages (script sandbox runs, per-file reconstruction) announce through the
     // build-scoped module sink — same lifecycle as the exec gate: on for the build, off after.
     setReconstructionProgressSink(onProgress);
     try {
-        return buildProjectDocument(jsonlPaths, target, onProgress);
+        const document = buildProjectDocument(jsonlPaths, target, onProgress);
+        builtDocumentCache.set(cacheKey, document);
+        evictLeastRecentlyUsedEntries(builtDocumentCache, ARTIFACT_CACHE_CAPACITY);
+        return document;
     } finally {
         setImpureExecutionAllowed(false);
         setReconstructionProgressSink(undefined);
