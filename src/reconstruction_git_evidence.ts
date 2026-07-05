@@ -25,8 +25,9 @@ import {
 } from "./reconstruction_script_execution.ts";
 import type { FileEvent, UserEditEvent, WriteEvent } from "./reconstruction_engine.ts";
 
-// A recorded `git commit`: the repo it committed in (the -C dir, else the record cwd) and when.
-export type GitCommitEvent = { cwd?: Path; timestamp: Date };
+// A recorded `git commit`: the repo it committed in (the -C dir, else the record cwd), when, and
+// the session whose Bash call ran it (for timeline attribution).
+export type GitCommitEvent = { cwd?: Path; timestamp: Date; sessionId?: Uuid };
 
 // Every `git commit` Bash command in the transcript, in record order.
 export function findGitCommitEvents(records: TranscriptRecord[]): GitCommitEvent[] {
@@ -42,7 +43,11 @@ export function findGitCommitEvents(records: TranscriptRecord[]): GitCommitEvent
             const match = command.match(gitCommitCommand);
             if (match === null) continue;
             const dashCDir = match[1];
-            commits.push({ cwd: dashCDir !== undefined ? new Path(dashCDir) : recordCwd, timestamp });
+            commits.push({
+                cwd: dashCDir !== undefined ? new Path(dashCDir) : recordCwd,
+                timestamp,
+                sessionId: record.sessionId,
+            });
         }
     }
     return commits;

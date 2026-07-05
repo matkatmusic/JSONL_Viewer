@@ -13,6 +13,7 @@ import {
     routeToConversation,
     routeToFileHistory,
 } from "../app.js";
+import { downloadText } from "./download.js";
 
 // The last step-snapshot content of `path` at or before `timestamp`. Timestamps are the JSON
 // document's ISO strings, which compare correctly as strings. undefined while no step carries
@@ -71,16 +72,6 @@ export function splitDiffBlocks(diffText) {
     }
     if (current !== null) blocks.push(current.join("\n"));
     return blocks;
-}
-
-function downloadText(fileName, text) {
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    link.click();
-    URL.revokeObjectURL(url);
 }
 
 export async function renderFileHistoryView(container, project, target) {

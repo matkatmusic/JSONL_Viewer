@@ -11,6 +11,8 @@ import {
     decideDocumentResponse,
     renderRevisionDiff,
     renderDiffVsBase,
+    renderRangePatch,
+    parseRangePatchQuery,
     resolveProjectFile,
     getProjectsDir,
     setProjectsDir,
@@ -172,6 +174,26 @@ function handleDiffRequest(response: ServerResponse, query: URLSearchParams): vo
     sendText(response, 200, renderRevisionDiff(document, filePath));
 }
 
+// GET /api/range-patch — one git-apply-able unified diff for a picked contiguous step range over
+// the WHOLE project's unified document. Consent mirrors /api/document's non-progress contract:
+// consent-required is HTTP 200 with the kind discriminant (never a non-2xx), declined=1 builds
+// the degraded document the client is already looking at.
+function handleRangePatchRequest(response: ServerResponse, query: URLSearchParams): void {
+    const projectName = requireParam(query, "project");
+    const { fromStep, toStep } = parseRangePatchQuery(query);
+    const allowScripts = query.get("allowScripts") === "1";
+    const declined = query.get("declined") === "1";
+    const jsonlPaths = resolveJsonlPaths(projectName, null);
+    const records = jsonlPaths.flatMap((path) => loadTranscript(path.toString(), undefined, true));
+    const decision = decideDocumentResponse(records, allowScripts);
+    if (decision.kind === DocumentResponseKind.consentRequired && !declined) {
+        sendJson(response, 200, decision);
+        return;
+    }
+    const document = buildDocumentWithConsent(jsonlPaths, undefined, allowScripts);
+    sendText(response, 200, renderRangePatch(document, fromStep, toStep));
+}
+
 // POST /api/config — switch the scan root at runtime. Existence validation only: this is a
 // typed/pasted path from the UI of a localhost app on the user's own machine.
 function handleConfigUpdate(request: IncomingMessage, response: ServerResponse): void {
@@ -216,6 +238,8 @@ function handleRequest(request: IncomingMessage, response: ServerResponse): void
             sendText(response, 200, readFileSync(jsonlPath.toString(), "utf8"));
         } else if (url.pathname === "/api/diff") {
             handleDiffRequest(response, url.searchParams);
+        } else if (url.pathname === "/api/range-patch") {
+            handleRangePatchRequest(response, url.searchParams);
         } else if (url.pathname === "/" || url.pathname.startsWith("/app/")) {
             serveStaticFile(response, url.pathname);
         } else {

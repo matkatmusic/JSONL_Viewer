@@ -9,6 +9,7 @@ import { getContentBlocks, type TextBlock } from "./structures/content-blocks.ts
 import { isGenuineUserPrompt } from "./reconstruction_tree.ts";
 import { recordVerdict } from "./reconstruction_parse_lines.ts";
 import { findConversationBranches } from "./reconstruction_branch.ts";
+import { findGitCommitEvents } from "./reconstruction_git_evidence.ts";
 import {
     reconstructStepTimeline,
     type RepoSnapshot,
@@ -28,6 +29,7 @@ export type ConversationMessage = {
     role: RecordType;
     timestamp: Date | undefined;
     text: string;
+    sessionId: Uuid | undefined;
 };
 
 // The displayed text of a user prompt or assistant reply: a plain-string content is the text itself;
@@ -51,6 +53,7 @@ function buildConversationMessage(record: TranscriptRecord): ConversationMessage
         role: record.type as RecordType,
         timestamp: record.timestamp,
         text: extractMessageText(record),
+        sessionId: record.sessionId,
     };
 }
 
@@ -93,6 +96,7 @@ export type StepSnapshot = {
     changeIds: Uuid[];
     changedPaths: string[];
     files: Record<string, string>;
+    sessionId: Uuid | undefined;
 };
 
 // Flatten a RepoSnapshot (Map<Path,string>, which JSON.stringify renders as `{}`) into a plain object
@@ -106,6 +110,24 @@ function convertSnapshotToFileMap(snapshot: RepoSnapshot, target: Path | undefin
         files[path.toString()] = text;
     }
     return files;
+}
+
+// A changeId(string) -> source sessionId index across every tool_use block, so a step's changeIds
+// can be attributed to the session whose tool call produced them. Synthetic changeIds (user-edit /
+// evidence splices) appear in no tool_use block and resolve to nothing.
+function indexChangeIdsToSessionIds(records: TranscriptRecord[]): Map<string, Uuid> {
+    const byChangeId = new Map<string, Uuid>();
+    for (const record of records) {
+        if (record.sessionId === undefined) {
+            continue;
+        }
+        for (const block of getContentBlocks(record)) {
+            if (block.type === BlockType.tool_use) {
+                byChangeId.set(block.id.toString(), record.sessionId);
+            }
+        }
+    }
+    return byChangeId;
 }
 
 // A changeId(string) -> final path(string) index across every reconstructed file, so a step's
@@ -131,6 +153,7 @@ export function buildStepSnapshots(
     const { states, changes } = reconstructStepTimeline(records, reader);
     reportReconstructionProgress("indexing change ids across surviving files");
     const pathOf = indexChangeIdsToPaths(surviving ?? reconstructAll(records, reader));
+    const sessionOf = indexChangeIdsToSessionIds(records);
     return states.map((snapshot, index) => {
         const changeIds = changes[index]!.changeIds;
         // ponytail: best-effort — a step's triggering changeId is not always a surviving revision's
@@ -145,6 +168,7 @@ export function buildStepSnapshots(
             changeIds,
             changedPaths,
             files: convertSnapshotToFileMap(snapshot, target),
+            sessionId: changeIds.map((id) => sessionOf.get(id.toString())).find((sessionId) => sessionId !== undefined),
         };
     });
 }
@@ -169,13 +193,24 @@ export function buildLineVerdicts(records: TranscriptRecord[]): LineVerdict[] {
     }));
 }
 
+// When a `git commit` ran and which session ran it — detected purely from the transcript
+// (findGitCommitEvents; no exec gate, no on-disk repo). Commit markers are the timeline's pick
+// hard-stops. NOTE: evidence-spliced commit revisions carry RANDOM changeIds that match no JSONL
+// line — markers, not changeIds, are the only commit signal usable by the viewer.
+export type CommitMarker = {
+    timestamp: Date;
+    sessionId: Uuid | undefined;
+};
+
 export type ReconstructionDocument = {
     sessionId: Uuid | undefined;
     messages: ConversationMessage[];
     branches: BranchSummary[];
     filesTouched: FileHistory[];
+    rewoundFilesTouched: FileHistory[];
     steps: StepSnapshot[];
     lineVerdicts: LineVerdict[];
+    commitMarkers: CommitMarker[];
 };
 
 export function buildReconstructionDocument(
@@ -188,6 +223,13 @@ export function buildReconstructionDocument(
         target === undefined
             ? branched.surviving
             : branched.surviving.filter((history) => history.target.equals(target));
+    // Rewound (abandoned-branch) histories, unwrapped from their branch tags — the timeline marks
+    // steps orphaned when their changeIds resolve only here. Filtered like filesTouched.
+    const rewoundHistories = branched.rewound.flatMap((branch) => branch.histories);
+    const rewoundFilesTouched =
+        target === undefined
+            ? rewoundHistories
+            : rewoundHistories.filter((history) => history.target.equals(target));
     // Sequenced (not an inline object literal) so each sub-phase announces before it runs and the
     // console's line timestamps attribute the build time to the right phase.
     reportReconstructionProgress("extracting conversation messages");
@@ -198,12 +240,18 @@ export function buildReconstructionDocument(
     const steps = buildStepSnapshots(records, reader, target, branched.surviving);
     reportReconstructionProgress("building line verdicts");
     const lineVerdicts = buildLineVerdicts(records);
+    const commitMarkers = findGitCommitEvents(records).map((event) => ({
+        timestamp: event.timestamp,
+        sessionId: event.sessionId,
+    }));
     return {
         sessionId: findSessionId(records),
         messages,
         branches,
         filesTouched,
+        rewoundFilesTouched,
         steps,
         lineVerdicts,
+        commitMarkers,
     };
 }

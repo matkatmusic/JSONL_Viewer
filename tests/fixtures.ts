@@ -8,6 +8,8 @@
 
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
+import { Path } from "../src/structures/domain.ts";
+import { resolveScenarioDir, listScenarioJsonlPaths } from "./utilities.ts";
 
 // Where executed scenarios live, in resolution order: the in-worktree capture root (the authoritative
 // re-run copies, with `.step_states`), then the original Desktop root.
@@ -97,3 +99,10 @@ export const S42_JSONL = findScenarioJsonl("s42-git-baseline-from-s38");
 export const S43_JSONL = findScenarioJsonl("s43-git-baseline-uncommitted-module");
 export const S44_JSONL = findScenarioJsonl("s44-git-baseline-then-rename");
 export const S45_JSONL = findScenarioJsonl("s45-rewind-abandoned-branch");
+
+// s84/s85 are multi-file PROJECT fixtures for the revision-timeline suite: tests build the unified
+// document from every JSONL in the scenario dir, so these expose the dir and the full path list.
+export const S84_PROJECT_DIR: Path = new Path(resolveScenarioDir(SCENARIO_ROOTS, "s84-multiagent-scripts-git-baseline"));
+export const S84_JSONL_PATHS: Path[] = listScenarioJsonlPaths(S84_PROJECT_DIR);
+export const S85_PROJECT_DIR: Path = new Path(resolveScenarioDir(SCENARIO_ROOTS, "s85-git-commit-csv-and-move-scripts"));
+export const S85_JSONL_PATHS: Path[] = listScenarioJsonlPaths(S85_PROJECT_DIR);

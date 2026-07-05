@@ -7,6 +7,7 @@ import { renderConversationView } from "./views/conversation.js";
 import { renderFileHistoryView } from "./views/file-history.js";
 import { renderRawLinesView } from "./views/raw-lines.js";
 import { renderDiffVsBaseView } from "./views/diff-vs-base.js";
+import { renderTimelineView } from "./views/timeline.js";
 
 // ─── tiny DOM builder (textContent everywhere — no innerHTML, no injection) ──
 
@@ -257,6 +258,11 @@ export function routeToConversation(project, jsonl, anchorLine) {
 export function routeToFileHistory(project, target) {
     return `${routeToProject(project)}/file/${encodeURIComponent(target)}`;
 }
+// anchorJsonl (optional): scroll the timeline to that session's first node.
+export function routeToTimeline(project, anchorJsonl) {
+    const base = `${routeToProject(project)}/timeline`;
+    return anchorJsonl === undefined ? base : `${base}/session/${encodeURIComponent(anchorJsonl)}`;
+}
 
 function parseRouteSegments() {
     return location.hash.replace(/^#\/?/, "").split("/").filter((segment) => segment.length > 0)
@@ -270,7 +276,8 @@ async function renderRoute() {
     const drawer = document.getElementById("drawer");
     const segments = parseRouteSegments();
     const refreshDrawer = () => renderProjectDrawer(drawer, segments[1], {
-        activeJsonl: segments[2] === "jsonl" ? segments[3] : undefined,
+        activeJsonl: segments[2] === "jsonl" ? segments[3]
+            : segments[2] === "timeline" && segments[3] === "session" ? segments[4] : undefined,
         activeTarget: segments[2] === "file" ? segments[3] : undefined,
     });
     try {
@@ -288,6 +295,8 @@ async function renderRoute() {
             setBreadcrumb(project);
             if (segments.length === 2) {
                 await renderProjectView(view, project);
+            } else if (segments[2] === "timeline") {
+                await renderTimelineView(view, project, segments[3] === "session" ? segments[4] : undefined);
             } else if (segments[2] === "jsonl") {
                 const jsonl = segments[3];
                 if (segments[4] === "lines") await renderRawLinesView(view, project, jsonl);

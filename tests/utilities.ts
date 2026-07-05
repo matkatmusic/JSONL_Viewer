@@ -1,7 +1,9 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { join, relative, dirname } from "node:path";
 import { parseRecord } from "../src/parse/parseRecord.ts";
 import type { TranscriptRecord } from "../src/structures/envelope.ts";
-import type { Path } from "../src/structures/domain.ts";
+import { Path } from "../src/structures/domain.ts";
 import { listCoveredScenarios } from "../scripts/coverage_scenarios.ts";
 
 // The session transcript(s) for a scenario id (e.g. "s37"), resolved from the discovered coverage
@@ -28,4 +30,71 @@ export function readNonEmptyLines(file: string): string[] {
 // field gate; use loadTranscript for the gated path). Generic: takes any path.
 export function loadRecords(file: string): TranscriptRecord[] {
     return readNonEmptyLines(file).map(parseRecord);
+}
+
+// Resolve a scenario directory by name across the given executed-scenario roots: the first root
+// whose dir holds at least one transcript wins (mirrors findScenarioJsonl's resolution rule).
+// Generic: the roots are data and live with the fixtures.
+export function resolveScenarioDir(roots: readonly string[], dirName: string): string {
+    for (const root of roots) {
+        const dir = join(root, dirName);
+        let entries: string[];
+        try {
+            entries = readdirSync(dir);
+        } catch {
+            continue;
+        }
+        if (entries.some((name) => name.endsWith(".jsonl"))) {
+            return dir;
+        }
+    }
+    throw new Error(`scenario ${dirName}: no directory with .jsonl found under known roots`);
+}
+
+// The transcript JSONLs directly inside a scenario directory, sorted by file name — the
+// multi-session counterpart of findScenarioJsonl's single-transcript resolution.
+export function listScenarioJsonlPaths(dir: Path): Path[] {
+    const names = readdirSync(dir.value).filter((name) => name.endsWith(".jsonl")).sort();
+    return names.map((name) => new Path(join(dir.value, name)));
+}
+
+// --- Temp-repo machinery for the range-patch acceptance tests -----------------------------------
+
+// Write a step snapshot's files (absolute-keyed) into `intoDir`, relativized against `root` —
+// the same relativization renderRangePatch applies to its patch paths.
+export function materializeSnapshotIntoDirectory(files: Record<string, string>, root: string, intoDir: string): void {
+    for (const [absolutePath, content] of Object.entries(files)) {
+        const destination = join(intoDir, relative(root, absolutePath));
+        mkdirSync(dirname(destination), { recursive: true });
+        writeFileSync(destination, content);
+    }
+}
+
+// Turn `dir` into a git repository with everything committed (identity pinned so the commit
+// succeeds regardless of local git config; --allow-empty covers the empty before-state).
+export function git_initRepositoryWithCommit(dir: string): void {
+    execFileSync("git", ["init", "-q"], { cwd: dir });
+    execFileSync("git", ["add", "-A"], { cwd: dir });
+    execFileSync(
+        "git",
+        ["-c", "user.email=test@test", "-c", "user.name=test", "commit", "-q", "--allow-empty", "-m", "before-state"],
+        { cwd: dir },
+    );
+}
+
+// Run `git apply` on the patch inside `dir`, returning git's exit code (0 = applied cleanly).
+export function git_applyPatch(dir: string, patchFile: string): number {
+    try {
+        execFileSync("git", ["apply", patchFile], { cwd: dir, stdio: "pipe" });
+        return 0;
+    } catch (error) {
+        return (error as { status?: number }).status ?? 1;
+    }
+}
+
+// Every file under `dir` (relative paths, sorted), excluding the .git metadata directory.
+export function listRepositoryFiles(dir: string): string[] {
+    const entries = readdirSync(dir, { recursive: true, withFileTypes: true });
+    const files = entries.filter((entry) => entry.isFile() && !join(entry.parentPath).includes("/.git"));
+    return files.map((entry) => relative(dir, join(entry.parentPath, entry.name))).sort();
 }

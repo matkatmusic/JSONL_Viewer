@@ -9,9 +9,9 @@ import {
     fetchJson,
     peekCachedDocument,
     renderConsentDialog,
-    routeToConversation,
     routeToFileHistory,
     routeToProject,
+    routeToTimeline,
 } from "../app.js";
 
 // Pure view model for the project view (no DOM): every reconstructed file target across the
@@ -42,10 +42,13 @@ export async function renderProjectDrawer(drawer, project, { activeJsonl, active
     drawer.append(el("div", { class: "pane-title" }, [el("a", { href: routeToProject(project), text: project })]));
 
     drawer.append(el("div", { class: "drawer-section-title", text: `JSONL files (${listing.jsonlFiles.length})` }));
+    // The default view: a JSONL opens the project-wide revision timeline anchored at its session.
+    // Direct #/…/jsonl/<f> URLs still render the conversation view (bookmarks stay valid); the
+    // conversation stays reachable via the timeline's session-header links and inspector jumps.
     for (const entry of listing.jsonlFiles) {
         drawer.append(el("a", {
             class: `drawer-item${entry.fileName === activeJsonl ? " active" : ""}`,
-            href: routeToConversation(project, entry.fileName),
+            href: routeToTimeline(project, entry.fileName),
             text: entry.fileName,
             title: `${entry.sizeBytes} B · ${new Date(entry.modifiedAt).toLocaleString()}`,
         }));

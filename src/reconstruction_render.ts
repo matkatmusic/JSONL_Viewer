@@ -138,3 +138,66 @@ export function renderDiff(revisions: FileRevision[]): string {
     }
     return blocks.join("\n");
 }
+
+// --- Standard unified diff (git-apply-able) — separate from renderDiff's human-oriented blocks ---
+
+// Split patchable text into lines, tracking whether it ends with a newline (git needs the
+// `\ No newline at end of file` marker to reproduce byte-exact content). "" is zero lines.
+function splitPatchLines(text: string): { lines: string[]; endsWithNewline: boolean } {
+    if (text === "") {
+        return { lines: [], endsWithNewline: true };
+    }
+    const endsWithNewline = text.endsWith("\n");
+    const lines = text.split("\n");
+    if (endsWithNewline) {
+        lines.pop();
+    }
+    return { lines, endsWithNewline };
+}
+
+// One hunk side's lines prefixed with its sign, plus git's no-newline marker when needed.
+function renderHunkSide(sign: string, text: string): string[] {
+    const { lines, endsWithNewline } = splitPatchLines(text);
+    const rendered = lines.map((line) => sign + line);
+    if (!endsWithNewline) {
+        rendered.push("\\ No newline at end of file");
+    }
+    return rendered;
+}
+
+// One file's git-format diff block as a whole-file replacement hunk (every old line removed,
+// every new line added) — a valid unified diff that `git apply` accepts; renderDiff's custom
+// headers are not apply-compatible, hence this separate emitter. `undefined` text marks absence:
+// creation when before is absent, deletion when after is.
+// ponytail: whole-file hunks and unquoted paths — add an LCS hunk builder / git-style quoting
+// only if patch size or paths-with-spaces ever matter.
+export function renderGitFileDiff(
+    relativePath: string,
+    beforeText: string | undefined,
+    afterText: string | undefined,
+): string {
+    const headerLines = [`diff --git a/${relativePath} b/${relativePath}`];
+    if (beforeText === undefined) {
+        headerLines.push("new file mode 100644");
+    }
+    if (afterText === undefined) {
+        headerLines.push("deleted file mode 100644");
+    }
+    const beforeCount = splitPatchLines(beforeText ?? "").lines.length;
+    const afterCount = splitPatchLines(afterText ?? "").lines.length;
+    if (beforeCount === 0 && afterCount === 0) {
+        // Empty creation/deletion: the mode line alone is the whole (valid) block.
+        return headerLines.join("\n") + "\n";
+    }
+    const oldPath = beforeText === undefined ? "/dev/null" : `a/${relativePath}`;
+    const newPath = afterText === undefined ? "/dev/null" : `b/${relativePath}`;
+    const hunkHeader = `@@ -${beforeCount === 0 ? 0 : 1},${beforeCount} +${afterCount === 0 ? 0 : 1},${afterCount} @@`;
+    return [
+        ...headerLines,
+        `--- ${oldPath}`,
+        `+++ ${newPath}`,
+        hunkHeader,
+        ...renderHunkSide("-", beforeText ?? ""),
+        ...renderHunkSide("+", afterText ?? ""),
+    ].join("\n") + "\n";
+}

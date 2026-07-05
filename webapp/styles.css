@@ -21,6 +21,9 @@
     --badge-accent-bg: rgba(10, 102, 194, 0.12);
     --error-bg: rgba(198, 40, 40, 0.08);
     --anchor: #e65100;
+    /* timeline session-lane extras (accent/green/orange are lanes 1-3) */
+    --lane-violet: #6d3ab8;
+    --lane-teal: #0e7490;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -41,6 +44,8 @@
         --badge-accent-bg: rgba(126, 207, 255, 0.2);
         --error-bg: rgba(244, 67, 54, 0.12);
         --anchor: #ff6d00;
+        --lane-violet: #b39ddb;
+        --lane-teal: #4dd0e1;
     }
 }
 
@@ -203,6 +208,78 @@ a:hover { text-decoration: underline; }
 .json-number { color: var(--orange); }
 .json-null, .json-bool { color: var(--red); }
 .inspector-close { float: right; }
+
+/* ─── Revision timeline view ──────────────────────────────────── */
+.timeline-body { position: relative; }
+.timeline-rail { position: absolute; top: 0; left: 0; pointer-events: none; }
+.timeline-session {
+    height: 40px; padding-left: 96px; display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--muted);
+}
+.timeline-session .swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.timeline-session .line { flex: 1; border-top: 1px solid var(--border); }
+.timeline-row {
+    padding: 8px 12px 8px 96px; display: flex; flex-direction: column; gap: 4px;
+    border-radius: 6px; position: relative;
+}
+.timeline-row:hover { background: var(--control); }
+.timeline-row.picked { background: var(--badge-accent-bg); }
+.timeline-row.selected { box-shadow: inset 0 0 0 1.5px var(--accent); background: var(--control); }
+.timeline-row.orphan { opacity: 0.55; }
+.timeline-row.orphan .timeline-chip { border-style: dashed; }
+.timeline-pick {
+    position: absolute; left: 20px; top: 10px; width: 15px; height: 15px;
+    accent-color: var(--accent); cursor: pointer;
+}
+.timeline-pick:disabled { opacity: 0.3; cursor: not-allowed; }
+.timeline-row-top { display: flex; align-items: baseline; gap: 10px; min-width: 0; cursor: pointer; }
+.timeline-step-label { font-weight: 650; white-space: nowrap; }
+.timeline-prompt { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.timeline-time { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.timeline-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.timeline-chip {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 5px;
+    padding: 2px 8px 2px 3px; cursor: pointer;
+}
+.op-badge {
+    width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10.5px; font-weight: 700; color: var(--code-bg);
+}
+.op-badge.op-a { background: var(--green); }
+.op-badge.op-m { background: var(--accent); }
+.op-badge.op-r { background: var(--lane-violet); }
+.op-badge.op-d { background: var(--red); }
+.op-badge.op-u { background: var(--orange); }
+.op-badge.op-s { background: var(--lane-teal); }
+.timeline-tag {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--muted); border: 1px dashed var(--muted); border-radius: 4px; padding: 0 6px;
+}
+.timeline-tag.commit { color: var(--accent); border: 1px solid var(--accent); }
+.timeline-divider {
+    height: 36px; display: flex; align-items: center; gap: 10px;
+    padding-left: 96px; color: var(--muted); font-size: 12px;
+}
+.timeline-divider .line { flex: 1; border-top: 1px dashed var(--border); }
+.timeline-selectbar {
+    position: sticky; bottom: 0; display: flex; align-items: center; gap: 10px;
+    background: var(--panel); border: 1px solid var(--accent); border-radius: 8px;
+    padding: 8px 14px; margin-top: 8px; font-size: 12px;
+}
+.timeline-selectbar .spacer { flex: 1; }
+.timeline-rule { color: var(--red); font-size: 12px; opacity: 0; transition: opacity 0.25s; }
+.timeline-rule.show { opacity: 1; }
+.timeline-preview {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px;
+    padding: 8px; overflow: auto; font-size: 12px; max-height: 300px; white-space: pre;
+    margin-top: 6px;
+}
+.timeline-preview-head {
+    display: flex; gap: 8px; align-items: center; margin-top: 6px;
+    color: var(--muted); font-size: 11px;
+}
 
 /* Persistent loading console docked at the bottom, full width. Height is auto: the terminal is
    pinned to 10 text rows (see ensureProgressTerminal), so the strip is exactly 10 lines tall. */

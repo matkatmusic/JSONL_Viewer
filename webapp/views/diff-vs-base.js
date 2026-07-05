@@ -11,7 +11,7 @@ import {
 } from "../app.js";
 import { buildFileHistoryViewModel } from "./file-history.js";
 
-function renderDiffText(pane, diffText) {
+export function renderDiffText(pane, diffText) {
     pane.replaceChildren();
     for (const line of diffText.split("\n")) {
         const lineClass = line.startsWith("@@") ? "diff-line-hunk"

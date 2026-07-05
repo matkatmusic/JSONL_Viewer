@@ -4,7 +4,7 @@
 
 import { readdirSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve, sep } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { loadTranscript, type ProgressSink } from "./parse/loadTranscript.ts";
 import {
     buildReconstructionDocument,
@@ -15,7 +15,7 @@ import { buildSidecarReader } from "./reconstruction_sidecar_reader.ts";
 import { findScriptExecutionRuns, type ScriptRun } from "./reconstruction_script_execution.ts";
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { setReconstructionProgressSink } from "./reconstruction_progress.ts";
-import { renderDiff } from "./reconstruction_render.ts";
+import { renderDiff, renderGitFileDiff } from "./reconstruction_render.ts";
 import { DocumentResponseKind } from "./structures/vocabulary.ts";
 import { Path } from "./structures/domain.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
@@ -187,4 +187,83 @@ export function renderDiffVsBase(document: ReconstructionDocument, filePath: Pat
         throw new Error(`revision ${revisionIndex} out of range 0..${revisions.length - 1}`);
     }
     return renderDiff([first, selected]);
+}
+
+// The directory every range-patch path is relativized against: the longest common directory
+// prefix across every file the document's steps ever tracked — in practice the session's cwd,
+// since every tracked file lives under it. Stable for a given document regardless of the range.
+// ponytail: prefix heuristic — carry the records' cwd on the document if multi-root projects appear.
+export function computePatchRoot(document: ReconstructionDocument): string {
+    const trackedPaths = new Set<string>();
+    for (const step of document.steps) {
+        for (const key of Object.keys(step.files)) {
+            trackedPaths.add(key);
+        }
+    }
+    const directorySegmentLists = [...trackedPaths].map((path) => path.split(sep).slice(0, -1));
+    if (directorySegmentLists.length === 0) {
+        return sep;
+    }
+    let prefix = directorySegmentLists[0]!;
+    for (const segments of directorySegmentLists.slice(1)) {
+        let shared = 0;
+        const limit = Math.min(prefix.length, segments.length);
+        while (shared < limit) {
+            if (prefix[shared] !== segments[shared]) {
+                break;
+            }
+            shared += 1;
+        }
+        prefix = prefix.slice(0, shared);
+    }
+    return prefix.join(sep) || sep;
+}
+
+// One positive-integer query param, or a loud throw the server maps to 400.
+function parsePositiveIntegerParam(query: URLSearchParams, name: string): number {
+    const raw = query.get(name);
+    if (raw === null) {
+        throw new Error(`missing query param: ${name}`);
+    }
+    const value = Number(raw);
+    if (!Number.isInteger(value)) {
+        throw new Error(`${name} must be an integer, got: ${raw}`);
+    }
+    if (value < 1) {
+        throw new Error(`${name} must be >= 1, got: ${raw}`);
+    }
+    return value;
+}
+
+// Trust-boundary parsing for GET /api/range-patch: both step params are required 1-based positive
+// integers. Range validation against the document happens in renderRangePatch (it knows steps.length).
+export function parseRangePatchQuery(query: URLSearchParams): { fromStep: number; toStep: number } {
+    return {
+        fromStep: parsePositiveIntegerParam(query, "fromStep"),
+        toStep: parsePositiveIntegerParam(query, "toStep"),
+    };
+}
+
+// One git-apply-able unified diff covering every file whose content differs between the snapshot
+// BEFORE `fromStep` and the snapshot AT `toStep` (1-based step indexes; the snapshot before step 1
+// is empty). A path present only in `after` is a creation; only in `before`, a deletion.
+export function renderRangePatch(document: ReconstructionDocument, fromStep: number, toStep: number): string {
+    if (fromStep < 1) {
+        throw new Error(`fromStep ${fromStep} out of range 1..${document.steps.length}`);
+    }
+    if (toStep > document.steps.length) {
+        throw new Error(`toStep ${toStep} out of range 1..${document.steps.length}`);
+    }
+    if (fromStep > toStep) {
+        throw new Error(`fromStep ${fromStep} exceeds toStep ${toStep}`);
+    }
+    const before: Record<string, string> = fromStep >= 2 ? document.steps[fromStep - 2]!.files : {};
+    const after = document.steps[toStep - 1]!.files;
+    const root = computePatchRoot(document);
+    const changedPaths = [...new Set([...Object.keys(before), ...Object.keys(after)])]
+        .filter((path) => before[path] !== after[path])
+        .sort();
+    return changedPaths
+        .map((path) => renderGitFileDiff(relative(root, path), before[path], after[path]))
+        .join("");
 }
