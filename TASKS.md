@@ -1,17 +1,17 @@
 # Open Task List — develop branch
 
-Compiled 2026-07-04 from the day's handoffs (`plans/handoff-develop-20260704-*.md`),
+Compiled 2026-07-04 from the day's handoffs (`plans/archived/handoff-develop-20260704-*.md`),
 reconciled against repo state at HEAD `b79cf1b`. Closed handoffs: 14:08 (timeline
 plan → shipped `b3b11fa`), 20:52 (build-cache plan → shipped `f6d2852`).
 
-Audited 2026-07-04 against ALL 94 handoff documents in `plans/` (June 3 – July 4):
+Audited 2026-07-04 against ALL 94 handoff documents in `plans/archived` (June 3 – July 4):
 every "What Remains" item is done, tracked below, deferred-by-design, or obsolete
 (frozen legacy island: `jfred/`, `web-shared/`, `api/`, `diff/`, `unified/`, `viewer/`).
 The audit surfaced items 15–17 below. Excluded as not-actionable: bash-read/grep
 timestampless unification (theoretical, `api/`), `docs/engine-b-overview.md` update
 (optional, frozen island), consent-dialog read-only whitelist (speculative), replay-engine
 npm extraction (speculative), item-6 spike files (closed NON-VIABLE diagnostic), roadmap
-`cp` sub-item (documented deferral in `plans/roadmap-100-percent-reconstruction.md`).
+`cp` sub-item (documented deferral in `plans/archived/roadmap-100-percent-reconstruction.md`).
 
 ## Done
 
@@ -20,9 +20,11 @@ npm extraction (speculative), item-6 spike files (closed NON-VIABLE diagnostic),
 
 ## Quick close-outs
 
-- [ ] **2. Remove stale api-from-scenarios worktree** — `git worktree remove api-from-scenarios`
+- [x] **2. Remove stale api-from-scenarios worktree** — `git worktree remove api-from-scenarios`
   (`~/Programming/RevEng-worktrees/api-from-scenarios`, branch merged). Also makes the first
   `SCENARIO_ROOTS` entry in `tests/fixtures.ts:18` permanently dead (harmless fallthrough today).
+  Verified gone 2026-07-05: `git worktree list` shows only the main checkout; the
+  `~/Programming/RevEng-worktrees/` folder is empty.
 
 ## Queued work items (handoff 18:01)
 
