@@ -136,7 +136,9 @@ seedEditBaseFromBackup(): synthetic Write when the
 creating Write lives on an abandoned branch"]
     P12["12 · injectScriptExecutions() ⛁
 detect script runs, re-execute them via python3
-in a sandbox against the reconstructed pre-state,
+in a sandbox against the reconstructed pre-state
+(memoized: ONE spawn per distinct
+script + pre-state content, failures too),
 validate against backup beacons"]
     P13["13 · placeGitCommitEvidence() ⛁
 git log/show by timestamp; splice committed-blob
@@ -306,6 +308,11 @@ user-edit / script-execution
         execOnce["executeRunOnce →
 getPreExecutionState"]
         runPy["runScriptAgainstState
+content-keyed memo:
+sha256(script + sorted seeded
+contents) → outcome, LRU 256,
+failed runs memoized too"]
+        spawnPy["spawnSandboxRun
 execSync('python3 …')
 in a temp sandbox"]
         beaconless["beaconlessScriptExecutions"]
@@ -319,6 +326,14 @@ pureAdditionsFrom → placementAfter
 (validated by forward re-execution)"]
         readBlob["readCommittedFileContent
 execSync('git log / git show')"]
+    end
+
+    subgraph CACHE["cache_lru.ts (new)"]
+        lru["getCachedValueRefreshingRecency ·
+evictLeastRecentlyUsedEntries
+(plain-Map LRU; also backs the viewer's
+records + document artifact caches
+in viewer_api.ts)"]
     end
 
     subgraph REPAIR["beacons &amp; reseed (reconstruction_beacons / _reseed / _user_edit)"]
@@ -407,6 +422,8 @@ lineVerdicts"]
     %% script subsystem
     injectScripts --> findRuns
     injectScripts --> beaconExec --> execOnce --> runPy
+    runPy -->|"miss only"| spawnPy
+    runPy --> lru
     injectScripts --> beaconless --> execOnce
     beaconExec --> beaconSnippet
     discoverPaths --> findRuns
@@ -434,14 +451,16 @@ lineVerdicts"]
     json --> steps
     json --> reconstructBranches
 
-    style runPy fill:#fee2e2,stroke:#dc2626
+    style spawnPy fill:#fee2e2,stroke:#dc2626
+    style runPy fill:#ede9fe,stroke:#7c3aed
+    style lru fill:#ede9fe,stroke:#7c3aed
     style readBlob fill:#fee2e2,stroke:#dc2626
     style fileOver fill:#fef3c7,stroke:#d97706
     style replay fill:#fef3c7,stroke:#d97706
     style extract fill:#fef3c7,stroke:#d97706
 </pre>
   </div>
-  <p class="legend">⛁ = reader-gated (no-op without file-history backups) · red = shells out (<code>python3</code> sandbox / <code>git</code>) · amber = extract→replay core.</p>
+  <p class="legend">⛁ = reader-gated (no-op without file-history backups) · red = shells out (<code>python3</code> sandbox / <code>git</code>) · amber = extract→replay core · purple = content-keyed caching (a repeat (script, pre-state) input never re-spawns; s84: 25s → 7s).</p>
 </div>
 
 <!-- ============================= TAB 4: COVERAGE CHECKER ============================= -->
@@ -602,7 +621,7 @@ checkScenarioResilient"| resilient
       P9:  ["lineage"],
       P10: ["seedCopy"],
       P11: ["redirects", "seedEdit", "backupHelpers", "timeline"],
-      P12: ["injectScripts", "findRuns", "beaconExec", "execOnce", "runPy", "beaconless", "discoverPaths"],
+      P12: ["injectScripts", "findRuns", "beaconExec", "execOnce", "runPy", "spawnPy", "lru", "beaconless", "discoverPaths"],
       P13: ["gitEvidence", "findCommits", "placeDiff", "readBlob"],
       P14: ["elided", "reseed", "truncated", "beaconSnippet", "staleSeed"],
       P15: ["replay", "appendRev", "wholeFile", "applyEdit", "appendOne", "echoDrop", "renderList", "renderVerbose", "renderDiff"],
