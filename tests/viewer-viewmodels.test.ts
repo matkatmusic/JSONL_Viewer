@@ -13,11 +13,12 @@ import { stripTrailingNewline } from "../src/reconstruction_steps.ts";
 import { buildFileHistoryViewModel } from "../webapp/views/file-history.js";
 import { buildConversationViewModel } from "../webapp/views/conversation.js";
 import { buildProjectViewModel } from "../webapp/views/project.js";
+import { filterProjectsByName } from "../webapp/views/projects.js";
 import { Path } from "../src/structures/domain.ts";
 import { jsonlPathsForScenario, readNonEmptyLines } from "./utilities.ts";
 import { S19_JSONL } from "./fixtures.ts";
 
-const S19_STEP_STATES_DIR = "plans/scenarios/executed/s19-user-edit-conv-rewind/.step_states";
+const S19_STEP_STATES_DIR = "scenarios/executed/s19-user-edit-conv-rewind/.step_states";
 
 // The s19 document as the CLIENT sees it: built once, JSON round-tripped (Path/Uuid/Date -> strings).
 function buildS19ClientDocument(): any {
@@ -118,6 +119,29 @@ test("test_conversation_viewmodel_interleaves_collapsed_stubs", () => {
         .filter((verdict: any) => verdict.line > startLine && verdict.line < endLine)
         .map((verdict: any) => verdict.uuid);
     assert.deepEqual(stubUuids, expectedUuids);
+});
+
+test("test_filterProjectsByName_matches_case_insensitive_substring", () => {
+    // Scenario: filtering a project listing by a mixed-case fragment keeps exactly
+    // the projects whose name contains that fragment, ignoring case.
+    // Steps:
+    // a listing holds three projects with distinct names.
+    const projectListing = [{ name: "alpha-app" }, { name: "Beta-Tool" }, { name: "gamma-app" }];
+    // filter with a fragment that case-insensitively matches only the second project.
+    const filteredProjects = filterProjectsByName(projectListing, "beta");
+    // only that project survives the filter.
+    assert.deepEqual(filteredProjects.map((project: any) => project.name), ["Beta-Tool"]);
+});
+
+test("test_filterProjectsByName_returns_all_projects_for_empty_filter", () => {
+    // Scenario: an empty filter string keeps the whole listing, in order.
+    // Steps:
+    // a listing holds two projects.
+    const projectListing = [{ name: "alpha-app" }, { name: "Beta-Tool" }];
+    // filter with the empty string (the input's initial state).
+    const filteredProjects = filterProjectsByName(projectListing, "");
+    // every project survives, order unchanged.
+    assert.deepEqual(filteredProjects, projectListing);
 });
 
 test("test_file_state_viewmodel_unifies_multi_jsonl", () => {

@@ -2,3 +2,7 @@
 	path = tmux_lib
 	url = https://github.com/matkatmusic/tmux_lib.git
 	branch = develop
+[submodule "scenarios"]
+	path = scenarios
+	url = https://github.com/matkatmusic/jfred-claude-scenarios.git
+	branch = develop

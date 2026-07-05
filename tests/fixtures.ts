@@ -15,7 +15,7 @@ import { resolveScenarioDir, listScenarioJsonlPaths } from "./utilities.ts";
 // re-run copies, with `.step_states`), then the original Desktop root.
 const SCENARIO_ROOTS = [
     "/Users/matkatmusicllc/Programming/RevEng-worktrees/api-from-scenarios/scenarios/executed",
-    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/scenarios/executed",
+    "/Users/matkatmusicllc/Desktop/claude code src/RevEng/scenarios/executed",
 ] as const;
 
 // A scenario's transcript JSONL, found by dir name. Searches each root in order and returns the first

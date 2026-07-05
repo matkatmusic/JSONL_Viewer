@@ -20,7 +20,7 @@ from pathlib import Path
 
 from tmux_lib.tmux_lib import tmux_sendAndSubmit, tmux_waitForClaudeReadiness
 
-SCENARIOS_DIR = Path(__file__).parent / "plans" / "scenarios"
+SCENARIOS_DIR = Path(__file__).parent / "scenarios"
 EXECUTED_DIR = SCENARIOS_DIR / "executed"
 LAUNCH_SPACING_S = 30
 POLL_INTERVAL_S = 15
