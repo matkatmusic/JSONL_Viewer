@@ -90,10 +90,22 @@ a:hover { text-decoration: underline; }
 .row-btn { font-size: 11px; padding: 1px 7px; }
 
 /* ─── Layout ──────────────────────────────────────────────────── */
-.layout { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+.layout { flex: 1; display: flex; overflow: hidden; min-height: 0; position: relative; --drawer-width: 260px; }
+.layout:has(.drawer.collapsed) { --drawer-width: 24px; }
 .drawer {
     flex: 0 0 260px; min-width: 180px; overflow-y: auto;
     border-right: 1px solid var(--border); background: var(--panel); padding: 8px;
+    transition: flex-basis 0.18s ease, min-width 0.18s ease;
+}
+.drawer.collapsed { flex-basis: 24px; min-width: 24px; padding: 8px 2px; overflow: hidden; }
+.drawer.collapsed > :not(.drawer-toggle) { display: none; }
+/* The chevron rides the drawer's right edge, vertically centered. Positioned against .layout
+   (the drawer is unpositioned), so it neither scrolls with the drawer's content nor gets
+   clipped by its overflow; `left` animates in step with the drawer's flex-basis. */
+.drawer-toggle {
+    position: absolute; left: calc(var(--drawer-width) - 22px); top: 50%;
+    transform: translateY(-50%); z-index: 5; width: 20px; padding: 1px 0;
+    transition: left 0.18s ease;
 }
 .drawer-section-title { color: var(--muted); font-size: 11px; margin: 10px 0 2px; text-transform: uppercase; }
 .drawer-item {
@@ -105,8 +117,29 @@ a:hover { text-decoration: underline; }
 .drawer-file { padding-left: 16px; }
 .view-pane { flex: 1; overflow-y: auto; padding: 12px 16px; min-width: 0; }
 .inspector-pane {
-    flex: 0 0 38%; min-width: 260px; overflow-y: auto;
-    border-left: 1px solid var(--border); background: var(--panel); padding: 8px 12px;
+    flex: 0 0 38%; min-width: 260px;
+    display: flex; align-items: stretch; gap: 6px;
+    border-left: 1px solid var(--border); background: var(--panel); padding: 8px 4px 8px 6px;
+}
+.inspector-content { flex: 1; min-width: 0; overflow-y: auto; padding-right: 8px; }
+/* Timeline route only: the inspector is a slide-in overlay over the timeline, leaving a
+   ~260px timeline strip visible next to the (possibly collapsed) drawer. Closed-with-content
+   parks as a 24px rail at the right edge (its own left sliver); closed-and-empty parks fully
+   off-screen so no rail shows before anything was selected. */
+.layout.timeline-route .inspector-pane {
+    position: absolute; top: 0; bottom: 0; right: 0;
+    left: calc(var(--drawer-width) + 260px);
+    z-index: 10; box-shadow: -6px 0 18px rgba(0, 0, 0, 0.35);
+    transition: transform 0.18s ease;
+}
+.layout.timeline-route .inspector-pane.hidden {
+    display: flex; transform: translateX(calc(100% - 24px)); cursor: pointer;
+}
+.layout.timeline-route .inspector-pane.hidden:empty { transform: translateX(100%); }
+.layout.timeline-route .inspector-pane.hidden > * { visibility: hidden; }
+.layout.timeline-route .inspector-pane.hidden::before {
+    content: "\00ab";   /* « */
+    position: absolute; left: 6px; top: 50%; transform: translateY(-50%); color: var(--accent);
 }
 .hidden { display: none; }
 
@@ -202,12 +235,18 @@ a:hover { text-decoration: underline; }
 .inspector-pane h2 { color: var(--accent); font-size: 12px; margin-bottom: 6px; }
 .inspector-nav { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
 .jump-link { text-decoration: underline dotted; cursor: pointer; }
-.inspector-json { white-space: pre; overflow-x: auto; font-size: 12px; line-height: 1.5; }
+.inspector-json { white-space: pre-wrap; word-break: break-word; overflow-x: auto; font-size: 12px; line-height: 1.5; }
+/* Long string values collapse to their first 7 wrapped lines behind a […] toggle. */
+.json-collapsed {
+    display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 7; line-clamp: 7; overflow: hidden;
+}
+.json-expand { font-size: 10px; padding: 0 5px; vertical-align: top; }
 .json-key { color: var(--accent); }
 .json-string { color: var(--green); }
 .json-number { color: var(--orange); }
 .json-null, .json-bool { color: var(--red); }
-.inspector-close { float: right; }
+.inspector-close { align-self: center; }
 
 /* ─── Revision timeline view ──────────────────────────────────── */
 .timeline-body { position: relative; }

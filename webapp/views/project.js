@@ -37,6 +37,18 @@ function groupTargetsByDirectory(fileTargets) {
 // unified document is already cached (never forces a whole-project build just for navigation).
 export async function renderProjectDrawer(drawer, project, { activeJsonl, activeTarget }) {
     drawer.replaceChildren();
+    // Collapse state is the `collapsed` class on the persistent #drawer element, so it survives
+    // this replaceChildren-based re-render and resets on page reload (deliberately unpersisted).
+    const toggleButton = el("button", {
+        class: "row-btn drawer-toggle",
+        text: drawer.classList.contains("collapsed") ? "»" : "«",
+        title: "Collapse/expand files drawer",
+        onclick: () => {
+            const collapsed = drawer.classList.toggle("collapsed");
+            toggleButton.textContent = collapsed ? "»" : "«";
+        },
+    });
+    drawer.append(toggleButton);
     const listing = (await fetchJson("/api/projects")).find((entry) => entry.name === project);
     if (listing === undefined) return;
     drawer.append(el("div", { class: "pane-title" }, [el("a", { href: routeToProject(project), text: project })]));

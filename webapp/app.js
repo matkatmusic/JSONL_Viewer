@@ -269,12 +269,40 @@ function parseRouteSegments() {
         .map(decodeURIComponent);
 }
 
+// True when the parsed hash segments name the project revision-timeline view.
+export function checkRouteIsTimeline(segments) {
+    if (segments[0] !== "project") {
+        return false;
+    }
+    return segments[2] === "timeline";
+}
+
+// Reopen the timeline inspector when its collapsed 24px rail is clicked. On other routes a
+// hidden inspector is display:none and can never receive this click.
+function handleInspectorRailClick(event) {
+    const pane = event.currentTarget;
+    // Only a click on the pane itself is a rail click. A click on the » collapse button
+    // bubbles here AFTER adding .hidden — without this guard it would instantly reopen.
+    if (event.target !== pane) {
+        return;
+    }
+    if (!pane.classList.contains("hidden")) {
+        return;
+    }
+    pane.classList.remove("hidden");
+}
+
 async function renderRoute() {
     const view = document.getElementById("view");
     view.replaceChildren();
-    document.getElementById("inspector").classList.add("hidden");
+    view.onclick = null;
+    const inspector = document.getElementById("inspector");
+    inspector.classList.add("hidden");
+    // A route change invalidates the inspected line; an empty closed pane renders no reopen rail.
+    inspector.replaceChildren();
     const drawer = document.getElementById("drawer");
     const segments = parseRouteSegments();
+    document.querySelector(".layout").classList.toggle("timeline-route", checkRouteIsTimeline(segments));
     const refreshDrawer = () => renderProjectDrawer(drawer, segments[1], {
         activeJsonl: segments[2] === "jsonl" ? segments[3]
             : segments[2] === "timeline" && segments[3] === "session" ? segments[4] : undefined,
@@ -352,5 +380,6 @@ async function initializeHeader() {
 if (typeof window !== "undefined") {
     ensureProgressTerminal();   // show the empty 10-row console immediately, before any load
     window.addEventListener("hashchange", renderRoute);
+    document.getElementById("inspector").addEventListener("click", handleInspectorRailClick);
     initializeHeader().then(renderRoute);
 }

@@ -26,6 +26,18 @@ function classifyToken(token) {
     return "json-number";
 }
 
+// A string value longer than this is collapsed to its first 7 wrapped lines behind a […]
+// toggle. 560 ≈ 7 lines × ~80 chars; the CSS line-clamp does the exact visual 7-line cut,
+// this threshold only decides which values get the toggle at all.
+const LONG_VALUE_CHAR_LIMIT = 560;
+
+function checkValueIsLong(tokenClass, token) {
+    if (tokenClass !== "json-string") {
+        return false;
+    }
+    return token.length > LONG_VALUE_CHAR_LIMIT;
+}
+
 // Per-transcript link maps, computed once per rawLines array: each record uuid -> its own
 // line, and each toolu_… id -> every line whose text carries it (tool_use + tool_result).
 const linkMapsCache = new WeakMap();
@@ -86,6 +98,19 @@ function renderHighlightedJson(prettyText, currentLine, maps, showLine) {
                 onclick: () => showLine(jumpTarget),
                 text: token,
             }));
+        } else if (checkValueIsLong(tokenClass, token)) {
+            // Long value: first 7 wrapped lines only (CSS line-clamp), […] toggles the rest.
+            const valueSpan = el("span", { class: `${tokenClass} json-collapsed`, text: token });
+            const expandToggle = el("button", {
+                class: "row-btn json-expand",
+                text: "[…]",
+                title: "Show the full value",
+                onclick: () => {
+                    const collapsed = valueSpan.classList.toggle("json-collapsed");
+                    expandToggle.textContent = collapsed ? "[…]" : "[hide]";
+                },
+            });
+            pre.append(valueSpan, expandToggle);
         } else {
             pre.append(el("span", { class: tokenClass, text: token }));
         }
@@ -108,15 +133,19 @@ export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLin
         } catch {
             value = rawLines[clamped];
         }
+        // The pane is a flex row: the collapse chevron rides the left edge, vertically
+        // centered; the content column beside it is the scroll container.
         pane.replaceChildren(
-            el("button", { class: "row-btn inspector-close", text: "✕", onclick: () => pane.classList.add("hidden") }),
-            el("div", { class: "inspector-nav" }, [
-                el("button", { class: "row-btn", text: "◀ Prev", onclick: () => showLine(clamped - 1) }),
-                el("span", { class: "muted", text: `line ${clamped} / ${rawLines.length - 1}` }),
-                el("button", { class: "row-btn", text: "Next ▶", onclick: () => showLine(clamped + 1) }),
+            el("button", { class: "row-btn inspector-close", text: "»", title: "Collapse inspector", onclick: () => pane.classList.add("hidden") }),
+            el("div", { class: "inspector-content" }, [
+                el("div", { class: "inspector-nav" }, [
+                    el("button", { class: "row-btn", text: "◀ Prev", onclick: () => showLine(clamped - 1) }),
+                    el("span", { class: "muted", text: `line ${clamped} / ${rawLines.length - 1}` }),
+                    el("button", { class: "row-btn", text: "Next ▶", onclick: () => showLine(clamped + 1) }),
+                ]),
+                el("h2", { text: jsonlName }),
+                renderHighlightedJson(JSON.stringify(value, null, 4), clamped, maps, showLine),
             ]),
-            el("h2", { text: jsonlName }),
-            renderHighlightedJson(JSON.stringify(value, null, 4), clamped, maps, showLine),
         );
         if (onJumpToLine !== undefined) onJumpToLine(clamped);
     };

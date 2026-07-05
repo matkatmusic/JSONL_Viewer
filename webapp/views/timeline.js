@@ -472,12 +472,19 @@ export async function renderTimelineView(container, project, anchorJsonl) {
         if (previousNode === null || (previousNode.sessionId ?? UNATTRIBUTED_SESSION_LABEL) !== sessionKey) {
             const color = sessionColors.get(node.sessionId) ?? ORPHAN_LANE_COLOR;
             const jsonlName = node.sessionId === undefined ? undefined : findJsonlForSession(node.sessionId);
+            // The session link opens the transcript in the inspector drawer, keeping the
+            // timeline visible — never navigates away from it.
+            const openSessionTranscript = async (event) => {
+                event.preventDefault();
+                const rawLines = await fetchRawRecords(project, jsonlName);
+                openTranscriptInspector({ jsonlName, rawLines, line: 0 });
+            };
             const header = el("div", { class: "timeline-session", "data-color": color, "data-session": sessionKey }, [
                 el("span", { class: "swatch", style: `background:${color}` }),
                 jsonlName !== undefined
-                    ? el("a", { href: routeToConversation(project, jsonlName), text: sessionKey.slice(0, 8) })
+                    ? el("a", { href: routeToConversation(project, jsonlName), text: sessionKey.slice(0, 8), onclick: openSessionTranscript })
                     : el("span", { text: sessionKey.slice(0, 8) }),
-                el("span", { class: "muted", text: jsonlName ?? "" }),
+                el("span", { class: "muted", text: jsonlName ?? "", onclick: jsonlName === undefined ? undefined : openSessionTranscript }),
                 el("span", { class: "line" }),
             ]);
             body.append(header);
@@ -551,6 +558,16 @@ export async function renderTimelineView(container, project, anchorJsonl) {
     });
     body.append(selectbar);
     container.append(body);
+
+    // Clicking empty timeline background (not a row, session header, or the pick/export
+    // bar) closes the inspector overlay. Assigned as a property (not addEventListener) so
+    // renderRoute can clear it with `view.onclick = null` before other routes render.
+    container.onclick = (event) => {
+        if (event.target.closest(".timeline-row, .timeline-session, .timeline-selectbar") !== null) {
+            return;
+        }
+        document.getElementById("inspector").classList.add("hidden");
+    };
 
     // ── graph rail, drawn from row geometry (port of the approved mockup's drawRail) ──
     function drawRail() {
