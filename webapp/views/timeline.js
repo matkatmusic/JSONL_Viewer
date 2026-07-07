@@ -27,6 +27,8 @@ export const AGENT_TURN_NODE_KIND = "agent-turn";
 export const SESSION_END_NODE_KIND = "session-end";
 const USER_ROLE = "user";
 const EDIT_EVENT_KIND = "edit";
+const COMMIT_OPERATION_KIND = "commit";
+const BRANCH_OPERATION_KIND = "branch";
 
 // changeId -> { path, eventKind, renamedFrom, isRewound } across surviving AND rewound histories,
 // so a step's changeIds resolve to displayable file chips and orphan detection in one lookup.
@@ -266,10 +268,80 @@ function attachSnapshotsToAgentTurns(turnNodes, steps) {
             sessionId: snapshot.sessionId,
             text: "",
             snapshots: [snapshot],
+            gitOperations: [],
         };
         syntheticTurns.set(snapshot.sessionId, trailingTurn);
         turnNodes.push(trailingTurn);
     }
+}
+
+// The chronologically last agent turn of a session, or undefined when the session has none.
+function findLastAgentTurnOfSession(turnNodes, sessionId) {
+    let last;
+    for (const node of turnNodes) {
+        if (node.kind !== AGENT_TURN_NODE_KIND) {
+            continue;
+        }
+        if (node.sessionId !== sessionId) {
+            continue;
+        }
+        last = node;
+    }
+    return last;
+}
+
+// Per git operation: the FIRST agent-turn node of its own session at or after it — the snapshot
+// attribution rule, reusing its owner check. An operation after the session's last reply (e.g. a
+// final commit) falls back to that last turn so no recorded git command is silently dropped.
+// Runs AFTER attachSnapshotsToAgentTurns so synthetic trailing turns are already candidates.
+function attachGitOperationsToAgentTurns(turnNodes, gitOperations) {
+    for (const operation of gitOperations) {
+        const instant = { sessionId: operation.sessionId, when: operation.timestamp };
+        const owner = turnNodes.find((node) => checkNodeCanOwnSnapshot(node, instant));
+        if (owner !== undefined) {
+            owner.gitOperations.push(operation);
+            continue;
+        }
+        const trailing = findLastAgentTurnOfSession(turnNodes, operation.sessionId);
+        if (trailing !== undefined) {
+            trailing.gitOperations.push(operation);
+        }
+    }
+}
+
+// A git row's text inside the stars, matching the user's reference sketch: `git init`,
+// `git add <paths>`, `git commit "<message>"`, `git branch: <name>`.
+function formatGitOperationLabel(operation) {
+    if (operation.detail === "") {
+        return `git ${operation.kind}`;
+    }
+    if (operation.kind === COMMIT_OPERATION_KIND) {
+        return `git commit "${operation.detail}"`;
+    }
+    if (operation.kind === BRANCH_OPERATION_KIND) {
+        return `git branch: ${operation.detail}`;
+    }
+    return `git ${operation.kind} ${operation.detail}`;
+}
+
+// Commit pick hard-stops: from the document's commit operations (which carry the message) when it
+// ships gitOperations; an older cached document lacks the field and falls back to commitMarkers.
+function deriveCommitNodes(document) {
+    if (document.gitOperations === undefined) {
+        return document.commitMarkers.map((marker) => ({
+            kind: COMMIT_NODE_KIND,
+            when: marker.timestamp,
+            sessionId: marker.sessionId,
+        }));
+    }
+    return document.gitOperations
+        .filter((operation) => operation.kind === COMMIT_OPERATION_KIND)
+        .map((operation) => ({
+            kind: COMMIT_NODE_KIND,
+            when: operation.timestamp,
+            sessionId: operation.sessionId,
+            detail: operation.detail,
+        }));
 }
 
 // One session-end node per distinct session (insertion order), timestamped at the session's last
@@ -374,14 +446,12 @@ export function buildTurnTimelineViewModel(document) {
         text: message.text,
         isSystem: checkMessageTextIsSystem(message.text),
         snapshots: [],
+        gitOperations: [],
     }));
     attachSnapshotsToAgentTurns(turnNodes, document.steps);
+    attachGitOperationsToAgentTurns(turnNodes, document.gitOperations ?? []);
     appendSessionEndNodes(turnNodes);
-    const commitNodes = document.commitMarkers.map((marker) => ({
-        kind: COMMIT_NODE_KIND,
-        when: marker.timestamp,
-        sessionId: marker.sessionId,
-    }));
+    const commitNodes = deriveCommitNodes(document);
     const nodes = [...turnNodes, ...commitNodes].sort(compareTimelineNodes);
     assignStepNumbers(nodes);
     deriveNodeFileChanges(nodes, revisionIndex);
@@ -858,7 +928,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
             row.append(el("div", { class: "timeline-row-top" }, [
                 el("span", { class: "timeline-step-label", text: "git commit" }),
                 el("span", { class: "timeline-tag commit", text: "commit" }),
-                el("span", { class: "timeline-prompt", text: "" }),
+                el("span", { class: "timeline-prompt", text: node.detail === undefined ? "" : `“${node.detail}”` }),
                 el("span", { class: "timeline-time", text: new Date(node.when).toLocaleTimeString() }),
             ]));
         }
@@ -925,6 +995,14 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
                 openTurnInspector(node, previewPane);
             });
             row.append(rowTop);
+            if (node.gitOperations.length > 0) {
+                row.append(el("div", { class: "timeline-gitops" },
+                    node.gitOperations.map((operation) => el("div", {
+                        class: "timeline-gitop",
+                        text: `* ${formatGitOperationLabel(operation)} * (${new Date(operation.timestamp).toLocaleTimeString()})`,
+                        title: operation.command,
+                    }))));
+            }
             row.append(el("div", { class: "timeline-chips" },
                 node.fileChanges.map((change) => renderFileButtonRow(node, change, previewPane))));
             row.append(previewPane);

@@ -7,11 +7,17 @@ import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { isImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { relative } from "node:path";
-import { BlockType, EventKind, ToolName } from "./structures/vocabulary.ts";
+import {
+    BlockType,
+    EventKind,
+    GitOperationKind,
+    KNOWN_GIT_OPERATION_KINDS,
+    ToolName,
+} from "./structures/vocabulary.ts";
 import { Path, Uuid } from "./structures/domain.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { getContentBlocks } from "./structures/content-blocks.ts";
-import { gitCommitCommand } from "./regex_expressions.ts";
+import { gitCommandStart, gitCommitCommand, shellCommandToken } from "./regex_expressions.ts";
 import { splitLines } from "./reconstruction_replay_edit.ts";
 import { noteStage } from "./reconstruction_provenance.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
@@ -51,6 +57,125 @@ export function findGitCommitEvents(records: TranscriptRecord[]): GitCommitEvent
         }
     }
     return commits;
+}
+
+// One recorded git command, parsed for the timeline: the subcommand family, the human detail its
+// row shows (commit message, add paths, branch name), the verbatim command, and when/which session
+// ran it (for turn attribution).
+export type GitOperation = {
+    kind: GitOperationKind;
+    detail: string;
+    command: string;
+    timestamp: Date;
+    sessionId: Uuid | undefined;
+};
+
+// Global git flags that consume the NEXT token as their argument (`git -C <dir> …`,
+// `git -c key=val …`) — skipped, argument included, when locating the subcommand.
+const GIT_FLAGS_WITH_ARGUMENT = new Set(["-C", "-c"]);
+
+// The index of the subcommand token: the first token after `git` that is not a global flag.
+// tokens.length when the command has flags but no subcommand.
+function findSubcommandIndex(tokens: string[]): number {
+    let index = 1;
+    while (index < tokens.length) {
+        const token = tokens[index]!;
+        if (GIT_FLAGS_WITH_ARGUMENT.has(token)) {
+            index += 2;
+            continue;
+        }
+        if (token.startsWith("-")) {
+            index += 1;
+            continue;
+        }
+        return index;
+    }
+    return tokens.length;
+}
+
+// The wire kind for a subcommand word: its GitOperationKind member, or `other` for any
+// subcommand outside the annotated set (this is the hydration point — wire word -> enum member).
+function parseGitOperationKind(subcommand: string | undefined): GitOperationKind {
+    const known = KNOWN_GIT_OPERATION_KINDS.find((kind) => kind === subcommand);
+    if (known === undefined) return GitOperationKind.other;
+    return known;
+}
+
+// `token` without its surrounding quote pair, when it has one ("baseline" -> baseline).
+// ponytail: escaped quotes inside the token are left as-is — no fixture exercises them.
+function stripSurroundingQuotes(token: string): string {
+    if (token.length < 2) return token;
+    const first = token[0]!;
+    const last = token[token.length - 1]!;
+    if (first !== last) return token;
+    if (first === '"') return token.slice(1, -1);
+    if (first === "'") return token.slice(1, -1);
+    return token;
+}
+
+// The first argument that is not a flag, or "" — a branch/checkout command's branch name.
+function findFirstNonFlagArgument(argumentTokens: string[]): string {
+    const found = argumentTokens.find((token) => !token.startsWith("-"));
+    if (found === undefined) return "";
+    return found;
+}
+
+// The row detail for one parsed command: commit -> its first -m message; add -> its path
+// arguments; branch/checkout -> the branch name; anything else -> "".
+function parseGitOperationDetail(kind: GitOperationKind, tokens: string[], subcommandIndex: number): string {
+    const argumentTokens = tokens.slice(subcommandIndex + 1);
+    if (kind === GitOperationKind.commit) {
+        const messageFlagIndex = argumentTokens.indexOf("-m");
+        if (messageFlagIndex < 0) return "";
+        const message = argumentTokens[messageFlagIndex + 1];
+        if (message === undefined) return "";
+        return stripSurroundingQuotes(message);
+    }
+    if (kind === GitOperationKind.add) {
+        return argumentTokens.filter((token) => !token.startsWith("-")).join(" ");
+    }
+    if (kind === GitOperationKind.branch) {
+        return findFirstNonFlagArgument(argumentTokens);
+    }
+    if (kind === GitOperationKind.checkout) {
+        return findFirstNonFlagArgument(argumentTokens);
+    }
+    return "";
+}
+
+// One git command string -> its parsed operation (kind + detail from the tokenized words).
+function parseGitOperation(command: string, timestamp: Date, sessionId: Uuid | undefined): GitOperation {
+    const tokens = command.match(shellCommandToken) ?? [];
+    const subcommandIndex = findSubcommandIndex(tokens);
+    const kind = parseGitOperationKind(tokens[subcommandIndex]);
+    return {
+        kind,
+        detail: parseGitOperationDetail(kind, tokens, subcommandIndex),
+        command,
+        timestamp,
+        sessionId,
+    };
+}
+
+// Every git Bash command in the transcript, in record order, parsed for the timeline's
+// `* git <kind> <detail> *` rows. Reads the transcript records directly — the consent scan's
+// ScriptRun list serves script consent, not git history.
+export function findGitOperations(records: TranscriptRecord[]): GitOperation[] {
+    const operations: GitOperation[] = [];
+    for (const record of records) {
+        const timestamp = record.timestamp;
+        if (!(timestamp instanceof Date)) continue;
+        for (const block of getContentBlocks(record)) {
+            if (block.type !== BlockType.tool_use) continue;
+            if (block.name !== ToolName.Bash) continue;
+            const command = (block.input as { command?: string }).command;
+            if (command === undefined) continue;
+            const trimmed = command.trim();
+            if (trimmed.match(gitCommandStart) === null) continue;
+            operations.push(parseGitOperation(trimmed, timestamp, record.sessionId));
+        }
+    }
+    return operations;
 }
 
 // How far a repo's commit time may sit from the record's command time and still be "that commit"

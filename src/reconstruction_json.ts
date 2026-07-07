@@ -9,7 +9,7 @@ import { getContentBlocks, type TextBlock } from "./structures/content-blocks.ts
 import { isGenuineUserPrompt } from "./reconstruction_tree.ts";
 import { recordVerdict } from "./reconstruction_parse_lines.ts";
 import { findConversationBranches } from "./reconstruction_branch.ts";
-import { findGitCommitEvents } from "./reconstruction_git_evidence.ts";
+import { findGitCommitEvents, findGitOperations, type GitOperation } from "./reconstruction_git_evidence.ts";
 import {
     reconstructStepTimeline,
     type RepoSnapshot,
@@ -211,6 +211,7 @@ export type ReconstructionDocument = {
     steps: StepSnapshot[];
     lineVerdicts: LineVerdict[];
     commitMarkers: CommitMarker[];
+    gitOperations: GitOperation[];
 };
 
 export function buildReconstructionDocument(
@@ -244,6 +245,7 @@ export function buildReconstructionDocument(
         timestamp: event.timestamp,
         sessionId: event.sessionId,
     }));
+    const gitOperations = findGitOperations(records);
     return {
         sessionId: findSessionId(records),
         messages,
@@ -253,5 +255,6 @@ export function buildReconstructionDocument(
         steps,
         lineVerdicts,
         commitMarkers,
+        gitOperations,
     };
 }

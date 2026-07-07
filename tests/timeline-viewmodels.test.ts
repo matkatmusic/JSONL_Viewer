@@ -21,7 +21,7 @@ import {
 } from "../webapp/views/timeline.js";
 import { buildProjectDocument, renderRangePatch } from "../src/viewer_api.ts";
 import { Path } from "../src/structures/domain.ts";
-import { RecordType, EventKind } from "../src/structures/vocabulary.ts";
+import { RecordType, EventKind, GitOperationKind } from "../src/structures/vocabulary.ts";
 import { S2_JSONL, S45_JSONL, S84_JSONL_PATHS, S85_JSONL_PATHS } from "./fixtures.ts";
 
 // Built once per scenario — wire shape, shared read-only across tests.
@@ -599,4 +599,145 @@ test("test_findTimelineNodeIndexForRawLine_returns_minus_one_when_no_step_matche
     const nodeIndex = findTimelineNodeIndexForRawLine(nodes, '{"type":"summary","message":"hello"}');
     // no node owns the line.
     assert.equal(nodeIndex, -1);
+});
+
+test("test_agent_turns_own_every_git_operation_of_their_session", () => {
+    // Scenario: each of s85's five recorded git operations renders inside exactly one agent turn
+    // of its own session — the timeline's `* git <kind> <detail> *` rows.
+    // Steps:
+    // build s85's turn timeline.
+    const { nodes } = buildTurnTimelineViewModel(s85Document);
+    const agentNodes = nodes.filter((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND);
+    // assert the turns collectively own the document's operations, in document order.
+    const owned = agentNodes.flatMap((node: { gitOperations: { command: string }[] }) => node.gitOperations);
+    assert.deepEqual(
+        owned.map((operation: { command: string }) => operation.command),
+        s85Document.gitOperations.map((operation: { command: string }) => operation.command),
+    );
+    // assert no operation crossed into another session's turn.
+    for (const node of agentNodes) {
+        for (const operation of node.gitOperations) {
+            assert.equal(operation.sessionId, node.sessionId);
+        }
+    }
+});
+
+test("test_git_operations_attach_by_the_snapshot_attribution_rule", () => {
+    // Scenario: a git operation belongs to the FIRST agent reply of its own session at or after
+    // it (the snapshot rule); an operation AFTER the session's last reply falls back to that last
+    // reply so no recorded git command is silently dropped.
+    // Steps:
+    // build a minimal document: prompt, one reply, one operation before the reply, one after it.
+    const document = {
+        messages: [{
+            uuid: "prompt-1",
+            role: RecordType.user,
+            sessionId: "session-a",
+            timestamp: "2026-01-01T00:00:00.000Z",
+            text: "make a repo and commit",
+        }, {
+            uuid: "reply-1",
+            role: RecordType.assistant,
+            sessionId: "session-a",
+            timestamp: "2026-01-01T00:00:10.000Z",
+            text: "done",
+        }],
+        steps: [],
+        filesTouched: [],
+        rewoundFilesTouched: [],
+        commitMarkers: [],
+        gitOperations: [{
+            kind: GitOperationKind.init,
+            detail: "",
+            command: "git init",
+            timestamp: "2026-01-01T00:00:05.000Z",
+            sessionId: "session-a",
+        }, {
+            kind: GitOperationKind.commit,
+            detail: "baseline",
+            command: 'git commit -m "baseline"',
+            timestamp: "2026-01-01T00:00:20.000Z",
+            sessionId: "session-a",
+        }],
+    };
+    const { nodes } = buildTurnTimelineViewModel(document);
+    // assert the reply turn owns BOTH operations, in order (init by the rule, commit by fallback).
+    const reply = nodes.find((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND)!;
+    assert.deepEqual(
+        reply.gitOperations.map((operation: { kind: string }) => operation.kind),
+        [GitOperationKind.init, GitOperationKind.commit],
+    );
+});
+
+test("test_commit_nodes_derive_from_git_operations", () => {
+    // Scenario: when the document ships gitOperations, the pick hard-stops come from its commit
+    // operations — carrying the commit message — not from commitMarkers.
+    // Steps:
+    // build a minimal document whose ONLY commit signal is a gitOperations entry.
+    const document = {
+        messages: [{
+            uuid: "prompt-1",
+            role: RecordType.user,
+            sessionId: "session-a",
+            timestamp: "2026-01-01T00:00:00.000Z",
+            text: "commit it",
+        }, {
+            uuid: "reply-1",
+            role: RecordType.assistant,
+            sessionId: "session-a",
+            timestamp: "2026-01-01T00:00:10.000Z",
+            text: "committed",
+        }],
+        steps: [],
+        filesTouched: [],
+        rewoundFilesTouched: [],
+        commitMarkers: [],
+        gitOperations: [{
+            kind: GitOperationKind.commit,
+            detail: "baseline",
+            command: 'git commit -m "baseline"',
+            timestamp: "2026-01-01T00:00:05.000Z",
+            sessionId: "session-a",
+        }],
+    };
+    const { nodes } = buildTurnTimelineViewModel(document);
+    // assert exactly one commit node exists, at the operation's instant, with its message.
+    const commitNodes = nodes.filter((node: { kind: string }) => node.kind === COMMIT_NODE_KIND);
+    assert.equal(commitNodes.length, 1);
+    assert.equal(commitNodes[0]!.when, "2026-01-01T00:00:05.000Z");
+    assert.equal(commitNodes[0]!.detail, "baseline");
+});
+
+test("test_commit_nodes_fall_back_to_commit_markers", () => {
+    // Scenario: an older cached document has NO gitOperations field; its commitMarkers must
+    // still produce the commit hard-stops (and agent turns still expose an empty operations list).
+    // Steps:
+    // build a minimal document with a commitMarker and no gitOperations key.
+    const document = {
+        messages: [{
+            uuid: "prompt-1",
+            role: RecordType.user,
+            sessionId: "session-a",
+            timestamp: "2026-01-01T00:00:00.000Z",
+            text: "commit it",
+        }, {
+            uuid: "reply-1",
+            role: RecordType.assistant,
+            sessionId: "session-a",
+            timestamp: "2026-01-01T00:00:10.000Z",
+            text: "committed",
+        }],
+        steps: [],
+        filesTouched: [],
+        rewoundFilesTouched: [],
+        commitMarkers: [{ timestamp: "2026-01-01T00:00:05.000Z", sessionId: "session-a" }],
+    };
+    const { nodes } = buildTurnTimelineViewModel(document);
+    // assert the marker still yields its commit node.
+    const commitNodes = nodes.filter((node: { kind: string }) => node.kind === COMMIT_NODE_KIND);
+    assert.equal(commitNodes.length, 1);
+    assert.equal(commitNodes[0]!.when, "2026-01-01T00:00:05.000Z");
+    // assert the reply turn carries an (empty) operations list, so the render half can map it.
+    const reply = nodes.find((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND)!;
+    assert.deepEqual(reply.gitOperations, []);
 });

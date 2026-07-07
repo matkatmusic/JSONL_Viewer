@@ -67,3 +67,43 @@ Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-
   (a) the transcripts start with the `/ponytail` command prompt and its acknowledgment reply — 4 extra turns across the 2 sessions. Should command-message prompts (and their acks) be filtered from the timeline, or stay as steps?
   (b) in session 1 the agent emitted its reply text BEFORE running the file-writing tool calls, so the snapshots have no agent reply at-or-after them and land on a synthetic empty-text turn (Step 5) — the reference sketch shows the chips on the reply itself (Step 4). The attribution rule ("first agent reply at/after the snapshot") was user-approved and is implemented exactly as specified; if chips should bind to the PRECEDING reply when no later one exists, that is a rule change to decide explicitly.
 - s84 Step 17 is a pickable agent turn with zero visible chips (its snapshot's changeIds resolve to no revision and `changedPaths` is empty). Engine data question, not a viewer defect — flagging for awareness.
+
+## 2026-07-07:22:08:44 — Phase B: gitOperations[] in the wire document
+Chat title: update-the-plan-to-dapper-crystal (continuation session; appending to this plan's running log rather than opening a parallel notes file)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Desktop-claude-code-src/90a280bd-5c24-49b7-a8f4-a5c4aafaa12a.jsonl
+
+### References
+
+- /Users/matkatmusicllc/.claude/plans/timeline-conversation-turn-steps.md (plan; Phase B spec, updated 2026-07-07 to verified facts)
+- /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/handoff-develop-20260707-1427.md (handoff this session resumed from)
+
+### Design decisions
+
+- The prior "Phase B awaits go-ahead: vocabulary.ts is dirty" open question above is RESOLVED — that file was committed/rebased on 2026-07-07; Phase B proceeds.
+- Extraction lives in `buildReconstructionDocument` (`src/reconstruction_json.ts`), not literally in `viewer_api.ts` as B1's wording says: every other document field (messages, steps, lineVerdicts, commitMarkers) is assembled there, and `buildProjectDocument` delegates to it — same records, same pass, one home.
+- `findGitOperations` + kind/detail parsing live in `src/reconstruction_git_evidence.ts` beside `findGitCommitEvents`, whose record-walking idiom it generalizes.
+- Command tokenizing uses one quote-aware token regex (in `regex_expressions.ts` per its "one canonical home" rule) rather than a shell lexer; surrounding quotes are stripped from the extracted detail. Ceiling: escaped quotes inside a commit message are not un-escaped — no fixture exercises that.
+
+### Deviations
+
+- (from B1 wording) extraction point moved one call deeper, into `buildReconstructionDocument` — see design decisions; the plan's intent (extract over already-loaded transcript records during document assembly) is unchanged.
+
+### Tradeoffs
+
+- `git add -A` yields `detail: ""` (flags are not paths); acceptable for rendering `* git add *`, revisit only if a scenario needs flag details.
+
+### Design decisions (viewer, B4)
+
+- Git operations attach to agent turns by the snapshot rule, REUSING `checkNodeCanOwnSnapshot` via a `{ sessionId, when }` adapter — no duplicate owner check. A trailing operation with no at-or-after reply (e.g. a final commit) falls back to the LAST agent turn of its session so no recorded command is dropped; s39's ownerless init/add land on the same synthetic turn as the file chips (Step 5), by construction (synthetic turns exist before the git pass runs).
+- Commit hard-stop nodes derive from `gitOperations` where kind === "commit" and now CARRY the commit message (`detail`), shown on the hard-stop row as `“baseline”`; `commitMarkers` remains the fallback only when `document.gitOperations` is absent (older cached documents) — when present, both derive from the same Bash `git commit` records, so no signal is lost.
+- Row text matches the user's sketch exactly: `* git init *`, `* git add <paths> *`, `* git commit "<message>" *`, `* git branch: <name> *`; checkout uses the default space form (the sketch shows no checkout). Each row's `title` tooltip is the verbatim command.
+
+### Verification (B5, 2026-07-07)
+
+- Full suite: 467 tests, 466 pass; sole failure is the pre-existing `s85 reproduces every captured step state` (content-level, byte-identical signature) — baseline held.
+- Throwaway server (port 7399, killed after): s39 timeline shows exactly `* git init * (8:53:12 PM)` and `* git add orders.py tests/ * (8:53:29 PM)` inside Step 5 with both file chips, no commit/branch rows, 13 steps unchanged; s85 shows all five rows (init / add one.py two.py three.py / commit "baseline" / add / commit "post-rename"), 2 commit hard-stop rows carrying their messages, 5 pick checkboxes; commit-crossing pick illegality is pinned by test_pick_crossing_commit_is_illegal against the derived commit nodes.
+- The user's 7343 server was not touched; it needs a restart to serve gitOperations (engine is baked into its process).
+
+### Open questions
+
+- The plan's B5 wording "s39 step 2" referenced the 7-step sketch; in the real 13-step timeline the rows land on Step 5 (the synthetic turn that owns the file chips) — consistent with the approved attribution rule and open question (b) above. No action unless the attribution rule itself is revisited.

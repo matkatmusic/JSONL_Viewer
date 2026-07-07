@@ -46,6 +46,8 @@ const capturedWord = capture(nonWhitespace + oneOrMore); // `(\S+)` — a captur
 const lookahead = (inner: string): string => "(?=" + inner + ")";           // inner MUST follow
 const negativeLookahead = (inner: string): string => "(?!" + inner + ")";   // inner must NOT follow
 const negativeLookbehind = (inner: string): string => "(?<!" + inner + ")"; // inner must NOT precede
+// One of several alternative fragments `(?:a|b|c)` — whichever alternative matches first wins.
+const anyOf = (...alternatives: string[]): string => "(?:" + alternatives.join("|") + ")";
 // A negated character class `[^…]`: any single character that is NOT one of the listed ones.
 const noneOf = (chars: string): string => "[^" + chars + "]";
 // A positive character class `[…]`: any single character that IS one of the listed ones.
@@ -158,6 +160,25 @@ export const beforeDiffHunkHeader = new RegExp(lookahead("@@ "));
 export const gitCommitCommand = new RegExp(
     startAnchor + "git" + optionalGroup(oneOrMoreWhitespace + "-C" + oneOrMoreWhitespace + capturedWord) +
         oneOrMoreWhitespace + "commit" + negativeLookahead(wordChar),
+);
+
+// A command that IS a git invocation: the word `git` at the very start, followed by whitespace.
+// e.g. matches "git init" and "git -C /tmp/repo add a.py"; does NOT match "github-cli sync" (no
+// space after "git") or "echo git" (not at the start). Equivalent to the literal /^git\s/.
+export const gitCommandStart = new RegExp(startAnchor + "git" + whitespace);
+
+// One shell word of a command line: runs of plain (non-space, non-quote) chars and/or quoted
+// segments ("…" or '…'), glued together. The `g` flag finds EVERY word, and a quoted argument
+// stays ONE token even when it contains spaces. e.g. `git commit -m "post rename"` ->
+// ["git", "commit", "-m", "\"post rename\""] (the caller strips the quotes). Equivalent to the
+// literal /(?:[^\s"']+|"[^"]*"|'[^']*')+/g.
+export const shellCommandToken = new RegExp(
+    anyOf(
+        noneOf(whitespace + '"' + "'") + oneOrMore,
+        '"' + noneOf('"') + zeroOrMore + '"',
+        "'" + noneOf("'") + zeroOrMore + "'",
+    ) + oneOrMore,
+    globalFlag,
 );
 
 // A filename token: one or more path chars ("[\w./-]") ending in a dot-extension, e.g. "core_one.py" or

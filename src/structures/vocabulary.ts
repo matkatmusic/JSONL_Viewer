@@ -185,3 +185,17 @@ export enum DocumentResponseKind {
     progress = "progress",
     error = "error",
 }
+
+// The git subcommand families the timeline annotates — the wire values of the document's
+// gitOperations[].kind. Parsed from a command's first non-flag word after `git`; any subcommand
+// outside the named set is `other`.
+export enum GitOperationKind {
+    init = "init",
+    add = "add",
+    commit = "commit",
+    branch = "branch",
+    checkout = "checkout",
+    other = "other",
+}
+
+export const KNOWN_GIT_OPERATION_KINDS: GitOperationKind[] = Object.values(GitOperationKind);
