@@ -13,10 +13,24 @@ timestampless unification (theoretical, `api/`), `docs/engine-b-overview.md` upd
 npm extraction (speculative), item-6 spike files (closed NON-VIABLE diagnostic), roadmap
 `cp` sub-item (documented deferral in `plans/archived/roadmap-100-percent-reconstruction.md`).
 
+Updated 2026-07-07: items 5, 6, 9 shipped; Phase B gitOperations engine work shipped
+(`GitOperationKind` enum, `reconstruction_git_evidence.ts` extraction, 3/3 tests pass);
+scenario coverage regressed to 84/85 (s85 FAIL 3/10 — item 15 still open). New items 18–22
+added. Handoffs and pre-today implementation-notes archived.
+
 ## Done
 
 - [x] **1. Commit staged jfred-claude-scenarios submodule migration** — committed as `f5d43b5`.
 - [x] **3. Verify check_scenario_coverage.ts post-submodule** — 85/85 through the `scenarios/` submodule (verified 2026-07-04).
+  Now 84/85: s85 regressed to FAIL 3/10 (see item 15).
+- [x] **5. Clickable file-history revision snapshots** — shipped across `380033b`, `2b538d2`,
+  `685a754`. Per-file `{ }` and `+/-` buttons, side-drawer file previews,
+  `computeAnchoredRevisionIndex` with `/rev/<n>` and `/vsbase/<n>` route params.
+- [x] **6. Clickable JSONL lines in the loading console** — shipped `827fa3f`, `92f9764`.
+  xterm source-link tokens navigate to timeline via `routeToTimeline`; clickable per-line
+  parse output replayed on cache hits.
+- [x] **9. Design conversation: Timeline of Revisions v0.1 presentation** — shipped `3d3b51d`
+  as turn-based SMS-style conversation timeline with numbered prompt/reply/session-end steps.
 
 ## Quick close-outs
 
@@ -31,18 +45,14 @@ npm extraction (speculative), item-6 spike files (closed NON-VIABLE diagnostic),
 - [ ] **4. Scenario coverage for unhandled JSON fields in real JSONLs** — fields tolerated via the
   field-gate bypass in `buildProjectDocument` (`src/viewer_api.ts:105-108`) / surfaced as
   `UnmodeledFieldError`. Start by grepping real `~/.claude/projects` transcripts.
-- [ ] **5. Clickable file-history revision snapshots** — `webapp/views/file-history.js`; deep-link
-  to that revision's content/diff, not just toggle a pane.
-- [ ] **6. Clickable JSONL lines in the loading console** — `webapp/app.js`
-  `logProgress`/`ensureProgressTerminal`; may require replacing xterm.js (canvas — no per-line anchors).
 - [ ] **7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** — `/Users/matkatmusicllc/Programming/jot`
   (separate repo); `grep -rn "windowSizeBlocks"`. Not a RevEng change.
 - [ ] **8. Investigate `scripts/coverage_sidecar.ts:43`** — "same @vN blobs have different content":
   real sidecar collision (data-loss risk) or stale note? Failing test if real.
-- [ ] **9. Design conversation: Timeline of Revisions v0.1 presentation** — density, session grouping,
-  rail layout, mockup vs live data. Includes the unanswered question: strictly-chronological nodes
-  with session headers vs hard per-session grouping.
 - [ ] **10. Webapp UX smoothing pass** — open-ended; interview user for pain points first.
+  Sub-items surfaced from handoffs: (a) inspector `«` rail button is a CSS pseudo-element,
+  not keyboard-focusable; (b) text-selection drag over empty timeline background closes the
+  inspector; (c) inspector drawer width cramped for conversation reading.
 
 ## Approval-gated follow-ups (handoff 22:26)
 
@@ -60,9 +70,33 @@ npm extraction (speculative), item-6 spike files (closed NON-VIABLE diagnostic),
   silently returns `undefined` when it's gone; temp cleanup will regress s85 steps 4–10. Fall back
   to the preserved repo at `scenarios/executed/s85-git-commit-csv-and-move-scripts/.git`.
   (handoff-api-from-scenarios-20260702-0800, "flagged not fixed".)
+  **Status 2026-07-07:** s85 FAIL 3/10 in scenario coverage. git-operations.test.ts passes 3/3
+  (extraction works), but the reconstructed file content is wrong because `readCommittedFileContent`
+  can't reach the temp repo.
 - [ ] **17. GitHub Pages demo tier** — canned ReconstructionDocument JSON + `webapp/` with a
   static-data shim replacing `/api/*`. Deliberately deferred "Phase 4, planned separately when
   reached" (handoffs 20260702-1434/1639, 20260703-1010/2144); needs its own plan when reached.
+
+## New items (2026-07-07)
+
+- [ ] **18. WebApp: convert to TypeScript and add build step** — all 10 webapp files are plain `.js`
+  served directly by the node server with no transpilation. Add a build step (esbuild/tsc) so
+  webapp source is TypeScript, output is bundled JS.
+- [ ] **19. 'Jump to File History Snapshot' button** — a per-revision button in the timeline
+  (reminiscent of filter buttons from previous HTML viewer versions) that navigates to the
+  file-history view anchored at that revision's snapshot.
+- [ ] **20. FileViewer: Diff vs Base — design polish** — `webapp/views/diff-vs-base.js` exists
+  (62 lines) but is self-described as "Debugging surface — plain, no polish (plan 3.7)".
+  Needs a designed UI: revision selector, side-by-side vs unified toggle, proper styling.
+- [ ] **21. "Snippet: Show as formatted text"** — raw-lines view (`webapp/views/raw-lines.js`)
+  shows JSONL lines as raw JSON text. Add a mode/button that renders a selected line's content
+  as formatted, readable text (e.g. "line 123 of 234 lines" context label + pretty-printed or
+  human-readable content instead of raw JSON).
+- [ ] **22. Clear console when loading new session** — the xterm progress console retains output
+  from the previous project/session load. Clear it on new navigation.
+- [ ] **23. `fb2558d7813b8799@v2`-style blob changeIds stay unlinked**  — blobs whose prefix
+  matches no changeId in the document get no xterm link. Needs a server-side blob→path map
+  if linking is wanted (from `implementation-notes-implement-clickable-jsonl-lines.md`).
 
 ## Decision needed
 
@@ -75,3 +109,12 @@ npm extraction (speculative), item-6 spike files (closed NON-VIABLE diagnostic),
   and the recorded scope decision rejected document-shape changes. Decide with user whether the
   architectural consolidation is still justified or the remaining lever is just item 11.
   Check `git show f6d2852 b79cf1b` + `src/cache_lru.ts` before any design work.
+
+## Minor open items from implementation-notes (2026-07-07)
+
+- [ ] **24. Trailing-newline artifact** — 2 files show `recon=''` one line beyond reference EOF
+  in item-15 pass-per-line coverage. Worth a follow-up to confirm it's a trailing-`\n` split
+  artifact vs a real reconstruction bug (`implementation-notes-item15-pass-per-line.md:167`).
+- [ ] **25. 362 golden-value test failures** — remain from the coverage tool migration; need a
+  re-characterization pass or retirement in favor of the scenario coverage tool
+  (`implementation-notes-item8-multiedit.md`).
