@@ -5,7 +5,7 @@
 import { readdirSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
-import { loadTranscript, type ProgressSink } from "./parse/loadTranscript.ts";
+import { formatRecordSourceToken, getRecordSource, loadTranscript, type ProgressSink } from "./parse/loadTranscript.ts";
 import {
     buildReconstructionDocument,
     type ReconstructionDocument,
@@ -89,6 +89,23 @@ export const ARTIFACT_CACHE_CAPACITY = 8;
 // changes the stamp, so a stale entry is simply never keyed again and ages out via LRU.
 const parsedRecordsCache = new Map<string, TranscriptRecord[]>();
 
+// Replay one counted per-record event per cached record — a cache hit must never silence the
+// console's per-line processing output, and each replayed line keeps its clickable
+// "[<jsonl>:<line>]" source token.
+function replayRecordProgress(records: TranscriptRecord[], onProgress: ProgressSink | undefined): void {
+    if (onProgress === undefined) {
+        return;
+    }
+    records.forEach((record, index) => {
+        onProgress({
+            kind: DocumentResponseKind.progress,
+            label: `${record.type}${formatRecordSourceToken(getRecordSource(record))}`,
+            current: index + 1,
+            total: records.length,
+        });
+    });
+}
+
 // The parsed, merged record stream for a transcript set — parsed at most once per on-disk
 // state. Returning the SAME array object also keeps the engine's per-records WeakMap memos
 // (reconstruction_branches.ts) warm across requests.
@@ -97,6 +114,7 @@ export function loadProjectRecords(jsonlPaths: Path[], onProgress?: ProgressSink
     const cachedRecords = getCachedValueRefreshingRecency(parsedRecordsCache, stamp);
     if (cachedRecords !== undefined) {
         reportStage(onProgress, PROGRESS_LABEL_RECORDS_CACHE_HIT);
+        replayRecordProgress(cachedRecords, onProgress);
         return cachedRecords;
     }
     // The viewer opens arbitrary real sessions: tolerate (and log) fields the scenarios never
@@ -215,6 +233,9 @@ export function buildDocumentWithConsent(
     const cachedDocument = getCachedValueRefreshingRecency(builtDocumentCache, cacheKey);
     if (cachedDocument !== undefined) {
         reportStage(onProgress, PROGRESS_LABEL_ARTIFACT_CACHE_HIT);
+        // The build is skipped, but the per-line record output must still show — loading the
+        // (records-cached) transcripts replays it.
+        loadProjectRecords(jsonlPaths, onProgress);
         return cachedDocument;
     }
     setImpureExecutionAllowed(allowScripts);

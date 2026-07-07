@@ -17,7 +17,7 @@ import { extractFileEvents } from "./reconstruction_extract.ts";
 import { buildRenameChain, resolveFinalPath } from "./reconstruction_lineage.ts";
 import { reportReconstructionProgress } from "./reconstruction_progress.ts";
 import { getCachedValueRefreshingRecency, evictLeastRecentlyUsedEntries } from "./cache_lru.ts";
-import { getRecordSource, type RecordSource } from "./parse/loadTranscript.ts";
+import { formatRecordSourceToken, getRecordSource, type RecordSource } from "./parse/loadTranscript.ts";
 
 // The proven post-execution state of a script run for one target file: the forward transform already
 // applied to the pre-script content. Injected as a synthetic authored event at the run's timestamp and
@@ -42,8 +42,7 @@ export type ScriptRun = { code: string; timestamp: Date; cwd?: Path; source?: Re
 // " [file.jsonl:123]" for a run parsed from a transcript line, or "" for a synthetic run —
 // appended to progress labels so a console line points at the exact JSONL line being processed.
 export function formatRunSource(run: ScriptRun): string {
-    if (run.source === undefined) return "";
-    return ` [${pathBasename(run.source.filePath)}:${run.source.lineNumber}]`;
+    return formatRecordSourceToken(run.source);
 }
 
 // The runnable source a script-execution block carries: `input.code` (MCP execute) or `input.command`

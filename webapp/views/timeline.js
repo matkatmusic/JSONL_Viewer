@@ -459,7 +459,7 @@ function renderFileChip(change, onclick) {
     const label = change.renamedFrom !== undefined
         ? `${computeBaseName(change.renamedFrom)} → ${computeBaseName(change.path)}`
         : computeBaseName(change.path);
-    return el("span", { class: "timeline-chip", title: change.path, onclick }, [
+    return el("span", { class: "timeline-chip", title: "Show revision in Inspector", onclick }, [
         el("span", { class: `op-badge op-${letter.toLowerCase()}`, text: letter }),
         el("span", { text: label }),
     ]);
@@ -763,7 +763,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
         if (change.changeId !== undefined) {
             buttons.push(el("span", {
                 class: "timeline-chip timeline-chip-action",
-                title: "Show the JSON that caused this revision",
+                title: "Show JSON for revision in inspector",
                 text: "{ }",
                 onclick: (event) => {
                     event.stopPropagation();
@@ -772,7 +772,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
             }));
             buttons.push(el("span", {
                 class: "timeline-chip timeline-chip-action",
-                title: "Show this revision's diff vs the previous revision",
+                title: "Show Diff in Inspector",
                 text: "+/-",
                 onclick: (event) => {
                     event.stopPropagation();

@@ -27,6 +27,15 @@ export function getRecordSource(record: TranscriptRecord): RecordSource | undefi
     return recordSources.get(record);
 }
 
+// " [file.jsonl:123]" for a known source, "" otherwise — the clickable token appended to console
+// labels (the client's matchJsonlSourceLink parses it back into a raw-line jump).
+export function formatRecordSourceToken(source: RecordSource | undefined): string {
+    if (source === undefined) {
+        return "";
+    }
+    return ` [${basename(source.filePath)}:${source.lineNumber}]`;
+}
+
 // The keys every session-meta record carries (file-history-snapshot excepted —
 // it has `type` but no `sessionId`). ENVELOPE_KEYS (the conversational-record
 // field list) is imported from envelope.ts as the single source.
@@ -153,7 +162,12 @@ export function loadTranscript(
         records.push(record);
         // ponytail: unthrottled — one event per record by user decision; add a stride
         // throttle here if a 100k-line file ever makes the stream measurably slow.
-        onProgress?.({ kind: DocumentResponseKind.progress, label: record.type, current: lineIndex + 1, total: numberedLines.length });
+        onProgress?.({
+            kind: DocumentResponseKind.progress,
+            label: `${record.type}${formatRecordSourceToken({ filePath, lineNumber })}`,
+            current: lineIndex + 1,
+            total: numberedLines.length,
+        });
     }
     return records;
 }

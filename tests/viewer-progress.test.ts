@@ -54,13 +54,58 @@ test("test_loadTranscript_reports_file_then_parsing_then_per_record_classificati
     assert.equal(progressEvents[1]!.label, PROGRESS_LABEL_PARSING_RECORDS);
     assert.equal(progressEvents[1]!.current, undefined);
     assert.equal(progressEvents[1]!.total, undefined);
-    // exactly one counted event per record: current runs 1..N, total = N, label = record .type.
+    // exactly one counted event per record: current runs 1..N, total = N, label = the record's
+    // type plus its clickable "[<jsonl>:<line>]" source token (the console link provider's food).
     const countedEvents = progressEvents.filter((event) => event.current !== undefined);
     assert.equal(countedEvents.length, records.length);
     for (const [index, event] of countedEvents.entries()) {
         assert.equal(event.current, index + 1);
         assert.equal(event.total, records.length);
-        assert.equal(event.label, records[index]!.type);
+        const source = getRecordSource(records[index]!);
+        assert.equal(event.label, `${records[index]!.type} [${basename(S19_JSONL)}:${source!.lineNumber}]`);
+    }
+});
+
+test("test_cached_document_build_still_emits_per_record_progress", () => {
+    // Scenario: a page refresh hits the records + artifact caches; the console must still show
+    // the per-line processing output (one counted event per record) instead of going quiet.
+    // Steps:
+    // build the same document twice with collecting sinks — cold, then fully cached.
+    const jsonlPath = copyFixtureIntoTempDir(S19_JSONL);
+    const recordCount = loadTranscript(jsonlPath.toString()).length;
+    const coldEvents: ProgressEvent[] = [];
+    buildDocumentWithConsent([jsonlPath], undefined, false, (event) => coldEvents.push(event));
+    const warmEvents: ProgressEvent[] = [];
+    buildDocumentWithConsent([jsonlPath], undefined, false, (event) => warmEvents.push(event));
+    // per-record events are the counted ones whose total is the record count (deep engine stages
+    // emit their own counted events with per-stage totals).
+    const countPerRecord = (events: ProgressEvent[]) =>
+        events.filter((event) => event.total === recordCount).length;
+    assert.ok(recordCount > 0);
+    // the cold parse emits one per record; the warm (cached) build replays exactly as many.
+    assert.equal(countPerRecord(coldEvents), recordCount);
+    assert.equal(countPerRecord(warmEvents), recordCount);
+});
+
+test("test_per_record_progress_labels_carry_source_tokens_cold_and_cached", () => {
+    // Scenario: every per-record console line — cold parse AND cache replay — carries the
+    // "[<jsonl>:<line>]" token matchJsonlSourceLink turns into a jump to that raw line.
+    // Steps:
+    // build twice (cold, cached); assert every counted label in both streams carries the token.
+    const jsonlPath = copyFixtureIntoTempDir(S19_JSONL);
+    const recordCount = loadTranscript(jsonlPath.toString()).length;
+    const coldEvents: ProgressEvent[] = [];
+    buildDocumentWithConsent([jsonlPath], undefined, false, (event) => coldEvents.push(event));
+    const warmEvents: ProgressEvent[] = [];
+    buildDocumentWithConsent([jsonlPath], undefined, false, (event) => warmEvents.push(event));
+    for (const events of [coldEvents, warmEvents]) {
+        const perRecordEvents = events.filter((event) => event.total === recordCount);
+        assert.ok(perRecordEvents.length > 0);
+        for (const event of perRecordEvents) {
+            const link = matchJsonlSourceLink(event.label);
+            assert.ok(link !== undefined, `no source token in "${event.label}"`);
+            assert.equal(link!.jsonlFileName, "session.jsonl");
+        }
     }
 });
 
