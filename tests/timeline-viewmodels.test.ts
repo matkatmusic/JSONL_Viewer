@@ -434,6 +434,32 @@ test("test_trailing_snapshots_get_a_synthetic_agent_turn", () => {
     assert.ok(syntheticIndexes[0]! < endIndex);
 });
 
+test("test_file_changes_carry_their_change_id", () => {
+    // Scenario: each file chip needs the changeId of the revision it displays, so the per-file
+    // { } button can resolve the JSONL line that caused the revision and the +/- button can
+    // resolve the revision's diff block.
+    // Steps:
+    // build s2's turn timeline.
+    const { nodes } = buildTurnTimelineViewModel(s2Document);
+    const revisionIndex = indexRevisionsByChangeId(s2Document);
+    let checked = 0;
+    for (const node of nodes.filter((entry: { kind: string }) => entry.kind === AGENT_TURN_NODE_KIND)) {
+        for (const change of node.fileChanges) {
+            if (change.changeId === undefined) {
+                continue;
+            }
+            // the changeId belongs to one of the node's own snapshots...
+            assert.ok(node.snapshots.some((snapshot: { changeIds: string[] }) =>
+                snapshot.changeIds.includes(change.changeId)));
+            // ...and resolves to this chip's path.
+            assert.equal(revisionIndex.get(change.changeId)!.path, change.path);
+            checked += 1;
+        }
+    }
+    // the check is not vacuous.
+    assert.ok(checked >= 1);
+});
+
 test("test_command_message_turns_are_marked_system", () => {
     // Scenario: harness-generated turns (command-message prompts like /ponytail, system
     // reminders) are SYSTEM messages — the timeline renders them dimmer than genuine user

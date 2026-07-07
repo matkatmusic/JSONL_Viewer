@@ -17,7 +17,7 @@ import {
     routeToConversation,
 } from "../app.js";
 import { openInspectorPane, openTranscriptInspector } from "../inspector.js";
-import { findLineForChangeId } from "./file-history.js";
+import { findLineForChangeId, splitDiffBlocks } from "./file-history.js";
 import { renderDiffText } from "./diff-vs-base.js";
 import { downloadText } from "./download.js";
 
@@ -74,6 +74,7 @@ export function deriveFileChanges(step, revisionIndex) {
             eventKind: revision.eventKind,
             renamedFrom: revision.renamedFrom,
             isFirstRevision: revision.isFirstRevision,
+            changeId,
         });
     }
     for (const path of step.changedPaths) {
@@ -81,7 +82,7 @@ export function deriveFileChanges(step, revisionIndex) {
             continue;
         }
         seenPaths.add(path);
-        changes.push({ path, eventKind: EDIT_EVENT_KIND, renamedFrom: undefined, isFirstRevision: false });
+        changes.push({ path, eventKind: EDIT_EVENT_KIND, renamedFrom: undefined, isFirstRevision: false, changeId: undefined });
     }
     return changes;
 }
@@ -578,17 +579,27 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
         },
     }));
 
+    // The transcript line carrying a changeId, probed across the project's JSONLs (raw text is
+    // cached after the first fetch); undefined for synthetic changeIds that match no line.
+    const findTranscriptLineForChangeId = async (changeId) => {
+        for (const file of listing?.jsonlFiles ?? []) {
+            const rawLines = await fetchRawRecords(project, file.fileName);
+            const line = findLineForChangeId(rawLines, changeId);
+            if (line >= 0) {
+                return { jsonlName: file.fileName, rawLines, line };
+            }
+        }
+        return undefined;
+    };
+
     // ── inspector jump (requirement 6): turn -> first resolvable changeId -> (jsonl, line) ──
     const openStepInspector = async (node, previewPane) => {
         for (const snapshot of node.snapshots) {
             for (const changeId of snapshot.changeIds) {
-                for (const file of listing?.jsonlFiles ?? []) {
-                    const rawLines = await fetchRawRecords(project, file.fileName);
-                    const line = findLineForChangeId(rawLines, changeId);
-                    if (line >= 0) {
-                        openTranscriptInspector({ jsonlName: file.fileName, rawLines, line });
-                        return;
-                    }
+                const located = await findTranscriptLineForChangeId(changeId);
+                if (located !== undefined) {
+                    openTranscriptInspector(located);
+                    return;
                 }
             }
         }
@@ -626,23 +637,32 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
         openTranscriptInspector({ jsonlName, rawLines, line });
     };
 
-    // ── file preview (requirements 5 + 7): state at step, or per-file range diff when picked —
-    // rendered into the right-side inspector drawer (50% of the view, lines wrapped); the
-    // clicked chip stays highlighted while its file is showing. ──
-    const showFilePreview = async (node, change, chipElement) => {
+    // Toggle shared by the drawer-opening file buttons: true when the click closed an already-open
+    // drawer for the same button (the caller stops there); false to (re)open with this button active.
+    const toggleDrawerButton = (chipElement) => {
         const pane = document.getElementById("inspector");
         if (chipElement === activeChip) {
             if (!pane.classList.contains("hidden")) {
                 pane.classList.add("hidden");
                 clearActiveChip();
-                return;
+                return true;
             }
         }
         clearActiveChip();
         activeChip = chipElement;
         chipElement.classList.add("active");
+        return false;
+    };
+
+    // ── file preview (requirements 5 + 7): state at step, or per-file range diff when picked —
+    // rendered into the details drawer (lines wrapped); the clicked chip stays highlighted while
+    // its file is showing. ──
+    const showFilePreview = async (node, change, chipElement) => {
+        if (toggleDrawerButton(chipElement)) {
+            return;
+        }
         const drawer = openInspectorPane();
-        pane.classList.add("file-preview-drawer");
+        document.getElementById("inspector").classList.add("file-preview-drawer");
         if (pickedIndexes.length > 0) {
             const summary = computeRangeSummary(nodes, pickedIndexes);
             const patchText = await fetchRangePatch(summary.fromStepIndex, summary.toStepIndex);
@@ -671,6 +691,126 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
             ]),
             el("div", { class: "timeline-preview", text: content ?? "(no snapshot carries this file at this step)" }),
         );
+    };
+
+    // The revision's RESULT line: among the lines carrying the changeId, the tool result (the
+    // record holding the toolUseResult/structuredPatch payload) beats the tool_use call that
+    // merely requested it; first match is the fallback.
+    const findRevisionResultLine = async (changeId) => {
+        for (const file of listing?.jsonlFiles ?? []) {
+            const rawLines = await fetchRawRecords(project, file.fileName);
+            const matches = [];
+            rawLines.forEach((text, line) => {
+                if (text.includes(changeId)) {
+                    matches.push(line);
+                }
+            });
+            if (matches.length === 0) {
+                continue;
+            }
+            const resultLine = matches.find((line) => rawLines[line].includes('"toolUseResult"'));
+            return { jsonlName: file.fileName, rawLines, line: resultLine ?? matches[0] };
+        }
+        return undefined;
+    };
+
+    // { } button: the raw JSONL record that caused this revision (the structuredPatch line),
+    // opened in the details pane — distinct from the turn click, which opens the MESSAGE's line.
+    const showRevisionJson = async (change, previewPane) => {
+        const located = await findRevisionResultLine(change.changeId);
+        if (located === undefined) {
+            previewPane.classList.remove("hidden");
+            previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this revision (synthetic change id)" }));
+            return;
+        }
+        openTranscriptInspector(located);
+    };
+
+    // +/- button: this revision's computed diff vs the previous revision, from the server's
+    // per-revision diff artifact (one @@ block per revision; splitDiffBlocks slices them).
+    const showRevisionDiff = async (change, chipElement) => {
+        if (toggleDrawerButton(chipElement)) {
+            return;
+        }
+        const drawer = openInspectorPane();
+        document.getElementById("inspector").classList.add("file-preview-drawer");
+        const history = reconstructionDocument.filesTouched.find((entry) =>
+            entry.revisions.some((revision) => revision.changeId === change.changeId));
+        if (history === undefined) {
+            drawer.append(el("div", { class: "muted", text: "no surviving revision for this change (rewound branch)" }));
+            return;
+        }
+        const revisionNumber = history.revisions.findIndex((revision) => revision.changeId === change.changeId);
+        const params = buildConsentParams();
+        params.set("file", history.target);
+        params.set("mode", "revisions");
+        const blocks = splitDiffBlocks(await fetchText(`/api/diff?${params}`));
+        const diffPane = el("div", { class: "timeline-preview" });
+        renderDiffText(diffPane, blocks[revisionNumber] ?? "(no diff block for this revision)");
+        drawer.append(
+            el("div", { class: "timeline-preview-head", text: `${change.path} · diff for revision ${revisionNumber + 1} (vs previous)` }),
+            diffPane,
+        );
+    };
+
+    // One file's button row: [ name ] [{ }] [+/-] — revision state, the JSON that caused the
+    // revision, and the revision's computed diff. The action buttons need a resolvable changeId.
+    const renderFileButtonRow = (node, change, previewPane) => {
+        const buttons = [renderFileChip(change, (event) => {
+            event.stopPropagation();
+            showFilePreview(node, change, event.currentTarget);
+        })];
+        if (change.changeId !== undefined) {
+            buttons.push(el("span", {
+                class: "timeline-chip timeline-chip-action",
+                title: "Show the JSON that caused this revision",
+                text: "{ }",
+                onclick: (event) => {
+                    event.stopPropagation();
+                    showRevisionJson(change, previewPane);
+                },
+            }));
+            buttons.push(el("span", {
+                class: "timeline-chip timeline-chip-action",
+                title: "Show this revision's diff vs the previous revision",
+                text: "+/-",
+                onclick: (event) => {
+                    event.stopPropagation();
+                    showRevisionDiff(change, event.currentTarget);
+                },
+            }));
+        }
+        return el("div", { class: "timeline-chip-row" }, buttons);
+    };
+
+    // Each turn's own JSONL line label ("L:<n> (of <total>)", numbered like the details pane),
+    // resolved up front — one cached raw fetch per session file.
+    const lineLabels = new Map();
+    for (const [index, node] of nodes.entries()) {
+        if (node.uuid === undefined) {
+            continue;
+        }
+        const jsonlName = node.sessionId === undefined ? undefined : findJsonlForSession(node.sessionId);
+        if (jsonlName === undefined) {
+            continue;
+        }
+        const rawLines = await fetchRawRecords(project, jsonlName);
+        const line = findLineForChangeId(rawLines, `"uuid":"${node.uuid}"`);
+        if (line < 0) {
+            continue;
+        }
+        // Numbered exactly like the details pane's "line <n> / <max>" (0-based, max index).
+        lineLabels.set(index, `L:${line} (of ${rawLines.length - 1})`);
+    }
+
+    // The row's right-edge meta column: the timestamp with the turn's JSONL line label under it.
+    const renderRowMeta = (node, index) => {
+        const parts = [el("span", { class: "timeline-time", text: new Date(node.when).toLocaleTimeString() })];
+        const lineLabel = lineLabels.get(index);
+        if (lineLabel !== undefined) {
+            parts.push(el("span", { class: "timeline-time", text: lineLabel }));
+        }
+        return el("span", { class: "timeline-meta" }, parts);
     };
 
     // ── rows ──
@@ -726,7 +866,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
             const rowTop = el("div", { class: "timeline-row-top" }, [
                 el("span", { class: "timeline-step-label", text: `Step ${node.stepNumber}` }),
                 el("span", { class: "timeline-prompt", text: `“${node.text}”` }),
-                el("span", { class: "timeline-time", text: new Date(node.when).toLocaleTimeString() }),
+                renderRowMeta(node, index),
             ]);
             rowTop.addEventListener("click", () => {
                 if (selectedRow !== null) {
@@ -773,7 +913,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
                 el("span", { class: "timeline-step-label", text: `Step ${node.stepNumber}` }),
                 ...(node.isOrphaned ? [el("span", { class: "timeline-tag", text: "orphaned" })] : []),
                 el("span", { class: "timeline-prompt", text: node.text }),
-                el("span", { class: "timeline-time", text: new Date(node.when).toLocaleTimeString() }),
+                renderRowMeta(node, index),
             ]);
             rowTop.addEventListener("click", () => {
                 if (selectedRow !== null) {
@@ -786,10 +926,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
             });
             row.append(rowTop);
             row.append(el("div", { class: "timeline-chips" },
-                node.fileChanges.map((change) => renderFileChip(change, (event) => {
-                    event.stopPropagation();
-                    showFilePreview(node, change, event.currentTarget);
-                }))));
+                node.fileChanges.map((change) => renderFileButtonRow(node, change, previewPane))));
             row.append(previewPane);
         }
         body.append(row);
