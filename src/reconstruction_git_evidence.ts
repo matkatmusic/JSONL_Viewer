@@ -60,14 +60,16 @@ export function findGitCommitEvents(records: TranscriptRecord[]): GitCommitEvent
 }
 
 // One recorded git command, parsed for the timeline: the subcommand family, the human detail its
-// row shows (commit message, add paths, branch name), the verbatim command, and when/which session
-// ran it (for turn attribution).
+// row shows (commit message, add paths, branch name), the verbatim command, when/which session
+// ran it (for turn attribution), and the Bash record's own uuid (the viewer resolves the
+// command's JSONL line through it).
 export type GitOperation = {
     kind: GitOperationKind;
     detail: string;
     command: string;
     timestamp: Date;
     sessionId: Uuid | undefined;
+    uuid: Uuid | undefined;
 };
 
 // Global git flags that consume the NEXT token as their argument (`git -C <dir> …`,
@@ -144,7 +146,12 @@ function parseGitOperationDetail(kind: GitOperationKind, tokens: string[], subco
 }
 
 // One git command string -> its parsed operation (kind + detail from the tokenized words).
-function parseGitOperation(command: string, timestamp: Date, sessionId: Uuid | undefined): GitOperation {
+function parseGitOperation(
+    command: string,
+    timestamp: Date,
+    sessionId: Uuid | undefined,
+    uuid: Uuid | undefined,
+): GitOperation {
     const tokens = command.match(shellCommandToken) ?? [];
     const subcommandIndex = findSubcommandIndex(tokens);
     const kind = parseGitOperationKind(tokens[subcommandIndex]);
@@ -154,6 +161,7 @@ function parseGitOperation(command: string, timestamp: Date, sessionId: Uuid | u
         command,
         timestamp,
         sessionId,
+        uuid,
     };
 }
 
@@ -172,7 +180,7 @@ export function findGitOperations(records: TranscriptRecord[]): GitOperation[] {
             if (command === undefined) continue;
             const trimmed = command.trim();
             if (trimmed.match(gitCommandStart) === null) continue;
-            operations.push(parseGitOperation(trimmed, timestamp, record.sessionId));
+            operations.push(parseGitOperation(trimmed, timestamp, record.sessionId, record.uuid));
         }
     }
     return operations;

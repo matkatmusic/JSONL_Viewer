@@ -104,6 +104,25 @@ Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-
 - Throwaway server (port 7399, killed after): s39 timeline shows exactly `* git init * (8:53:12 PM)` and `* git add orders.py tests/ * (8:53:29 PM)` inside Step 5 with both file chips, no commit/branch rows, 13 steps unchanged; s85 shows all five rows (init / add one.py two.py three.py / commit "baseline" / add / commit "post-rename"), 2 commit hard-stop rows carrying their messages, 5 pick checkboxes; commit-crossing pick illegality is pinned by test_pick_crossing_commit_is_illegal against the derived commit nodes.
 - The user's 7343 server was not touched; it needs a restart to serve gitOperations (engine is baked into its process).
 
+### Follow-up round (user request, 2026-07-07 ~15:45): { } button on git rows
+
+- Each git row is now `[* git <label> * (time)] [{ }]` — the same button shape/classes as the
+  file rows' JSON button, tooltip "Show JSON for git command in inspector". Clicking opens the
+  Details inspector on the Bash tool_use line that ran the command.
+- Design decision: `GitOperation` gained `uuid` (the Bash record's own uuid) on the wire; the
+  webapp resolves the line with the established own-uuid convention (`"uuid":"<uuid>"` match
+  first, bare-uuid fallback) via `findJsonlForSession` + `findLineForChangeId` — no new matching
+  machinery. The button renders only when the operation carries a uuid (older cached documents
+  ship no gitOperations at all, so no stale-shape rows can appear).
+- TDD: uuid assertion added to test_s39_git_operations_are_init_then_add (RED confirmed, then
+  GREEN). Full suite after: 467 tests / 466 pass, only the pre-existing s85 failure.
+- Browser-verified on s40 (throwaway 7399, killed after): both rows carry the button; clicking
+  the `* git init *` row's { } opens the inspector at `line 32 / 66` of 632219aa….jsonl, and a
+  transcript grep confirms line 32 (0-based) IS the assistant record with the git init tool_use.
+- Tooling note for future verification: the headless-browse daemon lives ~15 seconds from spawn;
+  chain goto → clicks → assertions inside that budget (server-side document caching makes a
+  second goto fast), or the page state silently resets to a fresh blank browser.
+
 ### Open questions
 
 - The plan's B5 wording "s39 step 2" referenced the 7-step sketch; in the real 13-step timeline the rows land on Step 5 (the synthetic turn that owns the file chips) — consistent with the approved attribution rule and open question (b) above. No action unless the attribution rule itself is revisited.

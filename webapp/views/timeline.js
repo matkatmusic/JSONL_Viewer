@@ -796,6 +796,29 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
         openTranscriptInspector(located);
     };
 
+    // { } button on a git row: the Bash tool_use line that ran the command, matched by the
+    // record's OWN uuid field (the turn-click convention — a bare-uuid scan could land on a line
+    // that merely references it).
+    const showGitOperationJson = async (operation, previewPane) => {
+        const jsonlName = operation.sessionId === undefined ? undefined : findJsonlForSession(operation.sessionId);
+        if (jsonlName === undefined) {
+            previewPane.classList.remove("hidden");
+            previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this git command" }));
+            return;
+        }
+        const rawLines = await fetchRawRecords(project, jsonlName);
+        let line = findLineForChangeId(rawLines, `"uuid":"${operation.uuid}"`);
+        if (line < 0) {
+            line = findLineForChangeId(rawLines, operation.uuid);
+        }
+        if (line < 0) {
+            previewPane.classList.remove("hidden");
+            previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this git command" }));
+            return;
+        }
+        openTranscriptInspector({ jsonlName, rawLines, line });
+    };
+
     // +/- button: this revision's computed diff vs the previous revision, from the server's
     // per-revision diff artifact (one @@ block per revision; splitDiffBlocks slices them).
     const showRevisionDiff = async (change, chipElement) => {
@@ -851,6 +874,28 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
             }));
         }
         return el("div", { class: "timeline-chip-row" }, buttons);
+    };
+
+    // One git row: `* git <label> * (time)` plus a { } button opening the Bash tool_use line that
+    // ran the command in the details pane (same button shape as the file rows').
+    const renderGitOperationRow = (operation, previewPane) => {
+        const parts = [el("span", {
+            class: "timeline-gitop",
+            text: `* ${formatGitOperationLabel(operation)} * (${new Date(operation.timestamp).toLocaleTimeString()})`,
+            title: operation.command,
+        })];
+        if (operation.uuid !== undefined) {
+            parts.push(el("span", {
+                class: "timeline-chip timeline-chip-action",
+                title: "Show JSON for git command in inspector",
+                text: "{ }",
+                onclick: (event) => {
+                    event.stopPropagation();
+                    showGitOperationJson(operation, previewPane);
+                },
+            }));
+        }
+        return el("div", { class: "timeline-chip-row" }, parts);
     };
 
     // Each turn's own JSONL line label ("L:<n> (of <total>)", numbered like the details pane),
@@ -997,11 +1042,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
             row.append(rowTop);
             if (node.gitOperations.length > 0) {
                 row.append(el("div", { class: "timeline-gitops" },
-                    node.gitOperations.map((operation) => el("div", {
-                        class: "timeline-gitop",
-                        text: `* ${formatGitOperationLabel(operation)} * (${new Date(operation.timestamp).toLocaleTimeString()})`,
-                        title: operation.command,
-                    }))));
+                    node.gitOperations.map((operation) => renderGitOperationRow(operation, previewPane))));
             }
             row.append(el("div", { class: "timeline-chips" },
                 node.fileChanges.map((change) => renderFileButtonRow(node, change, previewPane))));

@@ -27,13 +27,15 @@ test("test_s39_git_operations_are_init_then_add", () => {
         document.gitOperations.map((operation) => operation.detail),
         ["", "orders.py tests/"],
     );
-    // assert each operation preserves its verbatim command and carries a Date timestamp and a
-    // Uuid sessionId (timeline attribution needs both).
+    // assert each operation preserves its verbatim command and carries a Date timestamp, a Uuid
+    // sessionId (timeline attribution), and its Bash record's own Uuid (the { } button resolves
+    // the command's JSONL line through it).
     assert.equal(document.gitOperations[0]!.command, "git init");
     assert.equal(document.gitOperations[1]!.command, "git add orders.py tests/");
     for (const operation of document.gitOperations) {
         assert.ok(operation.timestamp instanceof Date);
         assert.ok(operation.sessionId instanceof Uuid);
+        assert.ok(operation.uuid instanceof Uuid);
     }
 });
 
