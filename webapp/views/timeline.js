@@ -16,7 +16,7 @@ import {
     renderConsentDialog,
     routeToConversation,
 } from "../app.js";
-import { openTranscriptInspector } from "../inspector.js";
+import { openInspectorPane, openTranscriptInspector } from "../inspector.js";
 import { findLineForChangeId } from "./file-history.js";
 import { renderDiffText } from "./diff-vs-base.js";
 import { downloadText } from "./download.js";
@@ -509,6 +509,14 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
     const pickBoxes = new Map();      // node index -> checkbox
     const nodeRows = new Map();       // node index -> row element
     let pickedIndexes = [];
+    let activeChip = null;            // the chip whose file the preview drawer is showing
+    const clearActiveChip = () => {
+        if (activeChip === null) {
+            return;
+        }
+        activeChip.classList.remove("active");
+        activeChip = null;
+    };
     const barText = el("span", {});
     const ruleHint = el("span", { class: "timeline-rule", text: "picks must be contiguous — commits are hard stops" });
     const selectbar = el("div", { class: "timeline-selectbar hidden" });
@@ -618,16 +626,23 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
         openTranscriptInspector({ jsonlName, rawLines, line });
     };
 
-    // ── file preview (requirements 5 + 7): state at step, or per-file range diff when picked ──
-    const showFilePreview = async (node, change, previewPane) => {
-        if (previewPane.dataset.showing === change.path) {
-            previewPane.classList.add("hidden");
-            previewPane.dataset.showing = "";
-            drawRail();
-            return;
+    // ── file preview (requirements 5 + 7): state at step, or per-file range diff when picked —
+    // rendered into the right-side inspector drawer (50% of the view, lines wrapped); the
+    // clicked chip stays highlighted while its file is showing. ──
+    const showFilePreview = async (node, change, chipElement) => {
+        const pane = document.getElementById("inspector");
+        if (chipElement === activeChip) {
+            if (!pane.classList.contains("hidden")) {
+                pane.classList.add("hidden");
+                clearActiveChip();
+                return;
+            }
         }
-        previewPane.dataset.showing = change.path;
-        previewPane.classList.remove("hidden");
+        clearActiveChip();
+        activeChip = chipElement;
+        chipElement.classList.add("active");
+        const drawer = openInspectorPane();
+        pane.classList.add("file-preview-drawer");
         if (pickedIndexes.length > 0) {
             const summary = computeRangeSummary(nodes, pickedIndexes);
             const patchText = await fetchRangePatch(summary.fromStepIndex, summary.toStepIndex);
@@ -636,17 +651,16 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
             const diffPane = el("div", { class: "timeline-preview" });
             renderDiffText(diffPane, block?.block ?? "(file unchanged across the picked range)");
             const pickedNumbers = pickedIndexes.map((picked) => nodes[picked].stepNumber);
-            previewPane.replaceChildren(
+            drawer.append(
                 el("div", { class: "timeline-preview-head", text: `${change.path} · diff before step ${Math.min(...pickedNumbers)} → at step ${Math.max(...pickedNumbers)}` }),
                 diffPane,
             );
-            drawRail();
             return;
         }
         // The turn's final state of the file: the LAST owned snapshot that carries it.
         const carrier = [...node.snapshots].reverse().find((snapshot) => snapshot.files[change.path] !== undefined);
         const content = carrier?.files[change.path];
-        previewPane.replaceChildren(
+        drawer.append(
             el("div", { class: "timeline-preview-head" }, [
                 el("span", { text: `${change.path} · state at step ${node.stepNumber}` }),
                 el("button", {
@@ -657,7 +671,6 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
             ]),
             el("div", { class: "timeline-preview", text: content ?? "(no snapshot carries this file at this step)" }),
         );
-        drawRail();
     };
 
     // ── rows ──
@@ -775,7 +788,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
             row.append(el("div", { class: "timeline-chips" },
                 node.fileChanges.map((change) => renderFileChip(change, (event) => {
                     event.stopPropagation();
-                    showFilePreview(node, change, previewPane);
+                    showFilePreview(node, change, event.currentTarget);
                 }))));
             row.append(previewPane);
         }
@@ -794,6 +807,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
             return;
         }
         document.getElementById("inspector").classList.add("hidden");
+        clearActiveChip();
     };
 
     // ── graph rail, drawn from row geometry (port of the approved mockup's drawRail) ──

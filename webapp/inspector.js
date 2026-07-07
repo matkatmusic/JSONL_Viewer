@@ -95,6 +95,8 @@ export function findBackupTimeForBlob(record, blobName) {
 // shown; returns the content column for the caller to fill.
 export function openInspectorPane() {
     const pane = document.getElementById("inspector");
+    // The 50%-width file-preview modifier is opt-in per open; callers wanting it re-add it.
+    pane.classList.remove("file-preview-drawer");
     const content = el("div", { class: "inspector-content" });
     pane.replaceChildren(
         el("button", { class: "row-btn inspector-close", text: "»", title: "Collapse inspector", onclick: () => pane.classList.add("hidden") }),

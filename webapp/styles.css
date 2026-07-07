@@ -135,6 +135,17 @@ a:hover { text-decoration: underline; }
 .layout.timeline-route .inspector-pane.hidden {
     display: flex; transform: translateX(calc(100% - 24px)); cursor: pointer;
 }
+/* File-preview drawer: takes 50% of the view (the area right of the project drawer); its
+   content wraps instead of scrolling horizontally. */
+.layout.timeline-route .inspector-pane.file-preview-drawer {
+    left: calc(var(--drawer-width) + (100% - var(--drawer-width)) / 2);
+}
+.inspector-pane.file-preview-drawer .timeline-preview {
+    white-space: pre-wrap; overflow-wrap: anywhere; max-height: none;
+}
+.inspector-pane.file-preview-drawer .diff-text {
+    white-space: pre-wrap; overflow-wrap: anywhere;
+}
 .layout.timeline-route .inspector-pane.hidden:empty { transform: translateX(100%); }
 .layout.timeline-route .inspector-pane.hidden > * { visibility: hidden; }
 .layout.timeline-route .inspector-pane.hidden::before {
@@ -291,8 +302,14 @@ a:hover { text-decoration: underline; }
 }
 .timeline-row[data-node-kind="agent-turn"]:not(.system) .timeline-prompt,
 .timeline-row[data-node-kind="user-turn"]:not(.system) .timeline-prompt { color: var(--text); }
-/* the pick checkbox lives in the rail gutter; agent bubbles start at 96px, so pull it back out */
-.timeline-row[data-node-kind="agent-turn"]:not(.system) .timeline-pick { left: -76px; }
+/* the pick checkbox lives in the rail gutter, LEFT of the rail line at x=32 so it never
+   occludes the row's node dot */
+.timeline-row[data-node-kind="agent-turn"]:not(.system) .timeline-pick { left: -92px; }
+/* the chip whose file the preview drawer is showing */
+.timeline-chip.active {
+    border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent);
+    background: var(--badge-accent-bg);
+}
 .timeline-row.system { opacity: 0.55; }
 .timeline-time { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .timeline-chips { display: flex; gap: 6px; flex-wrap: wrap; }
