@@ -93,6 +93,8 @@ export const S38_JSONL = findScenarioJsonl("s38-script-rename-script-user-edit-m
 // s39+ are the `git-baseline` family; see plans/ and the per-scenario ground-truth notes for the full
 // scenario shapes. They resolve from the in-worktree capture root like every other scenario.
 export const S39_JSONL = findScenarioJsonl("s39-git-baseline-seed");
+export const S39_PROJECT_DIR: Path = new Path(resolveScenarioDir(SCENARIO_ROOTS, "s39-git-baseline-seed"));
+export const S39_JSONL_PATHS: Path[] = listScenarioJsonlPaths(S39_PROJECT_DIR);
 export const S40_JSONL = findScenarioJsonl("s40-git-baseline-user-edits");
 export const S41_JSONL = findScenarioJsonl("s41-git-baseline-mid-commit");
 export const S42_JSONL = findScenarioJsonl("s42-git-baseline-from-s38");

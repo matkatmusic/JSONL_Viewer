@@ -70,6 +70,66 @@ function survivingBranchRecordsFileChange(
     return extractFileEvents(selectBranchRecords(records, finalHead)).length > 0;
 }
 
+// The ancestor-chain uuid set of every head, keyed by head uuid string — computed once so the
+// tree grouping below reads each chain a single time.
+function mapHeadChains(records: TranscriptRecord[], heads: Uuid[]): Map<string, Set<string>> {
+    const chains = new Map<string, Set<string>>();
+    for (const head of heads) {
+        chains.set(head.toString(), collectAncestorUuids(records, head));
+    }
+    return chains;
+}
+
+// True when the two chains share any uuid — their heads fork from a common record and belong to
+// the same conversation tree.
+function checkChainsOverlap(a: Set<string>, b: Set<string>): boolean {
+    for (const uuid of a) {
+        if (b.has(uuid)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// The final head of every conversation tree the surviving head does NOT belong to. A multi-session
+// project (EndCurrentAgentAndSpawnNewAgent) is a FOREST of parentUuid-disconnected trees — each
+// predecessor session is a completed chapter whose final head the next session continues from, so
+// its chain is surviving trunk, never a rewound branch. Rewinds only exist WITHIN a tree.
+function collectPredecessorFinalHeads(records: TranscriptRecord[], survivingHead: Uuid): Uuid[] {
+    const heads = dedupeUuids(collectHeadUuids(records));
+    const chains = mapHeadChains(records, heads);
+    const survivingChain = chains.get(survivingHead.toString()) ?? collectAncestorUuids(records, survivingHead);
+    const trees: { chainUnion: Set<string>; finalHead: Uuid }[] = [];
+    for (const head of heads) {
+        const chain = chains.get(head.toString())!;
+        if (checkChainsOverlap(chain, survivingChain)) {
+            continue;
+        }
+        const tree = trees.find((entry) => checkChainsOverlap(entry.chainUnion, chain));
+        if (tree === undefined) {
+            trees.push({ chainUnion: new Set(chain), finalHead: head });
+            continue;
+        }
+        for (const uuid of chain) {
+            tree.chainUnion.add(uuid);
+        }
+        tree.finalHead = head;
+    }
+    return trees.map((tree) => tree.finalHead);
+}
+
+// The uuid strings on the surviving trunk across every session tree: the surviving head's own
+// chain plus each predecessor tree's final-head chain.
+function collectSurvivingTrunkUuids(records: TranscriptRecord[], survivingHead: Uuid): Set<string> {
+    const trunk = collectAncestorUuids(records, survivingHead);
+    for (const head of collectPredecessorFinalHeads(records, survivingHead)) {
+        for (const uuid of collectAncestorUuids(records, head)) {
+            trunk.add(uuid);
+        }
+    }
+    return trunk;
+}
+
 // The rewind point of an abandoned tip: the deepest record on the tip's path that also lies on the
 // surviving path — found by walking tip -> root and returning the first uuid in `survivingSet`.
 function findRewindPoint(
@@ -154,7 +214,7 @@ export function findConversationBranches(
     if (survivingHead === undefined) {
         return [];
     }
-    const survivingSet = collectAncestorUuids(records, survivingHead);
+    const survivingSet = collectSurvivingTrunkUuids(records, survivingHead);
     const branches: ConversationBranch[] = [
         { tip: survivingHead, rewindPoint: undefined, isSurviving: true },
     ];
@@ -207,8 +267,13 @@ function computeBranchRecords(
     );
 }
 
-// Select the surviving branch's records (the final head's chain + meta). Falls back to all records
-// when there is no last-prompt head — preserving pre-S7 behavior for any unmarked transcript.
+// Live-branch selections memoized per records-array identity, for the same reason as
+// branchSelections above: downstream memos key on the selected array's IDENTITY.
+const liveBranchSelections = new WeakMap<TranscriptRecord[], TranscriptRecord[]>();
+
+// Select the surviving trunk's records (every session tree's final chain + meta). Falls back to
+// all records when there is no last-prompt head — preserving pre-S7 behavior for any unmarked
+// transcript.
 export function selectLiveBranch(
     records: TranscriptRecord[],
 ): TranscriptRecord[] {
@@ -216,12 +281,21 @@ export function selectLiveBranch(
     if (survivingHead === undefined) {
         return records;
     }
-    return selectBranchRecords(records, survivingHead);
+    const cached = liveBranchSelections.get(records);
+    if (cached !== undefined) {
+        return cached;
+    }
+    const trunkUuids = collectSurvivingTrunkUuids(records, survivingHead);
+    const selected = records.filter(
+        (record) => record.uuid === undefined || trunkUuids.has(record.uuid.toString()),
+    );
+    liveBranchSelections.set(records, selected);
+    return selected;
 }
 
-// The uuid strings on the surviving branch's ancestor chain — the canonical "which records are
-// shared trunk" set a caller uses to find a rewound branch's diverging (post-rewind) records.
-// Empty when there is no surviving head.
+// The uuid strings on the surviving trunk (across every session tree) — the canonical "which
+// records are shared trunk" set a caller uses to find a rewound branch's diverging (post-rewind)
+// records. Empty when there is no surviving head.
 export function collectSurvivingUuids(
     records: TranscriptRecord[],
 ): Set<string> {
@@ -229,7 +303,7 @@ export function collectSurvivingUuids(
     if (survivingHead === undefined) {
         return new Set<string>();
     }
-    return collectAncestorUuids(records, survivingHead);
+    return collectSurvivingTrunkUuids(records, survivingHead);
 }
 
 // A branch tip shortened for display and selection: the first 8 chars of its uuid string. The one

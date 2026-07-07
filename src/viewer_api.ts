@@ -101,10 +101,32 @@ export function loadProjectRecords(jsonlPaths: Path[], onProgress?: ProgressSink
     }
     // The viewer opens arbitrary real sessions: tolerate (and log) fields the scenarios never
     // modeled instead of hard-failing the whole document. Unknown record types still throw.
-    const records = jsonlPaths.flatMap((path) => loadTranscript(path.toString(), onProgress, true));
+    const transcripts = jsonlPaths.map((path) => loadTranscript(path.toString(), onProgress, true));
+    sortTranscriptsChronologically(transcripts);
+    const records = transcripts.flat();
     parsedRecordsCache.set(stamp, records);
     evictLeastRecentlyUsedEntries(parsedRecordsCache, ARTIFACT_CACHE_CAPACITY);
     return records;
+}
+
+// The first stamped record's timestamp, for ordering whole transcripts; a transcript with no
+// timestamp sorts last (stably).
+function findFirstTimestamp(records: TranscriptRecord[]): number | undefined {
+    for (const record of records) {
+        if (record.timestamp !== undefined) {
+            return record.timestamp.getTime();
+        }
+    }
+    return undefined;
+}
+
+// Whole-session chronology: the branch model and every "last head = latest" heuristic assume the
+// merged record stream is time-ordered ACROSS sessions (it always is within one). Callers hand
+// paths in UI order (newest first), so re-order here, oldest session first; intra-file order is
+// untouched.
+function sortTranscriptsChronologically(transcripts: TranscriptRecord[][]): void {
+    transcripts.sort((a, b) =>
+        (findFirstTimestamp(a) ?? Number.POSITIVE_INFINITY) - (findFirstTimestamp(b) ?? Number.POSITIVE_INFINITY));
 }
 
 // The .jsonl entries directly inside `dir`, newest first.
