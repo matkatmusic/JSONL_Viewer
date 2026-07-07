@@ -91,6 +91,46 @@ export function findBackupTimeForBlob(record, blobName) {
     return undefined;
 }
 
+// The tool_use identity of a shown record: its first tool_use block's id plus the record's own
+// uuid; undefined when the record calls no tool.
+function findToolUseIdentity(value) {
+    if (value === null) {
+        return undefined;
+    }
+    if (typeof value !== "object") {
+        return undefined;
+    }
+    if (value.type !== "assistant") {
+        return undefined;
+    }
+    const content = value.message?.content;
+    if (!Array.isArray(content)) {
+        return undefined;
+    }
+    const toolUse = content.find((block) => block.type === "tool_use");
+    if (toolUse === undefined) {
+        return undefined;
+    }
+    return { toolUseId: toolUse.id, recordUuid: value.uuid };
+}
+
+// The tool-flow jump targets of a shown record: the PreToolUse hook line (the FIRST record whose
+// toolUseID names the tool_use id) and the tool-result line (sourceToolAssistantUUID names the
+// assistant record; the tool_result block's tool_use_id is the fallback for older transcripts).
+// Each is -1 when absent; undefined when the record calls no tool.
+export function findToolNavigationTargets(rawLines, value) {
+    const toolUse = findToolUseIdentity(value);
+    if (toolUse === undefined) {
+        return undefined;
+    }
+    const hookLine = rawLines.findIndex((text) => text.includes(`"toolUseID":"${toolUse.toolUseId}"`));
+    let resultLine = rawLines.findIndex((text) => text.includes(`"sourceToolAssistantUUID":"${toolUse.recordUuid}"`));
+    if (resultLine < 0) {
+        resultLine = rawLines.findIndex((text) => text.includes(`"tool_use_id":"${toolUse.toolUseId}"`));
+    }
+    return { hookLine, resultLine };
+}
+
 // The inspector pane's drawer chrome — collapse chevron + a fresh scrollable content column —
 // shown; returns the content column for the caller to fill.
 export function openInspectorPane() {
@@ -201,11 +241,23 @@ export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLin
         } catch {
             value = rawLines[clamped];
         }
+        // Tool-flow jumps (shown only on assistant tool_use lines): hook + result of THIS call.
+        const toolTargets = findToolNavigationTargets(rawLines, value);
+        const toolButtons = [];
+        if (toolTargets !== undefined) {
+            if (toolTargets.hookLine >= 0) {
+                toolButtons.push(el("button", { class: "row-btn", text: "Go to PreToolUse hook", onclick: () => showLine(toolTargets.hookLine) }));
+            }
+            if (toolTargets.resultLine >= 0) {
+                toolButtons.push(el("button", { class: "row-btn", text: "Go to Tool Result", onclick: () => showLine(toolTargets.resultLine) }));
+            }
+        }
         openInspectorPane().append(
             el("div", { class: "inspector-nav" }, [
                 el("button", { class: "row-btn", text: "◀ Prev", onclick: () => showLine(clamped - 1) }),
                 el("span", { class: "muted", text: `line ${clamped} / ${rawLines.length - 1}` }),
                 el("button", { class: "row-btn", text: "Next ▶", onclick: () => showLine(clamped + 1) }),
+                ...toolButtons,
             ]),
             el("h2", { text: jsonlName }),
             renderHighlightedJson(JSON.stringify(value, null, 4), value, clamped, maps, showLine, filesTouched, openRevision),

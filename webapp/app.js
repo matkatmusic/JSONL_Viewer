@@ -138,9 +138,23 @@ function formatConsoleTime() {
     return `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${pad(now.getMilliseconds(), 3)}`;
 }
 
+// The console line with its "[<jsonl>:<line>]" source token tinted cyan, so the clickable jump
+// stands out from the timestamp and the action description. ANSI colors become xterm cell
+// attributes, not buffer text, so matchJsonlSourceLink and the link provider still see the
+// plain token.
+function tintSourceToken(text) {
+    const link = matchJsonlSourceLink(text);
+    if (link === undefined) {
+        return text;
+    }
+    const before = text.slice(0, link.tokenStartIndex);
+    const after = text.slice(link.tokenStartIndex + link.tokenText.length);
+    return `${before}\x1b[36m${link.tokenText}\x1b[0m${after}`;
+}
+
 export function logProgress(text) {
     ensureProgressTerminal();
-    progressTerminal.writeln(`${formatConsoleTime()} ${text}`);
+    progressTerminal.writeln(`${formatConsoleTime()} ${tintSourceToken(text)}`);
 }
 
 // Split buffered NDJSON text into complete lines plus the trailing partial line.
