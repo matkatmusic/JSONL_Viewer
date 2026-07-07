@@ -13,10 +13,12 @@ timestampless unification (theoretical, `api/`), `docs/engine-b-overview.md` upd
 npm extraction (speculative), item-6 spike files (closed NON-VIABLE diagnostic), roadmap
 `cp` sub-item (documented deferral in `plans/archived/roadmap-100-percent-reconstruction.md`).
 
-Updated 2026-07-07: items 5, 6, 9 shipped; Phase B gitOperations engine work shipped
-(`GitOperationKind` enum, `reconstruction_git_evidence.ts` extraction, 3/3 tests pass);
-scenario coverage regressed to 84/85 (s85 FAIL 3/10 — item 15 still open). New items 18–22
-added. Handoffs and pre-today implementation-notes archived.
+Updated 2026-07-07: items 5, 6, 9 shipped; Phase B gitOperations fully shipped end-to-end
+(engine + viewer + tests — commits `4a8c675`, `de15df8`; `GitOperationKind` enum,
+`findGitOperations` extraction, timeline git rows with `{ }` inspector buttons, commit
+hard-stops; 467 tests / 466 pass / 1 pre-existing s85 failure is healthy baseline).
+Scenario coverage 84/85 (s85 FAIL 3/10 — item 15 still open). New items 18–27 added.
+Handoffs and pre-today implementation-notes archived.
 
 ## Done
 
@@ -110,11 +112,22 @@ added. Handoffs and pre-today implementation-notes archived.
   architectural consolidation is still justified or the remaining lever is just item 11.
   Check `git show f6d2852 b79cf1b` + `src/cache_lru.ts` before any design work.
 
-## Minor open items from implementation-notes (2026-07-07)
+## Minor open items from implementation-notes / handoffs (2026-07-07)
 
-- [ ] **24. Trailing-newline artifact** — 2 files show `recon=''` one line beyond reference EOF
+- [ ] **24. s39 attribution: git rows land on synthetic turn** — s39 session 1's reply text
+  precedes its tool calls, so file chips + git rows land on a synthetic empty-text Step 5
+  instead of the reply (Step 4). The attribution rule is user-approved; changing it needs an
+  explicit user decision. (handoff-develop-20260707-1619)
+- [ ] **25. s84 Step 17: pickable agent turn with zero visible chips** — its snapshot's changeIds
+  resolve to no revision and `changedPaths` is empty. Engine data question, unaddressed.
+  (handoff-develop-20260707-1619)
+- [ ] **26. `git branch` scenario fixture missing** — `GitOperationKind.branch` rendering and
+  detail parsing are covered by parser design only, not by a scenario fixture. Add expectation
+  to `tests/git-operations.test.ts` if/when a git-branch scenario is recorded.
+  (handoff-develop-20260707-1619)
+- [ ] **27. Trailing-newline artifact** — 2 files show `recon=''` one line beyond reference EOF
   in item-15 pass-per-line coverage. Worth a follow-up to confirm it's a trailing-`\n` split
   artifact vs a real reconstruction bug (`implementation-notes-item15-pass-per-line.md:167`).
-- [ ] **25. 362 golden-value test failures** — remain from the coverage tool migration; need a
+- [ ] **28. 362 golden-value test failures** — remain from the coverage tool migration; need a
   re-characterization pass or retirement in favor of the scenario coverage tool
   (`implementation-notes-item8-multiedit.md`).
