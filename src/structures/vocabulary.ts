@@ -19,6 +19,11 @@ export enum RecordType {
     bridgeSession = "bridge-session",
     aiTitle = "ai-title",
     queueOperation = "queue-operation",
+    // Session-meta records observed in real ~/.claude/projects transcripts (not the scenario
+    // captures): a user-set conversation title and an agent name. Both discriminant-only, same
+    // shape as ai-title (type + sessionId + one payload field).
+    customTitle = "custom-title",
+    agentName = "agent-name",
 }
 
 export const KNOWN_RECORD_TYPES: RecordType[] = Object.values(RecordType);
@@ -177,4 +182,6 @@ export enum BranchRole {
 export enum DocumentResponseKind {
     document = "document",
     consentRequired = "consent-required",
+    progress = "progress",
+    error = "error",
 }

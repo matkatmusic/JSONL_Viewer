@@ -82,7 +82,10 @@ function lastPriorTimeFor(target: Path, priorEvents: FileEvent[]): Date | undefi
 // synthetic so the seed stays out of the graphs (spec 40); the timestamp is the edit's, which
 // seedBeforeEdit pulls to just before the edit when this seed is used.
 function originalFileSeedFor(event: EditEvent): WriteEvent | undefined {
-    if (event.originalFile === undefined) {
+    // `== null` catches both the absent field (scenarios) and a literal null (real Edit results record
+    // originalFile as null when there is no pre-edit content); either way there is nothing to seed from,
+    // so return undefined rather than build a seed with null content (which crashes splitLines).
+    if (event.originalFile == null) {
         return undefined;
     }
     return {

@@ -7,6 +7,7 @@ import {
     el,
     fetchDocument,
     fetchRawRecords,
+    logProgress,
     renderConsentDialog,
     routeToConversation,
     routeToFileHistory,
@@ -56,6 +57,10 @@ export async function renderConversationView(container, project, jsonl, anchorLi
     const documentJson = result.document;
     const rawLines = await fetchRawRecords(project, jsonl);
 
+    // A log line written right before a long synchronous stretch never paints without a yield.
+    logProgress("building view");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
     container.append(el("div", { class: "filter-bar" }, [
         el("div", { class: "pane-title", text: jsonl }),
         el("button", {
@@ -89,6 +94,9 @@ export async function renderConversationView(container, project, jsonl, anchorLi
     };
     const inspectLine = (line) => openTranscriptInspector({ jsonlName: jsonl, rawLines, line, onJumpToLine: highlightLine });
     const lineByUuid = new Map(documentJson.lineVerdicts.map((verdict) => [verdict.uuid, verdict.line]));
+
+    logProgress("rendering");
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     const conversation = el("div", { class: "conversation" });
     let anchorNode;
