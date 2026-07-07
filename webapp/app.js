@@ -2,7 +2,8 @@
 // dispatch. Views build their own DOM through the tiny el() helper; this file owns navigation.
 
 import { renderProjectsView } from "./views/projects.js";
-import { renderProjectView, renderProjectDrawer } from "./views/project.js";
+import { renderProjectDrawer } from "./views/project.js";
+import { openInspectorPane } from "./inspector.js";
 import { renderConversationView } from "./views/conversation.js";
 import { renderFileHistoryView } from "./views/file-history.js";
 import { renderRawLinesView } from "./views/raw-lines.js";
@@ -71,6 +72,36 @@ function ensureProgressTerminal() {
         if (selection) navigator.clipboard.writeText(selection).catch(() => {});
     });
     progressTerminal.open(document.getElementById("progress-console"));
+    // Progress labels ending in "[<file>.jsonl:<line>]" become clickable links to the timeline,
+    // anchored at that raw line. The project comes from the current hash: the console outlives
+    // route changes, so a stale line clicked from a different project routes into the CURRENT
+    // project and fails into the existing error box.
+    // ponytail: not worth guarding — xterm draws hover underline + pointer itself.
+    progressTerminal.registerLinkProvider({
+        provideLinks(bufferLineNumber, callback) {
+            const lineText = progressTerminal.buffer.active.getLine(bufferLineNumber - 1)?.translateToString(true) ?? "";
+            const sourceLink = matchJsonlSourceLink(lineText);
+            if (sourceLink === undefined) {
+                callback(undefined);
+                return;
+            }
+            callback([{
+                text: sourceLink.tokenText,
+                range: {
+                    // xterm buffer coordinates are 1-based; the end cell is inclusive.
+                    start: { x: sourceLink.tokenStartIndex + 1, y: bufferLineNumber },
+                    end: { x: sourceLink.tokenStartIndex + sourceLink.tokenText.length, y: bufferLineNumber },
+                },
+                activate: () => {
+                    const segments = parseRouteSegments();
+                    if (segments[0] !== "project") {
+                        return;
+                    }
+                    location.hash = routeToTimeline(segments[1], sourceLink.jsonlFileName, String(sourceLink.rawLineIndex));
+                },
+            }]);
+        },
+    });
     document.getElementById("progress-copy").onclick = copyConsoleText;
     fitProgressColumns();
     window.addEventListener("resize", fitProgressColumns);
@@ -119,6 +150,22 @@ export function splitNdjsonChunk(bufferedText, chunkText) {
     const remainder = splitLines.pop();
     const lines = splitLines.filter((line) => line.length > 0);
     return { remainder, lines };
+}
+
+// The "[<file>.jsonl:<line>]" source token of a console line (formatRunSource emits at most one
+// per label), or undefined when the line has none. Labels carry 1-based transcript line numbers;
+// rawLineIndex converts to the 0-based index used by /at/ anchors and rawLines arrays.
+export function matchJsonlSourceLink(lineText) {
+    const match = /\[([\w.-]+\.jsonl):(\d+)\]/.exec(lineText);
+    if (match === null) {
+        return undefined;
+    }
+    return {
+        jsonlFileName: match[1],
+        rawLineIndex: Number(match[2]) - 1,
+        tokenStartIndex: match.index,
+        tokenText: match[0],
+    };
 }
 
 // Every server request announces itself in the loading console — its start AND its timed
@@ -259,22 +306,30 @@ export function routeToFileHistory(project, target) {
     return `${routeToProject(project)}/file/${encodeURIComponent(target)}`;
 }
 // anchorJsonl (optional): scroll the timeline to that session's first node.
-export function routeToTimeline(project, anchorJsonl) {
+// anchorLine (optional, 0-based raw JSONL line, requires anchorJsonl): scroll to the step owning
+// that line and open the JSON inspector on it.
+export function routeToTimeline(project, anchorJsonl, anchorLine) {
     const base = `${routeToProject(project)}/timeline`;
-    return anchorJsonl === undefined ? base : `${base}/session/${encodeURIComponent(anchorJsonl)}`;
+    if (anchorJsonl === undefined) {
+        return base;
+    }
+    const sessionRoute = `${base}/session/${encodeURIComponent(anchorJsonl)}`;
+    if (anchorLine === undefined) {
+        return sessionRoute;
+    }
+    return `${sessionRoute}/at/${encodeURIComponent(anchorLine)}`;
 }
 
-function parseRouteSegments() {
+export function parseRouteSegments() {
     return location.hash.replace(/^#\/?/, "").split("/").filter((segment) => segment.length > 0)
         .map(decodeURIComponent);
 }
 
-// True when the parsed hash segments name the project revision-timeline view.
+// True when the parsed hash segments carry the revision timeline underneath: EVERY project
+// route does (user decision 2026-07-06) — the timeline is a loaded project's base view, and
+// jsonl/file sub-routes render as drawers over it.
 export function checkRouteIsTimeline(segments) {
-    if (segments[0] !== "project") {
-        return false;
-    }
-    return segments[2] === "timeline";
+    return segments[0] === "project";
 }
 
 // Reopen the timeline inspector when its collapsed 24px rail is clicked. On other routes a
@@ -292,6 +347,29 @@ function handleInspectorRailClick(event) {
     pane.classList.remove("hidden");
 }
 
+// The drawer overlay for a project's jsonl/file sub-routes: the route's view renders into the
+// inspector pane over the timeline. No drawer while the consent dialog or a build error still
+// owns the view (no document is cached yet — the sub-views would only re-show the dialog).
+async function renderSubRouteDrawer(project, segments) {
+    if (peekCachedDocument(project) === undefined) {
+        return;
+    }
+    let renderContent;
+    if (segments[2] === "jsonl") {
+        const jsonl = segments[3];
+        if (segments[4] === "lines") renderContent = (content) => renderRawLinesView(content, project, jsonl);
+        else renderContent = (content) => renderConversationView(content, project, jsonl, segments[4] === "at" ? segments[5] : undefined);
+    } else if (segments[2] === "file") {
+        const target = segments[3];
+        if (segments[4] === "vsbase") renderContent = (content) => renderDiffVsBaseView(content, project, target, segments[5]);
+        else renderContent = (content) => renderFileHistoryView(content, project, target, segments[4] === "rev" ? segments[5] : undefined);
+    }
+    if (renderContent === undefined) {
+        return;
+    }
+    await renderContent(openInspectorPane());
+}
+
 async function renderRoute() {
     const view = document.getElementById("view");
     view.replaceChildren();
@@ -302,6 +380,15 @@ async function renderRoute() {
     inspector.replaceChildren();
     const drawer = document.getElementById("drawer");
     const segments = parseRouteSegments();
+    // The project's default view is the revision timeline, not the summary landing pane. The
+    // bare route is rewritten (replaceState: no history entry, no hashchange re-render) so the
+    // consent dialog's re-render and reloads both land on the timeline route.
+    if (segments[0] === "project") {
+        if (segments.length === 2) {
+            history.replaceState(null, "", routeToTimeline(segments[1]));
+            segments.push("timeline");
+        }
+    }
     document.querySelector(".layout").classList.toggle("timeline-route", checkRouteIsTimeline(segments));
     const refreshDrawer = () => renderProjectDrawer(drawer, segments[1], {
         activeJsonl: segments[2] === "jsonl" ? segments[3]
@@ -321,19 +408,13 @@ async function renderRoute() {
         } else if (segments[0] === "project") {
             const project = segments[1];
             setBreadcrumb(project);
-            if (segments.length === 2) {
-                await renderProjectView(view, project);
-            } else if (segments[2] === "timeline") {
-                await renderTimelineView(view, project, segments[3] === "session" ? segments[4] : undefined);
-            } else if (segments[2] === "jsonl") {
-                const jsonl = segments[3];
-                if (segments[4] === "lines") await renderRawLinesView(view, project, jsonl);
-                else await renderConversationView(view, project, jsonl, segments[4] === "at" ? segments[5] : undefined);
-            } else if (segments[2] === "file") {
-                const target = segments[3];
-                if (segments[4] === "vsbase") await renderDiffVsBaseView(view, project, target);
-                else await renderFileHistoryView(view, project, target);
-            }
+            // The timeline is ALWAYS a loaded project's base view (user decision 2026-07-06):
+            // jsonl and file sub-routes keep their URLs but render as a drawer over it.
+            const anchorJsonl = segments[2] === "timeline" && segments[3] === "session" ? segments[4]
+                : segments[2] === "jsonl" ? segments[3] : undefined;
+            const anchorLine = segments[2] === "timeline" && segments[5] === "at" ? segments[6] : undefined;
+            await renderTimelineView(view, project, anchorJsonl, anchorLine);
+            await renderSubRouteDrawer(project, segments);
         } else {
             view.append(el("div", { class: "error-box", text: `unknown route: ${location.hash}` }));
         }

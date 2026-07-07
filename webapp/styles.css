@@ -273,7 +273,27 @@ a:hover { text-decoration: underline; }
 .timeline-pick:disabled { opacity: 0.3; cursor: not-allowed; }
 .timeline-row-top { display: flex; align-items: baseline; gap: 10px; min-width: 0; cursor: pointer; }
 .timeline-step-label { font-weight: 650; white-space: nowrap; }
-.timeline-prompt { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.timeline-prompt { color: var(--muted); white-space: normal; overflow-wrap: anywhere; flex: 1; }
+.timeline-session-end { font-style: italic; }
+/* SMS-style turn bubbles: agent replies attach left, user prompts attach right; system rows
+   (harness-generated command/reminder turns) stay full-width and dimmer than either. */
+.timeline-row[data-node-kind="agent-turn"]:not(.system),
+.timeline-row[data-node-kind="user-turn"]:not(.system) {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 12px; margin-top: 3px; margin-bottom: 3px; padding-left: 14px;
+}
+.timeline-row[data-node-kind="agent-turn"]:not(.system) {
+    margin-left: 96px; margin-right: 20%; border-bottom-left-radius: 4px;
+}
+.timeline-row[data-node-kind="user-turn"]:not(.system) {
+    margin-left: calc(96px + 20%); border-bottom-right-radius: 4px;
+    background: var(--badge-accent-bg);
+}
+.timeline-row[data-node-kind="agent-turn"]:not(.system) .timeline-prompt,
+.timeline-row[data-node-kind="user-turn"]:not(.system) .timeline-prompt { color: var(--text); }
+/* the pick checkbox lives in the rail gutter; agent bubbles start at 96px, so pull it back out */
+.timeline-row[data-node-kind="agent-turn"]:not(.system) .timeline-pick { left: -76px; }
+.timeline-row.system { opacity: 0.55; }
 .timeline-time { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .timeline-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .timeline-chip {

@@ -9,7 +9,7 @@ import {
     renderConsentDialog,
     routeToFileHistory,
 } from "../app.js";
-import { buildFileHistoryViewModel } from "./file-history.js";
+import { buildFileHistoryViewModel, computeAnchoredRevisionIndex } from "./file-history.js";
 
 export function renderDiffText(pane, diffText) {
     pane.replaceChildren();
@@ -21,7 +21,8 @@ export function renderDiffText(pane, diffText) {
     }
 }
 
-export async function renderDiffVsBaseView(container, project, target) {
+// anchorRev (optional): 1-based revision to preselect instead of the last one.
+export async function renderDiffVsBaseView(container, project, target, anchorRev) {
     const result = await fetchDocument(project, undefined);
     if (result.consentRequired !== undefined) {
         renderConsentDialog(container, project, result.consentRequired);
@@ -34,7 +35,8 @@ export async function renderDiffVsBaseView(container, project, target) {
     viewModel.revisions.forEach((revision, index) => {
         revisionSelect.append(el("option", { value: String(index), text: `#${index + 1} · ${revision.kind}` }));
     });
-    revisionSelect.value = String(lastIndex);
+    const anchoredRevisionIndex = computeAnchoredRevisionIndex(anchorRev, viewModel.revisions.length);
+    revisionSelect.value = String(anchoredRevisionIndex ?? lastIndex);
 
     const diffPane = el("div", { class: "diff-text" });
     const loadDiff = async () => {
@@ -42,7 +44,12 @@ export async function renderDiffVsBaseView(container, project, target) {
         if (getConsentChoice(project) === "1") params.set("allowScripts", "1");
         renderDiffText(diffPane, await fetchText(`/api/diff?${params}`));
     };
-    revisionSelect.addEventListener("change", loadDiff);
+    // URL sync lives in the listener, not loadDiff, so the initial render never rewrites a bare
+    // /vsbase URL.
+    revisionSelect.addEventListener("change", async () => {
+        await loadDiff();
+        history.replaceState(null, "", `${routeToFileHistory(project, target)}/vsbase/${Number(revisionSelect.value) + 1}`);
+    });
 
     container.append(el("div", { class: "filter-bar" }, [
         el("div", { class: "pane-title", text: `${target} · vs base` }),

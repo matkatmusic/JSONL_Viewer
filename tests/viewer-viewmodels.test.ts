@@ -10,7 +10,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildProjectDocument } from "../src/viewer_api.ts";
 import { stripTrailingNewline } from "../src/reconstruction_steps.ts";
-import { buildFileHistoryViewModel } from "../webapp/views/file-history.js";
+import { buildFileHistoryViewModel, computeAnchoredRevisionIndex, findRevisionForChangeId } from "../webapp/views/file-history.js";
+import { findBackupTimeForBlob } from "../webapp/inspector.js";
 import { buildConversationViewModel } from "../webapp/views/conversation.js";
 import { buildProjectViewModel } from "../webapp/views/project.js";
 import { filterProjectsByName } from "../webapp/views/projects.js";
@@ -142,6 +143,135 @@ test("test_filterProjectsByName_returns_all_projects_for_empty_filter", () => {
     const filteredProjects = filterProjectsByName(projectListing, "");
     // every project survives, order unchanged.
     assert.deepEqual(filteredProjects, projectListing);
+});
+
+test("test_computeAnchoredRevisionIndex_returns_zero_based_index_for_in_range_rev", () => {
+    // Scenario: a route's 1-based /rev/2 segment against a 3-revision history.
+    // Action: compute the anchored index.
+    const anchoredIndex = computeAnchoredRevisionIndex("2", 3);
+    // Assertion: it names the 0-based second revision.
+    assert.equal(anchoredIndex, 1);
+});
+
+test("test_computeAnchoredRevisionIndex_returns_undefined_for_missing_rev", () => {
+    // Scenario: the route carries no /rev/ segment at all.
+    // Action: compute the anchored index with an undefined segment.
+    const anchoredIndex = computeAnchoredRevisionIndex(undefined, 3);
+    // Assertion: no revision is anchored.
+    assert.equal(anchoredIndex, undefined);
+});
+
+test("test_computeAnchoredRevisionIndex_returns_undefined_for_non_numeric_rev", () => {
+    // Scenario: a hand-mangled route names /rev/abc.
+    // Action: compute the anchored index for the non-numeric segment.
+    const anchoredIndex = computeAnchoredRevisionIndex("abc", 3);
+    // Assertion: no revision is anchored.
+    assert.equal(anchoredIndex, undefined);
+});
+
+test("test_computeAnchoredRevisionIndex_returns_undefined_for_out_of_range_rev", () => {
+    // Scenario: routes name revision 0 (below the 1-based floor) and 4 (past a 3-revision list).
+    // Action: compute both anchored indexes.
+    const belowRange = computeAnchoredRevisionIndex("0", 3);
+    const aboveRange = computeAnchoredRevisionIndex("4", 3);
+    // Assertion: neither anchors a revision.
+    assert.equal(belowRange, undefined);
+    assert.equal(aboveRange, undefined);
+});
+
+test("test_findRevisionForChangeId_returns_target_and_one_based_revision_number", () => {
+    // Scenario: an inspector string value equals a revision's changeId (a toolu id or a
+    // backup blob name) — the click needs the file target and the 1-based /rev/<n> number.
+    const document = buildS19ClientDocument();
+    const history = document.filesTouched.find((entry: any) => entry.revisions.length >= 2);
+    assert.ok(history !== undefined, "s19 has a file with 2+ revisions");
+    // look up the changeId of that history's SECOND revision.
+    const found = findRevisionForChangeId(document.filesTouched, history.revisions[1].changeId);
+    // the lookup names the same file and the 1-based revision number 2.
+    assert.deepEqual(found, { target: history.target, revisionNumber: 2 });
+});
+
+test("test_findRevisionForChangeId_falls_back_to_file_match_for_other_backup_version", () => {
+    // Scenario: a snapshot names backup blob version @v2, but the document's revision carries
+    // the SAME blob at @v3 — the file is identifiable by the blob prefix, the revision is not.
+    const filesTouched = [{ target: "/tmp/a.py", revisions: [{ changeId: "5436e8e9f917cd04@v3" }] }];
+    // look up the other version of the same blob.
+    const found = findRevisionForChangeId(filesTouched, "5436e8e9f917cd04@v2");
+    // the file matches; no revision number is named.
+    assert.deepEqual(found, { target: "/tmp/a.py", revisionNumber: undefined });
+});
+
+test("test_findRevisionForChangeId_does_not_prefix_match_non_blob_values", () => {
+    // Scenario: only @vN-shaped blob names may fall back to a prefix match — an ordinary value
+    // sharing a changeId's leading characters must not.
+    const filesTouched = [{ target: "/tmp/a.py", revisions: [{ changeId: "toolu_015cK8abc" }] }];
+    // look up a plain prefix of that changeId.
+    const found = findRevisionForChangeId(filesTouched, "toolu_015cK8");
+    // no link.
+    assert.equal(found, undefined);
+});
+
+test("test_findRevisionForChangeId_resolves_backup_version_by_backup_time", () => {
+    // Scenario: the snapshot's blob version matches no revision changeId, but the snapshot
+    // records WHEN that backup was taken — the revision in effect at that moment is the state
+    // the backup captured.
+    const filesTouched = [{
+        target: "/tmp/a.py",
+        revisions: [
+            { changeId: "toolu_1", timestamp: "2026-06-27T04:23:36.784Z" },
+            { changeId: "toolu_2", timestamp: "2026-06-27T04:28:29.007Z" },
+            { changeId: "5436e8e9f917cd04@v3", timestamp: "2026-06-27T04:31:35.020Z" },
+        ],
+    }];
+    // look up blob @v2 with a backupTime between the second and third revisions.
+    const found = findRevisionForChangeId(filesTouched, "5436e8e9f917cd04@v2", "2026-06-27T04:29:36.586Z");
+    // the revision in effect at backupTime is #2.
+    assert.deepEqual(found, { target: "/tmp/a.py", revisionNumber: 2 });
+});
+
+test("test_findRevisionForChangeId_leaves_revision_unresolved_for_backup_time_before_all_revisions", () => {
+    // Scenario: a backupTime earlier than every revision names no state the document knows.
+    const filesTouched = [{
+        target: "/tmp/a.py",
+        revisions: [{ changeId: "abc@v3", timestamp: "2026-06-27T04:31:35.020Z" }],
+    }];
+    // look up blob @v1 with a backupTime before the only revision.
+    const found = findRevisionForChangeId(filesTouched, "abc@v1", "2026-06-27T04:00:00.000Z");
+    // the file matches; no revision is named.
+    assert.deepEqual(found, { target: "/tmp/a.py", revisionNumber: undefined });
+});
+
+test("test_findBackupTimeForBlob_returns_the_snapshot_entrys_backup_time", () => {
+    // Scenario: a file-history-snapshot record maps tracked files to backup blobs with times.
+    const record = {
+        type: "file-history-snapshot",
+        snapshot: {
+            trackedFileBackups: {
+                "inventory.py": { backupFileName: "5436e8e9f917cd04@v2", version: 2, backupTime: "2026-06-27T04:29:36.586Z" },
+                "rename_inv.py": { backupFileName: null, version: 1, backupTime: "2026-06-27T04:29:44.173Z" },
+            },
+        },
+    };
+    // look up the blob's entry.
+    const backupTime = findBackupTimeForBlob(record, "5436e8e9f917cd04@v2");
+    // its backupTime comes back.
+    assert.equal(backupTime, "2026-06-27T04:29:36.586Z");
+});
+
+test("test_findBackupTimeForBlob_returns_undefined_for_records_without_that_blob", () => {
+    // Scenario: ordinary records carry no trackedFileBackups (and null backup names never match).
+    // Steps: look the blob up in a plain message record and in a snapshot without it.
+    assert.equal(findBackupTimeForBlob({ type: "user", message: {} }, "abc@v2"), undefined);
+    assert.equal(findBackupTimeForBlob({ snapshot: { trackedFileBackups: { "a.py": { backupFileName: null } } } }, "abc@v2"), undefined);
+});
+
+test("test_findRevisionForChangeId_returns_undefined_for_unknown_changeId", () => {
+    // Scenario: an ordinary string value that is no revision's changeId.
+    const document = buildS19ClientDocument();
+    // look up a value that matches nothing.
+    const found = findRevisionForChangeId(document.filesTouched, "not-a-change-id");
+    // no revision link.
+    assert.equal(found, undefined);
 });
 
 test("test_file_state_viewmodel_unifies_multi_jsonl", () => {

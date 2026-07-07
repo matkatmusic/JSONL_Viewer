@@ -21,8 +21,10 @@ import { findLineForChangeId } from "./file-history.js";
 import { renderDiffText } from "./diff-vs-base.js";
 import { downloadText } from "./download.js";
 
-export const STEP_NODE_KIND = "step";
 export const COMMIT_NODE_KIND = "commit";
+export const USER_TURN_NODE_KIND = "user-turn";
+export const AGENT_TURN_NODE_KIND = "agent-turn";
+export const SESSION_END_NODE_KIND = "session-end";
 const USER_ROLE = "user";
 const EDIT_EVENT_KIND = "edit";
 
@@ -101,34 +103,19 @@ export function checkStepIsOrphaned(step, revisionIndex) {
     return matchesRewound;
 }
 
-// The latest user prompt OF THE NODE'S OWN SESSION at or before the node's timestamp; "" when
-// none exists. ISO timestamps compare correctly as strings.
-export function findPromptExcerpt(messages, sessionId, when) {
-    let excerpt = "";
-    let latestTimestamp = "";
-    for (const message of messages) {
-        if (message.role !== USER_ROLE) {
-            continue;
-        }
-        if (message.sessionId !== sessionId) {
-            continue;
-        }
-        if (message.timestamp === undefined) {
-            continue;
-        }
-        if (message.timestamp > when) {
-            continue;
-        }
-        if (message.timestamp < latestTimestamp) {
-            continue;
-        }
-        latestTimestamp = message.timestamp;
-        excerpt = message.text;
+// Tie-break rank for nodes sharing a timestamp: turns first (a commit records the state the turn
+// built up), then commits, then session ends (they close the session after everything in it).
+function computeNodeKindRank(kind) {
+    if (kind === SESSION_END_NODE_KIND) {
+        return 2;
     }
-    return excerpt;
+    if (kind === COMMIT_NODE_KIND) {
+        return 1;
+    }
+    return 0;
 }
 
-// Chronological; ties keep step-before-commit order (a commit records the state steps built up).
+// Chronological; ties resolved by kind rank, insertion order otherwise (sort is stable).
 function compareTimelineNodes(a, b) {
     if (a.when < b.when) {
         return -1;
@@ -136,14 +123,23 @@ function compareTimelineNodes(a, b) {
     if (a.when > b.when) {
         return 1;
     }
-    if (a.kind === b.kind) {
-        return 0;
-    }
-    return a.kind === STEP_NODE_KIND ? -1 : 1;
+    return computeNodeKindRank(a.kind) - computeNodeKindRank(b.kind);
 }
 
-// One pick-segment id per node: commit nodes end their segment (hard stops) and, like orphaned
-// nodes, belong to none (null). Picks are only legal inside a single segment.
+// Only an agent turn that owns surviving snapshots can be picked — user prompts, session ends,
+// snapshot-less replies, and orphaned turns all sit in no segment.
+function checkNodeIsPickable(node) {
+    if (node.kind !== AGENT_TURN_NODE_KIND) {
+        return false;
+    }
+    if (node.isOrphaned) {
+        return false;
+    }
+    return node.snapshots.length > 0;
+}
+
+// One pick-segment id per node: commit nodes end their segment (hard stops) and, like every
+// unpickable node, belong to none (null). Picks are only legal inside a single segment.
 export function computePickSegments(nodes) {
     const segments = [];
     let segment = 0;
@@ -153,11 +149,11 @@ export function computePickSegments(nodes) {
             segment += 1;
             continue;
         }
-        if (node.isOrphaned) {
-            segments.push(null);
+        if (checkNodeIsPickable(node)) {
+            segments.push(segment);
             continue;
         }
-        segments.push(segment);
+        segments.push(null);
     }
     return segments;
 }
@@ -195,12 +191,13 @@ export function checkPickIsLegal(nodes, pickedNodeIndexes) {
     return true;
 }
 
-// The selection bar's summary: picked step count, DISTINCT file paths across the picked nodes,
-// and the 1-based step range for the /api/range-patch call.
+// The selection bar's summary: picked turn count, DISTINCT file paths across the picked nodes,
+// and the 1-based SNAPSHOT index range for the /api/range-patch call (the server still speaks
+// snapshot indexes; a turn spans every snapshot it owns).
 export function computeRangeSummary(nodes, pickedNodeIndexes) {
     const pickedNodes = pickedNodeIndexes.map((index) => nodes[index]);
     const filePaths = [...new Set(pickedNodes.flatMap((node) => node.fileChanges.map((change) => change.path)))];
-    const stepIndexes = pickedNodes.map((node) => node.stepIndex);
+    const stepIndexes = pickedNodes.flatMap((node) => node.snapshots.map((snapshot) => snapshot.index));
     return {
         stepCount: pickedNodes.length,
         filePaths,
@@ -232,26 +229,192 @@ export function splitPatchByFile(patchText) {
     return blocks.map((entry) => ({ path: entry.path, block: entry.lines.join("\n") }));
 }
 
-// The timeline's one strictly chronological node array: a step node per StepSnapshot plus a
-// commit node per commit marker.
-export function buildTimelineViewModel(document) {
+// True when this agent-turn node is the snapshot's owner candidate: same session, at or after the
+// snapshot (tool calls execute before the assistant's reply text is emitted).
+function checkNodeCanOwnSnapshot(node, snapshot) {
+    if (node.kind !== AGENT_TURN_NODE_KIND) {
+        return false;
+    }
+    if (node.sessionId !== snapshot.sessionId) {
+        return false;
+    }
+    return node.when >= snapshot.when;
+}
+
+// Per snapshot: the FIRST agent-turn node of its own session at or after it (turnNodes are in
+// message order, chronological per session). Ownerless snapshots are always a trailing suffix of
+// their session (steps are chronological), so they collect into ONE synthetic empty-text agent
+// turn per session — no file change is ever silently dropped.
+function attachSnapshotsToAgentTurns(turnNodes, steps) {
+    const syntheticTurns = new Map();
+    for (const snapshot of steps) {
+        const owner = turnNodes.find((node) => checkNodeCanOwnSnapshot(node, snapshot));
+        if (owner !== undefined) {
+            owner.snapshots.push(snapshot);
+            continue;
+        }
+        const synthetic = syntheticTurns.get(snapshot.sessionId);
+        if (synthetic !== undefined) {
+            synthetic.snapshots.push(snapshot);
+            synthetic.when = snapshot.when;
+            continue;
+        }
+        const trailingTurn = {
+            kind: AGENT_TURN_NODE_KIND,
+            when: snapshot.when,
+            sessionId: snapshot.sessionId,
+            text: "",
+            snapshots: [snapshot],
+        };
+        syntheticTurns.set(snapshot.sessionId, trailingTurn);
+        turnNodes.push(trailingTurn);
+    }
+}
+
+// One session-end node per distinct session (insertion order), timestamped at the session's last
+// turn; compareTimelineNodes ranks it after everything else sharing that timestamp. Unattributed
+// turns (no sessionId — e.g. script executions) are not a session and get no end node.
+function appendSessionEndNodes(turnNodes) {
+    const lastTurnTimes = new Map();
+    for (const node of turnNodes) {
+        if (node.sessionId === undefined) {
+            continue;
+        }
+        const latest = lastTurnTimes.get(node.sessionId);
+        if (latest === undefined) {
+            lastTurnTimes.set(node.sessionId, node.when);
+            continue;
+        }
+        if (node.when > latest) {
+            lastTurnTimes.set(node.sessionId, node.when);
+        }
+    }
+    for (const [sessionId, when] of lastTurnTimes) {
+        turnNodes.push({ kind: SESSION_END_NODE_KIND, when, sessionId, snapshots: [] });
+    }
+}
+
+// Walk the sorted nodes: user turns, agent turns, and session ends get stepNumber 1..N
+// continuously across sessions; commit nodes stay unnumbered.
+function assignStepNumbers(nodes) {
+    let stepNumber = 0;
+    for (const node of nodes) {
+        if (node.kind === COMMIT_NODE_KIND) {
+            continue;
+        }
+        stepNumber += 1;
+        node.stepNumber = stepNumber;
+    }
+}
+
+// A turn's file chips: deriveFileChanges merged over its snapshots, deduped by path (first kind
+// wins, matching deriveFileChanges' own seenPaths convention).
+function deriveMergedFileChanges(snapshots, revisionIndex) {
+    const changes = [];
+    const seenPaths = new Set();
+    for (const snapshot of snapshots) {
+        for (const change of deriveFileChanges(snapshot, revisionIndex)) {
+            if (seenPaths.has(change.path)) {
+                continue;
+            }
+            seenPaths.add(change.path);
+            changes.push(change);
+        }
+    }
+    return changes;
+}
+
+// Orphaned when the turn owns snapshots and EVERY one sits on a rewound branch; a turn with any
+// surviving snapshot — or none at all — stays on the spine.
+function checkTurnIsOrphaned(snapshots, revisionIndex) {
+    if (snapshots.length === 0) {
+        return false;
+    }
+    return snapshots.every((snapshot) => checkStepIsOrphaned(snapshot, revisionIndex));
+}
+
+// fileChanges + isOrphaned on every non-commit node (user turns and session ends own no
+// snapshots, so they resolve to no chips and never orphaned).
+function deriveNodeFileChanges(nodes, revisionIndex) {
+    for (const node of nodes) {
+        if (node.kind === COMMIT_NODE_KIND) {
+            continue;
+        }
+        node.fileChanges = deriveMergedFileChanges(node.snapshots, revisionIndex);
+        node.isOrphaned = checkTurnIsOrphaned(node.snapshots, revisionIndex);
+    }
+}
+
+// True when the message text is harness-generated rather than typed/authored: slash-command
+// envelopes (<command-message>, <command-name>, <local-command-stdout>) and injected
+// <system-reminder> blocks. These render dimmer than genuine user prompts and agent replies.
+function checkMessageTextIsSystem(text) {
+    if (text.includes("<command-")) {
+        return true;
+    }
+    if (text.includes("<local-command-")) {
+        return true;
+    }
+    return text.includes("<system-reminder>");
+}
+
+// One timeline node per conversation turn: every user prompt and agent reply is a numbered step;
+// a session-end step closes each session; git commits stay as unnumbered hard stops.
+// StepSnapshots attach to the first agent reply of their own session at or after them (tool calls
+// run before the reply's text is emitted); leftovers get a synthetic reply node so no file change
+// is ever dropped.
+export function buildTurnTimelineViewModel(document) {
     const revisionIndex = indexRevisionsByChangeId(document);
-    const stepNodes = document.steps.map((step) => ({
-        kind: STEP_NODE_KIND,
-        stepIndex: step.index,
-        when: step.when,
-        sessionId: step.sessionId,
-        fileChanges: deriveFileChanges(step, revisionIndex),
-        isOrphaned: checkStepIsOrphaned(step, revisionIndex),
-        promptExcerpt: findPromptExcerpt(document.messages, step.sessionId, step.when),
+    const turnNodes = document.messages.map((message) => ({
+        kind: message.role === USER_ROLE ? USER_TURN_NODE_KIND : AGENT_TURN_NODE_KIND,
+        when: message.timestamp,
+        sessionId: message.sessionId,
+        uuid: message.uuid,
+        text: message.text,
+        isSystem: checkMessageTextIsSystem(message.text),
+        snapshots: [],
     }));
+    attachSnapshotsToAgentTurns(turnNodes, document.steps);
+    appendSessionEndNodes(turnNodes);
     const commitNodes = document.commitMarkers.map((marker) => ({
         kind: COMMIT_NODE_KIND,
         when: marker.timestamp,
         sessionId: marker.sessionId,
     }));
-    const nodes = [...stepNodes, ...commitNodes].sort(compareTimelineNodes);
+    const nodes = [...turnNodes, ...commitNodes].sort(compareTimelineNodes);
+    assignStepNumbers(nodes);
+    deriveNodeFileChanges(nodes, revisionIndex);
     return { nodes };
+}
+
+// True when an agent turn owns the raw line: one of its snapshots' changeIds appears verbatim in
+// the line text (the inverse of findLineForChangeId's substring convention).
+function checkAgentTurnOwnsRawLine(node, rawLineText) {
+    if (node.kind !== AGENT_TURN_NODE_KIND) {
+        return false;
+    }
+    return node.snapshots.some((snapshot) =>
+        snapshot.changeIds.some((changeId) => rawLineText.includes(changeId)));
+}
+
+// True when a user turn owns the raw line: its message uuid appears verbatim in the line text.
+function checkUserTurnOwnsRawLine(node, rawLineText) {
+    if (node.kind !== USER_TURN_NODE_KIND) {
+        return false;
+    }
+    return rawLineText.includes(node.uuid);
+}
+
+// The index of the timeline node owning the raw JSONL line; -1 when no node matches (e.g. a
+// summary line carrying neither a changeId nor a prompt uuid). ChangeId matches win over uuid
+// matches: a file-history-snapshot line embeds BOTH a changeId and the uuid of the prompt that
+// triggered it, and such a line is about the file change, not the prompt.
+export function findTimelineNodeIndexForRawLine(nodes, rawLineText) {
+    const agentTurnIndex = nodes.findIndex((node) => checkAgentTurnOwnsRawLine(node, rawLineText));
+    if (agentTurnIndex >= 0) {
+        return agentTurnIndex;
+    }
+    return nodes.findIndex((node) => checkUserTurnOwnsRawLine(node, rawLineText));
 }
 
 // ─── render half (DOM only — every computation lives in the view-model above) ───────────────────
@@ -303,14 +466,16 @@ function renderFileChip(change, onclick) {
 
 // The project-wide revision timeline (#/project/<name>/timeline[/session/<jsonl>]) — the default
 // view a drawer JSONL link opens. anchorJsonl scrolls to that session's first node.
-export async function renderTimelineView(container, project, anchorJsonl) {
+// anchorLine (optional, 0-based raw line of anchorJsonl): scroll to the owning step, open the
+// inspector on it.
+export async function renderTimelineView(container, project, anchorJsonl, anchorLine) {
     const result = await fetchDocument(project, undefined);
     if (result.consentRequired !== undefined) {
         renderConsentDialog(container, project, result.consentRequired);
         return;
     }
     const reconstructionDocument = result.document;
-    const { nodes } = buildTimelineViewModel(reconstructionDocument);
+    const { nodes } = buildTurnTimelineViewModel(reconstructionDocument);
     const listing = (await fetchJson("/api/projects")).find((entry) => entry.name === project);
     const findJsonlForSession = (sessionId) =>
         listing?.jsonlFiles.find((file) => file.fileName.startsWith(sessionId))?.fileName;
@@ -326,12 +491,12 @@ export async function renderTimelineView(container, project, anchorJsonl) {
         sessionColors.set(node.sessionId, `var(${SESSION_LANE_VARIABLES[sessionColors.size % SESSION_LANE_VARIABLES.length]})`);
     }
 
-    const stepNodes = nodes.filter((node) => node.kind === STEP_NODE_KIND);
-    const touchedCount = new Set(stepNodes.flatMap((node) => node.fileChanges.map((change) => change.path))).size;
+    const numberedNodes = nodes.filter((node) => node.stepNumber !== undefined);
+    const touchedCount = new Set(nodes.flatMap((node) => (node.fileChanges ?? []).map((change) => change.path))).size;
     container.append(el("div", { class: "pane-title", text: `${project} · revision timeline` }));
     container.append(el("div", {
         class: "muted",
-        text: `${sessionColors.size} session(s) · ${stepNodes.length} steps · ${touchedCount} files touched · click a step for its JSONL line, a chip for the file state`,
+        text: `${sessionColors.size} session(s) · ${numberedNodes.length} steps · ${touchedCount} files touched · click a step for its JSONL line, a chip for the file state`,
     }));
 
     const body = el("div", { class: "timeline-body" });
@@ -405,16 +570,17 @@ export async function renderTimelineView(container, project, anchorJsonl) {
         },
     }));
 
-    // ── inspector jump (requirement 6): step -> first resolvable changeId -> (jsonl, line) ──
+    // ── inspector jump (requirement 6): turn -> first resolvable changeId -> (jsonl, line) ──
     const openStepInspector = async (node, previewPane) => {
-        const step = reconstructionDocument.steps[node.stepIndex - 1];
-        for (const changeId of step.changeIds) {
-            for (const file of listing?.jsonlFiles ?? []) {
-                const rawLines = await fetchRawRecords(project, file.fileName);
-                const line = findLineForChangeId(rawLines, changeId);
-                if (line >= 0) {
-                    openTranscriptInspector({ jsonlName: file.fileName, rawLines, line });
-                    return;
+        for (const snapshot of node.snapshots) {
+            for (const changeId of snapshot.changeIds) {
+                for (const file of listing?.jsonlFiles ?? []) {
+                    const rawLines = await fetchRawRecords(project, file.fileName);
+                    const line = findLineForChangeId(rawLines, changeId);
+                    if (line >= 0) {
+                        openTranscriptInspector({ jsonlName: file.fileName, rawLines, line });
+                        return;
+                    }
                 }
             }
         }
@@ -423,6 +589,33 @@ export async function renderTimelineView(container, project, anchorJsonl) {
         previewPane.classList.remove("hidden");
         previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this step (synthetic change id)" }));
         drawRail();
+    };
+
+    // Clicking a turn opens the transcript drawer on the message's OWN JSONL line (the record
+    // embedding its uuid — findLineForChangeId is a generic substring scan, so it resolves uuids
+    // too). Synthetic agent turns carry no uuid and fall back to the changeId scan above.
+    const openTurnInspector = async (node, previewPane) => {
+        if (node.uuid === undefined) {
+            openStepInspector(node, previewPane);
+            return;
+        }
+        const jsonlName = findJsonlForSession(node.sessionId);
+        if (jsonlName === undefined) {
+            openStepInspector(node, previewPane);
+            return;
+        }
+        const rawLines = await fetchRawRecords(project, jsonlName);
+        // Prefer the record whose OWN uuid field matches — a bare-uuid scan would land on the
+        // file-history-snapshot line that references the message as its messageId.
+        let line = findLineForChangeId(rawLines, `"uuid":"${node.uuid}"`);
+        if (line < 0) {
+            line = findLineForChangeId(rawLines, node.uuid);
+        }
+        if (line < 0) {
+            openStepInspector(node, previewPane);
+            return;
+        }
+        openTranscriptInspector({ jsonlName, rawLines, line });
     };
 
     // ── file preview (requirements 5 + 7): state at step, or per-file range diff when picked ──
@@ -442,21 +635,24 @@ export async function renderTimelineView(container, project, anchorJsonl) {
                 change.path === entry.path || change.path.endsWith(`/${entry.path}`));
             const diffPane = el("div", { class: "timeline-preview" });
             renderDiffText(diffPane, block?.block ?? "(file unchanged across the picked range)");
+            const pickedNumbers = pickedIndexes.map((picked) => nodes[picked].stepNumber);
             previewPane.replaceChildren(
-                el("div", { class: "timeline-preview-head", text: `${change.path} · diff before step ${summary.fromStepIndex} → at step ${summary.toStepIndex}` }),
+                el("div", { class: "timeline-preview-head", text: `${change.path} · diff before step ${Math.min(...pickedNumbers)} → at step ${Math.max(...pickedNumbers)}` }),
                 diffPane,
             );
             drawRail();
             return;
         }
-        const content = reconstructionDocument.steps[node.stepIndex - 1].files[change.path];
+        // The turn's final state of the file: the LAST owned snapshot that carries it.
+        const carrier = [...node.snapshots].reverse().find((snapshot) => snapshot.files[change.path] !== undefined);
+        const content = carrier?.files[change.path];
         previewPane.replaceChildren(
             el("div", { class: "timeline-preview-head" }, [
-                el("span", { text: `${change.path} · state at step ${node.stepIndex}` }),
+                el("span", { text: `${change.path} · state at step ${node.stepNumber}` }),
                 el("button", {
                     class: "row-btn",
                     text: "Export file state",
-                    onclick: () => downloadText(`${computeBaseName(change.path)}.step${node.stepIndex}`, content ?? ""),
+                    onclick: () => downloadText(`${computeBaseName(change.path)}.step${node.stepNumber}`, content ?? ""),
                 }),
             ]),
             el("div", { class: "timeline-preview", text: content ?? "(no snapshot carries this file at this step)" }),
@@ -498,7 +694,7 @@ export async function renderTimelineView(container, project, anchorJsonl) {
 
         const previewPane = el("div", { class: "hidden" });
         const row = el("div", {
-            class: `timeline-row${node.isOrphaned ? " orphan" : ""}`,
+            class: `timeline-row${node.isOrphaned ? " orphan" : ""}${node.isSystem ? " system" : ""}`,
             "data-node-kind": node.kind,
             "data-session": sessionKey,
         });
@@ -512,27 +708,11 @@ export async function renderTimelineView(container, project, anchorJsonl) {
                 el("span", { class: "timeline-prompt", text: "" }),
                 el("span", { class: "timeline-time", text: new Date(node.when).toLocaleTimeString() }),
             ]));
-        } else {
-            const pick = el("input", { class: "timeline-pick", type: "checkbox" });
-            if (node.isOrphaned) {
-                pick.disabled = true;
-                pick.title = "orphaned — not on the active path";
-            } else {
-                pickBoxes.set(index, pick);
-                pick.addEventListener("change", () => {
-                    const candidate = [...pickBoxes.entries()].filter(([, box]) => box.checked).map(([i]) => i);
-                    if (!checkPickIsLegal(nodes, candidate)) {
-                        pick.checked = !pick.checked;
-                        flashRule();
-                    }
-                    updateSelectbar();
-                });
-            }
-            row.append(pick);
+        }
+        if (node.kind === USER_TURN_NODE_KIND) {
             const rowTop = el("div", { class: "timeline-row-top" }, [
-                el("span", { class: "timeline-step-label", text: `Step ${node.stepIndex}` }),
-                ...(node.isOrphaned ? [el("span", { class: "timeline-tag", text: "orphaned" })] : []),
-                el("span", { class: "timeline-prompt", text: node.promptExcerpt === "" ? "" : `“${node.promptExcerpt}”` }),
+                el("span", { class: "timeline-step-label", text: `Step ${node.stepNumber}` }),
+                el("span", { class: "timeline-prompt", text: `“${node.text}”` }),
                 el("span", { class: "timeline-time", text: new Date(node.when).toLocaleTimeString() }),
             ]);
             rowTop.addEventListener("click", () => {
@@ -542,7 +722,54 @@ export async function renderTimelineView(container, project, anchorJsonl) {
                 selectedRow = row;
                 row.classList.add("selected");
                 drawRail();
-                openStepInspector(node, previewPane);
+                openTurnInspector(node, previewPane);
+            });
+            row.append(rowTop);
+        }
+        if (node.kind === SESSION_END_NODE_KIND) {
+            const jsonlName = node.sessionId === undefined ? undefined : findJsonlForSession(node.sessionId);
+            const rowTop = el("div", { class: "timeline-row-top" }, [
+                el("span", { class: "timeline-step-label", text: `Step ${node.stepNumber}` }),
+                el("span", { class: "timeline-prompt timeline-session-end", text: `end of session ${jsonlName ?? node.sessionId}` }),
+                el("span", { class: "timeline-time", text: new Date(node.when).toLocaleTimeString() }),
+            ]);
+            // Clicking the session-end step opens the session transcript at its LAST line.
+            if (jsonlName !== undefined) {
+                rowTop.addEventListener("click", async () => {
+                    const rawLines = await fetchRawRecords(project, jsonlName);
+                    openTranscriptInspector({ jsonlName, rawLines, line: rawLines.length - 1 });
+                });
+            }
+            row.append(rowTop);
+        }
+        if (node.kind === AGENT_TURN_NODE_KIND) {
+            if (checkNodeIsPickable(node)) {
+                const pick = el("input", { class: "timeline-pick", type: "checkbox" });
+                pickBoxes.set(index, pick);
+                pick.addEventListener("change", () => {
+                    const candidate = [...pickBoxes.entries()].filter(([, box]) => box.checked).map(([i]) => i);
+                    if (!checkPickIsLegal(nodes, candidate)) {
+                        pick.checked = !pick.checked;
+                        flashRule();
+                    }
+                    updateSelectbar();
+                });
+                row.append(pick);
+            }
+            const rowTop = el("div", { class: "timeline-row-top" }, [
+                el("span", { class: "timeline-step-label", text: `Step ${node.stepNumber}` }),
+                ...(node.isOrphaned ? [el("span", { class: "timeline-tag", text: "orphaned" })] : []),
+                el("span", { class: "timeline-prompt", text: node.text }),
+                el("span", { class: "timeline-time", text: new Date(node.when).toLocaleTimeString() }),
+            ]);
+            rowTop.addEventListener("click", () => {
+                if (selectedRow !== null) {
+                    selectedRow.classList.remove("selected");
+                }
+                selectedRow = row;
+                row.classList.add("selected");
+                drawRail();
+                openTurnInspector(node, previewPane);
             });
             row.append(rowTop);
             row.append(el("div", { class: "timeline-chips" },
@@ -570,6 +797,13 @@ export async function renderTimelineView(container, project, anchorJsonl) {
     };
 
     // ── graph rail, drawn from row geometry (port of the approved mockup's drawRail) ──
+    // Session-end nodes reuse the commit's hollow-circle rendering — both read as terminators.
+    function checkRailDotIsHollow(nodeKind) {
+        if (nodeKind === COMMIT_NODE_KIND) {
+            return true;
+        }
+        return nodeKind === SESSION_END_NODE_KIND;
+    }
     function drawRail() {
         const MAIN_X = 32;
         const ORPHAN_X = 68;
@@ -621,7 +855,7 @@ export async function renderTimelineView(container, project, anchorJsonl) {
             if (prevMain !== null) {
                 parts.push(`<line x1="${MAIN_X}" y1="${prevMain}" x2="${MAIN_X}" y2="${cy}" stroke="${color}" stroke-width="2"/>`);
             }
-            if (child.dataset.nodeKind === COMMIT_NODE_KIND) {
+            if (checkRailDotIsHollow(child.dataset.nodeKind)) {
                 parts.push(`<circle cx="${MAIN_X}" cy="${cy}" r="7" fill="var(--panel)" stroke="${color}" stroke-width="2"/>`);
                 parts.push(`<circle cx="${MAIN_X}" cy="${cy}" r="2.5" fill="${color}"/>`);
             } else {
@@ -647,5 +881,19 @@ export async function renderTimelineView(container, project, anchorJsonl) {
             target.scrollIntoView({ block: "start" });
             target.classList.add("anchored");
         }
+    }
+
+    // Line anchor: scroll to the step owning the raw line and open the inspector on that exact
+    // line (openStepInspector would re-derive first-matching changeId and could land elsewhere).
+    if (anchorLine !== undefined) {
+        const rawLines = await fetchRawRecords(project, anchorJsonl);
+        const rawLineIndex = Number(anchorLine);
+        const nodeIndex = findTimelineNodeIndexForRawLine(nodes, rawLines[rawLineIndex] ?? "");
+        const anchoredRow = nodeRows.get(nodeIndex);
+        if (anchoredRow !== undefined) {
+            anchoredRow.classList.add("anchored");
+            anchoredRow.scrollIntoView({ block: "center" });
+        }
+        openTranscriptInspector({ jsonlName: anchorJsonl, rawLines, line: rawLineIndex });
     }
 }
