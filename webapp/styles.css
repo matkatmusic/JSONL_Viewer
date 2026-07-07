@@ -122,35 +122,18 @@ a:hover { text-decoration: underline; }
     border-left: 1px solid var(--border); background: var(--panel); padding: 8px 4px 8px 6px;
 }
 .inspector-content { flex: 1; min-width: 0; overflow-y: auto; padding-right: 8px; }
-/* Timeline route only: the inspector is a slide-in overlay over the timeline, leaving a
-   ~260px timeline strip visible next to the (possibly collapsed) drawer. Closed-with-content
-   parks as a 24px rail at the right edge (its own left sliver); closed-and-empty parks fully
-   off-screen so no rail shows before anything was selected. */
+/* Timeline route: the details drawer and the timeline are the layout's 2 flex columns, splitting
+   the space BESIDE the Files column 60/40 (--drawer-width tracks its open/collapsed state);
+   hidden (display:none via the global .hidden) the timeline takes the full width. */
 .layout.timeline-route .inspector-pane {
-    position: absolute; top: 0; bottom: 0; right: 0;
-    left: calc(var(--drawer-width) + 260px);
-    z-index: 10; box-shadow: -6px 0 18px rgba(0, 0, 0, 0.35);
-    transition: transform 0.18s ease;
+    flex: 0 0 calc((100% - var(--drawer-width)) * 0.4);
 }
-.layout.timeline-route .inspector-pane.hidden {
-    display: flex; transform: translateX(calc(100% - 24px)); cursor: pointer;
-}
-/* File-preview drawer: takes 50% of the view (the area right of the project drawer); its
-   content wraps instead of scrolling horizontally. */
-.layout.timeline-route .inspector-pane.file-preview-drawer {
-    left: calc(var(--drawer-width) + (100% - var(--drawer-width)) / 2);
-}
+/* Drawer content wraps instead of scrolling horizontally. */
 .inspector-pane.file-preview-drawer .timeline-preview {
     white-space: pre-wrap; overflow-wrap: anywhere; max-height: none;
 }
 .inspector-pane.file-preview-drawer .diff-text {
     white-space: pre-wrap; overflow-wrap: anywhere;
-}
-.layout.timeline-route .inspector-pane.hidden:empty { transform: translateX(100%); }
-.layout.timeline-route .inspector-pane.hidden > * { visibility: hidden; }
-.layout.timeline-route .inspector-pane.hidden::before {
-    content: "\00ab";   /* « */
-    position: absolute; left: 6px; top: 50%; transform: translateY(-50%); color: var(--accent);
 }
 .hidden { display: none; }
 
@@ -312,7 +295,7 @@ a:hover { text-decoration: underline; }
 }
 .timeline-row.system { opacity: 0.55; }
 .timeline-time { color: var(--muted); font-size: 11px; white-space: nowrap; }
-.timeline-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.timeline-chips { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .timeline-chip {
     display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
     background: var(--code-bg); border: 1px solid var(--border); border-radius: 5px;
