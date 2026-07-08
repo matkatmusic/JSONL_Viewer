@@ -224,6 +224,13 @@ a:hover { text-decoration: underline; }
 .diff-line-add { color: var(--green); }
 .diff-line-del { color: var(--red); }
 .diff-line-hunk { color: var(--accent); }
+/* Side-by-side diff: old-number | old-text | new-number | new-text grid; full rows (hunk
+   headers, preamble) span all columns. */
+.diff-split { display: grid; grid-template-columns: max-content 1fr max-content 1fr; column-gap: 8px; font-size: 12px; }
+.diff-split > div { white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-split .diff-full { grid-column: 1 / -1; }
+.diff-split .diff-line-num { color: var(--muted); text-align: right; user-select: none; }
+.diff-view-toggle { margin-bottom: 4px; }
 
 /* ─── Inspector ───────────────────────────────────────────────── */
 .inspector-pane h2 { color: var(--accent); font-size: 12px; margin-bottom: 6px; }

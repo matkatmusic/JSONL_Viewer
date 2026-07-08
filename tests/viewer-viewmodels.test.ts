@@ -10,7 +10,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildProjectDocument } from "../src/viewer_api.ts";
 import { stripTrailingNewline } from "../src/reconstruction_steps.ts";
-import { buildFileHistoryViewModel, computeAnchoredRevisionIndex, findRevisionForChangeId } from "../webapp/views/file-history.js";
+import { buildFileHistoryViewModel, computeAnchoredRevisionIndex, findRevisionForChangeId, splitDiffBlocks } from "../webapp/views/file-history.js";
+import { computeSplitRows, SplitRowKind } from "../webapp/views/diff-vs-base.js";
 import { findBackupTimeForBlob, findToolNavigationTargets } from "../webapp/inspector.js";
 import { buildConversationViewModel } from "../webapp/views/conversation.js";
 import { buildProjectViewModel } from "../webapp/views/project.js";
@@ -335,4 +336,153 @@ test("test_findToolNavigationTargets_falls_back_to_tool_use_id_for_results", () 
     rawLines[3] = JSON.stringify({ type: "user", uuid: "record-62", message: { content: [{ type: "tool_result", tool_use_id: "toolu_x" }] } });
     const targets = findToolNavigationTargets(rawLines, JSON.parse(rawLines[0]!));
     assert.equal(targets!.resultLine, 3);
+});
+
+// -------------------- per-revision block slicing --------------------
+
+test("test_splitDiffBlocks_keeps_numeric_hunk_headers_inside_their_revision_block", () => {
+    // Scenario: renderDiffWithContext emits revision-kind headers (block delimiters) with
+    // standard numeric "@@ -a,b +c,d @@" hunk headers INSIDE each block; slicing must split
+    // only on the revision headers.
+    // Steps:
+    // slice a two-revision diff whose second block carries two numeric hunks.
+    const blocks = splitDiffBlocks([
+        "@@ created @ 2026-01-01T00:00:00.000Z @@",
+        "@@ -0,0 +1,1 @@",
+        "+line one",
+        "@@ changed @ 2026-01-01T00:01:00.000Z @@",
+        "@@ -1,2 +1,2 @@",
+        "-old",
+        "+new",
+        "@@ -9,1 +9,1 @@",
+        "-tail old",
+        "+tail new",
+    ].join("\n"));
+    // exactly one block per revision.
+    assert.equal(blocks.length, 2);
+    // each numeric hunk stays inside its revision's block.
+    assert.ok(blocks[0]!.includes("@@ -0,0 +1,1 @@"));
+    assert.ok(blocks[1]!.includes("@@ -1,2 +1,2 @@"));
+    assert.ok(blocks[1]!.includes("@@ -9,1 +9,1 @@"));
+});
+
+// -------------------- split (side-by-side) diff rows --------------------
+
+test("test_computeSplitRows_renders_context_line_in_both_columns", () => {
+    // Scenario: inside a hunk, a context line shows the same text on the left and right, uncolored.
+    // Steps:
+    // split a one-hunk diff holding a single context line.
+    const rows = computeSplitRows("@@ -1,3 +1,3 @@\n unchanged");
+    // the hunk header is a full-width row with the hunk color class.
+    assert.deepEqual(rows[0], { kind: SplitRowKind.full, text: "@@ -1,3 +1,3 @@", lineClass: "diff-line-hunk" });
+    // the context line pairs identical uncolored cells (unified " " prefix stripped), each
+    // numbered from its side of the "@@ -1,3 +1,3 @@" header.
+    assert.deepEqual(rows[1], {
+        kind: SplitRowKind.pair,
+        left: { text: "unchanged", lineClass: "", lineNumber: 1 },
+        right: { text: "unchanged", lineClass: "", lineNumber: 1 },
+    });
+});
+
+test("test_computeSplitRows_zips_equal_deletion_and_addition_runs", () => {
+    // Scenario: a run of "-" lines followed by a run of "+" lines pairs row-by-row: deletion i on
+    // the left (red), addition i on the right (green).
+    // Steps:
+    // split a hunk holding two deletions then two additions.
+    const rows = computeSplitRows("@@ -1,2 +1,2 @@\n-old1\n-old2\n+new1\n+new2");
+    // row 1 pairs the first deletion with the first addition, numbered per side.
+    assert.deepEqual(rows[1], {
+        kind: SplitRowKind.pair,
+        left: { text: "old1", lineClass: "diff-line-del", lineNumber: 1 },
+        right: { text: "new1", lineClass: "diff-line-add", lineNumber: 1 },
+    });
+    // row 2 pairs the second deletion with the second addition.
+    assert.deepEqual(rows[2], {
+        kind: SplitRowKind.pair,
+        left: { text: "old2", lineClass: "diff-line-del", lineNumber: 2 },
+        right: { text: "new2", lineClass: "diff-line-add", lineNumber: 2 },
+    });
+    assert.equal(rows.length, 3);
+});
+
+test("test_computeSplitRows_leaves_short_side_empty_for_unequal_runs", () => {
+    // Scenario: when the addition run outnumbers the deletion run, the surplus addition sits
+    // beside an empty left cell.
+    // Steps:
+    // split a hunk holding one deletion then two additions.
+    const rows = computeSplitRows("@@ -1,1 +1,2 @@\n-old1\n+new1\n+new2");
+    // row 1 pairs the lone deletion with the first addition.
+    assert.deepEqual(rows[1], {
+        kind: SplitRowKind.pair,
+        left: { text: "old1", lineClass: "diff-line-del", lineNumber: 1 },
+        right: { text: "new1", lineClass: "diff-line-add", lineNumber: 1 },
+    });
+    // row 2 carries only the surplus addition; the left cell is absent.
+    assert.deepEqual(rows[2], {
+        kind: SplitRowKind.pair,
+        left: undefined,
+        right: { text: "new2", lineClass: "diff-line-add", lineNumber: 2 },
+    });
+});
+
+test("test_computeSplitRows_keeps_preamble_lines_full_width", () => {
+    // Scenario: file-header lines before the first "@@" span both columns, keeping today's
+    // inline color classes ("---" reads as del, "+++" as add — rendering parity).
+    // Steps:
+    // split a diff carrying a two-line preamble before its hunk.
+    const rows = computeSplitRows("--- a/f\n+++ b/f\n@@ -1,1 +1,1 @@\n-x\n+y");
+    assert.deepEqual(rows[0], { kind: SplitRowKind.full, text: "--- a/f", lineClass: "diff-line-del" });
+    assert.deepEqual(rows[1], { kind: SplitRowKind.full, text: "+++ b/f", lineClass: "diff-line-add" });
+    assert.deepEqual(rows[2], { kind: SplitRowKind.full, text: "@@ -1,1 +1,1 @@", lineClass: "diff-line-hunk" });
+    // the hunk's change lines still zip into one pair row.
+    assert.deepEqual(rows[3], {
+        kind: SplitRowKind.pair,
+        left: { text: "x", lineClass: "diff-line-del", lineNumber: 1 },
+        right: { text: "y", lineClass: "diff-line-add", lineNumber: 1 },
+    });
+});
+
+test("test_computeSplitRows_renders_non_diff_text_as_plain_full_rows", () => {
+    // Scenario: the timeline surfaces feed fallback strings (no "@@" anywhere) through the same
+    // renderer; they must come out as plain full-width rows.
+    // Steps:
+    // split a non-diff fallback message.
+    const rows = computeSplitRows("(file unchanged across the picked range)");
+    assert.deepEqual(rows, [{ kind: SplitRowKind.full, text: "(file unchanged across the picked range)", lineClass: "" }]);
+});
+
+test("test_computeSplitRows_advances_line_numbers_from_the_hunk_header_seed", () => {
+    // Scenario: a hunk starting mid-file ("@@ -5,4 +7,5 @@") numbers its cells from each
+    // side's seed: context advances both counters, a deletion only the old, an addition only
+    // the new — and a revision-kind header ("@@ changed @ … @@") is a full-width row that
+    // carries no numbers itself.
+    // Steps:
+    // split a revision block whose hunk starts at old line 5 / new line 7.
+    const rows = computeSplitRows("@@ changed @ 2026-01-01T00:01:00.000Z @@\n@@ -5,4 +7,5 @@\n ctx1\n-del1\n+add1\n+add2\n ctx2");
+    assert.deepEqual(rows[0], { kind: SplitRowKind.full, text: "@@ changed @ 2026-01-01T00:01:00.000Z @@", lineClass: "diff-line-hunk" });
+    assert.deepEqual(rows[1], { kind: SplitRowKind.full, text: "@@ -5,4 +7,5 @@", lineClass: "diff-line-hunk" });
+    // context: old 5, new 7.
+    assert.deepEqual(rows[2], {
+        kind: SplitRowKind.pair,
+        left: { text: "ctx1", lineClass: "", lineNumber: 5 },
+        right: { text: "ctx1", lineClass: "", lineNumber: 7 },
+    });
+    // deletion consumes old 6; the paired addition consumes new 8.
+    assert.deepEqual(rows[3], {
+        kind: SplitRowKind.pair,
+        left: { text: "del1", lineClass: "diff-line-del", lineNumber: 6 },
+        right: { text: "add1", lineClass: "diff-line-add", lineNumber: 8 },
+    });
+    // the surplus addition consumes new 9.
+    assert.deepEqual(rows[4], {
+        kind: SplitRowKind.pair,
+        left: undefined,
+        right: { text: "add2", lineClass: "diff-line-add", lineNumber: 9 },
+    });
+    // the trailing context resumes both sides: old 7, new 10.
+    assert.deepEqual(rows[5], {
+        kind: SplitRowKind.pair,
+        left: { text: "ctx2", lineClass: "", lineNumber: 7 },
+        right: { text: "ctx2", lineClass: "", lineNumber: 10 },
+    });
 });

@@ -10,8 +10,8 @@ import {
     fetchText,
     getConsentChoice,
     renderConsentDialog,
-    routeToConversation,
     routeToFileHistory,
+    routeToTimeline,
 } from "../app.js";
 import { downloadText } from "./download.js";
 
@@ -113,13 +113,25 @@ export function findRevisionForChangeId(filesTouched, changeId, backupTime) {
     return undefined;
 }
 
-// Slice the revision-timeline diff text into per-revision blocks (renderDiff emits one block
-// per revision, each starting with its "@@ … @@" header line).
+// A revision-KIND header ("@@ changed @ … @@", "@@ renamed … @@", …) starts a new block; the
+// standard numeric hunk headers ("@@ -a,b +c,d @@") the context renderer emits INSIDE a
+// revision must not.
+function startsRevisionBlock(line) {
+    if (line.startsWith("@@")) {
+        if (!line.startsWith("@@ -")) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Slice the revision-timeline diff text into per-revision blocks (renderDiffWithContext emits
+// one block per revision, each starting with its kind header line).
 export function splitDiffBlocks(diffText) {
     const blocks = [];
     let current = null;
     for (const line of diffText.split("\n")) {
-        if (line.startsWith("@@")) {
+        if (startsRevisionBlock(line)) {
             if (current !== null) blocks.push(current.join("\n"));
             current = [line];
         } else if (current !== null) {
@@ -160,7 +172,8 @@ export async function renderFileHistoryView(container, project, target, anchorRe
         return diffBlocksPromise;
     };
 
-    // Jump: changeId -> the JSONL raw line containing it -> conversation anchored at that line.
+    // Jump: changeId -> the JSONL raw line containing it -> timeline anchored at the step
+    // owning that line (which also opens the transcript inspector on the line).
     // ponytail: probes each of the project's transcripts in turn (raw text cached after first
     // fetch); fine for the usual 1-few JSONLs per project.
     const jumpToConversation = async (changeId) => {
@@ -169,7 +182,7 @@ export async function renderFileHistoryView(container, project, target, anchorRe
             const rawLines = await fetchRawRecords(project, file.fileName);
             const line = findLineForChangeId(rawLines, changeId);
             if (line >= 0) {
-                location.hash = routeToConversation(project, file.fileName, String(line));
+                location.hash = routeToTimeline(project, file.fileName, String(line));
                 return;
             }
         }

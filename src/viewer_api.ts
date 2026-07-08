@@ -16,7 +16,7 @@ import { findScriptExecutionRuns, type ScriptRun } from "./reconstruction_script
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { setReconstructionProgressSink } from "./reconstruction_progress.ts";
 import { getCachedValueRefreshingRecency, evictLeastRecentlyUsedEntries } from "./cache_lru.ts";
-import { renderDiff, renderGitFileDiff } from "./reconstruction_render.ts";
+import { renderDiffWithContext, renderGitFileDiff } from "./reconstruction_render.ts";
 import { DocumentResponseKind } from "./structures/vocabulary.ts";
 import { Path } from "./structures/domain.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
@@ -276,9 +276,10 @@ function findFileHistory(document: ReconstructionDocument, filePath: Path): File
     return history;
 }
 
-// The revision-timeline view's text: consecutive-revision diffs for one file (renderDiff reused).
+// The revision-timeline view's text: consecutive-revision diffs for one file, with unified
+// hunks + context so the client can render surrounding lines and line-number gutters.
 export function renderRevisionDiff(document: ReconstructionDocument, filePath: Path): string {
-    return renderDiff(findFileHistory(document, filePath).revisions);
+    return renderDiffWithContext(findFileHistory(document, filePath).revisions);
 }
 
 // The Diff-vs-Base view's text: the file's first revision against the selected one (0-based).
@@ -289,7 +290,7 @@ export function renderDiffVsBase(document: ReconstructionDocument, filePath: Pat
     if (first === undefined || selected === undefined) {
         throw new Error(`revision ${revisionIndex} out of range 0..${revisions.length - 1}`);
     }
-    return renderDiff([first, selected]);
+    return renderDiffWithContext([first, selected]);
 }
 
 // The directory every range-patch path is relativized against: the longest common directory

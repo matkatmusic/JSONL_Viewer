@@ -93,10 +93,8 @@ function addedLines(revision: FileRevision): string[] {
     return added;
 }
 
-// Render one revision as a diff against the previous one. Real changes only: a
-// removal is a previous line no current entry points back to; an addition is a
-// line born here (oldLineNum DOES_NOT_EXIST_YET). A rename is its own block with no line churn.
-function diffBlock(
+// The kind-specific "@@ … @@" block header line, shared by both diff renderers.
+function computeDiffBlockHeader(
     previous: FileRevision | undefined,
     revision: FileRevision,
 ): string {
@@ -105,27 +103,37 @@ function diffBlock(
         return `@@ renamed ${renderPathArrow(revision.rename)} @ ${stamp} @@`;
     }
     if (revision.kind === EventKind.copy && revision.copy) {
-        const header = `@@ copied ${renderPathArrow(revision.copy)} @ ${stamp} @@`;
-        const added = addedLines(revision);
-        return [header, ...added].join("\n");
+        return `@@ copied ${renderPathArrow(revision.copy)} @ ${stamp} @@`;
     }
     if (revision.kind === EventKind.overwrite) {
-        const header = `@@ overwritten @ ${stamp} @@`;
-        const removed = removedLines(previous, revision);
-        const added = addedLines(revision);
-        return [header, ...removed, ...added].join("\n");
+        return `@@ overwritten @ ${stamp} @@`;
     }
     if (revision.kind === EventKind.append) {
-        const header = `@@ appended @ ${stamp} @@`;
-        const added = addedLines(revision);
-        return [header, ...added].join("\n");
+        return `@@ appended @ ${stamp} @@`;
     }
     const before = previous ? previous.lines.map(currentText) : [];
     const after = revision.lines.map(currentText);
-    const header = `@@ ${diffLabel(before, after)} @ ${stamp} @@`;
-    const removed = removedLines(previous, revision);
-    const added = addedLines(revision);
-    return [header, ...removed, ...added].join("\n");
+    return `@@ ${diffLabel(before, after)} @ ${stamp} @@`;
+}
+
+// Render one revision as a diff against the previous one. Real changes only: a
+// removal is a previous line no current entry points back to; an addition is a
+// line born here (oldLineNum DOES_NOT_EXIST_YET). A rename is its own block with no line churn.
+function diffBlock(
+    previous: FileRevision | undefined,
+    revision: FileRevision,
+): string {
+    const header = computeDiffBlockHeader(previous, revision);
+    if (revision.kind === EventKind.rename && revision.rename) {
+        return header;
+    }
+    if (revision.kind === EventKind.copy && revision.copy) {
+        return [header, ...addedLines(revision)].join("\n");
+    }
+    if (revision.kind === EventKind.append) {
+        return [header, ...addedLines(revision)].join("\n");
+    }
+    return [header, ...removedLines(previous, revision), ...addedLines(revision)].join("\n");
 }
 
 // Render the changes between consecutive revisions as a diff (the --diff view).
@@ -134,6 +142,111 @@ export function renderDiff(revisions: FileRevision[]): string {
     let previous: FileRevision | undefined;
     for (const revision of revisions) {
         blocks.push(diffBlock(previous, revision));
+        previous = revision;
+    }
+    return blocks.join("\n");
+}
+
+// --- Context diff (the webapp's diff text): unified hunks with line numbers ---
+
+const DIFF_CONTEXT_LINE_COUNT = 3;
+
+// One aligned line in a revision-vs-previous comparison: its unified-diff sign plus the
+// 1-based line number it holds on each side (0 = absent on that side).
+type AlignedDiffLine = { sign: " " | "-" | "+"; text: string; oldLineNumber: number; newLineNumber: number };
+
+function isRenameRevision(revision: FileRevision): boolean {
+    if (revision.kind === EventKind.rename) {
+        if (revision.rename !== undefined) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Walk a revision's back-pointers against the previous revision: kept entries are context,
+// born entries additions, unreferenced previous indices removals. Within a change region the
+// removals come first (unified-diff order). Sound because the engine carries kept lines
+// forward unchanged (reconstruction_replay_edit.ts) — a changed line is always kill + born.
+function computeAlignedDiffLines(
+    previous: FileRevision | undefined,
+    revision: FileRevision,
+): AlignedDiffLine[] {
+    const previousLines = previous === undefined ? [] : previous.lines;
+    const alignedLines: AlignedDiffLine[] = [];
+    let oldCursor = 0;
+    let pendingAdditions: AlignedDiffLine[] = [];
+    const flushChangeRegion = (stopOldIndex: number) => {
+        while (oldCursor < stopOldIndex) {
+            alignedLines.push({ sign: "-", text: currentText(previousLines[oldCursor]!), oldLineNumber: oldCursor + 1, newLineNumber: 0 });
+            oldCursor++;
+        }
+        alignedLines.push(...pendingAdditions);
+        pendingAdditions = [];
+    };
+    revision.lines.forEach((entry, newIndex) => {
+        if (entry.oldLineNum >= 0) {
+            flushChangeRegion(entry.oldLineNum);
+            alignedLines.push({ sign: " ", text: currentText(entry), oldLineNumber: entry.oldLineNum + 1, newLineNumber: newIndex + 1 });
+            oldCursor = entry.oldLineNum + 1;
+            return;
+        }
+        pendingAdditions.push({ sign: "+", text: currentText(entry), oldLineNumber: 0, newLineNumber: newIndex + 1 });
+    });
+    flushChangeRegion(previousLines.length);
+    return alignedLines;
+}
+
+// Which aligned-line index ranges become hunks: each change expanded by the context window,
+// overlapping or adjacent windows merged.
+function computeHunkRanges(alignedLines: AlignedDiffLine[]): Array<{ start: number; end: number }> {
+    const ranges: Array<{ start: number; end: number }> = [];
+    alignedLines.forEach((line, index) => {
+        if (line.sign === " ") {
+            return;
+        }
+        const start = Math.max(0, index - DIFF_CONTEXT_LINE_COUNT);
+        const end = Math.min(alignedLines.length - 1, index + DIFF_CONTEXT_LINE_COUNT);
+        const lastRange = ranges[ranges.length - 1];
+        if (lastRange !== undefined) {
+            if (start <= lastRange.end + 1) {
+                lastRange.end = Math.max(lastRange.end, end);
+                return;
+            }
+        }
+        ranges.push({ start, end });
+    });
+    return ranges;
+}
+
+// One hunk: the standard "@@ -oldStart,oldCount +newStart,newCount @@" header (1-based;
+// 0,0 for an absent side) followed by its sign-prefixed lines.
+function renderHunk(hunkLines: AlignedDiffLine[]): string {
+    const oldSidedLines = hunkLines.filter((line) => line.oldLineNumber > 0);
+    const newSidedLines = hunkLines.filter((line) => line.newLineNumber > 0);
+    const oldStart = oldSidedLines.length === 0 ? 0 : oldSidedLines[0]!.oldLineNumber;
+    const newStart = newSidedLines.length === 0 ? 0 : newSidedLines[0]!.newLineNumber;
+    const header = `@@ -${oldStart},${oldSidedLines.length} +${newStart},${newSidedLines.length} @@`;
+    const body = hunkLines.map((line) => line.sign + line.text);
+    return [header, ...body].join("\n");
+}
+
+// The webapp's diff text: renderDiff's per-revision kind headers, but each block carries
+// standard unified hunks with context lines around every change — enough for the client to
+// render surrounding lines and line-number gutters. renderDiff (the CLI's human-oriented
+// changes-only view) is untouched.
+export function renderDiffWithContext(revisions: FileRevision[]): string {
+    const blocks: string[] = [];
+    let previous: FileRevision | undefined;
+    for (const revision of revisions) {
+        const blockLines = [computeDiffBlockHeader(previous, revision)];
+        if (!isRenameRevision(revision)) {
+            const alignedLines = computeAlignedDiffLines(previous, revision);
+            for (const range of computeHunkRanges(alignedLines)) {
+                blockLines.push(renderHunk(alignedLines.slice(range.start, range.end + 1)));
+            }
+        }
+        blocks.push(blockLines.join("\n"));
         previous = revision;
     }
     return blocks.join("\n");
