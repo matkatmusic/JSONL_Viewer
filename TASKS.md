@@ -67,7 +67,7 @@ Handoffs and pre-today implementation-notes archived.
 
 ## Found by the full-handoff audit (2026-07-04)
 
-- [ ] **15. Fix s85 git-repo durability** — `readCommittedFileContent`
+- [x] **15. Fix s85 git-repo durability** — `readCommittedFileContent`
   (`src/reconstruction_git_evidence.ts:86`) resolves s85's repo via the RECORDED temp cwd and
   silently returns `undefined` when it's gone; temp cleanup will regress s85 steps 4–10. Fall back
   to the preserved repo at `scenarios/executed/s85-git-commit-csv-and-move-scripts/.git`.
@@ -75,6 +75,13 @@ Handoffs and pre-today implementation-notes archived.
   **Status 2026-07-07:** s85 FAIL 3/10 in scenario coverage. git-operations.test.ts passes 3/3
   (extraction works), but the reconstructed file content is wrong because `readCommittedFileContent`
   can't reach the temp repo.
+  **Done 2026-07-07:** the predicted regression landed (macOS purged the temp repo's `.git`
+  internals — dir survived, `HEAD`/refs gone — surfacing as the s85 "regression" first blamed on
+  the Jul-5 engine commits; bisect showed no code change was at fault). `readCommittedFileContent`
+  now takes an optional preserved-repo dir, and `placeGitCommitEvidence` derives it from the
+  transcript's own directory (`getRecordSource`) when a `.git` sits next to the transcript —
+  scenario captures preserve a clone there; live `~/.claude/projects` transcripts don't, so the
+  viewer path is untouched. Scenario coverage back to 85/85.
 - [ ] **17. GitHub Pages demo tier** — canned ReconstructionDocument JSON + `webapp/` with a
   static-data shim replacing `/api/*`. Deliberately deferred "Phase 4, planned separately when
   reached" (handoffs 20260702-1434/1639, 20260703-1010/2144); needs its own plan when reached.
