@@ -25,6 +25,9 @@ writeups swept for open questions/unimplemented features. Two live UI-polish fla
 into item 10 (g, h); everything else already tracked, shipped, or frozen-island stale.
 All reviewed notes moved to `plans/archived/`.
 
+Second sweep 2026-07-08 (afternoon): `implementation-notes-items10-11-12.md` reviewed — items
+10/11/12 all closed above; its three open questions became item 36. Notes archived.
+
 ## Done
 
 - [x] **1. Commit staged jfred-claude-scenarios submodule migration** — committed as `f5d43b5`.
@@ -320,3 +323,11 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   double reconstruction on real transcripts is still too costly after `f311059`'s
   lineage-window fix. Explicitly YAGNI until a new logs capture shows it matters.
   (implementation-notes-repeated-reconstruction-work)
+- [ ] **36. Item-10 polish follow-ups** — from `implementation-notes-items10-11-12.md` open
+  questions, all check-on-next-look: (a) 10f: importing `diff-vs-base.js` in the test runner
+  may print a one-line Node `ExperimentalWarning` about localStorage — if noisy, swap the
+  `typeof` guard for try/catch; (b) 10c: timeline/details 50/50 split was chosen without a
+  target ("cramped" was the only spec) — nudge the 0.5 multiplier in
+  `styles.css .layout.timeline-route .inspector-pane` if too wide; (c) 10e: `@@` hunk gaps
+  render as thin dashed separators with header text hidden — if visible-but-muted text is
+  preferred, restore the `.diff-line-hunk` rule and change only its color.
