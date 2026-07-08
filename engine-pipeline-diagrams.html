@@ -110,7 +110,10 @@ find sessionId → closure reading
 ~/.claude/file-history/&lt;sessionId&gt;/&lt;blob&gt;"]
     P4{"4 · CLI dispatch"}
     P5["5 · findConversationBranches()
-surviving head (worktree owner) +
+surviving TRUNK (head's chain + each
+predecessor session's final head —
+multi-session projects are a forest;
+rewinds only exist within a tree) +
 abandoned tips + structural forks"]
     P6["6 · reconstructBranches()
 reconstructAll(surviving records) +
@@ -155,7 +158,8 @@ fold FileEvent[] → FileRevision[]
 
     P1 --> P2 --> P3 --> P4
     P4 -->|"--json / --step /
---count-steps / DAGs"| ALT["direct views: renderJson ·
+--count-steps / DAGs"| ALT["direct views: renderJson
+(wire doc incl. gitOperations[]) ·
 reconstructStepStates · renderGraphs"]
     P4 -->|"content / branch views
 (default)"| P5
@@ -203,7 +207,10 @@ shared with extraction)"]
     end
 
     subgraph PARSE["src/parse"]
-        loadTranscript["loadTranscript"]
+        loadTranscript["loadTranscript
+(progress labels carry clickable
+[jsonl:line] source tokens —
+formatRecordSourceToken)"]
         parseLine["parseTranscriptLine
 + assertOnlyKnownTopLevelKeys"]
         parseRecord["parseRecord → hydrateEnvelope
@@ -232,6 +239,12 @@ surviving disk state)"]
 (maximal tips)"]
         structFork["findStructuralRewoundBranches
 → findPromptForkPoints"]
+        trunkUuids["collectSurvivingTrunkUuids →
+collectPredecessorFinalHeads
+(multi-session FOREST: each predecessor
+tree's final head joins the trunk,
+never a rewound branch; selectLiveBranch
+memoized per records identity)"]
         treeUtils["reconstruction_tree:
 collectHeadUuids · collectAncestorUuids ·
 collectDescendantUuids · indexRecordsByUuid"]
@@ -326,14 +339,24 @@ pureAdditionsFrom → placementAfter
 (validated by forward re-execution)"]
         readBlob["readCommittedFileContent
 execSync('git log / git show')"]
+        gitOps["findGitOperations →
+parseGitOperation: tokenize via
+shellCommandToken, classify into
+GitOperationKind (init/add/commit/
+branch/checkout/other) + row detail;
+carries the Bash record's uuid for
+the viewer's JSONL-line jump"]
     end
 
-    subgraph CACHE["cache_lru.ts (new)"]
+    subgraph CACHE["cache_lru.ts / viewer_api.ts"]
         lru["getCachedValueRefreshingRecency ·
 evictLeastRecentlyUsedEntries
 (plain-Map LRU; also backs the viewer's
-records + document artifact caches
-in viewer_api.ts)"]
+records + document artifact caches.
+loadProjectRecords merges multi-session
+transcripts CHRONOLOGICALLY before flat();
+cache hits replay per-record progress
+so the console never goes silent)"]
     end
 
     subgraph REPAIR["beacons &amp; reseed (reconstruction_beacons / _reseed / _user_edit)"]
@@ -360,7 +383,9 @@ buildConversationDag · buildFileDag
         json["reconstruction_json:
 buildReconstructionDocument →
 messages · branches · steps ·
-lineVerdicts"]
+lineVerdicts · gitOperations[]
+(per-turn git rows +
+commit hard-stops)"]
     end
 
     %% entry / dispatch
@@ -390,6 +415,8 @@ lineVerdicts"]
     findSurvHead --> treeUtils
     findConvBranches --> abandonedHeads
     findConvBranches --> structFork --> treeUtils
+    findConvBranches --> trunkUuids --> treeUtils
+    reconstructAll --> trunkUuids
 
     %% orchestration
     reconstructBranches --> reconstructAll --> filesOver
@@ -433,6 +460,7 @@ lineVerdicts"]
     gitEvidence --> findCommits
     gitEvidence --> placeDiff --> readBlob
     placeDiff --> execOnce
+    json --> gitOps
 
     %% repair subsystems
     elided --> beaconSnippet
@@ -613,8 +641,8 @@ checkScenarioResilient"| resilient
       P2:  ["loadTranscript", "parseLine", "parseRecord"],
       P3:  ["buildSR", "findSessionId", "createSR"],
       P4:  ["dispatch", "renderChosen"],
-      ALT: ["json", "steps", "graphs", "renderStepCli"],
-      P5:  ["findConvBranches", "findSurvHead", "worktreeOwner", "abandonedHeads", "structFork", "treeUtils"],
+      ALT: ["json", "steps", "graphs", "renderStepCli", "gitOps"],
+      P5:  ["findConvBranches", "findSurvHead", "worktreeOwner", "abandonedHeads", "structFork", "treeUtils", "trunkUuids"],
       P6:  ["reconstructBranches", "reconstructAll", "rewoundHist"],
       P7:  ["filesOver", "fileOver"],
       P8:  ["extract", "collectEv", "blocks", "toEvents", "writeEv", "bashEv", "editEv", "userEditEv", "scriptRename"],
