@@ -251,6 +251,9 @@ a:hover { text-decoration: underline; }
 }
 .timeline-session .swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
 .timeline-session .line { flex: 1; border-top: 1px solid var(--border); }
+/* ponytail: unattributed lane header hidden (kept in the DOM — the rail loop
+   still uses it as a spine break); its steps keep muted rail dots */
+.timeline-session[data-session="(unattributed)"] { display: none; }
 .timeline-row {
     padding: 8px 12px 8px 96px; display: flex; flex-direction: column; gap: 4px;
     border-radius: 6px; position: relative;
