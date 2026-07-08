@@ -15,8 +15,10 @@ import {
 test("test_record_type_enum_holds_the_s1_wire_strings", () => {
     // Scenario: RecordType's member values are the record-type wire strings seen
     // so far — the 10 from s1 (recon/06-s1-vocabulary.md), queue-operation added by
-    // s4-overwrite-file, and agent-name + custom-title observed in real
-    // ~/.claude/projects sessions the viewer opens (discriminant-only session meta).
+    // s4-overwrite-file, agent-name + custom-title observed in real
+    // ~/.claude/projects sessions the viewer opens (discriminant-only session meta),
+    // and fork-context-ref observed opening real subagents/agent-*.jsonl transcripts
+    // (2026-07-05 corpus audit of ~/Programming/jot-recovery/claude-data/projects).
     assert.deepEqual(Object.values(RecordType).sort(), [
         "agent-name",
         "ai-title",
@@ -25,6 +27,7 @@ test("test_record_type_enum_holds_the_s1_wire_strings", () => {
         "bridge-session",
         "custom-title",
         "file-history-snapshot",
+        "fork-context-ref",
         "last-prompt",
         "mode",
         "permission-mode",

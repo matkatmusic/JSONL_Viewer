@@ -24,6 +24,10 @@ export enum RecordType {
     // shape as ai-title (type + sessionId + one payload field).
     customTitle = "custom-title",
     agentName = "agent-name",
+    // Observed opening real subagent transcripts (subagents/agent-*.jsonl line 1; 2026-07-05
+    // corpus audit of ~/Programming/jot-recovery/claude-data/projects): names the forked agent
+    // and its parent session. Carries agentId instead of sessionId, so META_KEYS doesn't apply.
+    forkContextRef = "fork-context-ref",
 }
 
 export const KNOWN_RECORD_TYPES: RecordType[] = Object.values(RecordType);

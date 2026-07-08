@@ -123,6 +123,33 @@ test("test_gitCommitEvidence_places_an_unexplained_diff_between_the_move_and_the
     }
 });
 
+test("test_readCommittedFileContent_falls_back_to_a_preserved_repo_when_the_recorded_cwd_decays", () => {
+    // Scenario (s85's regression): macOS purged the recorded temp cwd's repo, but the scenario
+    // capture preserved a clone of it next to the transcript. The reader must serve the committed
+    // blob from the preserved repo, still resolving the file's path relative to the RECORDED cwd.
+    const preserved = mkdtempSync(join(tmpdir(), "reveng-git-"));
+    const decayed = mkdtempSync(join(tmpdir(), "reveng-git-"));
+    try {
+        const committedBytes = "def f_two(x):\n    return x + 2\n# reviewed by ops\n";
+        writeFileSync(join(preserved, "core_two.py"), committedBytes);
+        const commitInstant = "2026-01-01T00:00:10Z";
+        execSync(
+            'git init -q && git add core_two.py && git -c user.name=t -c user.email=t@t commit -q -m baseline',
+            { cwd: preserved, env: { ...process.env, GIT_COMMITTER_DATE: commitInstant } },
+        );
+        const content = readCommittedFileContent(
+            new Path(decayed),
+            new Date(commitInstant),
+            new Path(join(decayed, "core_two.py")),
+            new Path(preserved),
+        );
+        assert.equal(content, committedBytes);
+    } finally {
+        rmSync(preserved, { recursive: true, force: true });
+        rmSync(decayed, { recursive: true, force: true });
+    }
+});
+
 // Absence of the repo itself is a silent no-op — every non-git scenario must be untouched.
 test("test_readCommittedFileContent_returns_undefined_for_a_missing_repo", () => {
     const content = readCommittedFileContent(

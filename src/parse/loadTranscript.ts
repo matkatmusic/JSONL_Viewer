@@ -49,10 +49,20 @@ function keys(
     return new Set([...base, ...extra]);
 }
 
+// Session metadata observed on every conversational record type in real transcripts
+// (2026-07-05 corpus audit of ~/Programming/jot-recovery/claude-data/projects):
+// session_id is a snake_case sessionId duplicate (CC 2.1.198+); sessionKind marks
+// background sessions ("bg", CC 2.1.154/2.1.173 only — unreproducible today).
+const OBSERVED_SESSION_METADATA_KEYS = ["session_id", "sessionKind"] as const;
+
 // The exact set of top-level keys each record type carries in s1
-// (recon/07-s1-field-inventory.md, union across per-record variants). This is
-// the runtime expression of the field-level fog-of-war boundary: a record may
-// carry a subset of these keys, but never a key outside its set.
+// (recon/07-s1-field-inventory.md, union across per-record variants), extended by
+// the 2026-07-05 corpus audit of real transcripts (fields the scenario captures never
+// produced: subagent runs, API retries, Esc-interrupts, permission denials, queued
+// prompts, image pastes, web-bridge sessions, version-transient spellings — evidence
+// cited per field in tests/loadTranscript.test.ts). This is the runtime expression of
+// the field-level fog-of-war boundary: a record may carry a subset of these keys, but
+// never a key outside its set.
 export const ALLOWED_TOP_LEVEL_KEYS: Record<RecordType, ReadonlySet<string>> = {
     [RecordType.aiTitle]: keys(META_KEYS, "aiTitle"),
     [RecordType.agentName]: keys(META_KEYS, "agentName"),
@@ -60,11 +70,24 @@ export const ALLOWED_TOP_LEVEL_KEYS: Record<RecordType, ReadonlySet<string>> = {
     [RecordType.assistant]: keys(
         ENVELOPE_KEYS, "message", "requestId", "attributionMcpServer", "attributionMcpTool",
         "attributionPlugin", "attributionSkill",
+        ...OBSERVED_SESSION_METADATA_KEYS,
+        // subagent identity/attribution; API-error markers (audit 2026-07-05).
+        "agentId", "attributionAgent", "isApiErrorMessage", "error", "apiErrorStatus",
     ),
-    [RecordType.attachment]: keys(ENVELOPE_KEYS, "attachment"),
+    [RecordType.attachment]: keys(
+        ENVELOPE_KEYS, "attachment",
+        ...OBSERVED_SESSION_METADATA_KEYS,
+        // subagent identity (audit 2026-07-05).
+        "agentId",
+    ),
     [RecordType.bridgeSession]: keys(META_KEYS, "bridgeSessionId", "lastSequenceNum"),
     [RecordType.fileHistorySnapshot]: keys(
         ["type"], "messageId", "snapshot", "isSnapshotUpdate",
+    ),
+    // Opens real subagents/agent-*.jsonl transcripts: the forked agent and its parent
+    // session (audit 2026-07-05). Carries agentId, not sessionId — META_KEYS doesn't apply.
+    [RecordType.forkContextRef]: keys(
+        ["type"], "agentId", "parentSessionId", "parentLastUuid", "contextLength",
     ),
     [RecordType.lastPrompt]: keys(META_KEYS, "leafUuid", "lastPrompt"),
     [RecordType.mode]: keys(META_KEYS, "mode"),
@@ -76,12 +99,23 @@ export const ALLOWED_TOP_LEVEL_KEYS: Record<RecordType, ReadonlySet<string>> = {
         "hasOutput", "hookAdditionalContext", "hookCount", "hookErrors",
         "hookInfos", "preventedContinuation", "stopReason", "toolUseID",
         "logicalParentUuid", "compactMetadata",
+        ...OBSERVED_SESSION_METADATA_KEYS,
+        // bridge_status url; turn_duration background-agent count; preventContinuation is
+        // the CC 2.1.181-197 spelling of preventedContinuation; api_error retry group
+        // (CC ≤2.1.179) (audit 2026-07-05).
+        "url", "pendingBackgroundAgentCount", "preventContinuation",
+        "error", "retryInMs", "retryAttempt", "maxRetries", "cause",
     ),
     [RecordType.user]: keys(
         ENVELOPE_KEYS,
         "message", "promptId", "origin", "permissionMode", "promptSource",
         "sourceToolAssistantUUID", "toolUseResult", "isMeta",
         "isVisibleInTranscriptOnly", "isCompactSummary",
+        ...OBSERVED_SESSION_METADATA_KEYS,
+        // subagent identity; Esc-interrupt marker; tool-result back-reference; denied
+        // permission prompt; pasted images; queued-prompt priority (audit 2026-07-05).
+        "agentId", "interruptedMessageId", "sourceToolUseID", "toolDenialKind",
+        "imagePasteIds", "queuePriority",
     ),
 };
 
@@ -100,7 +134,8 @@ export class UnmodeledFieldError extends Error {
 }
 
 // The top-level keys a record carries that are not modeled for its type (empty when all known).
-function findUnmodeledTopLevelKeys(record: TranscriptRecord): string[] {
+// Exported for scripts/audit_unmodeled_fields.ts, the batch corpus auditor.
+export function findUnmodeledTopLevelKeys(record: TranscriptRecord): string[] {
     const allowed = ALLOWED_TOP_LEVEL_KEYS[record.type];
     return Object.keys(record).filter((key) => !allowed.has(key));
 }

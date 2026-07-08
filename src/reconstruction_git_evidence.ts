@@ -5,8 +5,10 @@
 
 import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { isImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
-import { relative } from "node:path";
+import { dirname, join, relative } from "node:path";
+import { getRecordSource } from "./parse/loadTranscript.ts";
 import {
     BlockType,
     EventKind,
@@ -215,24 +217,46 @@ function resolveCommitByTimestamp(repoCwd: Path, commitTimestamp: Date): string 
 
 // The committed bytes of `filePath` at the commit recorded at `commitTimestamp` in `repoCwd`, or
 // undefined when the repo, the commit, or the path is absent — absence is a silent no-op so every
-// non-git scenario is untouched.
+// non-git scenario is untouched. When the recorded cwd's repo has decayed (macOS purges idle temp
+// files after ~3 days), `preservedRepoDir` — a clone kept next to the transcript — is consulted
+// with the SAME cwd-relative path, since the clone mirrors the recorded repo's layout.
 export function readCommittedFileContent(
     repoCwd: Path,
     commitTimestamp: Date,
     filePath: Path,
+    preservedRepoDir?: Path,
 ): string | undefined {
-    const hash = resolveCommitByTimestamp(repoCwd, commitTimestamp);
-    if (hash === undefined) return undefined;
     const cwdRelativePath = relative(repoCwd.toString(), filePath.toString());
     if (cwdRelativePath === "" || cwdRelativePath.startsWith("..")) return undefined;
-    try {
-        return execSync(`git show ${hash}:${JSON.stringify(cwdRelativePath)}`, {
-            cwd: repoCwd.toString(),
-            stdio: "pipe",
-        }).toString();
-    } catch {
-        return undefined;
+    const repoDirs = preservedRepoDir === undefined ? [repoCwd] : [repoCwd, preservedRepoDir];
+    for (const repoDir of repoDirs) {
+        const hash = resolveCommitByTimestamp(repoDir, commitTimestamp);
+        if (hash === undefined) continue;
+        try {
+            return execSync(`git show ${hash}:${JSON.stringify(cwdRelativePath)}`, {
+                cwd: repoDir.toString(),
+                stdio: "pipe",
+            }).toString();
+        } catch {
+            continue;
+        }
     }
+    return undefined;
+}
+
+// The directory the records' transcript was loaded from, when it carries a git repo — scenario
+// captures preserve a clone of the recorded repo next to the transcript, which outlives the
+// recorded temp cwd. Undefined for records without a source or a repo (live viewer transcripts
+// sit in ~/.claude/projects, which is not a repo).
+function findPreservedRepoDir(records: TranscriptRecord[]): Path | undefined {
+    for (const record of records) {
+        const source = getRecordSource(record);
+        if (source === undefined) continue;
+        const transcriptDir = dirname(source.filePath);
+        if (!existsSync(join(transcriptDir, ".git"))) return undefined;
+        return new Path(transcriptDir);
+    }
+    return undefined;
 }
 
 // --- the placement stage ----------------------------------------------------------------------------
@@ -381,7 +405,7 @@ function placeOneCommitDiff(
     reader: BackupReader,
 ): FileEvent[] | undefined {
     if (commit.cwd === undefined) return undefined;
-    const blob = readCommittedFileContent(commit.cwd, commit.timestamp, target);
+    const blob = readCommittedFileContent(commit.cwd, commit.timestamp, target, findPreservedRepoDir(records));
     if (blob === undefined) return undefined;
     const indexedEvents = events.map((event, index) => ({ event, index }));
     const atOrBeforeCommit = indexedEvents.filter(({ event }) => event.timestamp.getTime() <= commit.timestamp.getTime());
