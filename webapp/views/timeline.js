@@ -15,9 +15,10 @@ import {
     getConsentChoice,
     renderConsentDialog,
     routeToConversation,
+    routeToFileHistory,
 } from "../app.js";
 import { openInspectorPane, openTranscriptInspector } from "../inspector.js";
-import { findLineForChangeId, splitDiffBlocks } from "./file-history.js";
+import { findLineForChangeId, findRevisionForChangeId, splitDiffBlocks } from "./file-history.js";
 import { renderDiffText } from "./diff-vs-base.js";
 import { downloadText } from "./download.js";
 
@@ -87,6 +88,24 @@ export function deriveFileChanges(step, revisionIndex) {
         changes.push({ path, eventKind: EDIT_EVENT_KIND, renamedFrom: undefined, isFirstRevision: false, changeId: undefined });
     }
     return changes;
+}
+
+// The file-history route a chip's revision jumps to ("#/project/<p>/file/<path>/rev/<n>"),
+// or undefined when the change carries no changeId or it resolves to no surviving revision
+// number (re-stamped synthetic ids, blob names without an anchored revision) — those chips
+// get no jump button rather than a dead link.
+export function computeSnapshotJumpRoute(project, filesTouched, change) {
+    if (change.changeId === undefined) {
+        return undefined;
+    }
+    const revisionLink = findRevisionForChangeId(filesTouched, change.changeId, undefined);
+    if (revisionLink === undefined) {
+        return undefined;
+    }
+    if (revisionLink.revisionNumber === undefined) {
+        return undefined;
+    }
+    return `${routeToFileHistory(project, revisionLink.target)}/rev/${revisionLink.revisionNumber}`;
 }
 
 // A step is orphaned when at least one of its changeIds matches a rewound-branch revision and
@@ -872,6 +891,18 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
                     showRevisionDiff(change, event.currentTarget);
                 },
             }));
+            const jumpRoute = computeSnapshotJumpRoute(project, reconstructionDocument.filesTouched, change);
+            if (jumpRoute !== undefined) {
+                buttons.push(el("span", {
+                    class: "timeline-chip timeline-chip-action",
+                    title: "Jump to File History Snapshot",
+                    text: "⤷",
+                    onclick: (event) => {
+                        event.stopPropagation();
+                        location.hash = jumpRoute;
+                    },
+                }));
+            }
         }
         return el("div", { class: "timeline-chip-row" }, buttons);
     };

@@ -237,6 +237,7 @@ a:hover { text-decoration: underline; }
 .inspector-nav { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
 .jump-link { text-decoration: underline dotted; cursor: pointer; }
 .inspector-json { white-space: pre-wrap; word-break: break-word; overflow-x: auto; font-size: 12px; line-height: 1.5; }
+.inspector-text { white-space: pre-wrap; word-break: break-word; overflow-x: auto; font-size: 12px; line-height: 1.5; }
 /* Long string values collapse to their first 7 wrapped lines behind a […] toggle. */
 .json-collapsed {
     display: -webkit-box; -webkit-box-orient: vertical;

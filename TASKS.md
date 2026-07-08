@@ -68,8 +68,11 @@ Handoffs and pre-today implementation-notes archived.
   remaining lever on the 7.3s cold s84 load (38 distinct python3 runs + parse).
 - [ ] **12. Viewer request-path tab in `engine-pipeline-diagrams.html`** — records/document caches
   currently get one line on the cache_lru node.
-- [ ] **13. Cache serialized `JSON.stringify(document)`** — only if reload latency ever shows it
+- [x] **13. Cache serialized `JSON.stringify(document)`** — only if reload latency ever shows it
   (ponytail note in `src/viewer_api.ts`).
+  **Closed 2026-07-08 as YAGNI:** measured on s84 (the biggest scenario): `JSON.stringify`
+  of the document is 0.5ms / 69KB. The reload path's real cost is python spawns + parse
+  (item 11); a serialized-string cache saves half a millisecond. Nothing built.
 
 ## Found by the full-handoff audit (2026-07-04)
 
@@ -97,19 +100,30 @@ Handoffs and pre-today implementation-notes archived.
 - [ ] **18. WebApp: convert to TypeScript and add build step** — all 10 webapp files are plain `.js`
   served directly by the node server with no transpilation. Add a build step (esbuild/tsc) so
   webapp source is TypeScript, output is bundled JS.
-- [ ] **19. 'Jump to File History Snapshot' button** — a per-revision button in the timeline
+- [x] **19. 'Jump to File History Snapshot' button** — a per-revision button in the timeline
   (reminiscent of filter buttons from previous HTML viewer versions) that navigates to the
   file-history view anchored at that revision's snapshot.
+  **Closed 2026-07-08:** each chip row with a changeId resolvable to a surviving revision gets
+  a `⤷` action chip ("Jump to File History Snapshot") routing to
+  `#/project/<name>/file/<path>/rev/<n>` via the new `computeSnapshotJumpRoute`
+  (`webapp/views/timeline.js`); unresolvable changeIds get no button. 3 tests in
+  `tests/timeline-viewmodels.test.ts`.
 - [x] **20. FileViewer: Diff vs Base — design polish** — `webapp/views/diff-vs-base.js` exists
   (62 lines) but is self-described as "Debugging surface — plain, no polish (plan 3.7)".
   Needs a designed UI: revision selector, side-by-side vs unified toggle, proper styling.
   **Closed 2026-07-08:** everything shipped in `b65d15c` — side-by-side default with inline
   toggle, line-number gutters, 3 context lines — plus the revision selector with `/vsbase/<n>`
   URL sync (already present). Stale "Debugging surface" header comment updated to match.
-- [ ] **21. "Snippet: Show as formatted text"** — raw-lines view (`webapp/views/raw-lines.js`)
+- [x] **21. "Snippet: Show as formatted text"** — raw-lines view (`webapp/views/raw-lines.js`)
   shows JSONL lines as raw JSON text. Add a mode/button that renders a selected line's content
   as formatted, readable text (e.g. "line 123 of 234 lines" context label + pretty-printed or
   human-readable content instead of raw JSON).
+  **Closed 2026-07-08:** the JSON inspector's nav bar gains a "Show as formatted text" toggle
+  (`extractReadableText`, `webapp/inspector.js`): message text, tool_result output, and
+  tool_use string inputs render with real newlines; unknown blocks become placeholders;
+  records with no message content show no toggle. The nav's existing `line n / total` label
+  is the context readout. Session-sticky mode; 7 tests in
+  `tests/inspector-viewmodels.test.ts`.
 - [x] **22. Clear console when loading new session** — the xterm progress console retains output
   from the previous project/session load. Clear it on new navigation.
   **Closed 2026-07-08:** `renderRoute` clears the console via `progressTerminal.clear()` when
@@ -139,9 +153,18 @@ Handoffs and pre-today implementation-notes archived.
   precedes its tool calls, so file chips + git rows land on a synthetic empty-text Step 5
   instead of the reply (Step 4). The attribution rule is user-approved; changing it needs an
   explicit user decision. (handoff-develop-20260707-1619)
-- [ ] **25. s84 Step 17: pickable agent turn with zero visible chips** — its snapshot's changeIds
+- [x] **25. s84 Step 17: pickable agent turn with zero visible chips** — its snapshot's changeIds
   resolve to no revision and `changedPaths` is empty. Engine data question, unaddressed.
   (handoff-develop-20260707-1619)
+  **Closed 2026-07-08 (investigated):** the zero-chip pickable turn (now Step 23; step
+  numbering shifted since the handoff) is the `apply_renames.py` script run rewriting
+  `core_inventory.py` at 20:53:49.772Z. The step timeline and the file histories are separate
+  replays, and each stamps the synthetic script-execution event with its own `randomUUID()`
+  (`reconstruction_script_stage.ts:303`), so the step's changeId can never join a revision —
+  documented best-effort (`reconstruction_json.ts:175-177`, `:216-218`). Verdict: known,
+  documented engine data gap; the turn is real and correctly pickable. A real fix
+  (deterministic synthetic changeIds shared by both replays) is a design decision — raise as
+  a new item if wanted.
 - [ ] **26. `git branch` scenario fixture missing** — `GitOperationKind.branch` rendering and
   detail parsing are covered by parser design only, not by a scenario fixture. Add expectation
   to `tests/git-operations.test.ts` if/when a git-branch scenario is recorded.

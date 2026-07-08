@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import {
     buildTurnTimelineViewModel,
     computePickSegments,
+    computeSnapshotJumpRoute,
     checkPickIsLegal,
     checkStepIsOrphaned,
     computeRangeSummary,
@@ -19,6 +20,7 @@ import {
     AGENT_TURN_NODE_KIND,
     SESSION_END_NODE_KIND,
 } from "../webapp/views/timeline.js";
+import { routeToFileHistory } from "../webapp/app.js";
 import { buildProjectDocument, renderRangePatch } from "../src/viewer_api.ts";
 import { Path } from "../src/structures/domain.ts";
 import { RecordType, EventKind, GitOperationKind } from "../src/structures/vocabulary.ts";
@@ -781,4 +783,28 @@ test("test_commit_nodes_fall_back_to_commit_markers", () => {
     // assert the reply turn carries an (empty) operations list, so the render half can map it.
     const reply = nodes.find((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND)!;
     assert.deepEqual(reply.gitOperations, []);
+});
+
+test("test_compute_snapshot_jump_route_targets_the_revisions_1_based_number", () => {
+    // Scenario: a chip whose changeId is a surviving revision's changeId routes to the
+    // file-history view anchored at that revision (1-based /rev/<n>, item 19).
+    const history = s84Document.filesTouched[0]!;
+    const change = { path: history.target, changeId: history.revisions[0]!.changeId };
+    assert.equal(
+        computeSnapshotJumpRoute("s84", s84Document.filesTouched, change),
+        `${routeToFileHistory("s84", history.target)}/rev/1`,
+    );
+});
+
+test("test_compute_snapshot_jump_route_returns_undefined_without_a_changeid", () => {
+    // Scenario: a changedPaths-hint chip carries no changeId — no jump button.
+    const change = { path: "whatever.py", changeId: undefined };
+    assert.equal(computeSnapshotJumpRoute("s84", s84Document.filesTouched, change), undefined);
+});
+
+test("test_compute_snapshot_jump_route_returns_undefined_for_unresolvable_changeids", () => {
+    // Scenario: a re-stamped synthetic changeId (item 25) matches no surviving revision —
+    // no jump button rather than a dead link.
+    const change = { path: "whatever.py", changeId: "00000000-0000-4000-8000-000000000000" };
+    assert.equal(computeSnapshotJumpRoute("s84", s84Document.filesTouched, change), undefined);
 });

@@ -131,6 +131,75 @@ export function findToolNavigationTargets(rawLines, value) {
     return { hookLine, resultLine };
 }
 
+// ── formatted-text mode (TASKS item 21) ─────────────────────────────────────
+
+// A tool_use block's readable form: a name header plus each STRING input field verbatim under
+// a per-field divider — a Write's `content` shows with real newlines instead of JSON escapes.
+// Non-string inputs (numbers, arrays) stay in the JSON view; this mode is for reading text.
+function extractToolUseText(block) {
+    const lines = [`[tool_use: ${block.name}]`];
+    for (const [key, value] of Object.entries(block.input ?? {})) {
+        if (typeof value !== "string") {
+            continue;
+        }
+        lines.push(`--- ${key} ---`, value);
+    }
+    return lines.join("\n");
+}
+
+// A tool_result block's readable form: its string content, or its nested text blocks joined
+// by blank lines (placeholder for nested non-text blocks).
+function extractToolResultText(block) {
+    if (typeof block.content === "string") {
+        return block.content;
+    }
+    if (!Array.isArray(block.content)) {
+        return "[tool_result]";
+    }
+    return block.content
+        .map((inner) => (inner.type === "text" ? inner.text : `[${inner.type}]`))
+        .join("\n\n");
+}
+
+function extractBlockText(block) {
+    if (block.type === "text") {
+        return block.text;
+    }
+    if (block.type === "tool_result") {
+        return extractToolResultText(block);
+    }
+    if (block.type === "tool_use") {
+        return extractToolUseText(block);
+    }
+    return `[${block.type}]`;
+}
+
+// The human-readable text of one parsed JSONL record: message text and tool payloads with
+// real newlines, blocks joined by blank lines, unknown block kinds as one-line placeholders.
+// A non-JSON raw line is already readable and returns verbatim. undefined when the record
+// carries no message content (e.g. file-history snapshots) — the caller hides the toggle.
+export function extractReadableText(value) {
+    if (typeof value === "string") {
+        return value;
+    }
+    const content = value?.message?.content;
+    if (content === undefined) {
+        return undefined;
+    }
+    if (typeof content === "string") {
+        return content;
+    }
+    if (!Array.isArray(content)) {
+        return undefined;
+    }
+    return content.map((block) => extractBlockText(block)).join("\n\n");
+}
+
+// Whether the inspector body renders formatted text instead of highlighted JSON. Module-level
+// so the choice sticks across lines and re-opens for the browser session (same pattern as
+// diff-vs-base's diffDisplayMode). ponytail: session-only; localStorage if ever wanted.
+let inspectorShowsFormattedText = false;
+
 // The inspector pane's drawer chrome — collapse chevron + a fresh scrollable content column —
 // shown; returns the content column for the caller to fill.
 export function openInspectorPane() {
@@ -252,6 +321,23 @@ export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLin
                 toolButtons.push(el("button", { class: "row-btn", text: "Go to Tool Result", onclick: () => showLine(toolTargets.resultLine) }));
             }
         }
+        const readableText = extractReadableText(value);
+        if (readableText !== undefined) {
+            toolButtons.push(el("button", {
+                class: "row-btn",
+                text: inspectorShowsFormattedText ? "Show raw JSON" : "Show as formatted text",
+                onclick: () => {
+                    inspectorShowsFormattedText = !inspectorShowsFormattedText;
+                    showLine(clamped);
+                },
+            }));
+        }
+        let body;
+        if (inspectorShowsFormattedText && readableText !== undefined) {
+            body = el("pre", { class: "inspector-text", text: readableText });
+        } else {
+            body = renderHighlightedJson(JSON.stringify(value, null, 4), value, clamped, maps, showLine, filesTouched, openRevision);
+        }
         openInspectorPane().append(
             el("div", { class: "inspector-nav" }, [
                 el("button", { class: "row-btn", text: "◀ Prev", onclick: () => showLine(clamped - 1) }),
@@ -260,7 +346,7 @@ export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLin
                 ...toolButtons,
             ]),
             el("h2", { text: jsonlName }),
-            renderHighlightedJson(JSON.stringify(value, null, 4), value, clamped, maps, showLine, filesTouched, openRevision),
+            body,
         );
         if (onJumpToLine !== undefined) onJumpToLine(clamped);
     };
