@@ -96,6 +96,10 @@ export const S39_JSONL = findScenarioJsonl("s39-git-baseline-seed");
 export const S39_PROJECT_DIR: Path = new Path(resolveScenarioDir(SCENARIO_ROOTS, "s39-git-baseline-seed"));
 export const S39_JSONL_PATHS: Path[] = listScenarioJsonlPaths(S39_PROJECT_DIR);
 export const S40_JSONL = findScenarioJsonl("s40-git-baseline-user-edits");
+// s40 is multi-session (two interleaved transcripts); the timeline suite must build from BOTH, so it
+// exposes the dir + full path list like s84/s85, not just the single-transcript S40_JSONL above.
+export const S40_PROJECT_DIR: Path = new Path(resolveScenarioDir(SCENARIO_ROOTS, "s40-git-baseline-user-edits"));
+export const S40_JSONL_PATHS: Path[] = listScenarioJsonlPaths(S40_PROJECT_DIR);
 export const S41_JSONL = findScenarioJsonl("s41-git-baseline-mid-commit");
 export const S42_JSONL = findScenarioJsonl("s42-git-baseline-from-s38");
 export const S43_JSONL = findScenarioJsonl("s43-git-baseline-uncommitted-module");

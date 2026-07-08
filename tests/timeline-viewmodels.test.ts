@@ -22,13 +22,14 @@ import {
 import { buildProjectDocument, renderRangePatch } from "../src/viewer_api.ts";
 import { Path } from "../src/structures/domain.ts";
 import { RecordType, EventKind, GitOperationKind } from "../src/structures/vocabulary.ts";
-import { S2_JSONL, S45_JSONL, S84_JSONL_PATHS, S85_JSONL_PATHS } from "./fixtures.ts";
+import { S2_JSONL, S45_JSONL, S40_JSONL_PATHS, S84_JSONL_PATHS, S85_JSONL_PATHS } from "./fixtures.ts";
 
 // Built once per scenario — wire shape, shared read-only across tests.
 const s84Document = JSON.parse(JSON.stringify(buildProjectDocument(S84_JSONL_PATHS, undefined)));
 const s85Document = JSON.parse(JSON.stringify(buildProjectDocument(S85_JSONL_PATHS, undefined)));
 const s2Document = JSON.parse(JSON.stringify(buildProjectDocument([new Path(S2_JSONL)], undefined)));
 const s45Document = JSON.parse(JSON.stringify(buildProjectDocument([new Path(S45_JSONL)], undefined)));
+const s40Document = JSON.parse(JSON.stringify(buildProjectDocument(S40_JSONL_PATHS, undefined)));
 
 test("test_timeline_nodes_are_chronological_across_sessions", () => {
     // Scenario: a multi-agent project's nodes form ONE strictly chronological timeline, however
@@ -54,6 +55,46 @@ test("test_timeline_nodes_carry_session_ids", () => {
         agentNodes.map((node: { sessionId?: string }) => node.sessionId).filter((id: string | undefined) => id !== undefined),
     );
     assert.ok(distinct.size >= 2);
+});
+
+test("test_s40_agent_turns_are_all_attributed_to_a_session", () => {
+    // Scenario: every agent-turn node in the s40 timeline names the session whose
+    // records produced it — no user-edit evidence step collapses into an
+    // unattributed (sessionId === undefined) synthetic turn.
+    // Steps:
+    // build the turn timeline for s40's unified (two-session) document.
+    const { nodes } = buildTurnTimelineViewModel(s40Document);
+    // collect the agent-turn nodes.
+    const agentTurns = nodes.filter((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND);
+    // assert none of them has an undefined sessionId.
+    const unattributed = agentTurns.filter((node: { sessionId?: string }) => node.sessionId === undefined);
+    assert.equal(unattributed.length, 0);
+});
+
+test("test_s40_each_session_key_forms_one_contiguous_run", () => {
+    // Scenario: the s40 timeline lays each session out as ONE contiguous run of
+    // nodes, so the render emits each session header exactly once and the rail
+    // spine is unbroken. Walking nodes in order, the sequence of sessionId keys
+    // (an undefined key counts as its own key, exactly as the header/rail render
+    // keys off it) must have as many contiguous runs as there are distinct keys.
+    // Steps:
+    // build the turn timeline for s40's unified document.
+    const { nodes } = buildTurnTimelineViewModel(s40Document);
+    // reduce the node order to its sequence of session keys, then count contiguous
+    // runs (a run boundary is where the key changes from the previous node).
+    const sessionKeys = nodes.map((node: { sessionId?: string }) => node.sessionId ?? "undefined");
+    let contiguousRuns = 0;
+    let previousKey: string | undefined;
+    for (const key of sessionKeys) {
+        if (key !== previousKey) {
+            contiguousRuns += 1;
+            previousKey = key;
+        }
+    }
+    // assert the number of runs equals the number of distinct keys (each key
+    // appears in exactly one run — none is split by another).
+    const distinctKeyCount = new Set(sessionKeys).size;
+    assert.equal(contiguousRuns, distinctKeyCount);
 });
 
 test("test_timeline_includes_commit_nodes", () => {

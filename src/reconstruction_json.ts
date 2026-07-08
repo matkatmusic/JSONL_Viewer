@@ -20,6 +20,7 @@ import {
     type BranchedReconstruction,
 } from "./reconstruction_engine.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
+import { ORIGINAL_FILE_SEED_CHANGE_ID_PREFIX } from "./reconstruction_reseed.ts";
 import { findSessionId } from "./reconstruction_sidecar_reader.ts";
 import { reportReconstructionProgress } from "./reconstruction_progress.ts";
 
@@ -112,14 +113,19 @@ function convertSnapshotToFileMap(snapshot: RepoSnapshot, target: Path | undefin
     return files;
 }
 
-// A changeId(string) -> source sessionId index across every tool_use block, so a step's changeIds
-// can be attributed to the session whose tool call produced them. Synthetic changeIds (user-edit /
-// evidence splices) appear in no tool_use block and resolve to nothing.
+// A changeId(string) -> source sessionId index. Two id namespaces resolve here, so a step's changeIds
+// can be attributed to the session that evidenced them: every tool_use block's id, and every record's
+// own uuid (a user-edit evidence splice carries a file-history-snapshot RECORD uuid as its changeId —
+// s40 step 5). The namespaces are disjoint (toolu_… / cse_… vs RFC-4122), so adding record uuids never
+// shadows a tool_use id. Synthetic changeIds that match neither (e.g. a `<blob>@vN` ref) resolve to nothing.
 function indexChangeIdsToSessionIds(records: TranscriptRecord[]): Map<string, Uuid> {
     const byChangeId = new Map<string, Uuid>();
     for (const record of records) {
         if (record.sessionId === undefined) {
             continue;
+        }
+        if (record.uuid !== undefined) {
+            byChangeId.set(record.uuid.toString(), record.sessionId);
         }
         for (const block of getContentBlocks(record)) {
             if (block.type === BlockType.tool_use) {
@@ -128,6 +134,16 @@ function indexChangeIdsToSessionIds(records: TranscriptRecord[]): Map<string, Uu
         }
     }
     return byChangeId;
+}
+
+// Un-wrap a synthetic reseed changeId to the source id the index knows. An `originalFile` seed stamps
+// `originalFile:<real edit changeId>` (reconstruction_reseed); stripping the prefix exposes the real
+// tool_use id (s40 step 3). A plain changeId — real, or a record-uuid evidence splice — is returned as-is.
+function resolveSyntheticChangeIdToSourceId(changeId: string): string {
+    if (changeId.startsWith(ORIGINAL_FILE_SEED_CHANGE_ID_PREFIX)) {
+        return changeId.slice(ORIGINAL_FILE_SEED_CHANGE_ID_PREFIX.length);
+    }
+    return changeId;
 }
 
 // A changeId(string) -> final path(string) index across every reconstructed file, so a step's
@@ -168,7 +184,9 @@ export function buildStepSnapshots(
             changeIds,
             changedPaths,
             files: convertSnapshotToFileMap(snapshot, target),
-            sessionId: changeIds.map((id) => sessionOf.get(id.toString())).find((sessionId) => sessionId !== undefined),
+            sessionId: changeIds
+                .map((id) => sessionOf.get(resolveSyntheticChangeIdToSourceId(id.toString())))
+                .find((sessionId) => sessionId !== undefined),
         };
     });
 }

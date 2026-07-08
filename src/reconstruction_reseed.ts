@@ -81,6 +81,11 @@ function lastPriorTimeFor(target: Path, priorEvents: FileEvent[]): Date | undefi
 // append the reconstructed base missed (s40: the user's "# reviewed by ops" line). The changeId is
 // synthetic so the seed stays out of the graphs (spec 40); the timestamp is the edit's, which
 // seedBeforeEdit pulls to just before the edit when this seed is used.
+// The changeId prefix stamped onto an `originalFile` reseed Write (see originalFileSeedFor). Synthetic,
+// so the seed stays out of the graphs; exported so consumers that must UN-wrap it back to the real edit
+// changeId (reconstruction_json's session attribution) share this one literal.
+export const ORIGINAL_FILE_SEED_CHANGE_ID_PREFIX = "originalFile:";
+
 function originalFileSeedFor(event: EditEvent): WriteEvent | undefined {
     // `== null` catches both the absent field (scenarios) and a literal null (real Edit results record
     // originalFile as null when there is no pre-edit content); either way there is nothing to seed from,
@@ -90,7 +95,7 @@ function originalFileSeedFor(event: EditEvent): WriteEvent | undefined {
     }
     return {
         kind: EventKind.write,
-        changeId: new Uuid(`originalFile:${event.changeId}`),
+        changeId: new Uuid(`${ORIGINAL_FILE_SEED_CHANGE_ID_PREFIX}${event.changeId}`),
         target: event.target,
         content: event.originalFile,
         timestamp: event.timestamp,
