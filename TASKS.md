@@ -20,6 +20,11 @@ hard-stops; 467 tests / 466 pass / 1 pre-existing s85 failure is healthy baselin
 Scenario coverage 84/85 (s85 FAIL 3/10 — item 15 still open). New items 18–27 added.
 Handoffs and pre-today implementation-notes archived.
 
+Reviewed 2026-07-08: all 59 remaining unarchived implementation-notes plus the item-close
+writeups swept for open questions/unimplemented features. Two live UI-polish flags folded
+into item 10 (g, h); everything else already tracked, shipped, or frozen-island stale.
+All reviewed notes moved to `plans/archived/`.
+
 ## Done
 
 - [x] **1. Commit staged jfred-claude-scenarios submodule migration** — committed as `f5d43b5`.
@@ -69,7 +74,14 @@ Handoffs and pre-today implementation-notes archived.
   `webapp/views/timeline.js:47`; handoff-20260707-1805); (e) `@@ -a,b +c,d @@` hunk rows render
   visibly between diff hunks — hide if they read as noise? (implementation-notes-proud-gosling);
   (f) inline/side-by-side diff toggle is session-only — persist in localStorage, or per-surface
-  defaults (drawer inline, full view split)? (implementation-notes-proud-gosling).
+  defaults (drawer inline, full view split)? (implementation-notes-proud-gosling);
+  (g) inspector snapshot-drawer 50/50 split unverified visually — `.inspector-content`
+  (`webapp/styles.css:124`) may need `display: flex; flex-direction: column` for the
+  `max-height: 50%` panes to split correctly; eyeball s43 line 126
+  (implementation-notes-items14-23-26-33-close);
+  (h) `[View in File History]` button (`webapp/inspector.js:310`) renders unstyled inside the
+  JSON `<pre>` — needs dedicated CSS if it reads as plain text
+  (implementation-notes-items14-23-26-33-close).
 
 ## Approval-gated follow-ups (handoff 22:26)
 
