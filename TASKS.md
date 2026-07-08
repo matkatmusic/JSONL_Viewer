@@ -135,6 +135,6 @@ Handoffs and pre-today implementation-notes archived.
 - [ ] **27. Trailing-newline artifact** — 2 files show `recon=''` one line beyond reference EOF
   in item-15 pass-per-line coverage. Worth a follow-up to confirm it's a trailing-`\n` split
   artifact vs a real reconstruction bug (`implementation-notes-item15-pass-per-line.md:167`).
-- [ ] **28. 362 golden-value test failures** — remain from the coverage tool migration; need a
-  re-characterization pass or retirement in favor of the scenario coverage tool
-  (`implementation-notes-item8-multiedit.md`).
+- [x] **28. 362 golden-value test failures** — retired in favor of the scenario coverage tool
+  (85/85 scenarios fully reproduced as of 2026-07-08; zero references to golden-value tests
+  remain in the test suite).
