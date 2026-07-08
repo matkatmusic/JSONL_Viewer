@@ -49,8 +49,14 @@ Handoffs and pre-today implementation-notes archived.
   `UnmodeledFieldError`. Start by grepping real `~/.claude/projects` transcripts.
 - [ ] **7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** — `/Users/matkatmusicllc/Programming/jot`
   (separate repo); `grep -rn "windowSizeBlocks"`. Not a RevEng change.
-- [ ] **8. Investigate `scripts/coverage_sidecar.ts:43`** — "same @vN blobs have different content":
+- [x] **8. Investigate `scripts/coverage_sidecar.ts:43`** — "same @vN blobs have different content":
   real sidecar collision (data-loss risk) or stale note? Failing test if real.
+  **Closed 2026-07-08:** the collision is real and already solved. `coverage_sidecar.ts` is fully
+  commented out (RETIRED 2026-07-02, no importers); the live fix is owner-keyed blob reads —
+  `BackupReader` carries the owning `sessionId` (`src/reconstruction_sidecar.ts:16`, read sites
+  155/180/206) and `buildSidecarReader` reads the owner's dir first
+  (`src/reconstruction_sidecar_reader.ts:64-71`). Landed 2026-06-26 fixing multi-session
+  s56/s59/s64; scenario coverage 85/85 exercises it.
 - [ ] **10. Webapp UX smoothing pass** — open-ended; interview user for pain points first.
   Sub-items surfaced from handoffs: (a) inspector `«` rail button is a CSS pseudo-element,
   not keyboard-focusable; (b) text-selection drag over empty timeline background closes the
@@ -94,15 +100,23 @@ Handoffs and pre-today implementation-notes archived.
 - [ ] **19. 'Jump to File History Snapshot' button** — a per-revision button in the timeline
   (reminiscent of filter buttons from previous HTML viewer versions) that navigates to the
   file-history view anchored at that revision's snapshot.
-- [ ] **20. FileViewer: Diff vs Base — design polish** — `webapp/views/diff-vs-base.js` exists
+- [x] **20. FileViewer: Diff vs Base — design polish** — `webapp/views/diff-vs-base.js` exists
   (62 lines) but is self-described as "Debugging surface — plain, no polish (plan 3.7)".
   Needs a designed UI: revision selector, side-by-side vs unified toggle, proper styling.
+  **Closed 2026-07-08:** everything shipped in `b65d15c` — side-by-side default with inline
+  toggle, line-number gutters, 3 context lines — plus the revision selector with `/vsbase/<n>`
+  URL sync (already present). Stale "Debugging surface" header comment updated to match.
 - [ ] **21. "Snippet: Show as formatted text"** — raw-lines view (`webapp/views/raw-lines.js`)
   shows JSONL lines as raw JSON text. Add a mode/button that renders a selected line's content
   as formatted, readable text (e.g. "line 123 of 234 lines" context label + pretty-printed or
   human-readable content instead of raw JSON).
-- [ ] **22. Clear console when loading new session** — the xterm progress console retains output
+- [x] **22. Clear console when loading new session** — the xterm progress console retains output
   from the previous project/session load. Clear it on new navigation.
+  **Closed 2026-07-08:** `renderRoute` clears the console via `progressTerminal.clear()` when
+  navigation starts loading a different project (`checkNavigationStartsNewProjectLoad`,
+  `webapp/app.js`); same-project sub-route hops and the projects list keep the output; the
+  projects-folder switch resets tracking. Covered by 4 tests in
+  `tests/route-predicates.test.ts`.
 - [ ] **23. `fb2558d7813b8799@v2`-style blob changeIds stay unlinked**  — blobs whose prefix
   matches no changeId in the document get no xterm link. Needs a server-side blob→path map
   if linking is wanted (from `implementation-notes-implement-clickable-jsonl-lines.md`).
@@ -132,9 +146,18 @@ Handoffs and pre-today implementation-notes archived.
   detail parsing are covered by parser design only, not by a scenario fixture. Add expectation
   to `tests/git-operations.test.ts` if/when a git-branch scenario is recorded.
   (handoff-develop-20260707-1619)
-- [ ] **27. Trailing-newline artifact** — 2 files show `recon=''` one line beyond reference EOF
+- [x] **27. Trailing-newline artifact** — 2 files show `recon=''` one line beyond reference EOF
   in item-15 pass-per-line coverage. Worth a follow-up to confirm it's a trailing-`\n` split
   artifact vs a real reconstruction bug (`implementation-notes-item15-pass-per-line.md:167`).
+  **Closed 2026-07-08:** duplicate of completed roadmap item 14. Both evidence records are
+  Read tool_result dumps ending in a final numbered empty line (`…\n85\t` / `…\n498\t`) — the
+  "terminal Read phantom" fixed by `dropTrailingReadPhantom` (`api/numbered-entries.js`);
+  item-14 gates recorded both files going mismatched 1→0
+  (`plans/implementation-notes-item14-trailing-extent.md:64-65`). The
+  `tools/line-state-reports/*.json` reports are stale pre-fix outputs (2026-06-11), and the
+  follow-up note actually lives at `implementation-notes-per-line-state-sidecar-plan.md:166`,
+  predating the fix. The live engine is unaffected (its `splitLines` drops the trailing empty
+  element). No code change.
 - [x] **28. 362 golden-value test failures** — retired in favor of the scenario coverage tool
   (85/85 scenarios fully reproduced as of 2026-07-08; zero references to golden-value tests
   remain in the test suite).

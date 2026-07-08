@@ -384,6 +384,20 @@ async function renderSubRouteDrawer(project, segments) {
     await renderContent(openInspectorPane());
 }
 
+// The project whose load output currently fills the progress console; undefined before any
+// project load. Set by renderRoute, reset by the projects-folder switch.
+let lastLoadedProject;
+
+// True only when a navigation starts loading a project DIFFERENT from the one whose output
+// fills the console. Same-project sub-route hops and non-project routes keep the console
+// (TASKS item 22: clear on new project/session load, not on every navigation).
+export function checkNavigationStartsNewProjectLoad(previousProject, nextProject) {
+    if (nextProject === undefined) {
+        return false;
+    }
+    return nextProject !== previousProject;
+}
+
 async function renderRoute() {
     const view = document.getElementById("view");
     view.replaceChildren();
@@ -394,6 +408,16 @@ async function renderRoute() {
     inspector.replaceChildren();
     const drawer = document.getElementById("drawer");
     const segments = parseRouteSegments();
+    const nextProject = segments[0] === "project" ? segments[1] : undefined;
+    if (checkNavigationStartsNewProjectLoad(lastLoadedProject, nextProject)) {
+        // A different project's load is starting: the retained output belongs to the previous
+        // project, so clear before the first line of this load lands (TASKS item 22).
+        ensureProgressTerminal();
+        progressTerminal.clear();
+    }
+    if (nextProject !== undefined) {
+        lastLoadedProject = nextProject;
+    }
     // The project's default view is the revision timeline, not the summary landing pane. The
     // bare route is rewritten (replaceState: no history entry, no hashchange re-render) so the
     // consent dialog's re-render and reloads both land on the timeline route.
@@ -465,6 +489,8 @@ async function initializeHeader() {
         }
         documentCache.clear();
         rawLinesCache.clear();
+        // Every project is a fresh load from the new folder, even under an identical name.
+        lastLoadedProject = undefined;
         location.hash = "#/";
         renderRoute();
     });

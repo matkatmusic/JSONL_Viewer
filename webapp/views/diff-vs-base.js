@@ -1,5 +1,5 @@
 // Diff-vs-Base view (#/project/<name>/file/<path>/vsbase): the file's first revision against a
-// selected revision, +/- colored. Debugging surface — plain, no polish (plan 3.7).
+// selected revision. Side-by-side/inline toggle, revision selector with URL sync, line-number gutters.
 
 import {
     el,
