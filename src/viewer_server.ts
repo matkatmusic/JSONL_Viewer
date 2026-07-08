@@ -14,13 +14,14 @@ import {
     renderDiffVsBase,
     renderRangePatch,
     parseRangePatchQuery,
+    readBlobSnapshot,
     resolveProjectFile,
     getProjectsDir,
     setProjectsDir,
 } from "./viewer_api.ts";
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { DocumentResponseKind } from "./structures/vocabulary.ts";
-import { Path } from "./structures/domain.ts";
+import { Path, Uuid } from "./structures/domain.ts";
 
 const DEFAULT_PORT = 7343;
 const WEBAPP_DIR = resolve(import.meta.dirname, "..", "webapp");
@@ -232,6 +233,12 @@ function handleRequest(request: IncomingMessage, response: ServerResponse): void
             const jsonlPath = resolveProjectFile(
                 getProjectsDir(), requireParam(url.searchParams, "project"), requireParam(url.searchParams, "jsonl"));
             sendText(response, 200, readFileSync(jsonlPath.toString(), "utf8"));
+        } else if (url.pathname === "/api/blob") {
+            // Always 200 + { exists, content } — the client branches on `exists`; a malformed
+            // name throws into the outer catch (400) like every other trust-boundary refusal.
+            const session = new Uuid(requireParam(url.searchParams, "session"));
+            const name = new Path(requireParam(url.searchParams, "name"));
+            sendJson(response, 200, readBlobSnapshot(session, name));
         } else if (url.pathname === "/api/diff") {
             handleDiffRequest(response, url.searchParams);
         } else if (url.pathname === "/api/range-patch") {

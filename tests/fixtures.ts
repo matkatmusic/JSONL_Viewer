@@ -101,8 +101,16 @@ export const S40_JSONL = findScenarioJsonl("s40-git-baseline-user-edits");
 export const S40_PROJECT_DIR: Path = new Path(resolveScenarioDir(SCENARIO_ROOTS, "s40-git-baseline-user-edits"));
 export const S40_JSONL_PATHS: Path[] = listScenarioJsonlPaths(S40_PROJECT_DIR);
 export const S41_JSONL = findScenarioJsonl("s41-git-baseline-mid-commit");
+// s41 is multi-session (excluded baseline + mid-stream); the git-operations suite builds from BOTH
+// transcripts, so it exposes the dir + full path list like s39/s40.
+export const S41_PROJECT_DIR: Path = new Path(resolveScenarioDir(SCENARIO_ROOTS, "s41-git-baseline-mid-commit"));
+export const S41_JSONL_PATHS: Path[] = listScenarioJsonlPaths(S41_PROJECT_DIR);
 export const S42_JSONL = findScenarioJsonl("s42-git-baseline-from-s38");
 export const S43_JSONL = findScenarioJsonl("s43-git-baseline-uncommitted-module");
+// s43 is multi-session too; the blob-snapshot endpoint test scans BOTH transcripts for
+// file-history-snapshot records, so it exposes the dir + full path list.
+export const S43_PROJECT_DIR: Path = new Path(resolveScenarioDir(SCENARIO_ROOTS, "s43-git-baseline-uncommitted-module"));
+export const S43_JSONL_PATHS: Path[] = listScenarioJsonlPaths(S43_PROJECT_DIR);
 export const S44_JSONL = findScenarioJsonl("s44-git-baseline-then-rename");
 export const S45_JSONL = findScenarioJsonl("s45-rewind-abandoned-branch");
 

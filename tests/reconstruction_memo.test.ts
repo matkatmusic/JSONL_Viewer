@@ -8,7 +8,10 @@ import assert from "node:assert/strict";
 import { loadTranscript } from "../src/parse/loadTranscript.ts";
 import { selectBranchRecords, selectLiveBranch } from "../src/reconstruction_branch.ts";
 import { reconstructAll } from "../src/reconstruction_engine.ts";
-import { RecordType } from "../src/structures/vocabulary.ts";
+import { executeRunOnce } from "../src/reconstruction_script_stage.ts";
+import { findScriptExecutionRuns } from "../src/reconstruction_script_execution.ts";
+import type { BackupReader } from "../src/reconstruction_sidecar.ts";
+import { BlockType, RecordType, ToolName } from "../src/structures/vocabulary.ts";
 import { Uuid } from "../src/structures/domain.ts";
 import type { TranscriptRecord } from "../src/structures/envelope.ts";
 import {
@@ -88,4 +91,81 @@ test("test_reconstruction_memo_is_invalidated_when_the_exec_gate_flips", () => {
     } finally {
         setImpureExecutionAllowed(true);
     }
+});
+
+// A synthetic assistant record carrying one tool_use of `name` with `input`, at `timestamp`
+// (mirrors the setup in tests/reconstruction_script_stage.test.ts).
+function buildToolRecord(name: ToolName, input: Record<string, unknown>, timestamp: string): TranscriptRecord {
+    return {
+        type: RecordType.assistant,
+        timestamp: new Date(timestamp),
+        message: { content: [{ type: BlockType.tool_use, id: "toolu_x", name, input, caller: { type: "direct" } }] },
+    } as unknown as TranscriptRecord;
+}
+
+// A Write plus a script run over it — enough records for findScriptExecutionRuns to yield one run.
+function buildScriptRunRecords(): TranscriptRecord[] {
+    const renameScript = 'text = open("core_one.py").read()\n'
+        + 'open("core_one.py", "w").write(text.replace("f_one", "alpha"))\n';
+    return [
+        buildToolRecord(ToolName.Write, { file_path: "/proj/core_one.py", content: "def f_one(): pass\n" }, "2026-01-01T00:00:01Z"),
+        buildToolRecord(ToolName.CtxExecute, { cwd: "/proj", code: renameScript }, "2026-01-01T00:00:02Z"),
+    ];
+}
+
+// A reader with no backups to offer — every pre-state seed comes from the authored Writes.
+const emptyReader: BackupReader = () => "";
+
+test("test_execution_memo_is_invalidated_when_the_exec_gate_flips", () => {
+    // Scenario: a consented build's sandbox results must not be served into a declined rebuild
+    // of the same records array (and vice versa) — the executions memo joins the same
+    // reader/exec-gate validity rule as the history and lineage-seed memos.
+    assert.equal(isImpureExecutionAllowed(), true);
+    const records = buildScriptRunRecords();
+    const run = findScriptExecutionRuns(records)[0]!;
+    const gateOn = executeRunOnce(run, records, emptyReader);
+    try {
+        setImpureExecutionAllowed(false);
+        const gateOff = executeRunOnce(run, records, emptyReader);
+        assert.notEqual(gateOff, gateOn);
+    } finally {
+        setImpureExecutionAllowed(true);
+    }
+});
+
+test("test_execution_memo_is_reused_for_the_same_records_and_reader", () => {
+    // Scenario: with the same records array, the same reader, and an unchanged gate, the second
+    // call must return the SAME RunExecution instance — the memo still hits (each sandbox run
+    // costs ~100ms; the document build multiplies call sites).
+    const records = buildScriptRunRecords();
+    const run = findScriptExecutionRuns(records)[0]!;
+    const first = executeRunOnce(run, records, emptyReader);
+    const second = executeRunOnce(run, records, emptyReader);
+    assert.equal(second, first);
+});
+
+test("test_branch_selections_survive_an_exec_gate_flip", () => {
+    // Scenario: branch selections are pure functions of the records alone — the exec gate must
+    // NOT invalidate them (pins the corpus's two-group validity split: records-pure selections
+    // vs reader/gate-validated derived caches).
+    const records = loadTranscript(S19_JSONL);
+    const before = selectLiveBranch(records);
+    try {
+        setImpureExecutionAllowed(false);
+        assert.equal(selectLiveBranch(records), before);
+    } finally {
+        setImpureExecutionAllowed(true);
+    }
+});
+
+test("test_derived_caches_are_invalidated_when_the_reader_identity_changes", () => {
+    // Scenario: two distinct reader closures — even behaviorally identical ones — must not share
+    // memoized histories: the derived-cache group is keyed on the reader's IDENTITY.
+    const records = loadTranscript(S19_JSONL);
+    const readerA: BackupReader = () => "";
+    const readerB: BackupReader = () => "";
+    const withReaderA = reconstructAll(records, readerA);
+    const withReaderB = reconstructAll(records, readerB);
+    assert.ok(withReaderA.length > 0);
+    assert.notEqual(withReaderB[0]!.revisions, withReaderA[0]!.revisions);
 });

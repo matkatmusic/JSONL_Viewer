@@ -140,9 +140,18 @@ Handoffs and pre-today implementation-notes archived.
   `webapp/app.js`); same-project sub-route hops and the projects list keep the output; the
   projects-folder switch resets tracking. Covered by 4 tests in
   `tests/route-predicates.test.ts`.
-- [ ] **23. `fb2558d7813b8799@v2`-style blob changeIds stay unlinked**  — blobs whose prefix
+- [x] **23. `fb2558d7813b8799@v2`-style blob changeIds stay unlinked**  — blobs whose prefix
   matches no changeId in the document get no xterm link. Needs a server-side blob→path map
   if linking is wanted (from `implementation-notes-implement-clickable-jsonl-lines.md`).
+  **Closed 2026-07-08:** re-scoped with the user to the Details view (the JSON inspector) —
+  the dead tokens were `backupFileName` values whose file's revisions carry record-UUID
+  changeIds, not blob names (s43's `tests/test_inventory.py` is the live demo, line 126).
+  Now every `backupFileName` in a snapshot record resolves against disk via `GET /api/blob`
+  (`readBlobSnapshot` in `src/viewer_api.ts`, owner-session dir only): on-disk blobs render
+  as "view snapshot" links opening a bottom drawer (JSON above, verbatim blob content below)
+  plus a `[View in File History]` button anchored by `backupTime`; missing blobs get a dimmed
+  "(missing from disk)" suffix. No blob→path map was needed — the snapshot record itself maps
+  path → blob. Tests in `tests/viewer-api.test.ts` + `tests/inspector-viewmodels.test.ts`.
 
 ## Decision needed
 
@@ -150,11 +159,21 @@ Handoffs and pre-today implementation-notes archived.
   header still promises "Phase B makes `kept[]` the engine's sole input"; no consumer exists and
   85/85 was reached via the old path (handoff-api-from-scenarios-20260626-1152). Either finish the
   refactor or retire the plan and fix the stale header.
-- [ ] **14. ReconstructionCorpus (Fix 2) — still worth building?** — from handoff 22:32. The corpus
+- [x] **14. ReconstructionCorpus (Fix 2) — still worth building?** — from handoff 22:32. The corpus
   facade targeted duplication that `f6d2852` has since mostly eliminated (186→38 spawns, 0.03s warm),
   and the recorded scope decision rejected document-shape changes. Decide with user whether the
   architectural consolidation is still justified or the remaining lever is just item 11.
   Check `git show f6d2852 b79cf1b` + `src/cache_lru.ts` before any design work.
+  **Closed 2026-07-08 (built, user-decided):** per-build cache state consolidated into
+  `src/reconstruction_corpus.ts` — `CorpusState` holds records-pure branch selections plus
+  reader/exec-gate-validated derived caches (histories, lineage seeds, executions), replacing
+  the five identity-keyed WeakMaps in `reconstruction_branch.ts` / `reconstruction_branches.ts`
+  / `reconstruction_script_stage.ts` (old declarations commented with an item-14 marker).
+  Public functions, compute pipelines, cycle guards, the content-addressed sandbox memo, and
+  the viewer LRUs are unchanged; no facade/forwarding layer (handoff-2232's `historiesFor(...)`
+  facade shape deliberately not built). Bonus fix: `executeRunOnce`'s memo now invalidates on
+  reader-identity/exec-gate changes like its siblings (previously unchecked). +4 tests in
+  `tests/reconstruction_memo.test.ts`; 6 existing memo invariants untouched.
 
 ## Minor open items from implementation-notes / handoffs (2026-07-07)
 
@@ -174,10 +193,19 @@ Handoffs and pre-today implementation-notes archived.
   documented engine data gap; the turn is real and correctly pickable. A real fix
   (deterministic synthetic changeIds shared by both replays) is a design decision — raise as
   a new item if wanted.
-- [ ] **26. `git branch` scenario fixture missing** — `GitOperationKind.branch` rendering and
+- [x] **26. `git branch` scenario fixture missing** — `GitOperationKind.branch` rendering and
   detail parsing are covered by parser design only, not by a scenario fixture. Add expectation
   to `tests/git-operations.test.ts` if/when a git-branch scenario is recorded.
   (handoff-develop-20260707-1619)
+  **Closed 2026-07-08:** the regenerated s41 capture (run 20260708-105945) records
+  `git checkout -b feature` in its baseline session; pinned in
+  `tests/git-operations.test.ts::test_s41_two_session_git_operations_include_branch_creation`
+  via the new `S41_JSONL_PATHS` fixture (sequence captured live before writing the test:
+  init, add, commit "baseline", checkout "feature", add, commit "wip"). Note: branch creation
+  was captured as the `checkout` subcommand, so `GitOperationKind.checkout` is what gains
+  fixture coverage; `GitOperationKind.branch` shares the identical detail parser
+  (`findFirstNonFlagArgument`, `src/reconstruction_git_evidence.ts:141-146`) and the literal
+  `git branch` subcommand remains parser-design-only.
 - [x] **27. Trailing-newline artifact** — 2 files show `recon=''` one line beyond reference EOF
   in item-15 pass-per-line coverage. Worth a follow-up to confirm it's a trailing-`\n` split
   artifact vs a real reconstruction bug (`implementation-notes-item15-pass-per-line.md:167`).
@@ -235,10 +263,14 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
 
 ## Decision needed (2026-07-08)
 
-- [ ] **33. Filter command-message prompts from the timeline?** — s39 renders 13 steps vs the
+- [x] **33. Filter command-message prompts from the timeline?** — s39 renders 13 steps vs the
   sketch's 7 partly because `/ponytail`-style command prompts and their ack replies each get a
   numbered step (4 extra turns across 2 sessions). Filter them out, or keep as steps?
   (implementation-notes-turn-based-timeline-steps)
+  **Closed 2026-07-08 (decided — keep):** command-message prompts and their ack replies stay
+  as numbered steps, rendered dimmed via `checkMessageTextIsSystem`
+  (`webapp/views/timeline.js:441`). Filtering them out would renumber steps and hide real
+  turns. No code change.
 - [ ] **34. Deterministic synthetic changeIds** — the real fix for item 25's zero-chip turns:
   derive script-execution changeIds from target + run timestamp so the step timeline and
   file-history replays agree, instead of per-replay `randomUUID()`

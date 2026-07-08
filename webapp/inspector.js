@@ -6,7 +6,7 @@
 // to the linked line (a uuid jumps to the record it names; a tool id jumps to its use/result
 // counterpart). Navigation also notifies the calling view so it can scroll/highlight along.
 
-import { el, parseRouteSegments, peekCachedDocument, routeToFileHistory } from "./app.js";
+import { el, fetchJson, parseRouteSegments, peekCachedDocument, routeToFileHistory } from "./app.js";
 import { findRevisionForChangeId } from "./views/file-history.js";
 
 // The legacy viewer's token pattern: strings (key vs value by trailing colon), booleans,
@@ -75,21 +75,74 @@ function findJumpTarget(value, currentLine, maps) {
     return line !== undefined && line !== currentLine ? line : undefined;
 }
 
-// The backupTime of the snapshot entry whose backupFileName is `blobName`, or undefined when
-// the record is no file-history snapshot or tracks no such backup. That time dates the file
-// state the backup captured, so it resolves a blob version to a revision.
-export function findBackupTimeForBlob(record, blobName) {
+// The snapshot entry whose backupFileName is `blobName`, as { relativePath, backupTime } —
+// the trackedFileBackups KEY is the tracked file's relative path, and the backupTime dates the
+// file state the backup captured. undefined when the record is no file-history snapshot or
+// tracks no such backup.
+export function findTrackedBackupEntry(record, blobName) {
     const backups = record?.snapshot?.trackedFileBackups;
     if (backups === undefined) {
         return undefined;
     }
-    for (const entry of Object.values(backups)) {
+    for (const [relativePath, entry] of Object.entries(backups)) {
         if (entry.backupFileName === blobName) {
-            return entry.backupTime;
+            return { relativePath, backupTime: entry.backupTime };
         }
     }
     return undefined;
 }
+
+// The backupTime of the snapshot entry whose backupFileName is `blobName`, or undefined when
+// the record is no file-history snapshot or tracks no such backup. That time dates the file
+// state the backup captured, so it resolves a blob version to a revision.
+export function findBackupTimeForBlob(record, blobName) {
+    return findTrackedBackupEntry(record, blobName)?.backupTime;
+    // (item 23) body moved into findTrackedBackupEntry, which also surfaces the tracked path:
+    // const backups = record?.snapshot?.trackedFileBackups;
+    // if (backups === undefined) {
+    //     return undefined;
+    // }
+    // for (const entry of Object.values(backups)) {
+    //     if (entry.backupFileName === blobName) {
+    //         return entry.backupTime;
+    //     }
+    // }
+    // return undefined;
+}
+
+// The file-history anchor for a tracked backup: the document file whose target IS the tracked
+// relative path (or ends with "/" + it), numbered at the last revision at or before the
+// backupTime (ISO strings compare correctly — the computeContentAtTime convention), with
+// revisionNumber undefined when the backup predates every revision. undefined when no
+// reconstructed file matches (the caller omits its button).
+export function computeSnapshotHistoryAnchor(filesTouched, relativePath, backupTime) {
+    const history = filesTouched.find(
+        (entry) => entry.target === relativePath || entry.target.endsWith(`/${relativePath}`),
+    );
+    if (history === undefined) {
+        return undefined;
+    }
+    let revisionNumber;
+    history.revisions.forEach((revision, index) => {
+        if (backupTime !== undefined && revision.timestamp <= backupTime) {
+            revisionNumber = index + 1;
+        }
+    });
+    return { target: history.target, revisionNumber };
+}
+
+// The /api/blob request URL for one (owning session, blob name) pair.
+export function computeBlobRequestUrl(sessionId, blobName) {
+    return `/api/blob?session=${encodeURIComponent(sessionId)}&name=${encodeURIComponent(blobName)}`;
+}
+
+// Whether each probed blob is on disk, keyed "<session>|<blobName>" — fetched once per
+// browser session (a blob file never changes once written).
+const blobPresenceByKey = new Map();
+
+// Bumped at every showLine render; a settled presence probe re-renders ONLY when the pane
+// still shows the line it probed for (its captured count is still the current one).
+let showLineRenderCount = 0;
 
 // The file-history route a resolved revision link navigates to: anchored at /rev/<n> when the
 // link names one revision, the file's plain history otherwise.
@@ -213,6 +266,8 @@ export function openInspectorPane() {
     const pane = document.getElementById("inspector");
     // The 50%-width file-preview modifier is opt-in per open; callers wanting it re-add it.
     pane.classList.remove("file-preview-drawer");
+    // Same for the snapshot-drawer split: a fresh open starts without the bottom drawer.
+    pane.classList.remove("snapshot-drawer");
     const content = el("div", { class: "inspector-content" });
     pane.replaceChildren(
         el("button", { class: "row-btn inspector-close", text: "»", title: "Collapse inspector", onclick: () => pane.classList.add("hidden") }),
@@ -228,9 +283,42 @@ function findCurrentProject() {
     return segments[0] === "project" ? segments[1] : undefined;
 }
 
+// A backupFileName token of the CURRENT record, rendered by on-disk presence: a "view
+// snapshot" link + [View in File History] button when the blob exists, a dimmed
+// "(missing from disk)" suffix when it does not, a plain token while the probe is in flight.
+// This treatment replaces the generic revision-link behavior for these tokens.
+function appendSnapshotToken(pre, tokenClass, token, value, entry, filesTouched, snapshotContext) {
+    const presence = snapshotContext.presenceByKey.get(`${snapshotContext.sessionId}|${value}`);
+    if (presence !== true) {
+        pre.append(el("span", { class: tokenClass, text: token }));
+        if (presence === false) {
+            pre.append(el("span", { class: "muted", text: " (missing from disk)" }));
+        }
+        return;
+    }
+    pre.append(el("span", {
+        class: `${tokenClass} jump-link`,
+        title: "view snapshot",
+        onclick: () => snapshotContext.openSnapshotDrawer(value, entry),
+        text: token,
+    }));
+    // The button is decided at render time: no resolvable anchor, no button.
+    const anchor = computeSnapshotHistoryAnchor(filesTouched, entry.relativePath, entry.backupTime);
+    if (anchor !== undefined) {
+        pre.append(el("button", {
+            class: "row-btn",
+            text: "View in File History",
+            onclick: () => {
+                location.hash = computeRevisionLinkRoute(snapshotContext.project, anchor);
+            },
+        }));
+    }
+}
+
 // Pretty JSON text -> a <pre> of text nodes and highlight spans; linkable string values
 // become clickable jump-links.
-function renderHighlightedJson(prettyText, record, currentLine, maps, showLine, filesTouched, openRevision) {
+// (item 23) old signature: function renderHighlightedJson(prettyText, record, currentLine, maps, showLine, filesTouched, openRevision) {
+function renderHighlightedJson(prettyText, record, currentLine, maps, showLine, filesTouched, openRevision, snapshotContext) {
     const pre = el("pre", { class: "inspector-json" });
     let lastIndex = 0;
     for (const match of prettyText.matchAll(JSON_TOKEN_PATTERN)) {
@@ -244,6 +332,14 @@ function renderHighlightedJson(prettyText, record, currentLine, maps, showLine, 
         if (tokenClass === "json-string") {
             try {
                 const value = JSON.parse(token);
+                // A backupFileName the CURRENT record tracks gets the snapshot treatment
+                // instead of the generic revision link.
+                const trackedEntry = snapshotContext === undefined ? undefined : findTrackedBackupEntry(record, value);
+                if (trackedEntry !== undefined) {
+                    appendSnapshotToken(pre, tokenClass, token, value, trackedEntry, filesTouched, snapshotContext);
+                    lastIndex = match.index + token.length;
+                    continue;
+                }
                 jumpTarget = findJumpTarget(value, currentLine, maps);
                 if (jumpTarget === undefined) {
                     // A value that IS a revision changeId (e.g. a backupFileName blob name)
@@ -304,13 +400,66 @@ export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLin
     const openRevision = (revisionLink) => {
         location.hash = computeRevisionLinkRoute(project, revisionLink);
     };
+    // The shown transcript's session id, by the timeline's file-naming convention: the JSONL
+    // is named "<sessionId>.jsonl". Blob presence probes and snapshot reads are owner-keyed
+    // on it (a blob name only means something under its owning session's dir).
+    const sessionId = jsonlName.replace(/\.jsonl$/, "");
+    // Raise (or refill) the bottom snapshot drawer with one blob's verbatim content, splitting
+    // the Details pane: JSON above, blob below.
+    const openSnapshotDrawer = async (blobName, entry) => {
+        const result = await fetchJson(computeBlobRequestUrl(sessionId, blobName));
+        const pane = document.getElementById("inspector");
+        const content = pane.querySelector(".inspector-content");
+        if (content === null) {
+            return;
+        }
+        // Re-clicking a link while a drawer is open replaces the drawer's contents.
+        pane.querySelector(".snapshot-pane")?.remove();
+        pane.classList.add("snapshot-drawer");
+        const drawer = el("div", { class: "snapshot-pane" }, [
+            el("div", { class: "snapshot-pane-header" }, [
+                el("span", { class: "muted", text: `${entry.relativePath} — ${blobName}` }),
+                el("button", {
+                    class: "row-btn",
+                    text: "Close",
+                    onclick: () => {
+                        drawer.remove();
+                        pane.classList.remove("snapshot-drawer");
+                    },
+                }),
+            ]),
+            el("pre", { class: "inspector-text", text: result.content ?? "" }),
+        ]);
+        content.append(drawer);
+    };
     const showLine = (index) => {
         const clamped = Math.min(Math.max(index, 0), rawLines.length - 1);
+        showLineRenderCount += 1;
+        const renderCountAtStart = showLineRenderCount;
         let value;
         try {
             value = JSON.parse(rawLines[clamped]);
         } catch {
             value = rawLines[clamped];
+        }
+        // Probe the on-disk presence of this record's tracked backups (unknowns only), then
+        // re-render the SAME line once every probe settles — progressive enhancement: the
+        // first paint shows those tokens plain, never a flicker loop.
+        const trackedBackups = value?.snapshot?.trackedFileBackups;
+        if (trackedBackups !== undefined) {
+            const unprobedNames = Object.values(trackedBackups)
+                .map((entry) => entry.backupFileName)
+                .filter((name) => name !== undefined && !blobPresenceByKey.has(`${sessionId}|${name}`));
+            if (unprobedNames.length > 0) {
+                Promise.all(unprobedNames.map(async (name) => {
+                    const probed = await fetchJson(computeBlobRequestUrl(sessionId, name));
+                    blobPresenceByKey.set(`${sessionId}|${name}`, probed.exists);
+                })).then(() => {
+                    if (showLineRenderCount === renderCountAtStart) {
+                        showLine(clamped);
+                    }
+                }).catch(() => { /* a failed probe leaves presence unknown — tokens stay plain */ });
+            }
         }
         // Tool-flow jumps (shown only on assistant tool_use lines): hook + result of THIS call.
         const toolTargets = findToolNavigationTargets(rawLines, value);
@@ -338,7 +487,11 @@ export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLin
         if (inspectorShowsFormattedText && readableText !== undefined) {
             body = el("pre", { class: "inspector-text", text: readableText });
         } else {
-            body = renderHighlightedJson(JSON.stringify(value, null, 4), value, clamped, maps, showLine, filesTouched, openRevision);
+            // (item 23) old call: body = renderHighlightedJson(JSON.stringify(value, null, 4), value, clamped, maps, showLine, filesTouched, openRevision);
+            body = renderHighlightedJson(
+                JSON.stringify(value, null, 4), value, clamped, maps, showLine, filesTouched, openRevision,
+                { sessionId, presenceByKey: blobPresenceByKey, project, openSnapshotDrawer },
+            );
         }
         openInspectorPane().append(
             el("div", { class: "inspector-nav" }, [

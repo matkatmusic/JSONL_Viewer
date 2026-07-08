@@ -2,7 +2,7 @@
 // one-or-many JSONLs, decide when script-execution consent is needed, and render the two diff
 // views. Pure functions over the existing engine — the HTTP wiring lives in viewer_server.ts.
 
-import { readdirSync, realpathSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import { formatRecordSourceToken, getRecordSource, loadTranscript, type ProgressSink } from "./parse/loadTranscript.ts";
@@ -11,14 +11,14 @@ import {
     type ReconstructionDocument,
 } from "./reconstruction_json.ts";
 import { reconstructBranches, type FileHistory } from "./reconstruction_engine.ts";
-import { buildSidecarReader } from "./reconstruction_sidecar_reader.ts";
+import { buildSidecarReader, getDefaultFileHistoryRoot } from "./reconstruction_sidecar_reader.ts";
 import { findScriptExecutionRuns, type ScriptRun } from "./reconstruction_script_execution.ts";
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { setReconstructionProgressSink } from "./reconstruction_progress.ts";
 import { getCachedValueRefreshingRecency, evictLeastRecentlyUsedEntries } from "./cache_lru.ts";
 import { renderDiffWithContext, renderGitFileDiff } from "./reconstruction_render.ts";
 import { DocumentResponseKind } from "./structures/vocabulary.ts";
-import { Path } from "./structures/domain.ts";
+import { Path, Uuid } from "./structures/domain.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 
 export type JsonlFileEntry = {
@@ -264,6 +264,30 @@ export function resolveProjectFile(projectsDir: Path, projectName: string, fileN
         throw new Error(`refusing to resolve outside the projects dir: ${projectName}/${fileName}`);
     }
     return new Path(resolved);
+}
+
+// The exact shapes a blob-snapshot read accepts — both values reach a filesystem join, so this
+// is a trust boundary: a blob name is `<16 hex>@vN` and a session id is hex-and-dashes only.
+// Neither pattern admits `/`, `\`, or `.`, so traversal is impossible.
+const BLOB_NAME_PATTERN = /^[0-9a-f]{16}@v\d+$/;
+const SESSION_ID_PATTERN = /^[0-9a-fA-F-]+$/;
+
+// One file-history blob for the inspector's snapshot drawer: whether
+// <file-history root>/<sessionId>/<blobName> exists, and its verbatim content when it does.
+// Owner-session dir ONLY — no cross-session fallback (owner-keyed reads are the multi-session
+// @vN collision fix; probing other sessions' dirs would reintroduce wrong-content risk).
+export function readBlobSnapshot(sessionId: Uuid, blobName: Path): { exists: boolean; content: string | undefined } {
+    if (!BLOB_NAME_PATTERN.test(blobName.toString())) {
+        throw new Error(`not a backup blob name: ${blobName.toString()}`);
+    }
+    if (!SESSION_ID_PATTERN.test(sessionId.toString())) {
+        throw new Error(`not a session id: ${sessionId.toString()}`);
+    }
+    const blobPath = join(getDefaultFileHistoryRoot().toString(), sessionId.toString(), blobName.toString());
+    if (!existsSync(blobPath)) {
+        return { exists: false, content: undefined };
+    }
+    return { exists: true, content: readFileSync(blobPath, "utf8") };
 }
 
 // The document's reconstructed history for one file, or a loud error naming the path.

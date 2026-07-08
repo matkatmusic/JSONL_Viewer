@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { buildProjectDocument } from "../src/viewer_api.ts";
 import { Path, Uuid } from "../src/structures/domain.ts";
 import { GitOperationKind } from "../src/structures/vocabulary.ts";
-import { S19_JSONL, S39_JSONL_PATHS, S85_JSONL_PATHS } from "./fixtures.ts";
+import { S19_JSONL, S39_JSONL_PATHS, S41_JSONL_PATHS, S85_JSONL_PATHS } from "./fixtures.ts";
 
 test("test_s39_git_operations_are_init_then_add", () => {
     // Scenario: s39's two-session transcript records exactly two git Bash commands — `git init`
@@ -72,6 +72,44 @@ test("test_s85_commit_operations_carry_their_messages", () => {
     assert.deepEqual(
         adds.map((operation) => operation.detail),
         ["one.py two.py three.py", ""],
+    );
+});
+
+test("test_s41_two_session_git_operations_include_branch_creation", () => {
+    // Scenario: s41's baseline session runs init → add → commit "baseline" → `git checkout -b
+    // feature` (the first captured branch-creation command in any scenario); the mid-stream
+    // session runs add → commit "wip". The two-session document must extract all six in
+    // chronological record order, and the checkout must carry the new branch name as its
+    // detail. (Sequence pinned from a live capture of this document, 2026-07-08.)
+    // Steps:
+    // build the two-session s41 document.
+    const document = buildProjectDocument(S41_JSONL_PATHS, undefined);
+    // assert the full kind sequence in record order.
+    assert.deepEqual(
+        document.gitOperations.map((operation) => operation.kind),
+        [
+            GitOperationKind.init,
+            GitOperationKind.add,
+            GitOperationKind.commit,
+            GitOperationKind.checkout,
+            GitOperationKind.add,
+            GitOperationKind.commit,
+        ],
+    );
+    // assert the branch creation is the checkout subcommand carrying the branch name — its
+    // detail parser (findFirstNonFlagArgument) skips the `-b` flag.
+    const checkouts = document.gitOperations.filter(
+        (operation) => operation.kind === GitOperationKind.checkout,
+    );
+    assert.equal(checkouts.length, 1);
+    assert.equal(checkouts[0]!.detail, "feature");
+    assert.equal(checkouts[0]!.command, "git checkout -b feature");
+    // assert the commit details are the two -m messages in order.
+    assert.deepEqual(
+        document.gitOperations
+            .filter((operation) => operation.kind === GitOperationKind.commit)
+            .map((operation) => operation.detail),
+        ["baseline", "wip"],
     );
 });
 

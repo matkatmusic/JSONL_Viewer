@@ -4,6 +4,7 @@
 
 import { randomUUID } from "node:crypto";
 import { isImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
+import { getDerivedCaches } from "./reconstruction_corpus.ts";
 import { EventKind } from "./structures/vocabulary.ts";
 import { Path, Uuid } from "./structures/domain.ts";
 import { resolveAgainstCwd } from "./structures/path-resolve.ts";
@@ -25,9 +26,12 @@ import {
 import type { FileEvent, UserEditEvent } from "./reconstruction_engine.ts";
 
 // One execution per distinct run per records array: pre-state build + sandbox run, memoized —
-// Phases 3–4 multiply call sites and each sandbox run costs ~100ms.
-type RunExecution = { pre: Map<string, string>; post: Map<string, string> | undefined };
-const executionsByRecords = new WeakMap<TranscriptRecord[], Map<string, RunExecution>>();
+// Phases 3–4 multiply call sites and each sandbox run costs ~100ms. The memo lives in the
+// corpus's derived-cache group, so it is invalidated with its siblings when the reader identity
+// or the exec-gate flag changes.
+export type RunExecution = { pre: Map<string, string>; post: Map<string, string> | undefined };
+// corpus: moved to reconstruction_corpus.ts (item 14)
+// const executionsByRecords = new WeakMap<TranscriptRecord[], Map<string, RunExecution>>();
 
 // The truncation instant of the innermost lineage replay in progress. A seeded replay's result
 // is cut by lastRevisionStrictlyBefore(revisions, cutoff), so runs at/after the cutoff can only
@@ -68,11 +72,13 @@ export function executeRunOnce(
     reader: BackupReader,
     seedContent?: LineageContentBefore,
 ): RunExecution {
-    let byRun = executionsByRecords.get(records);
-    if (byRun === undefined) {
-        byRun = new Map<string, RunExecution>();
-        executionsByRecords.set(records, byRun);
-    }
+    // corpus: moved to reconstruction_corpus.ts (item 14)
+    // let byRun = executionsByRecords.get(records);
+    // if (byRun === undefined) {
+    //     byRun = new Map<string, RunExecution>();
+    //     executionsByRecords.set(records, byRun);
+    // }
+    const byRun = getDerivedCaches(records, reader).executionsByRun;
     const key = `${run.timestamp.getTime()}|${run.code}`;
     const cached = byRun.get(key);
     if (cached !== undefined) return cached;

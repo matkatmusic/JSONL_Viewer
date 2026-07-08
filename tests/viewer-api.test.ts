@@ -4,14 +4,15 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, utimesSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, utimesSync } from "node:fs";
+import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
 import {
     scanProjects,
     buildProjectDocument,
     decideDocumentResponse,
     buildDocumentWithConsent,
+    readBlobSnapshot,
     renderRevisionDiff,
     renderDiffVsBase,
     resolveProjectFile,
@@ -20,12 +21,13 @@ import {
     ROOT_PROJECT_NAME,
 } from "../src/viewer_api.ts";
 import { isImpureExecutionAllowed, setImpureExecutionAllowed } from "../src/reconstruction_exec_gate.ts";
+import { getDefaultFileHistoryRoot } from "../src/reconstruction_sidecar_reader.ts";
 import { runCli } from "../src/reconstruction_cli.ts";
 import { BlockType, DocumentResponseKind, EventKind, RecordType, ToolName } from "../src/structures/vocabulary.ts";
-import { Path } from "../src/structures/domain.ts";
+import { Path, Uuid } from "../src/structures/domain.ts";
 import type { TranscriptRecord } from "../src/structures/envelope.ts";
 import { jsonlPathsForScenario, loadRecords } from "./utilities.ts";
-import { S19_JSONL, S37_JSONL } from "./fixtures.ts";
+import { S19_JSONL, S37_JSONL, S43_JSONL_PATHS } from "./fixtures.ts";
 
 // -------------------- 2.2 scanProjects --------------------
 
@@ -280,6 +282,68 @@ test("test_resolveProjectFile_resolves_root_project_files", () => {
     } finally {
         rmSync(projectsDir, { recursive: true, force: true });
     }
+});
+
+// -------------------- 2.8 blob-snapshot reads (trust boundary) --------------------
+
+// A live (owning session, blob name) pair derived from the s43 capture: scan each transcript's
+// file-history-snapshot records for trackedFileBackups entries and return the first whose blob
+// file exists under the real ~/.claude/file-history root (reader-dependent, like the sidecar
+// tests — there is no root override in this repo). undefined when none is on disk.
+function findExistingS43Backup(): { session: Uuid; blobName: Path } | undefined {
+    const root = getDefaultFileHistoryRoot().toString();
+    for (const jsonlPath of S43_JSONL_PATHS) {
+        const session = basename(jsonlPath.toString(), ".jsonl");
+        for (const line of readFileSync(jsonlPath.toString(), "utf8").split("\n")) {
+            if (!line.includes("file-history-snapshot")) {
+                continue;
+            }
+            let parsed: { snapshot?: { trackedFileBackups?: Record<string, { backupFileName?: string }> } };
+            try {
+                parsed = JSON.parse(line);
+            } catch {
+                continue;
+            }
+            const backups = parsed.snapshot?.trackedFileBackups;
+            if (backups === undefined) {
+                continue;
+            }
+            for (const entry of Object.values(backups)) {
+                if (entry.backupFileName !== undefined && existsSync(join(root, session, entry.backupFileName))) {
+                    return { session: new Uuid(session), blobName: new Path(entry.backupFileName) };
+                }
+            }
+        }
+    }
+    return undefined;
+}
+
+test("test_readBlobSnapshot_rejects_a_blob_name_with_path_separators", () => {
+    // Scenario: both arguments reach a filesystem join, so anything that is not a bare
+    // `<16 hex>@vN` blob name (or a bare session id) is refused — traversal is impossible.
+    assert.throws(() => readBlobSnapshot(new Uuid("a"), new Path("../etc/passwd")));
+});
+
+test("test_readBlobSnapshot_reports_a_nonexistent_blob_as_missing", () => {
+    // Scenario: a well-formed name that is simply not on disk is not an error — the client
+    // renders it as "(missing from disk)", so the read reports { exists: false }.
+    const result = readBlobSnapshot(
+        new Uuid("00000000-0000-0000-0000-000000000000"),
+        new Path("0000000000000000@v1"),
+    );
+    assert.deepEqual(result, { exists: false, content: undefined });
+});
+
+test("test_readBlobSnapshot_reads_an_existing_blob_from_the_owning_session_dir", () => {
+    // Scenario: a blob named by an s43 file-history snapshot reads back verbatim from its
+    // OWNING session's dir under ~/.claude/file-history (owner-dir only — no cross-session
+    // fallback, per the multi-session @vN collision fix).
+    // Steps: derive a live (session, blob) pair from the s43 transcripts, then read it.
+    const pair = findExistingS43Backup();
+    assert.ok(pair !== undefined, "s43 tracks at least one backup blob that is on disk");
+    const result = readBlobSnapshot(pair.session, pair.blobName);
+    assert.equal(result.exists, true);
+    assert.ok(result.content !== undefined && result.content.length > 0);
 });
 
 // -------------------- 2.6 diff renderers --------------------

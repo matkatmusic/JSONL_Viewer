@@ -16,6 +16,7 @@ import {
 } from "./reconstruction_tree.ts";
 import { findWorkingTreeOwner } from "./reconstruction_worktree.ts";
 import { findStructuralRewoundBranches } from "./reconstruction_fork.ts";
+import { getCorpusState } from "./reconstruction_corpus.ts";
 import { extractFileEvents } from "./reconstruction_extract.ts";
 import type {
     BranchedReconstruction,
@@ -231,7 +232,8 @@ export function findConversationBranches(
 // per-array script memo, reconstructFileOver's history memo) key on the records array's IDENTITY;
 // re-filtering a fresh array for the same (records, tip) on every call silently defeated them,
 // so every document pass re-ran every sandbox script. Same inputs → the same array instance.
-const branchSelections = new WeakMap<TranscriptRecord[], Map<string, TranscriptRecord[]>>();
+// corpus: moved to reconstruction_corpus.ts (item 14)
+// const branchSelections = new WeakMap<TranscriptRecord[], Map<string, TranscriptRecord[]>>();
 
 // Select the records on one branch: its tip's ancestor chain plus every uuid-less meta/header
 // record. Falls back to all records when the tip resolves to nothing (cannot identify the branch).
@@ -239,11 +241,13 @@ export function selectBranchRecords(
     records: TranscriptRecord[],
     tip: Uuid,
 ): TranscriptRecord[] {
-    let byTip = branchSelections.get(records);
-    if (byTip === undefined) {
-        byTip = new Map<string, TranscriptRecord[]>();
-        branchSelections.set(records, byTip);
-    }
+    // corpus: moved to reconstruction_corpus.ts (item 14)
+    // let byTip = branchSelections.get(records);
+    // if (byTip === undefined) {
+    //     byTip = new Map<string, TranscriptRecord[]>();
+    //     branchSelections.set(records, byTip);
+    // }
+    const byTip = getCorpusState(records).branchSelectionsByTip;
     const tipKey = tip.toString();
     const cached = byTip.get(tipKey);
     if (cached !== undefined) {
@@ -274,7 +278,8 @@ function computeBranchRecords(
 
 // Live-branch selections memoized per records-array identity, for the same reason as
 // branchSelections above: downstream memos key on the selected array's IDENTITY.
-const liveBranchSelections = new WeakMap<TranscriptRecord[], TranscriptRecord[]>();
+// corpus: moved to reconstruction_corpus.ts (item 14)
+// const liveBranchSelections = new WeakMap<TranscriptRecord[], TranscriptRecord[]>();
 
 // Select the surviving trunk's records (every session tree's final chain + meta). Falls back to
 // all records when there is no last-prompt head — preserving pre-S7 behavior for any unmarked
@@ -284,9 +289,14 @@ export function selectLiveBranch(
 ): TranscriptRecord[] {
     const survivingHead = findSurvivingHead(records);
     if (survivingHead === undefined) {
+        // No surviving head: fall back to all records WITHOUT caching (the corpus's liveBranch
+        // stays undefined = not cached).
         return records;
     }
-    const cached = liveBranchSelections.get(records);
+    // corpus: moved to reconstruction_corpus.ts (item 14)
+    // const cached = liveBranchSelections.get(records);
+    const state = getCorpusState(records);
+    const cached = state.liveBranch;
     if (cached !== undefined) {
         return cached;
     }
@@ -298,7 +308,9 @@ export function selectLiveBranch(
     if (selected.length === records.length) {
         selected = records;
     }
-    liveBranchSelections.set(records, selected);
+    // corpus: moved to reconstruction_corpus.ts (item 14)
+    // liveBranchSelections.set(records, selected);
+    state.liveBranch = selected;
     return selected;
 }
 

@@ -135,6 +135,11 @@ a:hover { text-decoration: underline; }
 .inspector-pane.file-preview-drawer .diff-text {
     white-space: pre-wrap; overflow-wrap: anywhere;
 }
+/* Snapshot drawer (TASKS item 23): the Details pane splits in half — JSON above, the raised
+   blob content below, each scrolling on its own. */
+.inspector-pane.snapshot-drawer .inspector-json { max-height: 50%; }
+.snapshot-pane { border-top: 1px solid var(--border); max-height: 50%; overflow-y: auto; }
+.snapshot-pane .snapshot-pane-header { display: flex; gap: 8px; align-items: center; }
 .hidden { display: none; }
 
 .pane-title { color: var(--accent); font-size: 13px; margin: 10px 0 6px; }

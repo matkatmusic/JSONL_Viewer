@@ -20,7 +20,9 @@ import {
     injectScriptExecutions,
     restoreLineageReplayWindow,
 } from "./reconstruction_script_stage.ts";
-import { isImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
+// corpus: moved to reconstruction_corpus.ts (item 14) — the gate check now lives in getDerivedCaches
+// import { isImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
+import { getDerivedCaches } from "./reconstruction_corpus.ts";
 import { placeGitCommitEvidence } from "./reconstruction_git_evidence.ts";
 import type { LineageContentBefore } from "./reconstruction_script_execution.ts";
 import { seedStaleEditBases } from "./reconstruction_reseed.ts";
@@ -44,12 +46,13 @@ import type {
 // same file's history once per pass. Only PURE top-level calls are cached — a call inside copy
 // seeding (`resolving` non-empty) or lineage seeding (`seedingLineages` non-empty) is
 // stack-dependent (the cycle guards alter what it can see) and computes fresh, exactly as before.
-type FileOverCache = {
-    reader: BackupReader | undefined;
-    impureAllowed: boolean;
-    byTarget: Map<string, FileRevision[]>;
-};
-const fileOverCaches = new WeakMap<TranscriptRecord[], FileOverCache>();
+// corpus: moved to reconstruction_corpus.ts (item 14)
+// type FileOverCache = {
+//     reader: BackupReader | undefined;
+//     impureAllowed: boolean;
+//     byTarget: Map<string, FileRevision[]>;
+// };
+// const fileOverCaches = new WeakMap<TranscriptRecord[], FileOverCache>();
 
 // The branch-agnostic core: reconstruct one file's history over EXACTLY the records given (no branch
 // selection here) — follow any rename to its final path, keep only that lineage's events, seed any
@@ -65,18 +68,20 @@ export function reconstructFileOver(
     if (resolving.size > 0 || seedingLineages.size > 0) {
         return computeFileRevisionsOver(records, target, resolving, reader);
     }
-    let cache = fileOverCaches.get(records);
-    if (cache === undefined || cache.reader !== reader || cache.impureAllowed !== isImpureExecutionAllowed()) {
-        cache = { reader, impureAllowed: isImpureExecutionAllowed(), byTarget: new Map<string, FileRevision[]>() };
-        fileOverCaches.set(records, cache);
-    }
+    // corpus: moved to reconstruction_corpus.ts (item 14)
+    // let cache = fileOverCaches.get(records);
+    // if (cache === undefined || cache.reader !== reader || cache.impureAllowed !== isImpureExecutionAllowed()) {
+    //     cache = { reader, impureAllowed: isImpureExecutionAllowed(), byTarget: new Map<string, FileRevision[]>() };
+    //     fileOverCaches.set(records, cache);
+    // }
+    const byTarget = getDerivedCaches(records, reader).historiesByTarget;
     const targetKey = target.toString();
-    const cached = cache.byTarget.get(targetKey);
+    const cached = byTarget.get(targetKey);
     if (cached !== undefined) {
         return cached;
     }
     const revisions = computeFileRevisionsOver(records, target, resolving, reader);
-    cache.byTarget.set(targetKey, revisions);
+    byTarget.set(targetKey, revisions);
     return revisions;
 }
 
@@ -177,31 +182,33 @@ const seedingLineages = new Set<string>();
 // Lineage-seed texts memoized per records-array identity, keyed "path|beforeMs". Only replays
 // that STARTED on a clean seeding stack are cached: a nested replay's result can be degraded by
 // the cycle guards of the replays above it (same reason reconstructFileOver computes fresh while
-// seedingLineages is non-empty). Invalidated like fileOverCaches: reader identity + exec gate.
-type LineageSeedCache = {
-    reader: BackupReader | undefined;
-    impureAllowed: boolean;
-    byKey: Map<string, string | undefined>;
-};
-const lineageSeedCaches = new WeakMap<TranscriptRecord[], LineageSeedCache>();
-
-function getLineageSeedCache(records: TranscriptRecord[], reader: BackupReader): LineageSeedCache {
-    const cached = lineageSeedCaches.get(records);
-    if (cached !== undefined) {
-        if (cached.reader === reader) {
-            if (cached.impureAllowed === isImpureExecutionAllowed()) {
-                return cached;
-            }
-        }
-    }
-    const fresh: LineageSeedCache = {
-        reader,
-        impureAllowed: isImpureExecutionAllowed(),
-        byKey: new Map<string, string | undefined>(),
-    };
-    lineageSeedCaches.set(records, fresh);
-    return fresh;
-}
+// seedingLineages is non-empty). The reader-identity/exec-gate validity re-check is the corpus's
+// job (getDerivedCaches).
+// corpus: moved to reconstruction_corpus.ts (item 14)
+// type LineageSeedCache = {
+//     reader: BackupReader | undefined;
+//     impureAllowed: boolean;
+//     byKey: Map<string, string | undefined>;
+// };
+// const lineageSeedCaches = new WeakMap<TranscriptRecord[], LineageSeedCache>();
+//
+// function getLineageSeedCache(records: TranscriptRecord[], reader: BackupReader): LineageSeedCache {
+//     const cached = lineageSeedCaches.get(records);
+//     if (cached !== undefined) {
+//         if (cached.reader === reader) {
+//             if (cached.impureAllowed === isImpureExecutionAllowed()) {
+//                 return cached;
+//             }
+//         }
+//     }
+//     const fresh: LineageSeedCache = {
+//         reader,
+//         impureAllowed: isImpureExecutionAllowed(),
+//         byKey: new Map<string, string | undefined>(),
+//     };
+//     lineageSeedCaches.set(records, fresh);
+//     return fresh;
+// }
 
 // The seed text of a replayed revision, or undefined when the lineage has no revision to offer.
 function computeSeededText(revisionBefore: FileRevision | undefined): string | undefined {
@@ -217,10 +224,12 @@ function getLineageContentBefore(records: TranscriptRecord[], reader: BackupRead
         const cycleKey = `${target.toString()}|${before.getTime()}`;
         if (seedingLineages.has(cycleKey)) return undefined;
         const enteredWithCleanStack = seedingLineages.size === 0;
-        const cache = getLineageSeedCache(records, reader);
+        // corpus: moved to reconstruction_corpus.ts (item 14)
+        // const cache = getLineageSeedCache(records, reader);
+        const seedsByKey = getDerivedCaches(records, reader).lineageSeedsByKey;
         if (enteredWithCleanStack) {
-            if (cache.byKey.has(cycleKey)) {
-                return cache.byKey.get(cycleKey);
+            if (seedsByKey.has(cycleKey)) {
+                return seedsByKey.get(cycleKey);
             }
         }
         const previousCutoff = enterLineageReplayWindow(before);
@@ -231,7 +240,7 @@ function getLineageContentBefore(records: TranscriptRecord[], reader: BackupRead
             const revisionBefore = lastRevisionStrictlyBefore(revisions, before);
             const seededText = computeSeededText(revisionBefore);
             if (enteredWithCleanStack) {
-                cache.byKey.set(cycleKey, seededText);
+                seedsByKey.set(cycleKey, seededText);
             }
             return seededText;
         } finally {
