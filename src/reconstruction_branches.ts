@@ -14,7 +14,12 @@ import { findConversationBranches, selectBranchRecords } from "./reconstruction_
 import { fillRedirectContent, seedEditBaseFromBackup } from "./reconstruction_sidecar.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
 import { completeElidedBeacons, completeTruncatedBeacon } from "./reconstruction_beacons.ts";
-import { discoverScriptCreatedPaths, injectScriptExecutions } from "./reconstruction_script_stage.ts";
+import {
+    discoverScriptCreatedPaths,
+    enterLineageReplayWindow,
+    injectScriptExecutions,
+    restoreLineageReplayWindow,
+} from "./reconstruction_script_stage.ts";
 import { isImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { placeGitCommitEvidence } from "./reconstruction_git_evidence.ts";
 import type { LineageContentBefore } from "./reconstruction_script_execution.ts";
@@ -169,22 +174,69 @@ export function lastRevisionStrictlyBefore(
 // Files currently being lineage-seeded, keyed "path|beforeMs" — breaks seed→reconstruct→seed cycles.
 const seedingLineages = new Set<string>();
 
+// Lineage-seed texts memoized per records-array identity, keyed "path|beforeMs". Only replays
+// that STARTED on a clean seeding stack are cached: a nested replay's result can be degraded by
+// the cycle guards of the replays above it (same reason reconstructFileOver computes fresh while
+// seedingLineages is non-empty). Invalidated like fileOverCaches: reader identity + exec gate.
+type LineageSeedCache = {
+    reader: BackupReader | undefined;
+    impureAllowed: boolean;
+    byKey: Map<string, string | undefined>;
+};
+const lineageSeedCaches = new WeakMap<TranscriptRecord[], LineageSeedCache>();
+
+function getLineageSeedCache(records: TranscriptRecord[], reader: BackupReader): LineageSeedCache {
+    const cached = lineageSeedCaches.get(records);
+    if (cached !== undefined) {
+        if (cached.reader === reader) {
+            if (cached.impureAllowed === isImpureExecutionAllowed()) {
+                return cached;
+            }
+        }
+    }
+    const fresh: LineageSeedCache = {
+        reader,
+        impureAllowed: isImpureExecutionAllowed(),
+        byKey: new Map<string, string | undefined>(),
+    };
+    lineageSeedCaches.set(records, fresh);
+    return fresh;
+}
+
+// The seed text of a replayed revision, or undefined when the lineage has no revision to offer.
+function computeSeededText(revisionBefore: FileRevision | undefined): string | undefined {
+    if (revisionBefore === undefined) return undefined;
+    // splitLines drops one trailing newline, so restore it — the stage's byte-exact
+    // beacon compare fails without it.
+    return linesTextOf(revisionBefore).join("\n") + "\n";
+}
+
 // A LineageContentBefore that replays the target's own reconstruction up to `before`.
 function getLineageContentBefore(records: TranscriptRecord[], reader: BackupReader): LineageContentBefore {
     return (target, before) => {
         const cycleKey = `${target.toString()}|${before.getTime()}`;
         if (seedingLineages.has(cycleKey)) return undefined;
+        const enteredWithCleanStack = seedingLineages.size === 0;
+        const cache = getLineageSeedCache(records, reader);
+        if (enteredWithCleanStack) {
+            if (cache.byKey.has(cycleKey)) {
+                return cache.byKey.get(cycleKey);
+            }
+        }
+        const previousCutoff = enterLineageReplayWindow(before);
         seedingLineages.add(cycleKey);
         try {
             reportReconstructionProgress(`replaying lineage of ${target}`);
             const revisions = reconstructFileOver(records, target, new Set(), reader);
             const revisionBefore = lastRevisionStrictlyBefore(revisions, before);
-            if (revisionBefore === undefined) return undefined;
-            // splitLines drops one trailing newline, so restore it — the stage's byte-exact
-            // beacon compare fails without it.
-            return linesTextOf(revisionBefore).join("\n") + "\n";
+            const seededText = computeSeededText(revisionBefore);
+            if (enteredWithCleanStack) {
+                cache.byKey.set(cycleKey, seededText);
+            }
+            return seededText;
         } finally {
             seedingLineages.delete(cycleKey);
+            restoreLineageReplayWindow(previousCutoff);
         }
     };
 }

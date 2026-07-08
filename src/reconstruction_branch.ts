@@ -262,9 +262,14 @@ function computeBranchRecords(
     if (branchUuids.size === 0) {
         return records;
     }
-    return records.filter(
+    const selected = records.filter(
         (record) => record.uuid === undefined || branchUuids.has(record.uuid.toString()),
     );
+    // Nothing dropped: keep the input's identity so downstream identity-keyed memos hit.
+    if (selected.length === records.length) {
+        return records;
+    }
+    return selected;
 }
 
 // Live-branch selections memoized per records-array identity, for the same reason as
@@ -286,9 +291,13 @@ export function selectLiveBranch(
         return cached;
     }
     const trunkUuids = collectSurvivingTrunkUuids(records, survivingHead);
-    const selected = records.filter(
+    let selected = records.filter(
         (record) => record.uuid === undefined || trunkUuids.has(record.uuid.toString()),
     );
+    // Nothing dropped: keep the input's identity so downstream identity-keyed memos hit.
+    if (selected.length === records.length) {
+        selected = records;
+    }
     liveBranchSelections.set(records, selected);
     return selected;
 }

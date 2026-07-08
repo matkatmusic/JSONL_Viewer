@@ -29,6 +29,39 @@ import type { FileEvent, UserEditEvent } from "./reconstruction_engine.ts";
 type RunExecution = { pre: Map<string, string>; post: Map<string, string> | undefined };
 const executionsByRecords = new WeakMap<TranscriptRecord[], Map<string, RunExecution>>();
 
+// The truncation instant of the innermost lineage replay in progress. A seeded replay's result
+// is cut by lastRevisionStrictlyBefore(revisions, cutoff), so runs at/after the cutoff can only
+// produce events the cut discards — processing them is provably wasted work (and is what let a
+// run's pre-state build re-enter its own in-flight execution once per seeded file).
+let activeLineageReplayCutoff: Date | undefined;
+
+// Narrow the active replay window to `before` (never widen it) and return the previous cutoff
+// for restoreLineageReplayWindow.
+export function enterLineageReplayWindow(before: Date): Date | undefined {
+    const previous = activeLineageReplayCutoff;
+    if (previous !== undefined) {
+        if (previous.getTime() <= before.getTime()) {
+            return previous;
+        }
+    }
+    activeLineageReplayCutoff = before;
+    return previous;
+}
+
+export function restoreLineageReplayWindow(previous: Date | undefined): void {
+    activeLineageReplayCutoff = previous;
+}
+
+// Only the runs whose effects can survive the active replay window's strictly-before cut —
+// all runs when no lineage replay is in progress.
+function selectRunsWithinReplayWindow(runs: ScriptRun[]): ScriptRun[] {
+    if (activeLineageReplayCutoff === undefined) {
+        return runs;
+    }
+    const cutoffMs = activeLineageReplayCutoff.getTime();
+    return runs.filter((run) => run.timestamp.getTime() < cutoffMs);
+}
+
 export function executeRunOnce(
     run: ScriptRun,
     records: TranscriptRecord[],
@@ -320,7 +353,7 @@ export function injectScriptExecutions(
     seedContent?: LineageContentBefore,
 ): FileEvent[] {
     if (!isImpureExecutionAllowed()) return events;
-    const runs = findScriptExecutionRuns(records);
+    const runs = selectRunsWithinReplayWindow(findScriptExecutionRuns(records));
     if (runs.length === 0) return events;
     const targetSuffix = target === undefined ? "" : ` for ${target}`;
     reportReconstructionProgress(`script stage: ${runs.length} runs${targetSuffix}`);

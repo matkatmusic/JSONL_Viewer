@@ -6,13 +6,55 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadTranscript } from "../src/parse/loadTranscript.ts";
-import { selectLiveBranch } from "../src/reconstruction_branch.ts";
+import { selectBranchRecords, selectLiveBranch } from "../src/reconstruction_branch.ts";
 import { reconstructAll } from "../src/reconstruction_engine.ts";
+import { RecordType } from "../src/structures/vocabulary.ts";
+import { Uuid } from "../src/structures/domain.ts";
+import type { TranscriptRecord } from "../src/structures/envelope.ts";
 import {
     isImpureExecutionAllowed,
     setImpureExecutionAllowed,
 } from "../src/reconstruction_exec_gate.ts";
 import { S19_JSONL } from "./fixtures.ts";
+
+function buildChainRecord(type: RecordType, uuid: string, parent: string | null): TranscriptRecord {
+    return { type, uuid: new Uuid(uuid), parentUuid: parent === null ? null : new Uuid(parent) } as TranscriptRecord;
+}
+
+// A fully-linear conversation: every uuid'd record sits on the surviving trunk, and the
+// last-prompt head marker is uuid-less (always kept) — so branch selection drops nothing.
+function buildLinearTrunkRecords(): TranscriptRecord[] {
+    return [
+        buildChainRecord(RecordType.user, "A", null),
+        buildChainRecord(RecordType.assistant, "B", "A"),
+        buildChainRecord(RecordType.user, "C", "B"),
+        { type: RecordType.lastPrompt, leafUuid: "C" } as unknown as TranscriptRecord,
+    ];
+}
+
+test("test_selectLiveBranch_returns_the_input_array_when_nothing_is_dropped", () => {
+    // Scenario: when the surviving trunk covers every record, the live-branch "selection" is
+    // the whole transcript; returning a fresh filtered copy gave it a new identity and defeated
+    // every identity-keyed memo on the document build's second pass (steps use the full array).
+    const records = buildLinearTrunkRecords();
+    assert.equal(selectLiveBranch(records), records);
+});
+
+test("test_selectBranchRecords_returns_the_input_array_when_the_tip_covers_every_record", () => {
+    // Scenario: same identity contract for per-tip selection — a tip whose ancestor chain plus
+    // the uuid-less meta records span the whole transcript must return the input array itself.
+    const records = buildLinearTrunkRecords();
+    assert.equal(selectBranchRecords(records, new Uuid("C")), records);
+});
+
+test("test_selectLiveBranch_still_filters_when_records_are_dropped", () => {
+    // Scenario: a rewound session (S19) has abandoned-branch records — the live selection must
+    // remain a strict subset, NOT the input array; the identity collapse is content-equal only.
+    const records = loadTranscript(S19_JSONL);
+    const live = selectLiveBranch(records);
+    assert.notEqual(live, records);
+    assert.ok(live.length < records.length);
+});
 
 test("test_selectLiveBranch_returns_the_same_array_instance_for_the_same_records", () => {
     // Scenario: branch selection is memoized per records-array identity, so downstream
