@@ -110,10 +110,36 @@ export function computeSplitRows(diffText) {
     return rows;
 }
 
-// Which layout every diff pane uses. Module-level so the choice sticks across re-renders for
-// the session. ponytail: session-only; add localStorage if reload-stickiness is ever wanted.
-const DiffDisplayMode = Object.freeze({ split: "split", inline: "inline" });
-let diffDisplayMode = DiffDisplayMode.split;
+// Which layout every diff pane uses. Module-level so the choice sticks across re-renders, and
+// mirrored to localStorage so it survives reloads (item 10f).
+export const DiffDisplayMode = Object.freeze({ split: "split", inline: "inline" });
+const DIFF_MODE_STORAGE_KEY = "diffDisplayMode";
+
+// A stored value resolves to a mode: only the exact "inline" wire string opts out of the
+// split default (null / garbage / absent all mean split).
+export function resolveInitialDiffDisplayMode(storedValue) {
+    if (storedValue === DiffDisplayMode.inline) {
+        return DiffDisplayMode.inline;
+    }
+    return DiffDisplayMode.split;
+}
+
+// localStorage access is guarded: the node test runner imports this module with no DOM.
+function readStoredDiffMode() {
+    if (typeof localStorage === "undefined") {
+        return undefined;
+    }
+    return localStorage.getItem(DIFF_MODE_STORAGE_KEY);
+}
+
+function writeStoredDiffMode(mode) {
+    if (typeof localStorage === "undefined") {
+        return;
+    }
+    localStorage.setItem(DIFF_MODE_STORAGE_KEY, mode);
+}
+
+let diffDisplayMode = resolveInitialDiffDisplayMode(readStoredDiffMode());
 
 // Today's classic unified rendering: one colored div per raw line.
 function renderInlineDiffLines(pane, diffText) {
@@ -153,6 +179,7 @@ export function renderDiffText(pane, diffText) {
         text: diffDisplayMode === DiffDisplayMode.split ? "inline view" : "side by side",
         onclick: () => {
             diffDisplayMode = diffDisplayMode === DiffDisplayMode.split ? DiffDisplayMode.inline : DiffDisplayMode.split;
+            writeStoredDiffMode(diffDisplayMode);
             renderDiffText(pane, diffText);
         },
     });

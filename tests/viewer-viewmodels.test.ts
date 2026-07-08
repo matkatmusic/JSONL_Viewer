@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import { buildProjectDocument } from "../src/viewer_api.ts";
 import { stripTrailingNewline } from "../src/reconstruction_steps.ts";
 import { buildFileHistoryViewModel, computeAnchoredRevisionIndex, findRevisionForChangeId, splitDiffBlocks } from "../webapp/views/file-history.js";
-import { computeSplitRows, SplitRowKind } from "../webapp/views/diff-vs-base.js";
+import { computeSplitRows, DiffDisplayMode, resolveInitialDiffDisplayMode, SplitRowKind } from "../webapp/views/diff-vs-base.js";
 import { findBackupTimeForBlob, findToolNavigationTargets } from "../webapp/inspector.js";
 import { buildConversationViewModel } from "../webapp/views/conversation.js";
 import { buildProjectViewModel } from "../webapp/views/project.js";
@@ -485,4 +485,23 @@ test("test_computeSplitRows_advances_line_numbers_from_the_hunk_header_seed", ()
         left: { text: "ctx2", lineClass: "", lineNumber: 7 },
         right: { text: "ctx2", lineClass: "", lineNumber: 10 },
     });
+});
+
+test("test_resolveInitialDiffDisplayMode_returns_stored_mode", () => {
+    // Scenario: a previous visit stored "inline" in localStorage — the diff toggle comes back
+    // in inline mode after a reload (item 10f).
+    // Steps:
+    // resolve the stored wire string "inline".
+    // assert the result is the DiffDisplayMode.inline enum member.
+    assert.equal(resolveInitialDiffDisplayMode("inline"), DiffDisplayMode.inline);
+});
+
+test("test_resolveInitialDiffDisplayMode_defaults_to_split", () => {
+    // Scenario: nothing stored (localStorage.getItem returns null) or an unrecognized stored
+    // value falls back to the split default.
+    // Steps:
+    // assert null (no stored value) resolves to DiffDisplayMode.split.
+    assert.equal(resolveInitialDiffDisplayMode(null), DiffDisplayMode.split);
+    // assert an unrecognized value resolves to DiffDisplayMode.split.
+    assert.equal(resolveInitialDiffDisplayMode("weird"), DiffDisplayMode.split);
 });

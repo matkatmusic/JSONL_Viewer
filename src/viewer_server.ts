@@ -4,7 +4,7 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFileSync, realpathSync } from "node:fs";
-import { extname, resolve, sep } from "node:path";
+import { extname, join, resolve, sep } from "node:path";
 import {
     scanProjects,
     buildDocumentWithConsent,
@@ -20,6 +20,7 @@ import {
     setProjectsDir,
 } from "./viewer_api.ts";
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
+import { configureSandboxMemoPersistence } from "./reconstruction_script_execution.ts";
 import { DocumentResponseKind } from "./structures/vocabulary.ts";
 import { Path, Uuid } from "./structures/domain.ts";
 
@@ -256,6 +257,9 @@ function handleRequest(request: IncomingMessage, response: ServerResponse): void
 const { port } = parseServerArgs(process.argv.slice(2));
 // App posture: impure stages OFF until a consented build turns them on for its own duration.
 setImpureExecutionAllowed(false);
+// Item 11: only the viewer app opts in to the disk-backed sandbox memo — restarts stop
+// re-paying a spawn per distinct python run (CLI + tests stay memory-only).
+configureSandboxMemoPersistence(new Path(join(import.meta.dirname, "..", ".cache", "sandbox-memo.json")));
 createServer(handleRequest).listen(port, "127.0.0.1", () => {
     console.log(`viewer listening on http://127.0.0.1:${port} (projects: ${getProjectsDir()})`);
 });

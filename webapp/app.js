@@ -346,20 +346,19 @@ export function checkRouteIsTimeline(segments) {
     return segments[0] === "project";
 }
 
-// Reopen the timeline inspector when its collapsed 24px rail is clicked. On other routes a
-// hidden inspector is display:none and can never receive this click.
-function handleInspectorRailClick(event) {
-    const pane = event.currentTarget;
-    // Only a click on the pane itself is a rail click. A click on the » collapse button
-    // bubbles here AFTER adding .hidden — without this guard it would instantly reopen.
-    if (event.target !== pane) {
-        return;
-    }
-    if (!pane.classList.contains("hidden")) {
-        return;
-    }
-    pane.classList.remove("hidden");
-}
+// Item 10a: dead code, commented out — a hidden inspector is display:none on EVERY route
+// (styles.css has no .inspector-pane.hidden rail override), so this handler could never fire.
+// Collapse/expand is now the inspector's own » / « toggle button (inspector.js).
+// function handleInspectorRailClick(event) {
+//     const pane = event.currentTarget;
+//     if (event.target !== pane) {
+//         return;
+//     }
+//     if (!pane.classList.contains("hidden")) {
+//         return;
+//     }
+//     pane.classList.remove("hidden");
+// }
 
 // The drawer overlay for a project's jsonl/file sub-routes: the route's view renders into the
 // inspector pane over the timeline. No drawer while the consent dialog or a build error still
@@ -501,6 +500,7 @@ async function initializeHeader() {
 if (typeof window !== "undefined") {
     ensureProgressTerminal();   // show the empty 10-row console immediately, before any load
     window.addEventListener("hashchange", renderRoute);
-    document.getElementById("inspector").addEventListener("click", handleInspectorRailClick);
+    // Item 10a: rail-click reopen retired with handleInspectorRailClick above.
+    // document.getElementById("inspector").addEventListener("click", handleInspectorRailClick);
     initializeHeader().then(renderRoute);
 }

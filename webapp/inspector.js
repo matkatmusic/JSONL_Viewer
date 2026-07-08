@@ -260,6 +260,14 @@ export function extractReadableText(value) {
 // diff-vs-base's diffDisplayMode). ponytail: session-only; localStorage if ever wanted.
 let inspectorShowsFormattedText = false;
 
+// Item 10a: collapse shrinks the pane to a 24px rail (mirroring the Files drawer) instead of
+// display:none, so the SAME focusable button expands it again — glyph and label flip per state.
+function toggleInspectorCollapsed(pane, button) {
+    const collapsed = pane.classList.toggle("collapsed");
+    button.textContent = collapsed ? "«" : "»";
+    button.title = collapsed ? "Expand inspector" : "Collapse inspector";
+}
+
 // The inspector pane's drawer chrome — collapse chevron + a fresh scrollable content column —
 // shown; returns the content column for the caller to fill.
 export function openInspectorPane() {
@@ -268,11 +276,14 @@ export function openInspectorPane() {
     pane.classList.remove("file-preview-drawer");
     // Same for the snapshot-drawer split: a fresh open starts without the bottom drawer.
     pane.classList.remove("snapshot-drawer");
+    // A fresh open always starts expanded, whatever state the last collapse left behind.
+    pane.classList.remove("collapsed");
     const content = el("div", { class: "inspector-content" });
-    pane.replaceChildren(
-        el("button", { class: "row-btn inspector-close", text: "»", title: "Collapse inspector", onclick: () => pane.classList.add("hidden") }),
-        content,
-    );
+    // Item 10a: was `onclick: () => pane.classList.add("hidden")` — display:none left no reopen
+    // affordance at all (and no keyboard path back).
+    const collapseButton = el("button", { class: "row-btn inspector-close", text: "»", title: "Collapse inspector" });
+    collapseButton.onclick = () => toggleInspectorCollapsed(pane, collapseButton);
+    pane.replaceChildren(collapseButton, content);
     pane.classList.remove("hidden");
     return content;
 }
@@ -306,7 +317,7 @@ function appendSnapshotToken(pre, tokenClass, token, value, entry, filesTouched,
     const anchor = computeSnapshotHistoryAnchor(filesTouched, entry.relativePath, entry.backupTime);
     if (anchor !== undefined) {
         pre.append(el("button", {
-            class: "row-btn",
+            class: "row-btn snapshot-history-btn",
             text: "View in File History",
             onclick: () => {
                 location.hash = computeRevisionLinkRoute(snapshotContext.project, anchor);

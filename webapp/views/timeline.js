@@ -507,6 +507,32 @@ export function findTimelineNodeIndexForRawLine(nodes, rawLineText) {
     return nodes.findIndex((node) => checkUserTurnOwnsRawLine(node, rawLineText));
 }
 
+// A click that ends with a non-collapsed text selection is a selection drag, not a close
+// request — the background-close handler must ignore it (item 10b). Browsers may return
+// null from window.getSelection(); that never blocks.
+export function checkSelectionBlocksBackgroundClose(selection) {
+    if (selection === null) {
+        return false;
+    }
+    return selection.isCollapsed === false;
+}
+
+// The inline tag naming what an unattributed-lane step is (item 10d): its chips' event
+// kinds, deduped in first-appearance order, humanized ("script-execution" → "script run",
+// otherwise hyphens → spaces), joined with " · "; undefined when the step has no chips.
+export function computeUnattributedStepTag(eventKinds) {
+    const humanizedKinds = [...new Set(eventKinds)].map((kind) => {
+        if (kind === "script-execution") {
+            return "script run";
+        }
+        return kind.replaceAll("-", " ");
+    });
+    if (humanizedKinds.length === 0) {
+        return undefined;
+    }
+    return humanizedKinds.join(" · ");
+}
+
 // ─── render half (DOM only — every computation lives in the view-model above) ───────────────────
 
 // Fixed session-lane palette, assigned by first appearance; a session keeps its color for the
@@ -1055,9 +1081,17 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
                 });
                 row.append(pick);
             }
+            // Unattributed-lane steps have no session context to explain them — tag each row
+            // with what it is (its chips' event kinds, item 10d); the title is the tooltip.
+            const unattributedTag = sessionKey === UNATTRIBUTED_SESSION_LABEL
+                ? computeUnattributedStepTag(node.fileChanges.map((change) => change.eventKind))
+                : undefined;
             const rowTop = el("div", { class: "timeline-row-top" }, [
                 el("span", { class: "timeline-step-label", text: `Step ${node.stepNumber}` }),
                 ...(node.isOrphaned ? [el("span", { class: "timeline-tag", text: "orphaned" })] : []),
+                ...(unattributedTag === undefined
+                    ? []
+                    : [el("span", { class: "timeline-tag", text: unattributedTag, title: `attributed to no session — ${unattributedTag}` })]),
                 el("span", { class: "timeline-prompt", text: node.text }),
                 renderRowMeta(node, index),
             ]);
@@ -1090,6 +1124,9 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
     // bar) closes the inspector overlay. Assigned as a property (not addEventListener) so
     // renderRoute can clear it with `view.onclick = null` before other routes render.
     container.onclick = (event) => {
+        if (checkSelectionBlocksBackgroundClose(window.getSelection())) {
+            return;
+        }
         if (event.target.closest(".timeline-row, .timeline-session, .timeline-selectbar") !== null) {
             return;
         }

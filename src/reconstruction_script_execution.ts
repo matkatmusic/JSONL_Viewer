@@ -9,7 +9,7 @@ import { getContentBlocks, type ToolUseBlock } from "./structures/content-blocks
 import { backupSeedWriteFor, type BackupReader } from "./reconstruction_sidecar.ts";
 import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync, mkdirSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync, mkdirSync, existsSync } from "node:fs";
 import { join, dirname, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { quotedFilename, singleWhitespace } from "./regex_expressions.ts";
@@ -281,6 +281,62 @@ type SandboxOutcome = { post: Map<string, string> | undefined };
 const sandboxOutcomesByInput = new Map<string, SandboxOutcome>();
 const SANDBOX_MEMO_CAPACITY = 256;
 
+// Item 11: opt-in disk persistence for the sandbox memo. Only the viewer server configures a
+// path (engine CLI + tests stay memory-only, keeping spawn-count tests deterministic). The
+// whole memo is rewritten after each new spawn — a spawn costs ~100ms, the write is trivial.
+let sandboxMemoFilePath: Path | undefined;
+
+// Wire shape of one memo entry on disk: `post: null` records a memoized failure.
+type PersistedSandboxOutcome = { post: Record<string, string> | null };
+
+export function configureSandboxMemoPersistence(filePath: Path | undefined): void {
+    sandboxMemoFilePath = filePath;
+    sandboxOutcomesByInput.clear();
+    if (filePath === undefined) {
+        return;
+    }
+    loadSandboxMemoFromDisk(filePath);
+}
+
+// Seed the (just-cleared) memo from a previously persisted file; absent file = start empty.
+function loadSandboxMemoFromDisk(filePath: Path): void {
+    if (!existsSync(filePath.toString())) {
+        return;
+    }
+    try {
+        const persisted = JSON.parse(readFileSync(filePath.toString(), "utf8")) as Record<
+            string,
+            PersistedSandboxOutcome
+        >;
+        for (const [inputKey, outcome] of Object.entries(persisted)) {
+            sandboxOutcomesByInput.set(inputKey, {
+                post: outcome.post === null ? undefined : new Map(Object.entries(outcome.post)),
+            });
+        }
+    } catch (error) {
+        // A corrupt cache file must not kill the server — log once and continue empty.
+        console.error(`sandbox memo cache unreadable, starting empty: ${String(error)}`);
+    }
+}
+
+// Mirror the capped memo to disk (called after set + evict, so the file inherits the 256 cap).
+function persistSandboxMemoToDisk(): void {
+    if (sandboxMemoFilePath === undefined) {
+        return;
+    }
+    try {
+        const persisted: Record<string, PersistedSandboxOutcome> = {};
+        for (const [inputKey, outcome] of sandboxOutcomesByInput) {
+            persisted[inputKey] = { post: outcome.post === undefined ? null : Object.fromEntries(outcome.post) };
+        }
+        mkdirSync(dirname(sandboxMemoFilePath.toString()), { recursive: true });
+        writeFileSync(sandboxMemoFilePath.toString(), JSON.stringify(persisted));
+    } catch (error) {
+        // Persistence failure is tolerable; losing the reconstruction is not.
+        console.error(`sandbox memo cache not persisted: ${String(error)}`);
+    }
+}
+
 // One collision-safe key per distinct sandbox input: the script plus every seeded (path,
 // content) pair in sorted-path order, NUL-separated, hashed.
 function computeSandboxInputKey(script: string, preState: Map<string, string>): string {
@@ -315,6 +371,7 @@ export function runScriptAgainstState(
     const post = spawnSandboxRun(script, preState);
     sandboxOutcomesByInput.set(inputKey, { post });
     evictLeastRecentlyUsedEntries(sandboxOutcomesByInput, SANDBOX_MEMO_CAPACITY);
+    persistSandboxMemoToDisk();
     return post;
 }
 

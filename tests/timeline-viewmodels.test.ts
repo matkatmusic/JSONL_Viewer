@@ -9,7 +9,9 @@ import {
     buildTurnTimelineViewModel,
     computePickSegments,
     computeSnapshotJumpRoute,
+    computeUnattributedStepTag,
     checkPickIsLegal,
+    checkSelectionBlocksBackgroundClose,
     checkStepIsOrphaned,
     computeRangeSummary,
     findTimelineNodeIndexForRawLine,
@@ -807,4 +809,49 @@ test("test_compute_snapshot_jump_route_returns_undefined_for_unresolvable_change
     // no jump button rather than a dead link.
     const change = { path: "whatever.py", changeId: "00000000-0000-4000-8000-000000000000" };
     assert.equal(computeSnapshotJumpRoute("s84", s84Document.filesTouched, change), undefined);
+});
+
+test("test_checkSelectionBlocksBackgroundClose_blocks_when_selection_is_active", () => {
+    // Scenario: finishing a text-selection drag over empty timeline background fires a click on
+    // the container; a non-collapsed selection means the user was selecting text, not asking
+    // to close the inspector (item 10b).
+    // Steps:
+    // feed a fake Selection whose isCollapsed is false.
+    // assert the predicate blocks the background close.
+    assert.equal(checkSelectionBlocksBackgroundClose({ isCollapsed: false }), true);
+});
+
+test("test_checkSelectionBlocksBackgroundClose_allows_plain_clicks", () => {
+    // Scenario: an ordinary background click (collapsed selection, or the null selection some
+    // browsers return) must still close the inspector.
+    // Steps:
+    // assert a collapsed selection does not block the close.
+    assert.equal(checkSelectionBlocksBackgroundClose({ isCollapsed: true }), false);
+    // assert a null selection does not block the close.
+    assert.equal(checkSelectionBlocksBackgroundClose(null), false);
+});
+
+test("test_computeUnattributedStepTag_names_a_single_event_kind", () => {
+    // Scenario: an unattributed-lane step with one kind of chip gets a tag naming that kind,
+    // humanized (item 10d).
+    // Steps:
+    // assert "user-edit" humanizes to "user edit" (hyphen becomes a space).
+    assert.equal(computeUnattributedStepTag(["user-edit"]), "user edit");
+    // assert "script-execution" gets its dedicated "script run" wording.
+    assert.equal(computeUnattributedStepTag(["script-execution"]), "script run");
+});
+
+test("test_computeUnattributedStepTag_joins_distinct_kinds", () => {
+    // Scenario: repeated kinds dedupe and distinct kinds join in first-appearance order.
+    // Steps:
+    // feed two user-edit chips and one write chip.
+    // assert the tag names each kind once, joined with a middle dot.
+    assert.equal(computeUnattributedStepTag(["user-edit", "user-edit", "write"]), "user edit · write");
+});
+
+test("test_computeUnattributedStepTag_returns_undefined_for_no_kinds", () => {
+    // Scenario: a step with no chips gets no tag at all (undefined, never an empty span).
+    // Steps:
+    // assert an empty kind list yields undefined.
+    assert.equal(computeUnattributedStepTag([]), undefined);
 });

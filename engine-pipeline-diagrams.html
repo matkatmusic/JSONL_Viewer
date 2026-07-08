@@ -32,6 +32,7 @@
   <button data-tab="t2">2 · Pipeline in 15 steps</button>
   <button data-tab="t3">3 · Detailed call graph</button>
   <button data-tab="t4">4 · check_scenario_coverage</button>
+  <button data-tab="t5">5 · Viewer request path</button>
 </nav>
 
 <!-- ============================= TAB 1: 5 STEPS ============================= -->
@@ -621,6 +622,114 @@ checkScenarioResilient"| resilient
 </pre>
   </div>
   <p class="legend">Run: <code>npx tsx scripts/check_scenario_coverage.ts [scenarioId] [--onlyFailing]</code> · exit 0 = all reproduced, 1 = mismatches, 2 = filter matched nothing.</p>
+</div>
+
+<!-- ============================= TAB 5: VIEWER REQUEST PATH ============================= -->
+<div class="tab" id="t5">
+  <p class="caption"><code>src/viewer_server.ts</code> wraps the engine in a tiny HTTP server for the browser viewer.
+  <code>handleRequest</code> is a plain if/else route chain: static files come from <code>webapp/</code>
+  (with a <code>realpath</code> path-escape guard), everything else is a JSON API over <code>src/viewer_api.ts</code>.
+  <code>/api/document</code> is the heavy path — it runs the full reconstruction pipeline from tabs 1–3, guarded by a
+  <b>consent gate</b> (script runs never execute until the client resends with <code>allowScripts</code>) and warmed by
+  three LRU caches so a repeat request never re-parses, re-builds, or re-runs a sandboxed script.</p>
+  <div class="diagram">
+<pre class="mermaid">
+flowchart TD
+    subgraph BROWSER["webapp/ — the browser"]
+        app["index.html + app.js"]
+    end
+
+    subgraph ROUTES["src/viewer_server.ts :: handleRequest — if/else route chain"]
+        static["GET / · /app/*
+serveStaticFile from webapp/
+(realpath path-escape guard)"]
+        cfgPost["POST /api/config
+setProjectsDir"]
+        cfgGet["GET /api/config
+getProjectsDir"]
+        projects["GET /api/projects
+scanProjects"]
+        doc["GET /api/document
+(progress=1 → NDJSON streaming)"]
+        raw["GET /api/raw
+resolveProjectFile + readFileSync"]
+        blob["GET /api/blob
+readBlobSnapshot(session, name)"]
+        diffR["GET /api/diff
+handleDiffRequest →
+renderDiffVsBase | renderRevisionDiff"]
+        rangeR["GET /api/range-patch
+handleRangePatchRequest →
+renderRangePatch"]
+        catch400["anything thrown →
+400 trust-boundary catch"]
+    end
+
+    subgraph API["src/viewer_api.ts — document build chain"]
+        resolvePaths["resolveJsonlPaths"]
+        loadRecs["loadProjectRecords"]
+        decide{"decideDocumentResponse
+script runs present AND
+NOT allowScripts?"}
+        consent["consent payload
+(NO build — client must
+resend with allowScripts)"]
+        buildConsent["buildDocumentWithConsent"]
+        buildDoc["buildProjectDocument
+buildSidecarReader →
+reconstructBranches →
+buildReconstructionDocument"]
+    end
+
+    subgraph CACHES["caches — instances in viewer_api.ts, primitives in cache_lru.ts (ARTIFACT_CACHE_CAPACITY = 8)"]
+        parsedCache["parsedRecordsCache (LRU 8)
+key = transcript-set stamp
+hit replays per-record progress and
+returns the SAME array →
+engine WeakMap memos stay warm"]
+        docCache["builtDocumentCache (LRU 8)
+key = stamp|allowScripts|target"]
+        sandboxMemo["sandbox memo (LRU 256)
+content-keyed sha256
+disk-backed: .cache/sandbox-memo.json"]
+    end
+
+    app --> static
+    app --> cfgPost
+    app --> cfgGet
+    app --> projects
+    app --> doc
+    app --> raw
+    app --> blob
+    app --> diffR
+    app --> rangeR
+    app -->|"bad input"| catch400
+
+    doc --> resolvePaths
+    diffR -->|"same build chain"| resolvePaths
+    rangeR -->|"same build chain"| resolvePaths
+    resolvePaths --> loadRecs
+    loadRecs --> decide
+    decide -->|"yes"| consent
+    decide -->|"no"| buildConsent
+    buildConsent --> buildDoc
+
+    loadRecs -.->|"hit: same array"| parsedCache
+    buildConsent -.->|"hit: skip build"| docCache
+    buildDoc -.->|"script runs"| sandboxMemo
+
+    style app fill:#e0f2fe,stroke:#0284c7
+    style static fill:#e0f2fe,stroke:#0284c7
+    style decide fill:#fef3c7,stroke:#d97706
+    style consent fill:#fef3c7,stroke:#d97706
+    style catch400 fill:#fee2e2,stroke:#dc2626
+    style buildDoc fill:#ecfdf5,stroke:#059669
+    style parsedCache fill:#ede9fe,stroke:#7c3aed
+    style docCache fill:#ede9fe,stroke:#7c3aed
+    style sandboxMemo fill:#ede9fe,stroke:#7c3aed
+</pre>
+  </div>
+  <p class="legend">Run: <code>npx tsx src/viewer_server.ts</code> · open <code>http://127.0.0.1:&lt;port&gt;/</code> · purple = LRU caches (<code>cache_lru.ts</code>) · amber = consent gate · red = 400 trust-boundary catch · green = full engine build (tabs 1–3).</p>
 </div>
 
 <script type="module">

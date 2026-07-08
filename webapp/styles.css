@@ -123,11 +123,19 @@ a:hover { text-decoration: underline; }
 }
 .inspector-content { flex: 1; min-width: 0; overflow-y: auto; padding-right: 8px; }
 /* Timeline route: the details drawer and the timeline are the layout's 2 flex columns, splitting
-   the space BESIDE the Files column 60/40 (--drawer-width tracks its open/collapsed state);
-   hidden (display:none via the global .hidden) the timeline takes the full width. */
+   the space BESIDE the Files column 50/50 (item 10c: was 60/40 — cramped for conversation
+   reading; --drawer-width tracks the Files column's open/collapsed state); hidden (display:none
+   via the global .hidden) the timeline takes the full width. */
 .layout.timeline-route .inspector-pane {
-    flex: 0 0 calc((100% - var(--drawer-width)) * 0.4);
+    flex: 0 0 calc((100% - var(--drawer-width)) * 0.5);
 }
+/* Item 10a: collapsed inspector keeps a 24px rail holding the focusable « expand button,
+   mirroring the Files drawer's collapsed state (display:none left no reopen affordance).
+   The selector list out-specifies the timeline-route width rule above. */
+.inspector-pane.collapsed, .layout.timeline-route .inspector-pane.collapsed {
+    flex: 0 0 24px; min-width: 24px; padding: 8px 2px;
+}
+.inspector-pane.collapsed .inspector-content { display: none; }
 /* Drawer content wraps instead of scrolling horizontally. */
 .inspector-pane.file-preview-drawer .timeline-preview {
     white-space: pre-wrap; overflow-wrap: anywhere; max-height: none;
@@ -136,9 +144,13 @@ a:hover { text-decoration: underline; }
     white-space: pre-wrap; overflow-wrap: anywhere;
 }
 /* Snapshot drawer (TASKS item 23): the Details pane splits in half — JSON above, the raised
-   blob content below, each scrolling on its own. */
-.inspector-pane.snapshot-drawer .inspector-json { max-height: 50%; }
-.snapshot-pane { border-top: 1px solid var(--border); max-height: 50%; overflow-y: auto; }
+   blob content below, each scrolling on its own. Item 10g: the split needs the content column
+   to BE a flex column — max-height on two block children doesn't halve a plain block. */
+/* .inspector-pane.snapshot-drawer .inspector-json { max-height: 50%; } */
+/* .snapshot-pane { border-top: 1px solid var(--border); max-height: 50%; overflow-y: auto; } */
+.inspector-pane.snapshot-drawer .inspector-content { display: flex; flex-direction: column; }
+.inspector-pane.snapshot-drawer .inspector-json { max-height: 50%; overflow-y: auto; flex: 0 1 auto; }
+.snapshot-pane { border-top: 1px solid var(--border); overflow-y: auto; flex: 1 1 0; min-height: 0; }
 .snapshot-pane .snapshot-pane-header { display: flex; gap: 8px; align-items: center; }
 .hidden { display: none; }
 
@@ -228,7 +240,10 @@ a:hover { text-decoration: underline; }
 .diff-text { white-space: pre; font-size: 12px; }
 .diff-line-add { color: var(--green); }
 .diff-line-del { color: var(--red); }
-.diff-line-hunk { color: var(--accent); }
+/* Item 10e: "@@ -a,b +c,d @@" headers read as noise — render each as a thin dashed gap
+   separator instead; font-size 0 hides the text while the row keeps its slot in the grid. */
+/* .diff-line-hunk { color: var(--accent); } */
+.diff-line-hunk { font-size: 0; height: 9px; border-bottom: 1px dashed var(--border); margin: 2px 0 4px; }
 /* Side-by-side diff: old-number | old-text | new-number | new-text grid; full rows (hunk
    headers, preamble) span all columns. */
 .diff-split { display: grid; grid-template-columns: max-content 1fr max-content 1fr; column-gap: 8px; font-size: 12px; }
@@ -241,6 +256,8 @@ a:hover { text-decoration: underline; }
 .inspector-pane h2 { color: var(--accent); font-size: 12px; margin-bottom: 6px; }
 .inspector-nav { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
 .jump-link { text-decoration: underline dotted; cursor: pointer; }
+/* Item 10h: the history jump button sits inside the JSON <pre>; give it button typography. */
+.snapshot-history-btn { display: block; margin: 8px 0 4px; font-family: system-ui, sans-serif; }
 .inspector-json { white-space: pre-wrap; word-break: break-word; overflow-x: auto; font-size: 12px; line-height: 1.5; }
 .inspector-text { white-space: pre-wrap; word-break: break-word; overflow-x: auto; font-size: 12px; line-height: 1.5; }
 /* Long string values collapse to their first 7 wrapped lines behind a […] toggle. */

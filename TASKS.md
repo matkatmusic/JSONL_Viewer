@@ -55,7 +55,7 @@ All reviewed notes moved to `plans/archived/`.
   **Closed 2026-07-08:** shipped in `fab8f8f` — `scripts/audit_unmodeled_fields.ts` sweeps real
   transcripts; field-gate coverage in `tests/audit-unmodeled-fields.test.ts` +
   `tests/loadTranscript.test.ts`. (Handoff 1903's "tick after committing" note — the commit landed.)
-- [ ] **7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** — `/Users/matkatmusicllc/Programming/jot`
+- [ ] **7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** — DEFERRED UNTIL ALL other tasks are done.`/Users/matkatmusicllc/Programming/jot`
   (separate repo); `grep -rn "windowSizeBlocks"`. Not a RevEng change.
 - [x] **8. Investigate `scripts/coverage_sidecar.ts:43`** — "same @vN blobs have different content":
   real sidecar collision (data-loss risk) or stale note? Failing test if real.
@@ -65,7 +65,7 @@ All reviewed notes moved to `plans/archived/`.
   155/180/206) and `buildSidecarReader` reads the owner's dir first
   (`src/reconstruction_sidecar_reader.ts:64-71`). Landed 2026-06-26 fixing multi-session
   s56/s59/s64; scenario coverage 85/85 exercises it.
-- [ ] **10. Webapp UX smoothing pass** — open-ended; interview user for pain points first.
+- [x] **10. Webapp UX smoothing pass** — open-ended; interview user for pain points first.
   Sub-items surfaced from handoffs: (a) inspector `«` rail button is a CSS pseudo-element,
   not keyboard-focusable; (b) text-selection drag over empty timeline background closes the
   inspector; (c) inspector drawer width cramped for conversation reading;
@@ -82,13 +82,36 @@ All reviewed notes moved to `plans/archived/`.
   (h) `[View in File History]` button (`webapp/inspector.js:310`) renders unstyled inside the
   JSON `<pre>` — needs dedicated CSS if it reads as plain text
   (implementation-notes-items14-23-26-33-close).
+  **Closed 2026-07-08 (all sub-items, user-decided "do all of them"):** (a) premise was wrong —
+  no pseudo-element existed; the real gap was collapse = `display:none` with NO reopen
+  affordance (`handleInspectorRailClick` was unreachable dead code, now commented out). The
+  collapse button now toggles a 24px `.collapsed` rail, same focusable button flips »/«.
+  (b) `checkSelectionBlocksBackgroundClose` guards the timeline background-close against
+  selection drags. (c) timeline details split 60/40 → 50/50. (d) unattributed steps get a
+  `timeline-tag` + tooltip naming their event kind(s) via `computeUnattributedStepTag`
+  ("user edit", "script run", …). (e) `@@` hunk rows render as thin dashed separators
+  (CSS-only; view-model untouched). (f) diff toggle persists via localStorage
+  (`resolveInitialDiffDisplayMode`). (g) snapshot-drawer split fixed: `.inspector-content`
+  becomes a flex column when the drawer is open. (h) button styled via `.snapshot-history-btn`.
+  7 new view-model tests (written, not run — user runs the suite).
 
 ## Approval-gated follow-ups (handoff 22:26)
 
-- [ ] **11. Disk-backed sandbox memo** — persist sha256→outcome across server restarts; the only
+- [x] **11. Disk-backed sandbox memo** — persist sha256→outcome across server restarts; the only
   remaining lever on the 7.3s cold s84 load (38 distinct python3 runs + parse).
-- [ ] **12. Viewer request-path tab in `engine-pipeline-diagrams.html`** — records/document caches
+  **Closed 2026-07-08 (user-approved):** opt-in via `configureSandboxMemoPersistence(path)`
+  (`src/reconstruction_script_execution.ts`) — only `viewer_server.ts` configures it at startup
+  (`.cache/sandbox-memo.json`, already gitignored); engine CLI and tests stay memory-only so
+  spawn-count tests remain deterministic. Whole-file JSON rewrite after each new spawn mirrors
+  the LRU-256 cap; memoized failures round-trip as `post: null`. 3 tests in
+  `tests/reconstruction_script_execution.test.ts` (written, not run — user runs the suite).
+- [x] **12. Viewer request-path tab in `engine-pipeline-diagrams.html`** — records/document caches
   currently get one line on the cache_lru node.
+  **Closed 2026-07-08 (user-approved):** tab `5 · Viewer request path` added — 20 nodes /
+  4 subgraphs covering every `/api/*` route in `handleRequest`, the consent gate, the
+  `buildProjectDocument` chain, and the three caches (`parsedRecordsCache` LRU 8,
+  `builtDocumentCache` LRU 8, sandbox memo LRU 256 + its new item-11 disk backing). Rendered
+  headlessly to verify zero mermaid errors.
 - [x] **13. Cache serialized `JSON.stringify(document)`** — only if reload latency ever shows it
   (ponytail note in `src/viewer_api.ts`).
   **Closed 2026-07-08 as YAGNI:** measured on s84 (the biggest scenario): `JSON.stringify`
@@ -167,10 +190,15 @@ All reviewed notes moved to `plans/archived/`.
 
 ## Decision needed
 
-- [ ] **16. Phase B `kept[]` single-gate — finish or retire?** — `src/reconstruction_parse_lines.ts`
+- [x] **16. Phase B `kept[]` single-gate — finish or retire?** — `src/reconstruction_parse_lines.ts`
   header still promises "Phase B makes `kept[]` the engine's sole input"; no consumer exists and
   85/85 was reached via the old path (handoff-api-from-scenarios-20260626-1152). Either finish the
   refactor or retire the plan and fix the stale header.
+  **Closed 2026-07-08 (retired, user-decided):** the finish path was empirically disproven — gating
+  at load caused 5 branch-test regressions (the engine walks the last-prompt/parentUuid DAG), and
+  the shipped resolution gates extraction per-record via `recordVerdict` while full records flow to
+  `reconstructBranches`; 85/85 coverage was reached without kept[] as sole input. Stale header
+  rewritten to describe what actually shipped. No behavior change.
 - [x] **14. ReconstructionCorpus (Fix 2) — still worth building?** — from handoff 22:32. The corpus
   facade targeted duplication that `f6d2852` has since mostly eliminated (186→38 spawns, 0.03s warm),
   and the recorded scope decision rejected document-shape changes. Decide with user whether the

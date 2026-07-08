@@ -1,9 +1,11 @@
 // Step-1 line-partition parser (s37 script-replay diagnostic). Classify each raw JSONL line into a single
-// `Verdict` and split the transcript into a kept / ignored partition. This is a PARALLEL DIAGNOSTIC in
-// Phase A: it observes the transcript but does not yet feed reconstruction (Phase B makes `kept[]` the
-// engine's sole input). Classification reuses the same per-line decision logic extraction consumes, so the
-// classifier cannot drift. The human-readable trace render lives in reconstruction_trace.ts (split out to
-// keep each file within the 250-line cap). Design:
+// `Verdict` and split the transcript into a kept / ignored partition. This is a PARALLEL DIAGNOSTIC:
+// it observes the transcript but does not feed reconstruction. The planned Phase B ("kept[] becomes the
+// engine's sole input") is RETIRED — gating at load regressed branch reconstruction (the engine walks the
+// full last-prompt/parentUuid DAG), so extraction is gated per-record via `recordVerdict` instead and full
+// records still flow to reconstructBranches. Classification reuses the same per-line decision logic
+// extraction consumes, so the classifier cannot drift. The human-readable trace render lives in
+// reconstruction_trace.ts (split out to keep each file within the 250-line cap). Design:
 // ~/.claude/plans/task-implement-script-replay-partitioned-puppy.md (Phase A).
 
 import { readFileSync } from "node:fs";
