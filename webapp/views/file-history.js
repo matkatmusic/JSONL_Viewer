@@ -229,7 +229,7 @@ export async function renderFileHistoryView(container, project, target, anchorRe
                     text: "Export .patch",
                     onclick: async () => downloadText(`${baseName}.rev${index + 1}.patch`, (await getDiffBlocks())[index] ?? ""),
                 }),
-                el("button", { class: "row-btn", text: "Jump to conversation", onclick: () => jumpToConversation(revision.changeId) }),
+                el("button", { class: "row-btn", text: "Jump to timeline step", onclick: () => jumpToConversation(revision.changeId) }),
             ]),
             contentPane,
         ]);

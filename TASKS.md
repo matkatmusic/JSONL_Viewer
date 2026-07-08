@@ -44,9 +44,12 @@ Handoffs and pre-today implementation-notes archived.
 
 ## Queued work items (handoff 18:01)
 
-- [ ] **4. Scenario coverage for unhandled JSON fields in real JSONLs** — fields tolerated via the
+- [x] **4. Scenario coverage for unhandled JSON fields in real JSONLs** — fields tolerated via the
   field-gate bypass in `buildProjectDocument` (`src/viewer_api.ts:105-108`) / surfaced as
   `UnmodeledFieldError`. Start by grepping real `~/.claude/projects` transcripts.
+  **Closed 2026-07-08:** shipped in `fab8f8f` — `scripts/audit_unmodeled_fields.ts` sweeps real
+  transcripts; field-gate coverage in `tests/audit-unmodeled-fields.test.ts` +
+  `tests/loadTranscript.test.ts`. (Handoff 1903's "tick after committing" note — the commit landed.)
 - [ ] **7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** — `/Users/matkatmusicllc/Programming/jot`
   (separate repo); `grep -rn "windowSizeBlocks"`. Not a RevEng change.
 - [x] **8. Investigate `scripts/coverage_sidecar.ts:43`** — "same @vN blobs have different content":
@@ -60,7 +63,13 @@ Handoffs and pre-today implementation-notes archived.
 - [ ] **10. Webapp UX smoothing pass** — open-ended; interview user for pain points first.
   Sub-items surfaced from handoffs: (a) inspector `«` rail button is a CSS pseudo-element,
   not keyboard-focusable; (b) text-selection drag over empty timeline background closes the
-  inspector; (c) inspector drawer width cramped for conversation reading.
+  inspector; (c) inspector drawer width cramped for conversation reading;
+  (d) unattributed steps' only signal is a muted rail dot + spine break — enough, or add a
+  tooltip/tag like "git baseline" / "user edit"? (`eventKind` already reaches the view-model,
+  `webapp/views/timeline.js:47`; handoff-20260707-1805); (e) `@@ -a,b +c,d @@` hunk rows render
+  visibly between diff hunks — hide if they read as noise? (implementation-notes-proud-gosling);
+  (f) inline/side-by-side diff toggle is session-only — persist in localStorage, or per-surface
+  defaults (drawer inline, full view split)? (implementation-notes-proud-gosling).
 
 ## Approval-gated follow-ups (handoff 22:26)
 
@@ -184,3 +193,58 @@ Handoffs and pre-today implementation-notes archived.
 - [x] **28. 362 golden-value test failures** — retired in favor of the scenario coverage tool
   (85/85 scenarios fully reproduced as of 2026-07-08; zero references to golden-value tests
   remain in the test suite).
+
+## New items (2026-07-08, from post-1619 handoffs / implementation notes)
+
+Mined from handoffs 20260707-1632/1805/1903, 20260708-0119, and the Jul 7-8 implementation
+notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 regression
+(`fab8f8f`), s40 session attribution (`39918fe`).
+
+- [x] **29. Rename the "Jump to conversation" button** — it now jumps to the timeline anchored
+  at the step + transcript inspector, not the conversation view. "Jump to timeline" /
+  "Jump to step"? One-string change once the user picks a label. (handoffs 1632/1805)
+  **Closed 2026-07-08:** renamed to "Jump to timeline step" (user-picked label),
+  `webapp/views/file-history.js`.
+- [x] **30. Simplify `openRevision` in `webapp/inspector.js` (~226)** — its
+  `!checkRouteIsTimeline(...)` branch is dead on all project routes, and it swaps drawer
+  content WITHOUT updating the URL — inconsistent with the URLs-reflect-drawers architecture.
+  Replacing it with `location.hash = routeToFileHistory(...) (+ /rev/N)` deletes the branch
+  and makes revision links shareable, at the cost of a full timeline re-render per click.
+  (handoff 1632)
+  **Closed 2026-07-08:** `openRevision` is now a hash navigation via the new
+  `computeRevisionLinkRoute` (`webapp/inspector.js`); the dead `!checkRouteIsTimeline` branch
+  and the direct drawer render are gone, revision links are shareable URLs. 2 tests in
+  `tests/inspector-viewmodels.test.ts`.
+- [x] **31. Remove the dead "(unattributed)" CSS hide rule** — `6b5a71a` hid the lane header
+  via CSS (`webapp/styles.css` ~254); the s40 attribution fix (`39918fe`) made it defunct.
+  Remove the rule (rule removal, not file deletion) once confirmed no scenario still emits an
+  unattributed lane header. (implementation-notes-s40-timeline-session-attribution)
+  **Closed 2026-07-08 (won't-do — rule is load-bearing, premise wrong):** swept all 85 covered
+  scenarios building each document + timeline view-model: 29 scenarios (s23, s29, s32, s34,
+  s35, s37, s38, s41–s44, s50, s51, s54–s60, s62, s72–s75, s82–s85) each still emit exactly
+  one unattributed agent-turn — the script-execution turns whose synthetic changeIds are
+  per-replay `randomUUID()` (item 34). Removing the rule would re-show the "(unattrib" header
+  in all 29. Re-check after item 34 lands.
+- [x] **32. `/api/document` runs its per-line progress walk twice per request** — once for the
+  script-consent scan, once for the document build, both labeled "reusing cached"; the console
+  reads as "loaded twice". Cosmetic. (handoff 0119, s40 notes)
+  **Closed 2026-07-08:** the per-record walk now happens exactly once per request —
+  `buildDocumentWithConsent`/`buildProjectDocument` no longer replay records
+  (`src/viewer_api.ts`); the route's own `loadProjectRecords` call is the single walk.
+  Contract tests rewritten in `tests/viewer-progress.test.ts`.
+
+## Decision needed (2026-07-08)
+
+- [ ] **33. Filter command-message prompts from the timeline?** — s39 renders 13 steps vs the
+  sketch's 7 partly because `/ponytail`-style command prompts and their ack replies each get a
+  numbered step (4 extra turns across 2 sessions). Filter them out, or keep as steps?
+  (implementation-notes-turn-based-timeline-steps)
+- [ ] **34. Deterministic synthetic changeIds** — the real fix for item 25's zero-chip turns:
+  derive script-execution changeIds from target + run timestamp so the step timeline and
+  file-history replays agree, instead of per-replay `randomUUID()`
+  (`reconstruction_script_stage.ts:303`). Touches changeId-uniqueness assumptions; needs a
+  user go-ahead. (implementation-notes-items13-19-21-25-close)
+- [ ] **35. Content-keyed memoization of `executeRunOnce`** — if the branches-pass/steps-pass
+  double reconstruction on real transcripts is still too costly after `f311059`'s
+  lineage-window fix. Explicitly YAGNI until a new logs capture shows it matters.
+  (implementation-notes-repeated-reconstruction-work)

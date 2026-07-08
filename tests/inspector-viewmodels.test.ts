@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractReadableText } from "../webapp/inspector.js";
+import { computeRevisionLinkRoute, extractReadableText } from "../webapp/inspector.js";
 
 test("test_extract_readable_text_returns_string_message_content_verbatim", () => {
     // Scenario: a user record whose message.content is a plain string — the prompt text IS
@@ -60,4 +60,24 @@ test("test_extract_readable_text_returns_non_json_lines_verbatim", () => {
     // Scenario: the inspector falls back to the raw string when a line fails JSON.parse;
     // that string is already the readable content.
     assert.equal(extractReadableText("not json at all"), "not json at all");
+});
+
+test("test_revision_link_route_carries_revision_anchor", () => {
+    // Scenario: a revision link with a revision number routes to the file-history view
+    // anchored at that revision — the same /rev/<n> shape routeToFileHistory-based routes use.
+    // Steps:
+    // compute the route for a resolved link with revisionNumber 3.
+    const route = computeRevisionLinkRoute("proj-a", { target: "/tmp/app.py", revisionNumber: 3 });
+    // assert the file-history route with the /rev/3 anchor.
+    assert.equal(route, "#/project/proj-a/file/%2Ftmp%2Fapp.py/rev/3");
+});
+
+test("test_revision_link_route_without_revision_number_omits_anchor", () => {
+    // Scenario: a link that resolved to a file but no single revision routes to the plain
+    // file-history view (no /rev segment).
+    // Steps:
+    // compute the route for a link with no revisionNumber.
+    const route = computeRevisionLinkRoute("proj-a", { target: "/tmp/app.py", revisionNumber: undefined });
+    // assert the bare file-history route.
+    assert.equal(route, "#/project/proj-a/file/%2Ftmp%2Fapp.py");
 });

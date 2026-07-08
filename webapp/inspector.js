@@ -6,8 +6,8 @@
 // to the linked line (a uuid jumps to the record it names; a tool id jumps to its use/result
 // counterpart). Navigation also notifies the calling view so it can scroll/highlight along.
 
-import { checkRouteIsTimeline, el, parseRouteSegments, peekCachedDocument, routeToFileHistory } from "./app.js";
-import { findRevisionForChangeId, renderFileHistoryView } from "./views/file-history.js";
+import { el, parseRouteSegments, peekCachedDocument, routeToFileHistory } from "./app.js";
+import { findRevisionForChangeId } from "./views/file-history.js";
 
 // The legacy viewer's token pattern: strings (key vs value by trailing colon), booleans,
 // null, and numbers. Everything between tokens (braces, brackets, commas, whitespace) is
@@ -89,6 +89,13 @@ export function findBackupTimeForBlob(record, blobName) {
         }
     }
     return undefined;
+}
+
+// The file-history route a resolved revision link navigates to: anchored at /rev/<n> when the
+// link names one revision, the file's plain history otherwise.
+export function computeRevisionLinkRoute(project, { target, revisionNumber }) {
+    const base = routeToFileHistory(project, target);
+    return revisionNumber === undefined ? base : `${base}/rev/${revisionNumber}`;
 }
 
 // The tool_use identity of a shown record: its first tool_use block's id plus the record's own
@@ -292,15 +299,10 @@ export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLin
     // build. On routes with no cached document, changeId values simply render unlinked.
     const project = findCurrentProject();
     const filesTouched = project === undefined ? [] : peekCachedDocument(project)?.filesTouched ?? [];
-    const openRevision = async ({ target, revisionNumber }) => {
-        const base = routeToFileHistory(project, target);
-        if (!checkRouteIsTimeline(parseRouteSegments())) {
-            location.hash = revisionNumber === undefined ? base : `${base}/rev/${revisionNumber}`;
-            return;
-        }
-        // On the timeline the file viewer opens as a drawer OVER it (user decision 2026-07-06):
-        // the timeline and its URL stay put; this pane hosts the revision list instead.
-        await renderFileHistoryView(openInspectorPane(), project, target, revisionNumber === undefined ? undefined : String(revisionNumber));
+    // Revision links navigate: the router renders file history as a drawer over the timeline
+    // (renderSubRouteDrawer) and the URL reflects it, so revision links are shareable.
+    const openRevision = (revisionLink) => {
+        location.hash = computeRevisionLinkRoute(project, revisionLink);
     };
     const showLine = (index) => {
         const clamped = Math.min(Math.max(index, 0), rawLines.length - 1);

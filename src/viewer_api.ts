@@ -186,7 +186,9 @@ export function scanProjects(projectsDir: Path): ProjectListing[] {
 // One-or-many JSONLs -> one ReconstructionDocument. Exactly the CLI --json composition,
 // generalized to a merged multi-JSONL record stream (the coverage checker's proven pattern).
 export function buildProjectDocument(jsonlPaths: Path[], target: Path | undefined, onProgress?: ProgressSink): ReconstructionDocument {
-    const records = loadProjectRecords(jsonlPaths, onProgress);
+    // The per-record walk belongs to the caller's own loadProjectRecords call (the /api/document
+    // route always pre-walks); the build emits stages and deep-engine progress only.
+    const records = loadProjectRecords(jsonlPaths);
     reportStage(onProgress, PROGRESS_LABEL_READING_SIDECAR);
     const reader = buildSidecarReader(records);
     reportStage(onProgress, PROGRESS_LABEL_CONSTRUCTING_BRANCHES);
@@ -233,9 +235,6 @@ export function buildDocumentWithConsent(
     const cachedDocument = getCachedValueRefreshingRecency(builtDocumentCache, cacheKey);
     if (cachedDocument !== undefined) {
         reportStage(onProgress, PROGRESS_LABEL_ARTIFACT_CACHE_HIT);
-        // The build is skipped, but the per-line record output must still show — loading the
-        // (records-cached) transcripts replays it.
-        loadProjectRecords(jsonlPaths, onProgress);
         return cachedDocument;
     }
     setImpureExecutionAllowed(allowScripts);

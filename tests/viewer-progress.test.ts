@@ -13,6 +13,7 @@ import {
 } from "../src/parse/loadTranscript.ts";
 import {
     buildDocumentWithConsent,
+    loadProjectRecords,
     PROGRESS_LABEL_READING_SIDECAR,
     PROGRESS_LABEL_CONSTRUCTING_BRANCHES,
     PROGRESS_LABEL_BUILDING_DOCUMENT,
@@ -66,38 +67,53 @@ test("test_loadTranscript_reports_file_then_parsing_then_per_record_classificati
     }
 });
 
-test("test_cached_document_build_still_emits_per_record_progress", () => {
-    // Scenario: a page refresh hits the records + artifact caches; the console must still show
-    // the per-line processing output (one counted event per record) instead of going quiet.
+test("test_document_request_sequence_walks_records_once_when_cold", () => {
+    // Scenario: one /api/document request = one per-record console walk. The route loads
+    // records with its sink (the walk), then builds with the same sink — the build must not
+    // walk them again.
     // Steps:
-    // build the same document twice with collecting sinks — cold, then fully cached.
+    // run the route's sequence cold (fresh temp copy) with one collecting sink.
     const jsonlPath = copyFixtureIntoTempDir(S19_JSONL);
     const recordCount = loadTranscript(jsonlPath.toString()).length;
-    const coldEvents: ProgressEvent[] = [];
-    buildDocumentWithConsent([jsonlPath], undefined, false, (event) => coldEvents.push(event));
-    const warmEvents: ProgressEvent[] = [];
-    buildDocumentWithConsent([jsonlPath], undefined, false, (event) => warmEvents.push(event));
-    // per-record events are the counted ones whose total is the record count (deep engine stages
-    // emit their own counted events with per-stage totals).
-    const countPerRecord = (events: ProgressEvent[]) =>
-        events.filter((event) => event.total === recordCount).length;
-    assert.ok(recordCount > 0);
-    // the cold parse emits one per record; the warm (cached) build replays exactly as many.
-    assert.equal(countPerRecord(coldEvents), recordCount);
-    assert.equal(countPerRecord(warmEvents), recordCount);
+    const requestEvents: ProgressEvent[] = [];
+    const sink = (event: ProgressEvent) => requestEvents.push(event);
+    loadProjectRecords([jsonlPath], sink);
+    buildDocumentWithConsent([jsonlPath], undefined, false, sink);
+    // per-record events (counted with total === recordCount) appear exactly once per record.
+    const perRecordCount = requestEvents.filter((event) => event.total === recordCount).length;
+    assert.equal(perRecordCount, recordCount);
+});
+
+test("test_document_request_sequence_walks_records_once_when_cached", () => {
+    // Scenario: a warm request (records + artifact caches hit) still shows the walk exactly
+    // once — loadProjectRecords' replay — not a second replay from the cached build.
+    // Steps:
+    // prime both caches, then re-run the route's sequence with a collecting sink.
+    const jsonlPath = copyFixtureIntoTempDir(S19_JSONL);
+    const recordCount = loadTranscript(jsonlPath.toString()).length;
+    loadProjectRecords([jsonlPath]);
+    buildDocumentWithConsent([jsonlPath], undefined, false);
+    const requestEvents: ProgressEvent[] = [];
+    const sink = (event: ProgressEvent) => requestEvents.push(event);
+    loadProjectRecords([jsonlPath], sink);
+    buildDocumentWithConsent([jsonlPath], undefined, false, sink);
+    // exactly one replayed event per record across the whole request.
+    const perRecordCount = requestEvents.filter((event) => event.total === recordCount).length;
+    assert.equal(perRecordCount, recordCount);
 });
 
 test("test_per_record_progress_labels_carry_source_tokens_cold_and_cached", () => {
     // Scenario: every per-record console line — cold parse AND cache replay — carries the
     // "[<jsonl>:<line>]" token matchJsonlSourceLink turns into a jump to that raw line.
     // Steps:
-    // build twice (cold, cached); assert every counted label in both streams carries the token.
+    // load twice (cold parse, then cached replay); assert every counted label in both streams
+    // carries the token.
     const jsonlPath = copyFixtureIntoTempDir(S19_JSONL);
     const recordCount = loadTranscript(jsonlPath.toString()).length;
     const coldEvents: ProgressEvent[] = [];
-    buildDocumentWithConsent([jsonlPath], undefined, false, (event) => coldEvents.push(event));
+    loadProjectRecords([jsonlPath], (event) => coldEvents.push(event));
     const warmEvents: ProgressEvent[] = [];
-    buildDocumentWithConsent([jsonlPath], undefined, false, (event) => warmEvents.push(event));
+    loadProjectRecords([jsonlPath], (event) => warmEvents.push(event));
     for (const events of [coldEvents, warmEvents]) {
         const perRecordEvents = events.filter((event) => event.total === recordCount);
         assert.ok(perRecordEvents.length > 0);
@@ -137,8 +153,8 @@ test("test_loadTranscript_without_sink_returns_identical_records", () => {
 // -------------------- Step 2: stage labels through the build --------------------
 
 test("test_buildDocumentWithConsent_emits_stage_labels_in_order", () => {
-    // Scenario: building a document announces each engine stage in order, after the per-record
-    // parsing events.
+    // Scenario: building a document announces each engine stage in order; the build assumes its
+    // caller already walked records, so it emits no parsing announcement of its own.
     // Steps: build the s19 document with a collecting sink; assert the three stage labels appear
     // as an in-order subsequence of the uncounted labels.
     const progressEvents: ProgressEvent[] = [];
@@ -152,8 +168,9 @@ test("test_buildDocumentWithConsent_emits_stage_labels_in_order", () => {
         ]),
         `stage labels in order; got ${JSON.stringify(stageLabels)}`,
     );
-    // the stages come after the parsing announcement (the first non-file uncounted label).
-    assert.ok(stageLabels.indexOf(PROGRESS_LABEL_PARSING_RECORDS) < stageLabels.indexOf(PROGRESS_LABEL_READING_SIDECAR));
+    // the build emits NO parsing announcement of its own — the walk belongs to the caller's
+    // loadProjectRecords call.
+    assert.ok(!stageLabels.includes(PROGRESS_LABEL_PARSING_RECORDS));
 });
 
 test("test_buildDocumentWithConsent_with_sink_returns_document_identical_to_no_sink_build", () => {
