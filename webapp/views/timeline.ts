@@ -821,13 +821,46 @@ export async function renderTimelineView(container: HTMLElement, project: string
         return undefined;
     };
 
+    // Item 43: keep the timeline's selected bubble on the step owning the inspector's shown
+    // line, so Prev/Next (and in-inspector jumps) walk the selection along the timeline. A
+    // line owned by no node (summary records, snapshot lines with re-stamped changeIds)
+    // keeps the current selection.
+    const syncSelectedRowToShownLine = (rawLines: string[], shownLine: number): void => {
+        const nodeIndex = findTimelineNodeIndexForRawLine(nodes, rawLines[shownLine] ?? "");
+        if (nodeIndex === -1) {
+            return;
+        }
+        const row = nodeRows.get(nodeIndex);
+        if (row === undefined) {
+            return;
+        }
+        if (row === selectedRow) {
+            return;
+        }
+        if (selectedRow !== null) {
+            selectedRow.classList.remove("selected");
+        }
+        selectedRow = row;
+        row.classList.add("selected");
+        drawRail();
+    };
+
+    // Every timeline transcript-inspector open routes through this wrapper so line changes
+    // inside the inspector sync the timeline selection (item 43).
+    const openTranscriptInspectorSynced = (options: { jsonlName: string; rawLines: string[]; line: number }): void => {
+        openTranscriptInspector({
+            ...options,
+            onJumpToLine: (shownLine) => syncSelectedRowToShownLine(options.rawLines, shownLine),
+        });
+    };
+
     // ── inspector jump (requirement 6): turn -> first resolvable changeId -> (jsonl, line) ──
     const openStepInspector = async (node: TurnNode, previewPane: HTMLElement): Promise<void> => {
         for (const snapshot of node.snapshots) {
             for (const changeId of snapshot.changeIds) {
                 const located = await findTranscriptLineForChangeId(changeId);
                 if (located !== undefined) {
-                    openTranscriptInspector(located);
+                    openTranscriptInspectorSynced(located);
                     return;
                 }
             }
@@ -863,7 +896,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
             openStepInspector(node, previewPane);
             return;
         }
-        openTranscriptInspector({ jsonlName, rawLines, line });
+        openTranscriptInspectorSynced({ jsonlName, rawLines, line });
     };
 
     // Toggle shared by the drawer-opening file buttons: true when the click closed an already-open
@@ -952,7 +985,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
             previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this revision (synthetic change id)" }));
             return;
         }
-        openTranscriptInspector(located);
+        openTranscriptInspectorSynced(located);
     };
 
     // { } button on a git row: the Bash tool_use line that ran the command, matched by the
@@ -975,7 +1008,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
             previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this git command" }));
             return;
         }
-        openTranscriptInspector({ jsonlName, rawLines, line });
+        openTranscriptInspectorSynced({ jsonlName, rawLines, line });
     };
 
     // +/- button: this revision's computed diff vs the previous revision, from the server's
@@ -1112,7 +1145,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
             const openSessionTranscript = async (event: Event) => {
                 event.preventDefault();
                 const rawLines = await fetchRawRecords(project, jsonlName!);
-                openTranscriptInspector({ jsonlName: jsonlName!, rawLines, line: 0 });
+                openTranscriptInspectorSynced({ jsonlName: jsonlName!, rawLines, line: 0 });
             };
             const header = el("div", { class: "timeline-session", "data-color": color, "data-session": sessionKey }, [
                 el("span", { class: "swatch", style: `background:${color}` }),
@@ -1176,7 +1209,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
             if (jsonlName !== undefined) {
                 rowTop.addEventListener("click", async () => {
                     const rawLines = await fetchRawRecords(project, jsonlName);
-                    openTranscriptInspector({ jsonlName, rawLines, line: rawLines.length - 1 });
+                    openTranscriptInspectorSynced({ jsonlName, rawLines, line: rawLines.length - 1 });
                 });
             }
             row.append(rowTop);
@@ -1349,7 +1382,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
             // post-drawer layout.
             // anchoredRow.scrollIntoView({ block: "center" });
         }
-        openTranscriptInspector({ jsonlName: anchorJsonl!, rawLines, line: rawLineIndex });
+        openTranscriptInspectorSynced({ jsonlName: anchorJsonl!, rawLines, line: rawLineIndex });
         anchoredRow?.scrollIntoView({ block: "center" });
     }
 }

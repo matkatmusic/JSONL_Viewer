@@ -375,12 +375,47 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   counters as the split view: deletions number the old side, additions the new side, context
   both; preamble/headers unnumbered. 4 tests in `tests/viewer-viewmodels.test.ts` (written,
   not run — user runs the suite).
-- [ ] **41. Re-check the "(unattributed)" CSS hide rule now that item 34 landed** — with
+- [x] **41. Re-check the "(unattributed)" CSS hide rule now that item 34 landed** — with
   deterministic `scriptRun:` changeIds the 29 scenarios from item 31's sweep should now
   attribute their script turns; after the suite + scenario sweep passes, re-run the lane-header
   check and remove the rule (`webapp/styles.css` ~254) if no scenario still emits an
   unattributed lane header. (implementation-notes-items34-18)
+  **Closed 2026-07-08 (re-checked — rule must STAY):** re-ran the lane-header sweep across all
+  85 covered scenarios (build document + `buildTurnTimelineViewModel`, count
+  `sessionId === undefined` nodes): **28 scenarios still emit exactly one unattributed
+  agent-turn** — item 31's list minus s84 (which item 34 DID fix) plus the new s86. The
+  survivors are NOT `scriptRun:` ids: their steps' changeIds are sidecar **blob refs**
+  (e.g. s83's `87585af140a28180@v1`) and git-evidence randomUUID splices that item 34
+  deliberately left untouched, and neither resolves to a session in
+  `indexChangeIdsToSessionIds`. The rule (`webapp/styles.css:296`) stays load-bearing;
+  attributing blob-ref/git-evidence steps (e.g. blob → owning-session lookup) would be a new
+  engine item if wanted.
 - [ ] **42. `npm run app` rebuilds the webapp on every start (~1s tsc)** — add an `app:fast`
   script that skips the build only if the delay grates. YAGNI until it does.
   (implementation-notes-items34-18)
-- [ ] **43. Timeline selection doesn't change when Details View's item is a node in the timeline**.  **Reproduce**: using `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline`, select Step 3 (line 29/138). in the Details View (json displayed), advance to line 32/138 by pressing the `next >` button.  **Expected**: the Step 4 message bubble should selected. **Actual**: Step 3's message bubble remains selected. 
+- [x] **43. Timeline selection doesn't change when Details View's item is a node in the timeline**.  **Reproduce**: using `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline`, select Step 3 (line 29/138). in the Details View (json displayed), advance to line 32/138 by pressing the `next >` button.  **Expected**: the Step 4 message bubble should selected. **Actual**: Step 3's message bubble remains selected. 
+  **Closed 2026-07-08:** `openTranscriptInspector`'s existing-but-never-wired `onJumpToLine`
+  hook is now passed by all 7 timeline inspector-open sites via a closure wrapper
+  (`openTranscriptInspectorSynced`, `webapp/views/timeline.ts`): on every shown line,
+  `syncSelectedRowToShownLine` maps the line to its owning node
+  (`findTimelineNodeIndexForRawLine` — already test-covered, including the no-owner case),
+  swaps `.selected`, and redraws the rail; a line owned by no node keeps the current
+  selection. The `/at/<line>` anchor route now also selects (not just outlines) the anchored
+  step. Verified live in a headless browser on s84: Next from line 49 holds Step 23 through
+  line 68 and moves the selection to Step 27 at line 69. tsc clean; suite not run (user runs
+  it). Plan: `plans/item43-inspector-next-syncs-timeline-selection.md`.
+- [ ] **44. Verify items 37–40 (nothing was run)** — the 4 new `computeInlineRows` tests in
+  `tests/viewer-viewmodels.test.ts` were written but never run (run the suite), and the three
+  CSS/DOM fixes (37 scroll-after-drawer, 38 outline-offset, 39 pre-wrap) have had no visual
+  check — verify at the repro URL in item 37. Known quirk, matches split view: a diff's blank
+  trailing line (final `\n` split) gets numbered as context inside a hunk.
+  (implementation-notes-items37-40-webapp-ui-fixes)
+  **Update 2026-07-08 (visual half DONE — only the suite run remains, user runs it):** all
+  four fixes verified in a headless browser against s84 on a fresh build: (37) the `/at/49`
+  anchored row lands centered in the pane AFTER the drawer opens (~70px from window center =
+  header offset, not top/bottom); (38) `.anchored` computes `outline-offset: -2px` on both the
+  timeline row and the file-history snapshot — ring un-clipped; (39) `.diff-text`/`.diff-split`
+  report `scrollWidth <= clientWidth`, no body horizontal scroll on the Diff-vs-Base view;
+  (40) inline view renders a `display:grid` 3-column layout, additions numbered on the new
+  side only (screenshot taken). Note: the stale 7343 server process predates these fixes —
+  restart it to see them; disk + `webapp/dist/` are current.
