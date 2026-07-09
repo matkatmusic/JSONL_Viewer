@@ -181,16 +181,21 @@ export function resolveInitialDiffDisplayMode(storedValue: string | null | undef
     return DiffDisplayMode.split;
 }
 
-// localStorage access is guarded: the node test runner imports this module with no DOM.
+// localStorage access is guarded: the node test runner imports this module with no DOM. The
+// guard checks `window`, not `localStorage` — on Node 26 even `typeof localStorage` (and a
+// try/catch around it) fires the ExperimentalWarning, because touching the global getter at
+// all is what warns (item 36a).
 function readStoredDiffMode(): string | null | undefined {
-    if (typeof localStorage === "undefined") {
+    // if (typeof localStorage === "undefined") {  // item 36a: typeof localStorage itself warns
+    if (typeof window === "undefined") {
         return undefined;
     }
     return localStorage.getItem(DIFF_MODE_STORAGE_KEY);
 }
 
 function writeStoredDiffMode(mode: DiffDisplayModeValue): void {
-    if (typeof localStorage === "undefined") {
+    // if (typeof localStorage === "undefined") {  // item 36a: typeof localStorage itself warns
+    if (typeof window === "undefined") {
         return;
     }
     localStorage.setItem(DIFF_MODE_STORAGE_KEY, mode);

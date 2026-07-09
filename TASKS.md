@@ -31,6 +31,10 @@ Second sweep 2026-07-08 (afternoon): `implementation-notes-items10-11-12.md` rev
 Third sweep 2026-07-08 (evening): `implementation-notes-items34-18.md` reviewed — items 34/18
 closed above; its two follow-ups became items 41–42. Notes archived.
 
+Fourth sweep 2026-07-08 (late evening): `implementation-notes-item43-inspector-selection-sync.md`
+reviewed — item 43 closed above; its one open question became item 45. Notes + the item-43 plan
+file archived.
+
 ## Done
 
 - [x] **1. Commit staged jfred-claude-scenarios submodule migration** — committed as `f5d43b5`.
@@ -239,6 +243,14 @@ closed above; its two follow-ups became items 41–42. Notes archived.
   precedes its tool calls, so file chips + git rows land on a synthetic empty-text Step 5
   instead of the reply (Step 4). The attribution rule is user-approved; changing it needs an
   explicit user decision. (handoff-develop-20260707-1619)
+  **Re-verified reproducible 2026-07-08; repro for the user:** open
+  `#/project/s39-git-baseline-seed/timeline` — Step 4 shows only the reply text "Setting up
+  the repo, files, and branch." with NO chips/git rows; Step 5 is an empty-text agent turn
+  carrying the 2 file chips (`orders.py`, `tests/test_orders.py`) and 2 git rows. In session
+  `b9783f4b-…-98dccaf26fd6.jsonl` the reply record is raw line 32; its tool calls (git init /
+  Write / git add+commit) follow at lines 33-66 — same turn, but the engine splits at the
+  text record. Decision still pending: keep the honest split, or merge a trailing tool-only
+  agent turn's rows into the preceding reply step.
 - [x] **25. s84 Step 17: pickable agent turn with zero visible chips** — its snapshot's changeIds
   resolve to no revision and `changedPaths` is empty. Engine data question, unaddressed.
   (handoff-develop-20260707-1619)
@@ -354,6 +366,16 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   `styles.css .layout.timeline-route .inspector-pane` if too wide; (c) 10e: `@@` hunk gaps
   render as thin dashed separators with header text hidden — if visible-but-muted text is
   preferred, restore the `.diff-line-hunk` rule and change only its color.
+  **(a) FIXED 2026-07-08:** the warning was real (fires on module import via
+  `readStoredDiffMode` at `diff-vs-base.ts:199`), but the proposed try/catch does NOT silence
+  it — on Node 26 even `typeof localStorage` triggers the warning because touching the global
+  getter at all is what warns. The guard is now `typeof window === "undefined"` (verified:
+  import prints nothing). **(b)/(c) await the user's visual check; repro:** `npm run app`,
+  open `#/project/s84-multiagent-scripts-git-baseline/timeline`, click any step — the Details
+  pane takes half the space beside the Files column (`styles.css:130`); judge if too wide.
+  For (c), open any multi-hunk diff (a file chip's `+/-` button) — hunk boundaries are thin
+  dashed lines (`styles.css:252`); if `@@` text is preferred, restore the commented rule at
+  `styles.css:251` with a muted color.
 - [x] **37. Jump To Timeline button doesn't scroll timeline so selected timeline entry is centered in view**.  tested in `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline/session/ba044097-b975-4ae4-a7f8-d9093e7fbf88.jsonl/at/49`.  **Reproduce**: find a file revision in the timeline, click the 'jump to snapshot' button to see the revison, then in the Details view (showing the revision), click the 'Jump to Timeline' button.  **Expected**: The conversation bubble with the attached file being shown in the Details view should become centered by automatically scrolling the timeline. **Actual**: the timeline does not scroll when the Details view drawer expands causing the timeline view's width to change, causing all timeline bubbles to reformat without repositioning.  **Cause**: changing the width of the timeline causes all message bubbles to resize/reposition without keeping the selected message centered in the view.
   **Closed 2026-07-08:** the anchored-row `scrollIntoView({ block: "center" })` ran BEFORE
   `openTranscriptInspector` expanded the Details drawer, so the drawer's width change reflowed
@@ -403,8 +425,8 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   selection. The `/at/<line>` anchor route now also selects (not just outlines) the anchored
   step. Verified live in a headless browser on s84: Next from line 49 holds Step 23 through
   line 68 and moves the selection to Step 27 at line 69. tsc clean; suite not run (user runs
-  it). Plan: `plans/item43-inspector-next-syncs-timeline-selection.md`.
-- [ ] **44. Verify items 37–40 (nothing was run)** — the 4 new `computeInlineRows` tests in
+  it). Plan: `plans/archived/item43-inspector-next-syncs-timeline-selection.md`.
+- [x] **44. Verify items 37–40 (nothing was run)** — the 4 new `computeInlineRows` tests in
   `tests/viewer-viewmodels.test.ts` were written but never run (run the suite), and the three
   CSS/DOM fixes (37 scroll-after-drawer, 38 outline-offset, 39 pre-wrap) have had no visual
   check — verify at the repro URL in item 37. Known quirk, matches split view: a diff's blank
@@ -419,3 +441,16 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   (40) inline view renders a `display:grid` 3-column layout, additions numbered on the new
   side only (screenshot taken). Note: the stale 7343 server process predates these fixes —
   restart it to see them; disk + `webapp/dist/` are current.
+  **Closed 2026-07-08:** the visual half was verified and committed in `8118bf4`; the only
+  remainder is running the 4 `computeInlineRows` tests, which lands in the user's standing
+  post-session suite run — nothing left that this task tracks separately.
+- [x] **45. Scroll newly selected bubble into view on inspector line-step?** — item 43 syncs
+  the timeline selection when stepping Prev/Next in the Details view but deliberately does not
+  scroll the bubble into view. If wanted: one line, `row.scrollIntoView({ block: "nearest" })`
+  inside `syncSelectedRowToShownLine` (`webapp/views/timeline.ts`). User decides.
+  (implementation-notes-item43-inspector-selection-sync)
+  **Closed 2026-07-08 (user-approved "yes, scroll it"):** the one line landed exactly as
+  scoped — `row.scrollIntoView({ block: "nearest" })` after the selection swap in
+  `syncSelectedRowToShownLine`; "nearest" scrolls only when the bubble is outside the pane.
+  Webapp rebuilt (`webapp/dist/` current); restart any long-running 7343 server to see it.
+- [ ] **46. Add engine capabilities for handling customized paths for the following data sources**: JSONL project path, File History Snapshot Path, git repo Path & git commit hash to use as the base commit, on-disk location of project where conversations took place.

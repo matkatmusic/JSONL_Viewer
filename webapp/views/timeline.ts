@@ -842,6 +842,9 @@ export async function renderTimelineView(container: HTMLElement, project: string
         }
         selectedRow = row;
         row.classList.add("selected");
+        // Item 45: bring the newly selected bubble into view; "nearest" scrolls only when the
+        // bubble is outside the pane, so in-view steps don't jump.
+        row.scrollIntoView({ block: "nearest" });
         drawRail();
     };
 
