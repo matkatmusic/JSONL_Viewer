@@ -372,7 +372,7 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   double reconstruction on real transcripts is still too costly after `f311059`'s
   lineage-window fix. Explicitly YAGNI until a new logs capture shows it matters.
   (implementation-notes-repeated-reconstruction-work)
-- [ ] **36. Item-10 polish follow-ups** — from `implementation-notes-items10-11-12.md` open
+- [x] **36. Item-10 polish follow-ups** — from `implementation-notes-items10-11-12.md` open
   questions, all check-on-next-look: (a) 10f: importing `diff-vs-base.js` in the test runner
   may print a one-line Node `ExperimentalWarning` about localStorage — if noisy, swap the
   `typeof` guard for try/catch; (b) 10c: timeline/details 50/50 split was chosen without a
@@ -389,9 +389,8 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   rule commented out, `styles.css`), and the inline grid's hunk rows now span all 3 columns
   via a `diff-full` cell (`renderInlineDiffLines` + `.diff-inline .diff-full`), matching the
   split view. Verified headlessly on s39: both views render full-width muted headers.
-  **(b) still awaits the user's visual check; repro:** `npm run app`, open
-  `#/project/s84-multiagent-scripts-git-baseline/timeline`, click any step — the Details
-  pane takes half the space beside the Files column (`styles.css:130`); judge if too wide.
+  **(b) Closed 2026-07-09 (user-approved — spacing is fine):** the 55/45 split looks good
+  as-is. No CSS change.
 - [x] **37. Jump To Timeline button doesn't scroll timeline so selected timeline entry is centered in view**.  tested in `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline/session/ba044097-b975-4ae4-a7f8-d9093e7fbf88.jsonl/at/49`.  **Reproduce**: find a file revision in the timeline, click the 'jump to snapshot' button to see the revison, then in the Details view (showing the revision), click the 'Jump to Timeline' button.  **Expected**: The conversation bubble with the attached file being shown in the Details view should become centered by automatically scrolling the timeline. **Actual**: the timeline does not scroll when the Details view drawer expands causing the timeline view's width to change, causing all timeline bubbles to reformat without repositioning.  **Cause**: changing the width of the timeline causes all message bubbles to resize/reposition without keeping the selected message centered in the view.
   **Closed 2026-07-08:** the anchored-row `scrollIntoView({ block: "center" })` ran BEFORE
   `openTranscriptInspector` expanded the Details drawer, so the drawer's width change reflowed
