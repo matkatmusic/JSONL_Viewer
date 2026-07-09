@@ -369,12 +369,16 @@ test("test_findTimelineNodeIndexForRawLine_matches_user_turn_by_message_uuid", (
 test("test_turn_timeline_has_one_node_per_message_plus_session_ends", () => {
     // Scenario: a timeline step is a conversation turn — every user prompt and every agent reply
     // becomes exactly one turn node, and every session gains one closing session-end node
-    // (user decision 2026-07-06). Commit nodes stay separate and unnumbered.
+    // (user decision 2026-07-06). Commit nodes AND the item-55 un-bubbled tool-call rows stay
+    // separate and unnumbered.
     // Steps:
     // build s2's turn timeline.
     const { nodes } = buildTurnTimelineViewModel(s2Document);
-    // collect the non-commit nodes.
-    const turnNodes = nodes.filter((node: { kind: string }) => node.kind !== COMMIT_NODE_KIND);
+    // collect the turn/session-end nodes (commit and tool-call rows are not turns).
+    // item 55: const turnNodes = nodes.filter((node: { kind: string }) => node.kind !== COMMIT_NODE_KIND);
+    const turnNodes = nodes.filter(
+        (node: { kind: string }) => node.kind !== COMMIT_NODE_KIND && node.kind !== TOOL_CALL_NODE_KIND,
+    );
     // count s2's distinct sessions.
     const distinctSessions = new Set(s2Document.messages.map((message: { sessionId: string }) => message.sessionId));
     // assert one node per message plus one session-end per session (s2 needs no synthetic turns).
@@ -659,31 +663,68 @@ test("test_findTimelineNodeIndexForRawLine_returns_minus_one_when_no_step_matche
     assert.equal(nodeIndex, -1);
 });
 
-test("test_agent_turns_own_every_git_operation_of_their_session", () => {
-    // Scenario: each of s85's five recorded git operations renders inside exactly one agent turn
-    // of its own session — the timeline's `* git <kind> <detail> *` rows.
+// item 55 (adjusted 2026-07-09): the original test below pinned the RETIRED design — git rows
+// rendered inside agent-turn bubbles via attachGitOperationsToAgentTurns. Item 55 made every
+// git command a standalone un-bubbled tool-call row instead; the replacement test follows.
+// test("test_agent_turns_own_every_git_operation_of_their_session", () => {
+//     // Scenario: each of s85's five recorded git operations renders inside exactly one agent turn
+//     // of its own session — the timeline's `* git <kind> <detail> *` rows.
+//     // Steps:
+//     // build s85's turn timeline.
+//     const { nodes } = buildTurnTimelineViewModel(s85Document);
+//     const agentNodes = nodes.filter((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND);
+//     // assert the turns collectively own the document's operations, in document order.
+//     const owned = agentNodes.flatMap((node) => node.gitOperations!);
+//     assert.deepEqual(
+//         owned.map((operation: { command: string }) => operation.command),
+//         s85Document.gitOperations.map((operation: { command: string }) => operation.command),
+//     );
+//     // assert no operation crossed into another session's turn.
+//     for (const node of agentNodes) {
+//         for (const operation of node.gitOperations!) {
+//             assert.equal(operation.sessionId, node.sessionId);
+//         }
+//     }
+// });
+
+test("test_git_operations_render_as_standalone_tool_call_rows_not_turn_rows", () => {
+    // Scenario (item 55): git commands are un-bubbled tool-call rows between the conversation
+    // bubbles, never rows inside agent-turn bubbles. Each of s85's five recorded git operations
+    // is a Bash tool_use, so a tool-call node shares its exact instant and session.
     // Steps:
     // build s85's turn timeline.
     const { nodes } = buildTurnTimelineViewModel(s85Document);
+    // assert NO agent turn owns git operations anymore (the retired attachment stays retired).
     const agentNodes = nodes.filter((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND);
-    // assert the turns collectively own the document's operations, in document order.
-    const owned = agentNodes.flatMap((node) => node.gitOperations!);
-    assert.deepEqual(
-        owned.map((operation: { command: string }) => operation.command),
-        s85Document.gitOperations.map((operation: { command: string }) => operation.command),
-    );
-    // assert no operation crossed into another session's turn.
     for (const node of agentNodes) {
-        for (const operation of node.gitOperations!) {
-            assert.equal(operation.sessionId, node.sessionId);
-        }
+        assert.deepEqual(node.gitOperations ?? [], []);
+    }
+    // assert every recorded git operation has a tool-call row at its instant, in its session.
+    const toolCallNodes = nodes.filter((node: { kind: string }) => node.kind === TOOL_CALL_NODE_KIND);
+    for (const operation of s85Document.gitOperations) {
+        const row = toolCallNodes.find(
+            (node: { when: string; sessionId?: string }) =>
+                node.when === operation.timestamp && node.sessionId === operation.sessionId,
+        );
+        assert.ok(row !== undefined, `a tool-call row carries ${operation.command}`);
     }
 });
 
-test("test_git_operations_attach_by_the_snapshot_attribution_rule", () => {
-    // Scenario: a git operation belongs to the FIRST agent reply of its own session at or after
-    // it (the snapshot rule); an operation AFTER the session's last reply falls back to that last
-    // reply so no recorded git command is silently dropped.
+// item 55 (adjusted 2026-07-09): the snapshot attribution rule for git operations was retired
+// with the turn-bubble git rows (attachGitOperationsToAgentTurns is unused). The replacement
+// test below keeps this minimal document and pins what the view-model still derives from
+// gitOperations: the commit hard-stop nodes.
+// test("test_git_operations_attach_by_the_snapshot_attribution_rule", () => {
+//     // Scenario: a git operation belongs to the FIRST agent reply of its own session at or after
+//     // it (the snapshot rule); an operation AFTER the session's last reply falls back to that last
+//     // reply so no recorded git command is silently dropped.
+//     ... (body preserved in the replacement test below; assertions were:
+//     reply.gitOperations kinds deep-equal [GitOperationKind.init, GitOperationKind.commit])
+
+test("test_commit_nodes_derive_from_git_operations_without_tool_calls", () => {
+    // Scenario (item 55): a document carrying gitOperations but no toolCalls (an older cached
+    // shape) still yields its commit hard-stop node — with the commit message as its detail —
+    // while agent turns own no git rows.
     // Steps:
     // build a minimal document: prompt, one reply, one operation before the reply, one after it.
     const document = {
@@ -719,12 +760,14 @@ test("test_git_operations_attach_by_the_snapshot_attribution_rule", () => {
         }],
     };
     const { nodes } = buildTurnTimelineViewModel(document);
-    // assert the reply turn owns BOTH operations, in order (init by the rule, commit by fallback).
+    // assert the reply turn owns NO git rows (the item-55 retirement holds).
     const reply = nodes.find((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND)!;
-    assert.deepEqual(
-        reply.gitOperations!.map((operation: { kind: string }) => operation.kind),
-        [GitOperationKind.init, GitOperationKind.commit],
-    );
+    assert.deepEqual(reply.gitOperations ?? [], []);
+    // assert the commit operation still surfaces as a commit hard-stop node with its message.
+    const commitNodes = nodes.filter((node: { kind: string }) => node.kind === COMMIT_NODE_KIND);
+    assert.equal(commitNodes.length, 1);
+    assert.equal(commitNodes[0]!.when, "2026-01-01T00:00:20.000Z");
+    assert.equal(commitNodes[0]!.detail, "baseline");
 });
 
 test("test_commit_nodes_derive_from_git_operations", () => {

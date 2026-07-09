@@ -19,6 +19,9 @@ import {
     resolveStaticFilePath,
     getProjectsDir,
     setProjectsDir,
+    setFileHistoryDir,
+    getEffectiveFileHistoryDir,
+    applyProjectOverrides,
 } from "./viewer_api.ts";
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { configureSandboxMemoPersistence } from "./reconstruction_script_execution.ts";
@@ -38,16 +41,23 @@ const CONTENT_TYPES: Record<string, string> = {
     ".png": "image/png",
 };
 
-// Parse `--port <n>` and `--projects-dir <path>` from argv (defaults: 7343, ~/.claude/projects).
+// Parse `--port <n>`, `--projects-dir <path>`, and `--file-history-dir <path>` from argv
+// (defaults: 7343, ~/.claude/projects, the item-46 derivation chain).
 function parseServerArgs(argv: string[]): { port: number } {
     const portIndex = argv.indexOf("--port");
     const dirIndex = argv.indexOf("--projects-dir");
     if (dirIndex >= 0 && argv[dirIndex + 1] !== undefined) {
         setProjectsDir(argv[dirIndex + 1]!);
     }
+    // item 46: after --projects-dir, so an explicit dir survives the folder switch's reset.
+    const fileHistoryIndex = argv.indexOf("--file-history-dir");
+    if (fileHistoryIndex >= 0 && argv[fileHistoryIndex + 1] !== undefined) {
+        setFileHistoryDir(argv[fileHistoryIndex + 1]!);
+    }
     const port = portIndex >= 0 ? Number(argv[portIndex + 1]) : DEFAULT_PORT;
     if (!Number.isInteger(port)) {
-        throw new Error("usage: tsx src/viewer_server.ts [--port <n>] [--projects-dir <path>]");
+        // item 46: throw new Error("usage: tsx src/viewer_server.ts [--port <n>] [--projects-dir <path>]");
+        throw new Error("usage: tsx src/viewer_server.ts [--port <n>] [--projects-dir <path>] [--file-history-dir <path>]");
     }
     return { port };
 }
@@ -106,6 +116,9 @@ function handleDocumentRequest(response: ServerResponse, query: URLSearchParams)
     const target = targetValue === null ? undefined : new Path(targetValue);
     // declined=1 is the client's remembered "Continue without running" — build degraded, no re-prompt.
     const declined = query.get("declined") === "1";
+    // item 46: the project's path overrides apply to everything below (both branches). Runs
+    // before any header goes out, so a malformed reveng-paths.json still 400s loudly.
+    applyProjectOverrides(projectName);
 
     // Non-progress path: resolve + consent-decide + respond, all BEFORE any header, so a resolver
     // refusal (bad project, traversal) still becomes a 400 via the outer catch. Consent-required is
@@ -163,7 +176,10 @@ function handleDocumentRequest(response: ServerResponse, query: URLSearchParams)
 
 // GET /api/diff — the revision-timeline or vs-base diff text for one file.
 function handleDiffRequest(response: ServerResponse, query: URLSearchParams): void {
-    const jsonlPaths = resolveJsonlPaths(requireParam(query, "project"), query.get("jsonl"));
+    // item 46: const jsonlPaths = resolveJsonlPaths(requireParam(query, "project"), query.get("jsonl"));
+    const projectName = requireParam(query, "project");
+    applyProjectOverrides(projectName);
+    const jsonlPaths = resolveJsonlPaths(projectName, query.get("jsonl"));
     const filePath = new Path(requireParam(query, "file"));
     const allowScripts = query.get("allowScripts") === "1";
     // Untargeted on purpose: both diff views send no jsonl param, so this reuses the very
@@ -183,6 +199,7 @@ function handleDiffRequest(response: ServerResponse, query: URLSearchParams): vo
 // the degraded document the client is already looking at.
 function handleRangePatchRequest(response: ServerResponse, query: URLSearchParams): void {
     const projectName = requireParam(query, "project");
+    applyProjectOverrides(projectName);   // item 46
     const { fromStep, toStep } = parseRangePatchQuery(query);
     const allowScripts = query.get("allowScripts") === "1";
     const declined = query.get("declined") === "1";
@@ -197,19 +214,27 @@ function handleRangePatchRequest(response: ServerResponse, query: URLSearchParam
     sendText(response, 200, renderRangePatch(document, fromStep, toStep));
 }
 
-// POST /api/config — switch the scan root at runtime. Existence validation only: this is a
-// typed/pasted path from the UI of a localhost app on the user's own machine.
+// POST /api/config — switch the scan root and/or the file-history root at runtime. Existence
+// validation only: these are typed/pasted paths from the UI of a localhost app on the user's
+// own machine. Order matters: the projects switch clears the file-history override (item 46's
+// re-derive-on-switch), so an explicit fileHistoryDir in the SAME body is applied after it.
 function handleConfigUpdate(request: IncomingMessage, response: ServerResponse): void {
     let body = "";
     request.on("data", (chunk: Buffer) => { body += chunk.toString(); });
     request.on("end", () => {
         try {
-            const requested = (JSON.parse(body) as { projectsDir?: string }).projectsDir;
-            if (requested === undefined) {
-                sendJson(response, 400, { error: "body must be { projectsDir }" });
+            const requested = JSON.parse(body) as { projectsDir?: string; fileHistoryDir?: string };
+            if (requested.projectsDir === undefined && requested.fileHistoryDir === undefined) {
+                sendJson(response, 400, { error: "body must carry projectsDir and/or fileHistoryDir" });
                 return;
             }
-            sendJson(response, 200, { projectsDir: setProjectsDir(requested) });
+            if (requested.projectsDir !== undefined) {
+                setProjectsDir(requested.projectsDir);
+            }
+            if (requested.fileHistoryDir !== undefined) {
+                setFileHistoryDir(requested.fileHistoryDir);
+            }
+            sendJson(response, 200, { projectsDir: getProjectsDir(), fileHistoryDir: getEffectiveFileHistoryDir() });
         } catch (error) {
             sendJson(response, 400, { error: String(error) });
         }
@@ -230,7 +255,8 @@ function handleRequest(request: IncomingMessage, response: ServerResponse): void
         if (request.method === "POST" && url.pathname === "/api/config") {
             handleConfigUpdate(request, response);
         } else if (url.pathname === "/api/config") {
-            sendJson(response, 200, { projectsDir: getProjectsDir() });
+            // item 46: sendJson(response, 200, { projectsDir: getProjectsDir() });
+            sendJson(response, 200, { projectsDir: getProjectsDir(), fileHistoryDir: getEffectiveFileHistoryDir() });
         } else if (url.pathname === "/api/projects") {
             sendJson(response, 200, scanProjects(getProjectsDir()));
         } else if (url.pathname === "/api/document") {

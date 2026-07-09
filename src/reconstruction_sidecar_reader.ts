@@ -1,14 +1,17 @@
-// The on-disk side of the file-history sidecar: the default blob reader, the default history root, and
+// The on-disk side of the file-history sidecar: the default blob reader, the default history root, the
+// item-46 root-resolution chain (override → transcript-derived sibling → default), and
 // the session-id scan. Split out of reconstruction_sidecar.ts (split, never condense) to keep that module
 // — the pure backup→event transforms — within the 250-line cap. The `BackupReader` type itself stays in
 // reconstruction_sidecar.ts (the transforms own it); this module imports it one-way.
 
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { Path, Uuid } from "./structures/domain.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
+import { getPathOverrides } from "./reconstruction_overrides.ts";
+import { getRecordSource, type RecordSource } from "./parse/loadTranscript.ts";
 
 // The default on-disk reader: <root>/<sessionId>/<backupFileName>.
 export function createSidecarReader(sessionId: Uuid, root: Path): BackupReader {
@@ -19,6 +22,56 @@ export function createSidecarReader(sessionId: Uuid, root: Path): BackupReader {
 // Claude Code's default file-history root: ~/.claude/file-history.
 export function getDefaultFileHistoryRoot(): Path {
     return new Path(join(homedir(), ".claude", "file-history"));
+}
+
+// The file-history dir sitting next to a projects folder (<X>/projects → <X>/file-history),
+// or undefined when no such sibling exists on disk (item 46: a tree copied out of ~/.claude
+// mirrors its layout, so the blobs travel as the projects folder's sibling).
+export function deriveSiblingFileHistoryRoot(projectsDir: Path): Path | undefined {
+    const sibling = join(dirname(projectsDir.toString()), "file-history");
+    if (!existsSync(sibling)) {
+        return undefined;
+    }
+    return new Path(sibling);
+}
+
+// The first record that loadTranscript stamped with a source (fabricated records carry none).
+function findFirstRecordSource(records: TranscriptRecord[]): RecordSource | undefined {
+    for (const record of records) {
+        const source = getRecordSource(record);
+        if (source) {
+            return source;
+        }
+    }
+    return undefined;
+}
+
+// Derive the sibling root from where the records' transcript actually sits on disk:
+// <X>/projects/<project>/y.jsonl → <X>/file-history. A strict generalization of the
+// default — a live ~/.claude/projects/<p>/x.jsonl transcript lands exactly on
+// ~/.claude/file-history. undefined when no record has a source or no sibling dir exists.
+export function deriveFileHistoryRootFromRecords(records: TranscriptRecord[]): Path | undefined {
+    const source = findFirstRecordSource(records);
+    if (source === undefined) {
+        return undefined;
+    }
+    const transcriptDir = dirname(source.filePath);
+    const projectsRoot = dirname(transcriptDir);
+    return deriveSiblingFileHistoryRoot(new Path(projectsRoot));
+}
+
+// The file-history root resolution chain (item 46): explicit override →
+// transcript-derived sibling → ~/.claude/file-history default.
+export function resolveFileHistoryRoot(records: TranscriptRecord[]): Path {
+    const override = getPathOverrides().fileHistoryRoot;
+    if (override) {
+        return override;
+    }
+    const derived = deriveFileHistoryRootFromRecords(records);
+    if (derived) {
+        return derived;
+    }
+    return getDefaultFileHistoryRoot();
 }
 
 // The session id from the transcript's envelope records (the file-history dir is named for
@@ -60,7 +113,8 @@ export function buildSidecarReader(records: TranscriptRecord[]): BackupReader | 
     if (sessionIds.length === 0) {
         return undefined;
     }
-    const root = getDefaultFileHistoryRoot().toString();
+    // item 46: const root = getDefaultFileHistoryRoot().toString();
+    const root = resolveFileHistoryRoot(records).toString();
     return (backupFileName, sessionId) => {
         const name = backupFileName.toString();
         // The engine passes the snapshot's OWNING session: across merged sessions the same `@vN` blob

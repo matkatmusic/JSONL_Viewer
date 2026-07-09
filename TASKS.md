@@ -479,7 +479,26 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   scoped — `row.scrollIntoView({ block: "nearest" })` after the selection swap in
   `syncSelectedRowToShownLine`; "nearest" scrolls only when the bubble is outside the pane.
   Webapp rebuilt (`webapp/dist/` current); restart any long-running 7343 server to see it.
-- [ ] **46. Add engine capabilities for handling customized paths for the following data sources**: JSONL project path, File History Snapshot Path, git repo Path & git commit hash to use as the base commit, on-disk location of project where conversations took place.  when parsing JSONL files that have a CWD, the on-disk location path would override the extracted CWD.  File History Snapshot (FHS) path: when this argument is set, when a FHS path is detected in a JSONL file, the lookup process to get the correct FHS path would be: `<Custom_FHS_Path>/<JSONL_Session_UUID>/<FHS_hash@vN>`.  
+- [x] **46. Add engine capabilities for handling customized paths for the following data sources**: JSONL project path, File History Snapshot Path, git repo Path & git commit hash to use as the base commit, on-disk location of project where conversations took place.  when parsing JSONL files that have a CWD, the on-disk location path would override the extracted CWD.  File History Snapshot (FHS) path: when this argument is set, when a FHS path is detected in a JSONL file, the lookup process to get the correct FHS path would be: `<Custom_FHS_Path>/<JSONL_Session_UUID>/<FHS_hash@vN>`.
+  **Closed 2026-07-09 (implemented; suite NOT run — user runs it):** new
+  `src/reconstruction_overrides.ts` (process-wide override state on the exec-gate precedent,
+  `{}` = today's exact behavior) + `src/reconstruction_base_commit.ts`. (1) FHS root chain:
+  explicit override → `file-history/` sibling derived from the transcript's own on-disk
+  location (`resolveFileHistoryRoot`, `reconstruction_sidecar_reader.ts`) → `~/.claude`
+  default; lookup stays `<root>/<sessionUuid>/<blob@vN>`; viewer serves/derives via
+  `getEffectiveFileHistoryDir` and the header gains a prepopulated File-history field (an
+  unedited field posts `""` so the server re-derives on folder switch). (2) per-project
+  `reveng-paths.json` in the projects folder (project name → `{cwd, repo, baseCommit}`),
+  read by the viewer per request (`applyProjectOverrides`, cache-stamped via
+  `serializePathOverrides`) and by the CLI (`applyCliPathOverrides`; flags
+  `--file-history-loc|--fhsLoc`, `--cwd`, `--repo`, `--base-commit` win per-field).
+  (3) cwd/repo overrides join the git-evidence fallback chain (`findFallbackRepoDirs`) —
+  DELIBERATE deviation from the parse-time-override wording (user-approved in-conversation):
+  rewriting record.cwd breaks relpath math and lineage joins. (4) base commit = tier-1
+  beacon: `seedBaseCommitBeacon` splices a `WriteEvent` of the committed bytes at the
+  commit's timestamp (deterministic `gitBase:` changeIds; mid-session commits supersede
+  earlier steps; user-specified semantics). 21 new tests across 5 files (written, not run);
+  engine-efficiency follow-up is item 56. Plan: `plans/item46-custom-data-source-paths.md`.
 - [x] **47** `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline` Step 17: clicking the [+\-] buttons doesn't show a file diff. clicking '{ }' goes to line 59, but the message bubble contents displayed in the step is on line 61
   **Closed 2026-07-09:** two causes, both fixed. (a) Step 17 is the `core_inventory.py`
   RENAME revision — its `/api/diff` block is the bare `@@ renamed … @@` kind header with no
@@ -590,3 +609,12 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   `tests/timeline-viewmodels.test.ts` (written, not run). Verified live headlessly on s39:
   rows/labels/step numbers/rail exactly match the user's mock; L:32/33/39/44 rows, chips
   L:51/L:55; raw-line 48 → mkdir row, 49/50 → selection unchanged.
+
+## New items (2026-07-09, item-46 follow-up)
+
+- [ ] **56. Pre-baseline reconstruction question UI (engine efficiency)** — when a project has
+  a supplied base commit (item 46), the WebApp asks BEFORE rendering the timeline: "Do you
+  want to reconstruct file states that precede the supplied baseline git commit?" If the user
+  chooses No, the timeline's first shown step is the baseline commit (the engine may skip the
+  work the beacon supersedes); otherwise reconstruct as we currently do. User-specified
+  2026-07-09; deferred out of item 46's scope.

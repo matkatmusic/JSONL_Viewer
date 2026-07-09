@@ -5,8 +5,16 @@
 // plans/reconstruction-engine-design.md.
 
 import { fileURLToPath } from "node:url";
+import { basename, dirname } from "node:path";
 import { loadTranscript } from "./parse/loadTranscript.ts";
-import { Path } from "./structures/domain.ts";
+// item 46: import { Path } from "./structures/domain.ts";
+import { Path, Uuid } from "./structures/domain.ts";
+import {
+    hydrateProjectPaths,
+    readProjectPathsConfig,
+    setPathOverrides,
+    type PathOverrides,
+} from "./reconstruction_overrides.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import {
     reconstructBranches,
@@ -37,8 +45,10 @@ import type { BackupReader } from "./reconstruction_sidecar.ts";
 import { buildSidecarReader } from "./reconstruction_sidecar_reader.ts";
 import { parseTraceArgs, runTrace } from "./reconstruction_cli_trace.ts";
 
+// item 46: const USAGE =
+// item 46:     "usage: reconstruction_cli <transcript.jsonl> [--target|--file <path>] [--count-steps|--step <n>] [--verbose|--diff] [--graphConvo|--graphFile|--surviving|--list-branches|--branch <id>] [--json] [--allRecords]";
 const USAGE =
-    "usage: reconstruction_cli <transcript.jsonl> [--target|--file <path>] [--count-steps|--step <n>] [--verbose|--diff] [--graphConvo|--graphFile|--surviving|--list-branches|--branch <id>] [--json] [--allRecords]";
+    "usage: reconstruction_cli <transcript.jsonl> [--target|--file <path>] [--count-steps|--step <n>] [--verbose|--diff] [--graphConvo|--graphFile|--surviving|--list-branches|--branch <id>] [--json] [--allRecords] [--file-history-loc|--fhsLoc <dir>] [--cwd <dir>] [--repo <dir>] [--base-commit <hash>]";
 
 export type CliOptions = {
     jsonlPath: string;
@@ -54,6 +64,10 @@ export type CliOptions = {
     graphFile: boolean;
     json: boolean;
     allRecords: boolean;
+    fileHistoryRoot: Path | undefined;
+    projectCwd: Path | undefined;
+    repoDir: Path | undefined;
+    baseCommit: Uuid | undefined;
 };
 
 // Pull a value-taking flag (e.g. `--target <path>`) out of argv: return its value (undefined when
@@ -103,7 +117,13 @@ export function parseArgs(argv: string[]): CliOptions {
     const fileAlias = targetFlag.value === undefined ? extractValueFlag(targetFlag.rest, "--file") : targetFlag;
     const branchFlag = extractValueFlag(fileAlias.rest, "--branch");
     const stepFlag = extractValueFlag(branchFlag.rest, "--step");
-    const rest = stepFlag.rest;
+    const fileHistoryFlag = extractValueFlag(stepFlag.rest, "--file-history-loc");
+    const fhsAlias = fileHistoryFlag.value === undefined ? extractValueFlag(fileHistoryFlag.rest, "--fhsLoc") : fileHistoryFlag;
+    const cwdFlag = extractValueFlag(fhsAlias.rest, "--cwd");
+    const repoFlag = extractValueFlag(cwdFlag.rest, "--repo");
+    const baseCommitFlag = extractValueFlag(repoFlag.rest, "--base-commit");
+    // item 46: const rest = stepFlag.rest;
+    const rest = baseCommitFlag.rest;
     const jsonlPath = rest.find((arg) => !arg.startsWith("--"));
     if (!jsonlPath) {
         throw new Error(USAGE);
@@ -131,7 +151,34 @@ export function parseArgs(argv: string[]): CliOptions {
         graphFile: graphs.file,
         json,
         allRecords,
+        fileHistoryRoot: fhsAlias.value !== undefined ? new Path(fhsAlias.value) : undefined,
+        projectCwd: cwdFlag.value !== undefined ? new Path(cwdFlag.value) : undefined,
+        repoDir: repoFlag.value !== undefined ? new Path(repoFlag.value) : undefined,
+        baseCommit: baseCommitFlag.value !== undefined ? new Uuid(baseCommitFlag.value) : undefined,
     };
+}
+
+// Apply the path overrides for this run: the transcript's projects-folder config entry
+// (projectsDir = dirname(dirname(jsonl)), project = basename(dirname(jsonl))) is the base, and any
+// direct CLI flags win per-field (item 46). fileHistoryRoot has no config-file field — folder-level
+// file-history discovery is the viewer's job — so it arrives only via its flag.
+export function applyCliPathOverrides(options: CliOptions): void {
+    const projectDir = dirname(options.jsonlPath);
+    const entry = readProjectPathsConfig(new Path(dirname(projectDir)))[basename(projectDir)];
+    const merged: PathOverrides = entry !== undefined ? hydrateProjectPaths(entry) : {};
+    if (options.fileHistoryRoot !== undefined) {
+        merged.fileHistoryRoot = options.fileHistoryRoot;
+    }
+    if (options.projectCwd !== undefined) {
+        merged.projectCwd = options.projectCwd;
+    }
+    if (options.repoDir !== undefined) {
+        merged.repoDir = options.repoDir;
+    }
+    if (options.baseCommit !== undefined) {
+        merged.baseCommit = options.baseCommit;
+    }
+    setPathOverrides(merged);
 }
 
 // Parse the `--step <n>` value into a 1-based step number, or undefined when the flag is absent. A
@@ -265,6 +312,7 @@ export function runCli(argv: string[]): string {
     const traced = parseTraceArgs(argv);
     if (traced !== undefined) return runTrace(traced);
     const options = parseArgs(argv);
+    applyCliPathOverrides(options);
     const records = loadTranscript(options.jsonlPath);
     const reader = buildSidecarReader(records);
     if (options.json) {

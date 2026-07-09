@@ -24,6 +24,7 @@ import {
 // import { isImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { getDerivedCaches } from "./reconstruction_corpus.ts";
 import { placeGitCommitEvidence } from "./reconstruction_git_evidence.ts";
+import { seedBaseCommitBeacon } from "./reconstruction_base_commit.ts";
 import type { LineageContentBefore } from "./reconstruction_script_execution.ts";
 import { seedStaleEditBases } from "./reconstruction_reseed.ts";
 import { noteStage } from "./reconstruction_provenance.ts";
@@ -97,7 +98,9 @@ function computeFileRevisionsOver(
     const lineage = events.filter((event) =>
         eventBelongsToLineage(event, finalTarget, renameChain),
     );
-    const seeded = seedCopyEvents(records, lineage, resolving, reader);
+    const baselined = seedBaseCommitBeacon(records, lineage, finalTarget);
+    // item 46: const seeded = seedCopyEvents(records, lineage, resolving, reader);
+    const seeded = seedCopyEvents(records, baselined, resolving, reader);
     const filled = reader ? fillRedirectContent(records, seeded, reader) : seeded;
     const based = reader ? seedEditBaseFromBackup(records, filled, reader) : filled;
     const scripted = reader

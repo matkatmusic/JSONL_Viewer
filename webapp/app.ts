@@ -500,26 +500,39 @@ function setBreadcrumb(text: string): void {
     document.getElementById("breadcrumb")!.textContent = text;
 }
 
-// ─── header: the runtime-switchable projects folder (plan 3.1) ───────────────
+// ─── header: the runtime-switchable projects + file-history folders (plan 3.1, item 46) ──────
 
 // The /api/config payload (wire shape: paths as plain strings).
-type WireConfig = { projectsDir: string };
+type WireConfig = { projectsDir: string; fileHistoryDir: string };
 
 async function initializeHeader(): Promise<void> {
     const input = document.getElementById("projects-dir-input") as HTMLInputElement;
-    const config = await fetchJson<WireConfig>("/api/config");
-    input.value = config.projectsDir;
+    const fileHistoryInput = document.getElementById("file-history-dir-input") as HTMLInputElement;
+    // The last server-reported effective file-history dir. An UNEDITED field posts "" so the
+    // server re-derives from the (possibly new) projects folder — otherwise the old derived
+    // value would pin itself as an explicit override across folder switches (item 46).
+    let reportedFileHistoryDir = "";
+    const applyConfig = (config: WireConfig): void => {
+        input.value = config.projectsDir;
+        fileHistoryInput.value = config.fileHistoryDir;
+        reportedFileHistoryDir = config.fileHistoryDir;
+    };
+    applyConfig(await fetchJson<WireConfig>("/api/config"));
     document.getElementById("projects-dir-change")!.addEventListener("click", async () => {
+        const fileHistoryDir = fileHistoryInput.value === reportedFileHistoryDir ? "" : fileHistoryInput.value;
         const response = await fetch("/api/config", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ projectsDir: input.value }),
+            body: JSON.stringify({ projectsDir: input.value, fileHistoryDir }),
         });
         if (!response.ok) {
             // No alert(): native dialogs block headless automation. The breadcrumb carries the error.
             setBreadcrumb(`could not switch folder: ${(await response.json()).error}`);
             return;
         }
+        // The server echoes the effective dirs — the file-history field prepopulates with the
+        // value derived from the newly selected projects folder.
+        applyConfig(await response.json() as WireConfig);
         documentCache.clear();
         rawLinesCache.clear();
         // Every project is a fresh load from the new folder, even under an identical name.

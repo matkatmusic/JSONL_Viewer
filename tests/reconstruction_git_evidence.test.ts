@@ -1,19 +1,28 @@
-import { test } from "node:test";
+import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
+    findFallbackRepoDirs,
     findGitCommitEvents,
     placeGitCommitEvidence,
     readCommittedFileContent,
 } from "../src/reconstruction_git_evidence.ts";
+import { setPathOverrides } from "../src/reconstruction_overrides.ts";
+import { loadTranscript } from "../src/parse/loadTranscript.ts";
 import { injectScriptExecutions } from "../src/reconstruction_script_stage.ts";
 import type { BackupReader } from "../src/reconstruction_sidecar.ts";
 import { BlockType, EventKind, RecordType, ToolName } from "../src/structures/vocabulary.ts";
 import type { TranscriptRecord } from "../src/structures/envelope.ts";
 import { Path } from "../src/structures/domain.ts";
+
+// Path overrides are process-wide module state — never let one test's overrides leak
+// into the next (item 46).
+afterEach(() => {
+    setPathOverrides({});
+});
 
 // An assistant record carrying one Bash tool_use running `command`, with the record-level cwd.
 function buildBashRecord(command: string, timestamp: string, cwd?: string): TranscriptRecord {
@@ -141,7 +150,8 @@ test("test_readCommittedFileContent_falls_back_to_a_preserved_repo_when_the_reco
             new Path(decayed),
             new Date(commitInstant),
             new Path(join(decayed, "core_two.py")),
-            new Path(preserved),
+            // item 46: new Path(preserved),
+            [new Path(preserved)],
         );
         assert.equal(content, committedBytes);
     } finally {
@@ -158,4 +168,53 @@ test("test_readCommittedFileContent_returns_undefined_for_a_missing_repo", () =>
         new Path("/nonexistent/repo/dir/f.py"),
     );
     assert.equal(content, undefined);
+});
+
+test("test_read_committed_file_content_tries_each_fallback_repo_dir", () => {
+    // Steps:
+    // build repo B — a relocated mirror of the recorded repo — holding one commit of orders.py.
+    const repoB = mkdtempSync(join(tmpdir(), "reveng-git-"));
+    try {
+        const committedBytes = "def place_order(item):\n    return item\n";
+        writeFileSync(join(repoB, "orders.py"), committedBytes);
+        const commitInstant = "2026-01-01T00:00:10Z";
+        execSync("git init -q -b main", { cwd: repoB });
+        execSync(`git -C ${repoB} config user.email t@t && git -C ${repoB} config user.name t`);
+        execSync("git add orders.py && git commit -q -m baseline", {
+            cwd: repoB,
+            env: { ...process.env, GIT_COMMITTER_DATE: commitInstant },
+        });
+        // read via a NONEXISTENT recorded cwd whose relative layout matches, with repo B as fallback.
+        const decayedCwd = "/nonexistent/reveng-item46-project";
+        const content = readCommittedFileContent(
+            new Path(decayedCwd),
+            new Date(commitInstant),
+            new Path(join(decayedCwd, "orders.py")),
+            [new Path(repoB)],
+        );
+        // the committed bytes come back — the fallback chain survives a dead recorded cwd.
+        assert.equal(content, committedBytes);
+    } finally {
+        rmSync(repoB, { recursive: true, force: true });
+    }
+});
+
+test("test_find_fallback_repo_dirs_orders_override_before_preserved", () => {
+    // Steps:
+    // build a transcript dir that ALSO carries a preserved repo clone (a .git next to the jsonl).
+    const transcriptDir = mkdtempSync(join(tmpdir(), "reveng-git-"));
+    try {
+        mkdirSync(join(transcriptDir, ".git"));
+        const jsonlPath = join(transcriptDir, "session.jsonl");
+        writeFileSync(jsonlPath, JSON.stringify({ type: RecordType.aiTitle, aiTitle: "t" }) + "\n");
+        // load the records from the file so each carries its source (findPreservedRepoDir reads it).
+        const records = loadTranscript(jsonlPath);
+        // set both path overrides.
+        setPathOverrides({ repoDir: new Path("/override/repo"), projectCwd: new Path("/override/cwd") });
+        // the fallback list is most-explicit first: repoDir, projectCwd, preserved clone.
+        const dirs = findFallbackRepoDirs(records).map((dir) => dir.toString());
+        assert.deepEqual(dirs, ["/override/repo", "/override/cwd", transcriptDir]);
+    } finally {
+        rmSync(transcriptDir, { recursive: true, force: true });
+    }
 });

@@ -11,7 +11,17 @@ import {
     type ReconstructionDocument,
 } from "./reconstruction_json.ts";
 import { reconstructBranches, type FileHistory } from "./reconstruction_engine.ts";
-import { buildSidecarReader, getDefaultFileHistoryRoot } from "./reconstruction_sidecar_reader.ts";
+import {
+    buildSidecarReader,
+    deriveSiblingFileHistoryRoot,
+    getDefaultFileHistoryRoot,
+} from "./reconstruction_sidecar_reader.ts";
+import {
+    hydrateProjectPaths,
+    readProjectPathsConfig,
+    serializePathOverrides,
+    setPathOverrides,
+} from "./reconstruction_overrides.ts";
 import { findScriptExecutionRuns, type ScriptRun } from "./reconstruction_script_execution.ts";
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { setReconstructionProgressSink } from "./reconstruction_progress.ts";
@@ -62,7 +72,48 @@ export function setProjectsDir(requested: string): Path {
         throw new Error(`not a directory: ${requested}`);
     }
     activeProjectsDir = new Path(resolve(requested));
+    // item 46: a folder switch re-derives the file-history root — exactly the webapp's
+    // prepopulate behavior (the response echoes the newly effective dir into the field).
+    activeFileHistoryDir = undefined;
     return activeProjectsDir;
+}
+
+// item 46: the folder-level file-history override (POST /api/config / --file-history-dir).
+// undefined = derive from the projects folder.
+let activeFileHistoryDir: Path | undefined;
+
+// Switch the file-history root. The empty string clears the override so derivation follows
+// the projects folder again; a non-directory throws (server maps to 400) and leaves the
+// override unchanged. Returns the new EFFECTIVE dir (what the webapp shows in its field).
+export function setFileHistoryDir(requested: string): Path {
+    if (requested === "") {
+        activeFileHistoryDir = undefined;
+        return getEffectiveFileHistoryDir();
+    }
+    if (!statSync(requested, { throwIfNoEntry: false })?.isDirectory()) {
+        throw new Error(`not a directory: ${requested}`);
+    }
+    activeFileHistoryDir = new Path(resolve(requested));
+    return activeFileHistoryDir;
+}
+
+// The file-history root the viewer serves and shows: explicit override → the file-history/
+// sibling of the projects folder → the ~/.claude default (item 46's resolution chain).
+export function getEffectiveFileHistoryDir(): Path {
+    return activeFileHistoryDir
+        ?? deriveSiblingFileHistoryRoot(activeProjectsDir)
+        ?? getDefaultFileHistoryRoot();
+}
+
+// item 46: set the engine's path overrides for this request — the project's reveng-paths.json
+// entry (if any) plus the viewer's effective file-history dir. Every project-scoped route calls
+// this BEFORE any build work; overrides are process-wide module state, so each request
+// overwrites the previous request's (builds are synchronous and the server serializes them).
+export function applyProjectOverrides(projectName: string): void {
+    const entry = readProjectPathsConfig(activeProjectsDir)[projectName];
+    const overrides = entry === undefined ? {} : hydrateProjectPaths(entry);
+    overrides.fileHistoryRoot = getEffectiveFileHistoryDir();
+    setPathOverrides(overrides);
 }
 
 // One string identifying a transcript set's on-disk state: sorted "path:mtimeMs:size" segments.
@@ -231,7 +282,10 @@ export function buildDocumentWithConsent(
     onProgress?: ProgressSink,
 ): ReconstructionDocument {
     const targetKey = target === undefined ? "" : target.toString();
-    const cacheKey = `${computeTranscriptSetStamp(jsonlPaths)}|${allowScripts}|${targetKey}`;
+    // item 46: const cacheKey = `${computeTranscriptSetStamp(jsonlPaths)}|${allowScripts}|${targetKey}`;
+    // The stamp reads the ACTIVE overrides — callers applyProjectOverrides first; a config-file
+    // edit between requests changes the stamp and misses the cache, which is the point.
+    const cacheKey = `${computeTranscriptSetStamp(jsonlPaths)}|${allowScripts}|${targetKey}|${serializePathOverrides()}`;
     const cachedDocument = getCachedValueRefreshingRecency(builtDocumentCache, cacheKey);
     if (cachedDocument !== undefined) {
         reportStage(onProgress, PROGRESS_LABEL_ARTIFACT_CACHE_HIT);
@@ -294,7 +348,8 @@ export function readBlobSnapshot(sessionId: Uuid, blobName: Path): { exists: boo
     if (!SESSION_ID_PATTERN.test(sessionId.toString())) {
         throw new Error(`not a session id: ${sessionId.toString()}`);
     }
-    const blobPath = join(getDefaultFileHistoryRoot().toString(), sessionId.toString(), blobName.toString());
+    // item 46: const blobPath = join(getDefaultFileHistoryRoot().toString(), sessionId.toString(), blobName.toString());
+    const blobPath = join(getEffectiveFileHistoryDir().toString(), sessionId.toString(), blobName.toString());
     if (!existsSync(blobPath)) {
         return { exists: false, content: undefined };
     }

@@ -9,6 +9,7 @@ import { existsSync } from "node:fs";
 import { isImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { dirname, join, relative } from "node:path";
 import { getRecordSource } from "./parse/loadTranscript.ts";
+import { getPathOverrides } from "./reconstruction_overrides.ts";
 import {
     BlockType,
     EventKind,
@@ -218,17 +219,20 @@ function resolveCommitByTimestamp(repoCwd: Path, commitTimestamp: Date): string 
 // The committed bytes of `filePath` at the commit recorded at `commitTimestamp` in `repoCwd`, or
 // undefined when the repo, the commit, or the path is absent — absence is a silent no-op so every
 // non-git scenario is untouched. When the recorded cwd's repo has decayed (macOS purges idle temp
-// files after ~3 days), `preservedRepoDir` — a clone kept next to the transcript — is consulted
-// with the SAME cwd-relative path, since the clone mirrors the recorded repo's layout.
+// files after ~3 days), each of `fallbackRepoDirs` — mirrors of the recorded repo's layout at
+// other disk locations (configured overrides, the transcript-sibling preserved clone) — is
+// consulted in order with the SAME cwd-relative path (item 46).
 export function readCommittedFileContent(
     repoCwd: Path,
     commitTimestamp: Date,
     filePath: Path,
-    preservedRepoDir?: Path,
+    // item 46: preservedRepoDir?: Path,
+    fallbackRepoDirs: Path[] = [],
 ): string | undefined {
     const cwdRelativePath = relative(repoCwd.toString(), filePath.toString());
     if (cwdRelativePath === "" || cwdRelativePath.startsWith("..")) return undefined;
-    const repoDirs = preservedRepoDir === undefined ? [repoCwd] : [repoCwd, preservedRepoDir];
+    // item 46: const repoDirs = preservedRepoDir === undefined ? [repoCwd] : [repoCwd, preservedRepoDir];
+    const repoDirs = [repoCwd, ...fallbackRepoDirs];
     for (const repoDir of repoDirs) {
         const hash = resolveCommitByTimestamp(repoDir, commitTimestamp);
         if (hash === undefined) continue;
@@ -257,6 +261,15 @@ function findPreservedRepoDir(records: TranscriptRecord[]): Path | undefined {
         return new Path(transcriptDir);
     }
     return undefined;
+}
+
+// Every fallback repo dir to try after the recorded cwd, most-explicit first: the configured
+// repoDir override, the configured projectCwd (the project's current disk location often
+// contains the repo), then the transcript-sibling preserved clone (item 46). Empty overrides
+// reduce this to the old preserved-dir singleton.
+export function findFallbackRepoDirs(records: TranscriptRecord[]): Path[] {
+    const candidates = [getPathOverrides().repoDir, getPathOverrides().projectCwd, findPreservedRepoDir(records)];
+    return candidates.filter((dir): dir is Path => dir !== undefined);
 }
 
 // --- the placement stage ----------------------------------------------------------------------------
@@ -405,7 +418,8 @@ function placeOneCommitDiff(
     reader: BackupReader,
 ): FileEvent[] | undefined {
     if (commit.cwd === undefined) return undefined;
-    const blob = readCommittedFileContent(commit.cwd, commit.timestamp, target, findPreservedRepoDir(records));
+    // item 46: const blob = readCommittedFileContent(commit.cwd, commit.timestamp, target, findPreservedRepoDir(records));
+    const blob = readCommittedFileContent(commit.cwd, commit.timestamp, target, findFallbackRepoDirs(records));
     if (blob === undefined) return undefined;
     const indexedEvents = events.map((event, index) => ({ event, index }));
     const atOrBeforeCommit = indexedEvents.filter(({ event }) => event.timestamp.getTime() <= commit.timestamp.getTime());
