@@ -2,21 +2,36 @@
 // selected revision. Side-by-side/inline toggle, revision selector with URL sync, line-number gutters.
 
 import {
-    el,
+    el as elFromApp,
     fetchDocument,
     fetchText,
     getConsentChoice,
     renderConsentDialog,
     routeToFileHistory,
-} from "../app.js";
-import { buildFileHistoryViewModel, computeAnchoredRevisionIndex } from "./file-history.js";
+} from "../app.ts";
+import { buildFileHistoryViewModel, computeAnchoredRevisionIndex, type WireDocument as WireFileHistoryDocument } from "./file-history.ts";
+
+// app.ts is typed in parallel; a precise local signature for `el` until then.
+const el = elFromApp as (
+    tag: string,
+    attrs?: Record<string, string | EventListener>,
+    children?: readonly HTMLElement[],
+) => HTMLElement;
+
+// Minimal wire shape of the revisions this view reads off the file-history view model.
+type WireRevisionSummary = { kind: string };
 
 // Discriminates split-view rows: full-width (hunk headers, preamble, non-diff text) vs
 // left/right pairs inside a hunk.
-export const SplitRowKind = Object.freeze({ full: "full", pair: "pair" });
+export const SplitRowKind = Object.freeze({ full: "full", pair: "pair" } as const);
+
+type SplitCell = { text: string; lineClass: string; lineNumber?: number };
+type SplitRow =
+    | { kind: typeof SplitRowKind.full; text: string; lineClass: string }
+    | { kind: typeof SplitRowKind.pair; left: SplitCell | undefined; right: SplitCell | undefined };
 
 // The unified-diff line prefixes that classify a line for inline/full-width coloring.
-function computeFullRowLineClass(line) {
+function computeFullRowLineClass(line: string): string {
     if (line.startsWith("@@")) {
         return "diff-line-hunk";
     }
@@ -34,8 +49,8 @@ function computeFullRowLineClass(line) {
 const NUMERIC_HUNK_HEADER = /^@@ -(\d+),\d+ \+(\d+),\d+ @@/;
 
 // A split-view cell; lineNumber is set only when a numeric hunk header has seeded that side.
-function buildSplitCell(text, lineClass, lineNumber) {
-    const cell = { text, lineClass };
+function buildSplitCell(text: string, lineClass: string, lineNumber: number | undefined): SplitCell {
+    const cell: SplitCell = { text, lineClass };
     if (lineNumber !== undefined) {
         cell.lineNumber = lineNumber;
     }
@@ -45,13 +60,13 @@ function buildSplitCell(text, lineClass, lineNumber) {
 // Unified diff text -> rows for the two-column split view. Deletion/addition runs are zipped
 // row-by-row; the one-char unified prefix is stripped inside hunk cells; "@@ -a,b +c,d @@"
 // headers seed the per-side line-number counters shown in the gutters.
-export function computeSplitRows(diffText) {
-    const rows = [];
-    let pendingDeletions = [];
-    let pendingAdditions = [];
+export function computeSplitRows(diffText: string): SplitRow[] {
+    const rows: SplitRow[] = [];
+    let pendingDeletions: SplitCell[] = [];
+    let pendingAdditions: SplitCell[] = [];
     let insideHunk = false;
-    let oldLineCounter = undefined;
-    let newLineCounter = undefined;
+    let oldLineCounter: number | undefined = undefined;
+    let newLineCounter: number | undefined = undefined;
     const takeOldLineNumber = () => {
         if (oldLineCounter === undefined) {
             return undefined;
@@ -112,12 +127,13 @@ export function computeSplitRows(diffText) {
 
 // Which layout every diff pane uses. Module-level so the choice sticks across re-renders, and
 // mirrored to localStorage so it survives reloads (item 10f).
-export const DiffDisplayMode = Object.freeze({ split: "split", inline: "inline" });
+export const DiffDisplayMode = Object.freeze({ split: "split", inline: "inline" } as const);
+type DiffDisplayModeValue = (typeof DiffDisplayMode)[keyof typeof DiffDisplayMode];
 const DIFF_MODE_STORAGE_KEY = "diffDisplayMode";
 
 // A stored value resolves to a mode: only the exact "inline" wire string opts out of the
 // split default (null / garbage / absent all mean split).
-export function resolveInitialDiffDisplayMode(storedValue) {
+export function resolveInitialDiffDisplayMode(storedValue: string | null | undefined): DiffDisplayModeValue {
     if (storedValue === DiffDisplayMode.inline) {
         return DiffDisplayMode.inline;
     }
@@ -125,14 +141,14 @@ export function resolveInitialDiffDisplayMode(storedValue) {
 }
 
 // localStorage access is guarded: the node test runner imports this module with no DOM.
-function readStoredDiffMode() {
+function readStoredDiffMode(): string | null | undefined {
     if (typeof localStorage === "undefined") {
         return undefined;
     }
     return localStorage.getItem(DIFF_MODE_STORAGE_KEY);
 }
 
-function writeStoredDiffMode(mode) {
+function writeStoredDiffMode(mode: DiffDisplayModeValue): void {
     if (typeof localStorage === "undefined") {
         return;
     }
@@ -142,7 +158,7 @@ function writeStoredDiffMode(mode) {
 let diffDisplayMode = resolveInitialDiffDisplayMode(readStoredDiffMode());
 
 // Today's classic unified rendering: one colored div per raw line.
-function renderInlineDiffLines(pane, diffText) {
+function renderInlineDiffLines(pane: HTMLElement, diffText: string): void {
     for (const line of diffText.split("\n")) {
         pane.append(el("div", { class: computeFullRowLineClass(line), text: line }));
     }
@@ -151,7 +167,7 @@ function renderInlineDiffLines(pane, diffText) {
 // The split grid: 4 columns (old number | old text | new number | new text). Full rows span
 // all columns; pair rows emit a gutter + text cell per side (empty divs keep the grid aligned
 // when one side is absent).
-function renderSplitDiffGrid(pane, diffText) {
+function renderSplitDiffGrid(pane: HTMLElement, diffText: string): void {
     const grid = el("div", { class: "diff-split" });
     for (const row of computeSplitRows(diffText)) {
         if (row.kind === SplitRowKind.full) {
@@ -172,7 +188,7 @@ function renderSplitDiffGrid(pane, diffText) {
     pane.append(grid);
 }
 
-export function renderDiffText(pane, diffText) {
+export function renderDiffText(pane: HTMLElement, diffText: string): void {
     pane.replaceChildren();
     const toggleButton = el("button", {
         class: "row-btn",
@@ -192,17 +208,22 @@ export function renderDiffText(pane, diffText) {
 }
 
 // anchorRev (optional): 1-based revision to preselect instead of the last one.
-export async function renderDiffVsBaseView(container, project, target, anchorRev) {
-    const result = await fetchDocument(project, undefined);
+export async function renderDiffVsBaseView(
+    container: HTMLElement,
+    project: string,
+    target: string,
+    anchorRev: string | undefined,
+): Promise<void> {
+    const result = await fetchDocument<WireFileHistoryDocument>(project, undefined);
     if (result.consentRequired !== undefined) {
         renderConsentDialog(container, project, result.consentRequired);
         return;
     }
-    const viewModel = buildFileHistoryViewModel(result.document, target);
+    const viewModel = buildFileHistoryViewModel(result.document!, target);
     const lastIndex = Math.max(viewModel.revisions.length - 1, 0);
 
-    const revisionSelect = el("select", {});
-    viewModel.revisions.forEach((revision, index) => {
+    const revisionSelect = el("select", {}) as HTMLSelectElement;
+    viewModel.revisions.forEach((revision: WireRevisionSummary, index: number) => {
         revisionSelect.append(el("option", { value: String(index), text: `#${index + 1} · ${revision.kind}` }));
     });
     const anchoredRevisionIndex = computeAnchoredRevisionIndex(anchorRev, viewModel.revisions.length);

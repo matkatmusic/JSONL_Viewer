@@ -3,7 +3,7 @@
 // stage lives in reconstruction_script_stage.ts.
 
 import { BlockType, EventKind, EXECUTOR_TOOL_NAMES, ToolName } from "./structures/vocabulary.ts";
-import { Path, type Uuid } from "./structures/domain.ts";
+import { Path, Uuid } from "./structures/domain.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { getContentBlocks, type ToolUseBlock } from "./structures/content-blocks.ts";
 import { backupSeedWriteFor, type BackupReader } from "./reconstruction_sidecar.ts";
@@ -35,9 +35,36 @@ export type ScriptExecutionEvent = {
 // --- run detection ----------------------------------------------------------------------------------
 
 // A recorded script-execution run: the script source it ran, when, the directory it ran from
-// (the MCP executor's input.cwd when present, else the record's cwd), and the transcript
-// file:line the run was parsed from (absent for synthetic test records).
-export type ScriptRun = { code: string; timestamp: Date; cwd?: Path; source?: RecordSource };
+// (the MCP executor's input.cwd when present, else the record's cwd), the transcript
+// file:line the run was parsed from (absent for synthetic test records), and the id of the
+// tool_use block that produced the run (absent for synthetic runs) — the session-attributable
+// source a synthetic script-execution changeId embeds.
+export type ScriptRun = { code: string; timestamp: Date; cwd?: Path; source?: RecordSource; toolUseId?: Uuid };
+
+// Prefix marking a synthetic script-execution changeId. Follows the originalFile: precedent
+// (reconstruction_reseed.ts): a prefixed id that resolveSyntheticChangeIdToSourceId can unwrap.
+export const SCRIPT_RUN_CHANGE_ID_PREFIX = "scriptRun:";
+
+// Deterministic changeId for a synthetic script-execution event. Both the step-timeline replay
+// and the file-history replay derive it from the same records, so their events join — the fix
+// for per-replay randomUUID ids that could never match (TASKS.md item 34). The source segment
+// (tool_use id, or epoch-ms timestamp for a run no tool_use produced) never contains ":", so
+// the first ":" after the prefix always terminates it even when the target path is unusual.
+export function computeScriptExecutionChangeId(run: ScriptRun, target: Path): Uuid {
+    const sourceSegment = run.toolUseId?.toString() ?? String(run.timestamp.getTime());
+    return new Uuid(`${SCRIPT_RUN_CHANGE_ID_PREFIX}${sourceSegment}:${target.toString()}`);
+}
+
+// The session-attributable source id inside a scriptRun: changeId, or undefined when the id is
+// not a scriptRun: id (real record uuids, originalFile: seeds, and blob refs pass through).
+export function resolveScriptRunChangeIdToSourceId(changeId: string): string | undefined {
+    if (!changeId.startsWith(SCRIPT_RUN_CHANGE_ID_PREFIX)) {
+        return undefined;
+    }
+    const rest = changeId.slice(SCRIPT_RUN_CHANGE_ID_PREFIX.length);
+    const separatorIndex = rest.indexOf(":");
+    return separatorIndex === -1 ? rest : rest.slice(0, separatorIndex);
+}
 
 // " [file.jsonl:123]" for a run parsed from a transcript line, or "" for a synthetic run —
 // appended to progress labels so a console line points at the exact JSONL line being processed.
@@ -77,7 +104,7 @@ function runsInRecord(record: TranscriptRecord): ScriptRun[] {
         if (code !== undefined) {
             const blockCwd = (block.input as { cwd?: string }).cwd;
             const cwd = blockCwd !== undefined ? new Path(blockCwd) : recordCwd;
-            runs.push({ code, timestamp, cwd, source });
+            runs.push({ code, timestamp, cwd, source, toolUseId: block.id });
         }
     }
     return runs;

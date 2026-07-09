@@ -10,7 +10,7 @@ import {
     computeSnapshotHistoryAnchor,
     extractReadableText,
     findTrackedBackupEntry,
-} from "../webapp/inspector.js";
+} from "../webapp/inspector.ts";
 
 test("test_extract_readable_text_returns_string_message_content_verbatim", () => {
     // Scenario: a user record whose message.content is a plain string — the prompt text IS

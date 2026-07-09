@@ -6,15 +6,77 @@
 // to the linked line (a uuid jumps to the record it names; a tool id jumps to its use/result
 // counterpart). Navigation also notifies the calling view so it can scroll/highlight along.
 
-import { el, fetchJson, parseRouteSegments, peekCachedDocument, routeToFileHistory } from "./app.js";
-import { findRevisionForChangeId } from "./views/file-history.js";
+import { el as elUntyped, fetchJson, parseRouteSegments, peekCachedDocument, routeToFileHistory } from "./app.ts";
+import { findRevisionForChangeId } from "./views/file-history.ts";
+
+// ── local wire types (parsed JSONL is dynamic; these name only the fields this file reads) ──
+
+// One message content block as serialized in a transcript line.
+type WireContentBlock = {
+    type: string;
+    text?: string;
+    id?: string;
+    name?: string;
+    input?: Record<string, unknown>;
+    content?: string | WireContentBlock[];
+};
+
+// One parsed JSONL record, reduced to the fields the inspector inspects.
+type WireRecord = {
+    uuid?: string;
+    type?: string;
+    message?: { content?: string | WireContentBlock[] };
+    snapshot?: { trackedFileBackups?: Record<string, WireBackupEntry> };
+};
+
+// A shown line's parsed value: a record, null (a literal "null" line), or the raw text of a
+// non-JSON line.
+type WireValue = WireRecord | string | null;
+
+// One trackedFileBackups map VALUE as serialized in a file-history snapshot record.
+type WireBackupEntry = { backupFileName?: string | null; backupTime?: string };
+
+// A trackedFileBackups entry surfaced with its map key (the tracked file's relative path).
+type WireTrackedBackup = { relativePath: string; backupTime: string | undefined };
+
+// One reconstructed file of the cached unified document (structurally matching the shape
+// file-history.ts's findRevisionForChangeId expects; this file only reads timestamp).
+type WireRevision = { changeId: string; timestamp: string };
+type WireFileHistory = { target: string; revisions: WireRevision[] };
+
+// A resolved revision link: a reconstructed file, optionally anchored at one revision.
+type WireRevisionLink = { target: string; revisionNumber?: number };
+
+// The /api/blob response shape.
+type WireBlobResponse = { exists?: boolean; content?: string };
+
+// The per-transcript link maps computeLinkMaps builds.
+type LinkMaps = {
+    uuidToLine: Map<string, number>;
+    toolIdToLines: Map<string, number[]>;
+};
+
+// The state appendSnapshotToken renders from (assembled per openTranscriptInspector call).
+type SnapshotContext = {
+    sessionId: string;
+    presenceByKey: Map<string, boolean | undefined>;
+    project: string | undefined;
+    openSnapshotDrawer: (blobName: string, entry: WireTrackedBackup) => void;
+};
+
+// Typed view of app.ts's el helper, scoped to the attribute keys and children this file passes.
+const el = elUntyped as (
+    tag: string,
+    attrs?: { class?: string; text?: string; title?: string; onclick?: () => void },
+    children?: HTMLElement[],
+) => HTMLElement;
 
 // The legacy viewer's token pattern: strings (key vs value by trailing colon), booleans,
 // null, and numbers. Everything between tokens (braces, brackets, commas, whitespace) is
 // plain text.
 const JSON_TOKEN_PATTERN = /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g;
 
-function classifyToken(token) {
+function classifyToken(token: string): string {
     if (token.startsWith('"')) {
         return token.trimEnd().endsWith(":") ? "json-key" : "json-string";
     }
@@ -32,7 +94,7 @@ function classifyToken(token) {
 // this threshold only decides which values get the toggle at all.
 const LONG_VALUE_CHAR_LIMIT = 560;
 
-function checkValueIsLong(tokenClass, token) {
+function checkValueIsLong(tokenClass: string, token: string): boolean {
     if (tokenClass !== "json-string") {
         return false;
     }
@@ -41,22 +103,22 @@ function checkValueIsLong(tokenClass, token) {
 
 // Per-transcript link maps, computed once per rawLines array: each record uuid -> its own
 // line, and each toolu_… id -> every line whose text carries it (tool_use + tool_result).
-const linkMapsCache = new WeakMap();
+const linkMapsCache = new WeakMap<string[], LinkMaps>();
 
-function computeLinkMaps(rawLines) {
+function computeLinkMaps(rawLines: string[]): LinkMaps {
     if (linkMapsCache.has(rawLines)) {
-        return linkMapsCache.get(rawLines);
+        return linkMapsCache.get(rawLines)!;
     }
-    const uuidToLine = new Map();
-    const toolIdToLines = new Map();
+    const uuidToLine = new Map<string, number>();
+    const toolIdToLines = new Map<string, number[]>();
     rawLines.forEach((text, index) => {
         try {
-            const uuid = JSON.parse(text).uuid;
+            const uuid = (JSON.parse(text) as WireRecord).uuid;
             if (uuid !== undefined) uuidToLine.set(uuid, index);
         } catch { /* a non-JSON line simply has no uuid */ }
         for (const match of text.matchAll(/toolu_[A-Za-z0-9_]+/g)) {
             if (!toolIdToLines.has(match[0])) toolIdToLines.set(match[0], []);
-            const lines = toolIdToLines.get(match[0]);
+            const lines = toolIdToLines.get(match[0])!;
             if (!lines.includes(index)) lines.push(index);
         }
     });
@@ -67,7 +129,7 @@ function computeLinkMaps(rawLines) {
 
 // The line a string value links to, or undefined: toolu ids link to their first OTHER
 // carrier line; uuids link to the record they name (never the line being shown).
-function findJumpTarget(value, currentLine, maps) {
+function findJumpTarget(value: string, currentLine: number, maps: LinkMaps): number | undefined {
     if (value.startsWith("toolu_")) {
         return maps.toolIdToLines.get(value)?.find((line) => line !== currentLine);
     }
@@ -79,8 +141,8 @@ function findJumpTarget(value, currentLine, maps) {
 // the trackedFileBackups KEY is the tracked file's relative path, and the backupTime dates the
 // file state the backup captured. undefined when the record is no file-history snapshot or
 // tracks no such backup.
-export function findTrackedBackupEntry(record, blobName) {
-    const backups = record?.snapshot?.trackedFileBackups;
+export function findTrackedBackupEntry(record: WireValue, blobName: string): WireTrackedBackup | undefined {
+    const backups = (record as WireRecord | null)?.snapshot?.trackedFileBackups;
     if (backups === undefined) {
         return undefined;
     }
@@ -95,7 +157,7 @@ export function findTrackedBackupEntry(record, blobName) {
 // The backupTime of the snapshot entry whose backupFileName is `blobName`, or undefined when
 // the record is no file-history snapshot or tracks no such backup. That time dates the file
 // state the backup captured, so it resolves a blob version to a revision.
-export function findBackupTimeForBlob(record, blobName) {
+export function findBackupTimeForBlob(record: WireValue, blobName: string): string | undefined {
     return findTrackedBackupEntry(record, blobName)?.backupTime;
     // (item 23) body moved into findTrackedBackupEntry, which also surfaces the tracked path:
     // const backups = record?.snapshot?.trackedFileBackups;
@@ -115,14 +177,16 @@ export function findBackupTimeForBlob(record, blobName) {
 // backupTime (ISO strings compare correctly — the computeContentAtTime convention), with
 // revisionNumber undefined when the backup predates every revision. undefined when no
 // reconstructed file matches (the caller omits its button).
-export function computeSnapshotHistoryAnchor(filesTouched, relativePath, backupTime) {
+export function computeSnapshotHistoryAnchor(
+    filesTouched: WireFileHistory[], relativePath: string, backupTime: string | undefined,
+): WireRevisionLink | undefined {
     const history = filesTouched.find(
         (entry) => entry.target === relativePath || entry.target.endsWith(`/${relativePath}`),
     );
     if (history === undefined) {
         return undefined;
     }
-    let revisionNumber;
+    let revisionNumber: number | undefined;
     history.revisions.forEach((revision, index) => {
         if (backupTime !== undefined && revision.timestamp <= backupTime) {
             revisionNumber = index + 1;
@@ -132,13 +196,13 @@ export function computeSnapshotHistoryAnchor(filesTouched, relativePath, backupT
 }
 
 // The /api/blob request URL for one (owning session, blob name) pair.
-export function computeBlobRequestUrl(sessionId, blobName) {
+export function computeBlobRequestUrl(sessionId: string, blobName: string): string {
     return `/api/blob?session=${encodeURIComponent(sessionId)}&name=${encodeURIComponent(blobName)}`;
 }
 
 // Whether each probed blob is on disk, keyed "<session>|<blobName>" — fetched once per
 // browser session (a blob file never changes once written).
-const blobPresenceByKey = new Map();
+const blobPresenceByKey = new Map<string, boolean | undefined>();
 
 // Bumped at every showLine render; a settled presence probe re-renders ONLY when the pane
 // still shows the line it probed for (its captured count is still the current one).
@@ -146,14 +210,14 @@ let showLineRenderCount = 0;
 
 // The file-history route a resolved revision link navigates to: anchored at /rev/<n> when the
 // link names one revision, the file's plain history otherwise.
-export function computeRevisionLinkRoute(project, { target, revisionNumber }) {
+export function computeRevisionLinkRoute(project: string, { target, revisionNumber }: WireRevisionLink): string {
     const base = routeToFileHistory(project, target);
     return revisionNumber === undefined ? base : `${base}/rev/${revisionNumber}`;
 }
 
 // The tool_use identity of a shown record: its first tool_use block's id plus the record's own
 // uuid; undefined when the record calls no tool.
-function findToolUseIdentity(value) {
+function findToolUseIdentity(value: WireValue): { toolUseId: string | undefined; recordUuid: string | undefined } | undefined {
     if (value === null) {
         return undefined;
     }
@@ -178,7 +242,7 @@ function findToolUseIdentity(value) {
 // toolUseID names the tool_use id) and the tool-result line (sourceToolAssistantUUID names the
 // assistant record; the tool_result block's tool_use_id is the fallback for older transcripts).
 // Each is -1 when absent; undefined when the record calls no tool.
-export function findToolNavigationTargets(rawLines, value) {
+export function findToolNavigationTargets(rawLines: string[], value: WireValue): { hookLine: number; resultLine: number } | undefined {
     const toolUse = findToolUseIdentity(value);
     if (toolUse === undefined) {
         return undefined;
@@ -196,7 +260,7 @@ export function findToolNavigationTargets(rawLines, value) {
 // A tool_use block's readable form: a name header plus each STRING input field verbatim under
 // a per-field divider — a Write's `content` shows with real newlines instead of JSON escapes.
 // Non-string inputs (numbers, arrays) stay in the JSON view; this mode is for reading text.
-function extractToolUseText(block) {
+function extractToolUseText(block: WireContentBlock): string {
     const lines = [`[tool_use: ${block.name}]`];
     for (const [key, value] of Object.entries(block.input ?? {})) {
         if (typeof value !== "string") {
@@ -209,7 +273,7 @@ function extractToolUseText(block) {
 
 // A tool_result block's readable form: its string content, or its nested text blocks joined
 // by blank lines (placeholder for nested non-text blocks).
-function extractToolResultText(block) {
+function extractToolResultText(block: WireContentBlock): string {
     if (typeof block.content === "string") {
         return block.content;
     }
@@ -221,7 +285,7 @@ function extractToolResultText(block) {
         .join("\n\n");
 }
 
-function extractBlockText(block) {
+function extractBlockText(block: WireContentBlock): string | undefined {
     if (block.type === "text") {
         return block.text;
     }
@@ -238,7 +302,7 @@ function extractBlockText(block) {
 // real newlines, blocks joined by blank lines, unknown block kinds as one-line placeholders.
 // A non-JSON raw line is already readable and returns verbatim. undefined when the record
 // carries no message content (e.g. file-history snapshots) — the caller hides the toggle.
-export function extractReadableText(value) {
+export function extractReadableText(value: WireValue): string | undefined {
     if (typeof value === "string") {
         return value;
     }
@@ -262,7 +326,7 @@ let inspectorShowsFormattedText = false;
 
 // Item 10a: collapse shrinks the pane to a 24px rail (mirroring the Files drawer) instead of
 // display:none, so the SAME focusable button expands it again — glyph and label flip per state.
-function toggleInspectorCollapsed(pane, button) {
+function toggleInspectorCollapsed(pane: HTMLElement, button: HTMLElement) {
     const collapsed = pane.classList.toggle("collapsed");
     button.textContent = collapsed ? "«" : "»";
     button.title = collapsed ? "Expand inspector" : "Collapse inspector";
@@ -270,8 +334,8 @@ function toggleInspectorCollapsed(pane, button) {
 
 // The inspector pane's drawer chrome — collapse chevron + a fresh scrollable content column —
 // shown; returns the content column for the caller to fill.
-export function openInspectorPane() {
-    const pane = document.getElementById("inspector");
+export function openInspectorPane(): HTMLElement {
+    const pane = document.getElementById("inspector")!;
     // The 50%-width file-preview modifier is opt-in per open; callers wanting it re-add it.
     pane.classList.remove("file-preview-drawer");
     // Same for the snapshot-drawer split: a fresh open starts without the bottom drawer.
@@ -289,7 +353,7 @@ export function openInspectorPane() {
 }
 
 // The project of the current #/project/* hash, or undefined on other routes.
-function findCurrentProject() {
+function findCurrentProject(): string | undefined {
     const segments = parseRouteSegments();
     return segments[0] === "project" ? segments[1] : undefined;
 }
@@ -298,7 +362,10 @@ function findCurrentProject() {
 // snapshot" link + [View in File History] button when the blob exists, a dimmed
 // "(missing from disk)" suffix when it does not, a plain token while the probe is in flight.
 // This treatment replaces the generic revision-link behavior for these tokens.
-function appendSnapshotToken(pre, tokenClass, token, value, entry, filesTouched, snapshotContext) {
+function appendSnapshotToken(
+    pre: HTMLElement, tokenClass: string, token: string, value: string,
+    entry: WireTrackedBackup, filesTouched: WireFileHistory[], snapshotContext: SnapshotContext,
+) {
     const presence = snapshotContext.presenceByKey.get(`${snapshotContext.sessionId}|${value}`);
     if (presence !== true) {
         pre.append(el("span", { class: tokenClass, text: token }));
@@ -320,7 +387,7 @@ function appendSnapshotToken(pre, tokenClass, token, value, entry, filesTouched,
             class: "row-btn snapshot-history-btn",
             text: "View in File History",
             onclick: () => {
-                location.hash = computeRevisionLinkRoute(snapshotContext.project, anchor);
+                location.hash = computeRevisionLinkRoute(snapshotContext.project!, anchor);
             },
         }));
     }
@@ -329,7 +396,11 @@ function appendSnapshotToken(pre, tokenClass, token, value, entry, filesTouched,
 // Pretty JSON text -> a <pre> of text nodes and highlight spans; linkable string values
 // become clickable jump-links.
 // (item 23) old signature: function renderHighlightedJson(prettyText, record, currentLine, maps, showLine, filesTouched, openRevision) {
-function renderHighlightedJson(prettyText, record, currentLine, maps, showLine, filesTouched, openRevision, snapshotContext) {
+function renderHighlightedJson(
+    prettyText: string, record: WireValue, currentLine: number, maps: LinkMaps,
+    showLine: (line: number) => void, filesTouched: WireFileHistory[],
+    openRevision: (link: WireRevisionLink) => void, snapshotContext?: SnapshotContext,
+) {
     const pre = el("pre", { class: "inspector-json" });
     let lastIndex = 0;
     for (const match of prettyText.matchAll(JSON_TOKEN_PATTERN)) {
@@ -338,16 +409,17 @@ function renderHighlightedJson(prettyText, record, currentLine, maps, showLine, 
         }
         const token = match[0];
         const tokenClass = classifyToken(token);
-        let jumpTarget;
-        let revisionLink;
+        let jumpTarget: number | undefined;
+        let revisionLink: WireRevisionLink | undefined;
         if (tokenClass === "json-string") {
             try {
-                const value = JSON.parse(token);
+                const value = JSON.parse(token) as string;
                 // A backupFileName the CURRENT record tracks gets the snapshot treatment
                 // instead of the generic revision link.
                 const trackedEntry = snapshotContext === undefined ? undefined : findTrackedBackupEntry(record, value);
                 if (trackedEntry !== undefined) {
-                    appendSnapshotToken(pre, tokenClass, token, value, trackedEntry, filesTouched, snapshotContext);
+                    // trackedEntry !== undefined implies snapshotContext was passed (see the ternary above).
+                    appendSnapshotToken(pre, tokenClass, token, value, trackedEntry, filesTouched, snapshotContext!);
                     lastIndex = match.index + token.length;
                     continue;
                 }
@@ -400,16 +472,21 @@ function renderHighlightedJson(prettyText, record, currentLine, maps, showLine, 
 
 // Open the inspector on `line` of a transcript. onJumpToLine (optional) is called with every
 // shown line so the calling view can scroll/highlight in step; it must not reopen the inspector.
-export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLine }) {
+export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLine }: {
+    jsonlName: string;
+    rawLines: string[];
+    line: number;
+    onJumpToLine?: (line: number) => void;
+}) {
     const maps = computeLinkMaps(rawLines);
     // Revision links resolve through the project's already-cached unified document — never a
     // build. On routes with no cached document, changeId values simply render unlinked.
     const project = findCurrentProject();
-    const filesTouched = project === undefined ? [] : peekCachedDocument(project)?.filesTouched ?? [];
+    const filesTouched = project === undefined ? [] : (peekCachedDocument(project)?.filesTouched ?? []) as WireFileHistory[];
     // Revision links navigate: the router renders file history as a drawer over the timeline
     // (renderSubRouteDrawer) and the URL reflects it, so revision links are shareable.
-    const openRevision = (revisionLink) => {
-        location.hash = computeRevisionLinkRoute(project, revisionLink);
+    const openRevision = (revisionLink: WireRevisionLink) => {
+        location.hash = computeRevisionLinkRoute(project!, revisionLink);
     };
     // The shown transcript's session id, by the timeline's file-naming convention: the JSONL
     // is named "<sessionId>.jsonl". Blob presence probes and snapshot reads are owner-keyed
@@ -417,9 +494,9 @@ export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLin
     const sessionId = jsonlName.replace(/\.jsonl$/, "");
     // Raise (or refill) the bottom snapshot drawer with one blob's verbatim content, splitting
     // the Details pane: JSON above, blob below.
-    const openSnapshotDrawer = async (blobName, entry) => {
-        const result = await fetchJson(computeBlobRequestUrl(sessionId, blobName));
-        const pane = document.getElementById("inspector");
+    const openSnapshotDrawer = async (blobName: string, entry: WireTrackedBackup) => {
+        const result = await fetchJson(computeBlobRequestUrl(sessionId, blobName)) as WireBlobResponse;
+        const pane = document.getElementById("inspector")!;
         const content = pane.querySelector(".inspector-content");
         if (content === null) {
             return;
@@ -443,27 +520,27 @@ export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLin
         ]);
         content.append(drawer);
     };
-    const showLine = (index) => {
+    const showLine = (index: number) => {
         const clamped = Math.min(Math.max(index, 0), rawLines.length - 1);
         showLineRenderCount += 1;
         const renderCountAtStart = showLineRenderCount;
-        let value;
+        let value: WireValue;
         try {
-            value = JSON.parse(rawLines[clamped]);
+            value = JSON.parse(rawLines[clamped]!) as WireValue;
         } catch {
-            value = rawLines[clamped];
+            value = rawLines[clamped]!;
         }
         // Probe the on-disk presence of this record's tracked backups (unknowns only), then
         // re-render the SAME line once every probe settles — progressive enhancement: the
         // first paint shows those tokens plain, never a flicker loop.
-        const trackedBackups = value?.snapshot?.trackedFileBackups;
+        const trackedBackups = (value as WireRecord | null)?.snapshot?.trackedFileBackups;
         if (trackedBackups !== undefined) {
             const unprobedNames = Object.values(trackedBackups)
                 .map((entry) => entry.backupFileName)
-                .filter((name) => name !== undefined && !blobPresenceByKey.has(`${sessionId}|${name}`));
+                .filter((name): name is string => name !== undefined && !blobPresenceByKey.has(`${sessionId}|${name}`));
             if (unprobedNames.length > 0) {
                 Promise.all(unprobedNames.map(async (name) => {
-                    const probed = await fetchJson(computeBlobRequestUrl(sessionId, name));
+                    const probed = await fetchJson(computeBlobRequestUrl(sessionId, name)) as WireBlobResponse;
                     blobPresenceByKey.set(`${sessionId}|${name}`, probed.exists);
                 })).then(() => {
                     if (showLineRenderCount === renderCountAtStart) {
@@ -474,7 +551,7 @@ export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLin
         }
         // Tool-flow jumps (shown only on assistant tool_use lines): hook + result of THIS call.
         const toolTargets = findToolNavigationTargets(rawLines, value);
-        const toolButtons = [];
+        const toolButtons: HTMLElement[] = [];
         if (toolTargets !== undefined) {
             if (toolTargets.hookLine >= 0) {
                 toolButtons.push(el("button", { class: "row-btn", text: "Go to PreToolUse hook", onclick: () => showLine(toolTargets.hookLine) }));
@@ -494,7 +571,7 @@ export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLin
                 },
             }));
         }
-        let body;
+        let body: HTMLElement;
         if (inspectorShowsFormattedText && readableText !== undefined) {
             body = el("pre", { class: "inspector-text", text: readableText });
         } else {

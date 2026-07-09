@@ -1,19 +1,27 @@
 // Projects tree (#/): every project in the active folder, most recently active first
 // (the server's scan order), narrowable by a live name filter.
 
-import { el, fetchJson, routeToProject } from "../app.js";
+import { el as elUntyped, fetchJson, routeToProject } from "../app.ts";
+
+// Wire shapes for /api/projects (dates arrive as plain ISO strings).
+type WireJsonlFile = { modifiedAt: string };
+type WireProject = { name: string; jsonlFiles: WireJsonlFile[] };
+
+// app.ts is being typed in parallel; give its helper a local signature at this usage site.
+type ElAttributes = Record<string, string | (() => void)>;
+const el = elUntyped as (tag: string, attrs?: ElAttributes, children?: HTMLElement[]) => HTMLElement;
 
 // Pure view model for the projects view (no DOM): the listing rows whose project name
 // contains the filter text, case-insensitive. An empty filter keeps every row
 // (includes("") is always true — no branch needed).
-export function filterProjectsByName(projects, filterText) {
+export function filterProjectsByName<ProjectType extends { name: string }>(projects: ProjectType[], filterText: string): ProjectType[] {
     const loweredFilterText = filterText.toLowerCase();
     return projects.filter((project) => project.name.toLowerCase().includes(loweredFilterText));
 }
 
-export async function renderProjectsView(container) {
-    const projects = await fetchJson("/api/projects");
-    const filterInput = el("input", { type: "text", placeholder: "filter projects…", spellcheck: "false" });
+export async function renderProjectsView(container: HTMLElement): Promise<void> {
+    const projects: WireProject[] = await fetchJson("/api/projects");
+    const filterInput = el("input", { type: "text", placeholder: "filter projects…", spellcheck: "false" }) as HTMLInputElement;
     const countLabel = el("span", { class: "muted" });
     const listPane = el("div");
     const renderList = () => {

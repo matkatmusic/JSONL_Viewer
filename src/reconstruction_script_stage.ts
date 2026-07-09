@@ -2,11 +2,10 @@
 // running the pre-script state through the actual script (in a temp dir) and comparing the result
 // to the expected post-execution state derived from the file-history beacon.
 
-import { randomUUID } from "node:crypto";
 import { isImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { getDerivedCaches } from "./reconstruction_corpus.ts";
 import { EventKind } from "./structures/vocabulary.ts";
-import { Path, Uuid } from "./structures/domain.ts";
+import { Path } from "./structures/domain.ts";
 import { resolveAgainstCwd } from "./structures/path-resolve.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { splitLines } from "./reconstruction_replay_edit.ts";
@@ -15,6 +14,7 @@ import { reportReconstructionProgress } from "./reconstruction_progress.ts";
 import { beaconSnippetFor, type BeaconSnippet } from "./reconstruction_user_edit.ts";
 import { backupSeedWriteFor, type BackupReader } from "./reconstruction_sidecar.ts";
 import {
+    computeScriptExecutionChangeId,
     findScriptExecutionRuns,
     formatRunSource,
     getPreExecutionState,
@@ -306,7 +306,7 @@ function beaconlessScriptExecutions(
         if (outcome === undefined) continue;
         events.push({
             kind: EventKind.scriptExecution,
-            changeId: new Uuid(randomUUID()),
+            changeId: computeScriptExecutionChangeId(run, target),
             target,
             content: outcome.content,
             timestamp: run.timestamp,

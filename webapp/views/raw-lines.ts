@@ -2,16 +2,38 @@
 // the legacy filter modes (Show All / File Only / Edits Only) plus a substring filter.
 // Clicking a line opens the JSON inspector.
 
-import { el, fetchDocument, fetchRawRecords, renderConsentDialog } from "../app.js";
-import { openTranscriptInspector } from "../inspector.js";
-import { findLineForChangeId } from "./file-history.js";
+import { el as elUntyped, fetchDocument, fetchRawRecords, renderConsentDialog } from "../app.ts";
+import { openTranscriptInspector } from "../inspector.ts";
+import { findLineForChangeId } from "./file-history.ts";
+
+// Wire shapes for the pieces of the /api/document payload this view reads (ids/dates arrive as
+// plain strings over the wire, so these stay local rather than importing engine types).
+type WireRevision = { changeId: string };
+type WireFileHistory = { revisions: WireRevision[] };
+type WireLineVerdict = { line: number; verdict: string };
+type WireDocument = { filesTouched: WireFileHistory[]; lineVerdicts: WireLineVerdict[] };
+type RawLineEntry = { line: number; verdict: string; text: string };
+
+// Locally-typed view of app.ts's DOM builder (app.ts is being typed separately; its untyped
+// `children = []` default infers never[], which rejects every child).
+type ElAttributes = Record<string, string | ((event: Event) => void)>;
+const el = elUntyped as <K extends keyof HTMLElementTagNameMap>(
+    tag: K,
+    attrs?: ElAttributes,
+    children?: HTMLElement[],
+) => HTMLElementTagNameMap[K];
 
 // Pure filter over the document's per-line verdicts. mode: "all" | "file" (verdict marks file
 // relevance, i.e. not "ignore") | "edits" (the line carries a revision's changeId — the plan's
 // steps[].changeIds are re-stamped uuids that rarely match raw lines, so the changeId scan is
 // the honest edit set).
-export function buildRawLinesViewModel(document, rawLines, mode, substring) {
-    const editLines = new Set();
+export function buildRawLinesViewModel(
+    document: WireDocument,
+    rawLines: string[],
+    mode: string,
+    substring: string,
+): { entries: RawLineEntry[] } {
+    const editLines = new Set<number>();
     for (const history of document.filesTouched) {
         for (const revision of history.revisions) {
             const line = findLineForChangeId(rawLines, revision.changeId);
@@ -19,7 +41,7 @@ export function buildRawLinesViewModel(document, rawLines, mode, substring) {
         }
     }
     const lowered = substring.toLowerCase();
-    const entries = [];
+    const entries: RawLineEntry[] = [];
     for (const verdict of document.lineVerdicts) {
         if (mode === "file" && verdict.verdict === "ignore") continue;
         if (mode === "edits" && !editLines.has(verdict.line)) continue;
@@ -30,25 +52,25 @@ export function buildRawLinesViewModel(document, rawLines, mode, substring) {
     return { entries };
 }
 
-export async function renderRawLinesView(container, project, jsonl) {
-    const result = await fetchDocument(project, jsonl);
+export async function renderRawLinesView(container: HTMLElement, project: string, jsonl: string): Promise<void> {
+    const result = await fetchDocument<WireDocument>(project, jsonl);
     if (result.consentRequired !== undefined) {
         renderConsentDialog(container, project, result.consentRequired);
         return;
     }
-    const documentJson = result.document;
+    const documentJson = result.document!;
     const rawLines = await fetchRawRecords(project, jsonl);
 
     // Inspector navigation scrolls the visible row list in step (a filtered-out line just
     // has no row to highlight).
-    const highlightLine = (line) => {
+    const highlightLine = (line: number): void => {
         const row = listPane.querySelector(`[data-line="${line}"]`);
         if (row === null) return;
         listPane.querySelectorAll(".anchored").forEach((old) => old.classList.remove("anchored"));
         row.classList.add("anchored");
         row.scrollIntoView({ block: "center" });
     };
-    const inspectLine = (line) => openTranscriptInspector({ jsonlName: jsonl, rawLines, line, onJumpToLine: highlightLine });
+    const inspectLine = (line: number): void => openTranscriptInspector({ jsonlName: jsonl, rawLines, line, onJumpToLine: highlightLine });
 
     const modeSelect = el("select", {}, [
         el("option", { value: "all", text: "Show All" }),

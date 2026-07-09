@@ -145,3 +145,4 @@ __pycache__
 .plate/
 **/.DS_Store
 .gstack/
+webapp/dist/

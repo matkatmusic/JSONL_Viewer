@@ -4,7 +4,7 @@
 // The view-model half is DOM-free and tested against scenario ground truth (viewer-viewmodels.test.ts).
 
 import {
-    el,
+    el as elUntyped,
     fetchDocument,
     fetchJson,
     peekCachedDocument,
@@ -12,30 +12,47 @@ import {
     routeToFileHistory,
     routeToProject,
     routeToTimeline,
-} from "../app.js";
+} from "../app.ts";
+
+// app.ts is being typed in parallel; typed view of its untyped `el` for this file's call sites.
+const el = elUntyped as (
+    tag: string,
+    attrs?: Record<string, unknown>,
+    children?: readonly (Node | string)[],
+) => HTMLElement;
+
+// Wire shapes (JSON off the server: ids/paths/dates are plain strings), minimal to this file's use.
+type WireFileHistory = { target: string };
+type WireDocument = { filesTouched: WireFileHistory[]; messages: unknown[] };
+type WireJsonlFile = { fileName: string; sizeBytes: number; modifiedAt: string };
+type WireProjectListing = { name: string; jsonlFiles: WireJsonlFile[] };
 
 // Pure view model for the project view (no DOM): every reconstructed file target across the
 // project's (possibly many) JSONLs, sorted, for the files-touched tree pane.
-export function buildProjectViewModel(document) {
+export function buildProjectViewModel(document: WireDocument): { fileTargets: string[] } {
     return { fileTargets: document.filesTouched.map((history) => history.target).sort() };
 }
 
 // Group targets by their directory for the tree pane.
 // ponytail: dirname grouping, not a nested collapsing tree — upgrade if deep hierarchies get unreadable.
-function groupTargetsByDirectory(fileTargets) {
-    const groups = new Map();
+function groupTargetsByDirectory(fileTargets: readonly string[]): Map<string, string[]> {
+    const groups = new Map<string, string[]>();
     for (const target of fileTargets) {
         const slash = target.lastIndexOf("/");
         const directory = slash < 0 ? "" : target.slice(0, slash);
         if (!groups.has(directory)) groups.set(directory, []);
-        groups.get(directory).push(target);
+        groups.get(directory)!.push(target);
     }
     return groups;
 }
 
 // The left drawer: JSONL files always (cheap listing); touched files only once the project's
 // unified document is already cached (never forces a whole-project build just for navigation).
-export async function renderProjectDrawer(drawer, project, { activeJsonl, activeTarget }) {
+export async function renderProjectDrawer(
+    drawer: HTMLElement,
+    project: string,
+    { activeJsonl, activeTarget }: { activeJsonl?: string; activeTarget?: string },
+): Promise<void> {
     drawer.replaceChildren();
     // Collapse state is the `collapsed` class on the persistent #drawer element, so it survives
     // this replaceChildren-based re-render and resets on page reload (deliberately unpersisted).
@@ -49,7 +66,7 @@ export async function renderProjectDrawer(drawer, project, { activeJsonl, active
         },
     });
     drawer.append(toggleButton);
-    const listing = (await fetchJson("/api/projects")).find((entry) => entry.name === project);
+    const listing = ((await fetchJson("/api/projects")) as WireProjectListing[]).find((entry) => entry.name === project);
     if (listing === undefined) return;
     drawer.append(el("div", { class: "pane-title" }, [el("a", { href: routeToProject(project), text: project })]));
 
@@ -60,13 +77,13 @@ export async function renderProjectDrawer(drawer, project, { activeJsonl, active
     for (const entry of listing.jsonlFiles) {
         drawer.append(el("a", {
             class: `drawer-item${entry.fileName === activeJsonl ? " active" : ""}`,
-            href: routeToTimeline(project, entry.fileName),
+            href: routeToTimeline(project, entry.fileName, undefined),
             text: entry.fileName,
             title: `${entry.sizeBytes} B · ${new Date(entry.modifiedAt).toLocaleString()}`,
         }));
     }
 
-    const cachedDocument = peekCachedDocument(project);
+    const cachedDocument = peekCachedDocument<WireDocument>(project);
     if (cachedDocument === undefined) return;
     const viewModel = buildProjectViewModel(cachedDocument);
     drawer.append(el("div", { class: "drawer-section-title", text: `Files touched (${viewModel.fileTargets.length})` }));
@@ -84,13 +101,13 @@ export async function renderProjectDrawer(drawer, project, { activeJsonl, active
 
 // The project landing view (#/project/<name>): builds the unified document (hosting the
 // consent dialog when scripts need a decision) and shows a summary; the drawer is the nav.
-export async function renderProjectView(container, project) {
-    const result = await fetchDocument(project, undefined);
+export async function renderProjectView(container: HTMLElement, project: string): Promise<void> {
+    const result = await fetchDocument<WireDocument>(project, undefined);
     if (result.consentRequired !== undefined) {
         renderConsentDialog(container, project, result.consentRequired);
         return;
     }
-    const viewModel = buildProjectViewModel(result.document);
+    const viewModel = buildProjectViewModel(result.document!);
     container.append(el("div", { class: "pane-title", text: project }));
-    container.append(el("div", { class: "muted", text: `${result.document.messages.length} conversation turns · ${viewModel.fileTargets.length} files touched · pick a JSONL or file on the left` }));
+    container.append(el("div", { class: "muted", text: `${result.document!.messages.length} conversation turns · ${viewModel.fileTargets.length} files touched · pick a JSONL or file on the left` }));
 }

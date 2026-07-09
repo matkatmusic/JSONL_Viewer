@@ -21,6 +21,7 @@ import {
 } from "./reconstruction_engine.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
 import { ORIGINAL_FILE_SEED_CHANGE_ID_PREFIX } from "./reconstruction_reseed.ts";
+import { resolveScriptRunChangeIdToSourceId } from "./reconstruction_script_execution.ts";
 import { findSessionId } from "./reconstruction_sidecar_reader.ts";
 import { reportReconstructionProgress } from "./reconstruction_progress.ts";
 
@@ -136,12 +137,18 @@ function indexChangeIdsToSessionIds(records: TranscriptRecord[]): Map<string, Uu
     return byChangeId;
 }
 
-// Un-wrap a synthetic reseed changeId to the source id the index knows. An `originalFile` seed stamps
+// Un-wrap a synthetic changeId to the source id the index knows. An `originalFile` seed stamps
 // `originalFile:<real edit changeId>` (reconstruction_reseed); stripping the prefix exposes the real
-// tool_use id (s40 step 3). A plain changeId — real, or a record-uuid evidence splice — is returned as-is.
+// tool_use id (s40 step 3). A `scriptRun:<tool_use id>:<target>` script-execution id
+// (reconstruction_script_execution) unwraps to its tool_use id the same way (item 34). A plain
+// changeId — real, or a record-uuid evidence splice — is returned as-is.
 function resolveSyntheticChangeIdToSourceId(changeId: string): string {
     if (changeId.startsWith(ORIGINAL_FILE_SEED_CHANGE_ID_PREFIX)) {
         return changeId.slice(ORIGINAL_FILE_SEED_CHANGE_ID_PREFIX.length);
+    }
+    const scriptRunSourceId = resolveScriptRunChangeIdToSourceId(changeId);
+    if (scriptRunSourceId !== undefined) {
+        return scriptRunSourceId;
     }
     return changeId;
 }
@@ -175,6 +182,8 @@ export function buildStepSnapshots(
         // ponytail: best-effort — a step's triggering changeId is not always a surviving revision's
         // changeId (the engine re-stamps revisions during beacon/reseed completion), so off-branch or
         // re-stamped steps resolve to []. changeIds is the reliable pointer; changedPaths is the hint.
+        // Script-execution changeIds are deterministic (scriptRun:<source>:<target>, item 34), so the
+        // step-timeline and file-history replays stamp the same id and those steps DO resolve.
         const changedPaths = [
             ...new Set(changeIds.map((id) => pathOf.get(id.toString())).filter((p): p is string => p !== undefined)),
         ];

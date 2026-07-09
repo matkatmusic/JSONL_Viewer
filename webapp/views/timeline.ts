@@ -16,11 +16,11 @@ import {
     renderConsentDialog,
     routeToConversation,
     routeToFileHistory,
-} from "../app.js";
-import { openInspectorPane, openTranscriptInspector } from "../inspector.js";
-import { findLineForChangeId, findRevisionForChangeId, splitDiffBlocks } from "./file-history.js";
-import { renderDiffText } from "./diff-vs-base.js";
-import { downloadText } from "./download.js";
+} from "../app.ts";
+import { openInspectorPane, openTranscriptInspector } from "../inspector.ts";
+import { findLineForChangeId, findRevisionForChangeId, splitDiffBlocks } from "./file-history.ts";
+import { renderDiffText } from "./diff-vs-base.ts";
+import { downloadText } from "./download.ts";
 
 export const COMMIT_NODE_KIND = "commit";
 export const USER_TURN_NODE_KIND = "user-turn";
@@ -31,13 +31,126 @@ const EDIT_EVENT_KIND = "edit";
 const COMMIT_OPERATION_KIND = "commit";
 const BRANCH_OPERATION_KIND = "branch";
 
+// ── local wire + view-model types ────────────────────────────────────────────────────────────────
+// The document arrives via fetch + JSON.parse, so ids/paths/dates are plain strings on the wire;
+// these declare only the fields this view reads.
+
+type WireRename = { from: string; to: string };
+type WireRevision = { kind: string; changeId: string; timestamp: string; rename?: WireRename };
+type WireFileHistory = { target: string; revisions: WireRevision[] };
+type WireMessage = { role: string; timestamp: string; sessionId?: string; uuid: string; text: string };
+type WireStepSnapshot = {
+    index: number;
+    when: string;
+    sessionId?: string;
+    changeIds: string[];
+    changedPaths: string[];
+    files: Record<string, string>;
+};
+type WireGitOperation = {
+    kind: string;
+    detail: string;
+    command: string;
+    timestamp: string;
+    sessionId?: string;
+    uuid?: string;
+};
+type WireCommitMarker = { timestamp: string; sessionId?: string };
+type WireTimelineDocument = {
+    filesTouched: WireFileHistory[];
+    rewoundFilesTouched: WireFileHistory[];
+    messages: WireMessage[];
+    steps: WireStepSnapshot[];
+    gitOperations?: WireGitOperation[];
+    commitMarkers: WireCommitMarker[];
+};
+type WireJsonlFile = { fileName: string };
+type WireProjectListing = { name: string; jsonlFiles: WireJsonlFile[] };
+
+// indexRevisionsByChangeId's entries: one changeId resolved to its displayable revision facts.
+type RevisionIndexEntry = {
+    path: string;
+    eventKind: string;
+    renamedFrom: string | undefined;
+    isFirstRevision: boolean;
+    isRewound: boolean;
+};
+type RevisionIndex = Map<string, RevisionIndexEntry>;
+
+// deriveFileChanges' chips: one displayable file change per distinct path.
+type FileChange = {
+    path: string;
+    eventKind: string;
+    renamedFrom: string | undefined;
+    isFirstRevision: boolean;
+    changeId: string | undefined;
+};
+
+// The (sessionId, when) instant snapshot ownership is decided on (checkNodeCanOwnSnapshot).
+type SnapshotInstant = { sessionId?: string; when: string };
+
+// A raw transcript position the inspector can open: (jsonl, its lines, 0-based line index).
+type TranscriptLocation = { jsonlName: string; rawLines: string[]; line: number };
+
+// One conversation turn (user prompt or agent reply); synthetic trailing agent turns carry no uuid.
+// stepNumber / fileChanges / isOrphaned are stamped on after sorting (assignStepNumbers,
+// deriveNodeFileChanges), hence optional.
+type TurnNode = {
+    kind: typeof USER_TURN_NODE_KIND | typeof AGENT_TURN_NODE_KIND;
+    when: string;
+    sessionId: string | undefined;
+    uuid?: string;
+    text: string;
+    isSystem?: boolean;
+    snapshots: WireStepSnapshot[];
+    gitOperations: WireGitOperation[];
+    stepNumber?: number;
+    fileChanges?: FileChange[];
+    isOrphaned?: boolean;
+    detail?: undefined;
+};
+
+// One session-end terminator per session (appendSessionEndNodes).
+type SessionEndNode = {
+    kind: typeof SESSION_END_NODE_KIND;
+    when: string;
+    sessionId: string;
+    snapshots: WireStepSnapshot[];
+    stepNumber?: number;
+    fileChanges?: FileChange[];
+    isOrphaned?: boolean;
+    uuid?: undefined;
+    text?: undefined;
+    isSystem?: undefined;
+    gitOperations?: undefined;
+    detail?: undefined;
+};
+
+// One git-commit hard stop (deriveCommitNodes); never numbered, never pickable.
+type CommitNode = {
+    kind: typeof COMMIT_NODE_KIND;
+    when: string;
+    sessionId: string | undefined;
+    detail?: string;
+    uuid?: undefined;
+    text?: undefined;
+    isSystem?: undefined;
+    snapshots?: undefined;
+    gitOperations?: undefined;
+    stepNumber?: undefined;
+    fileChanges?: undefined;
+    isOrphaned?: undefined;
+};
+
+type TimelineNode = TurnNode | SessionEndNode | CommitNode;
+
 // changeId -> { path, eventKind, renamedFrom, isRewound } across surviving AND rewound histories,
 // so a step's changeIds resolve to displayable file chips and orphan detection in one lookup.
 // Surviving histories are indexed first and win duplicates (a changeId present in both branches
 // counts as surviving).
-export function indexRevisionsByChangeId(document) {
-    const index = new Map();
-    const addHistories = (histories, isRewound) => {
+export function indexRevisionsByChangeId(document: WireTimelineDocument): RevisionIndex {
+    const index: RevisionIndex = new Map();
+    const addHistories = (histories: WireFileHistory[], isRewound: boolean): void => {
         for (const history of histories) {
             history.revisions.forEach((revision, position) => {
                 if (index.has(revision.changeId)) {
@@ -60,8 +173,8 @@ export function indexRevisionsByChangeId(document) {
 
 // A step's displayable file chips: each changeId resolved through the revision index, deduped by
 // path; changeIds that resolve nowhere fall back to the step's changedPaths hint (kind: edit).
-export function deriveFileChanges(step, revisionIndex) {
-    const changes = [];
+export function deriveFileChanges(step: WireStepSnapshot, revisionIndex: RevisionIndex): FileChange[] {
+    const changes: FileChange[] = [];
     const seenPaths = new Set();
     for (const changeId of step.changeIds) {
         const revision = revisionIndex.get(changeId);
@@ -94,7 +207,7 @@ export function deriveFileChanges(step, revisionIndex) {
 // or undefined when the change carries no changeId or it resolves to no surviving revision
 // number (re-stamped synthetic ids, blob names without an anchored revision) — those chips
 // get no jump button rather than a dead link.
-export function computeSnapshotJumpRoute(project, filesTouched, change) {
+export function computeSnapshotJumpRoute(project: string, filesTouched: WireFileHistory[], change: { path: string; changeId?: string }): string | undefined {
     if (change.changeId === undefined) {
         return undefined;
     }
@@ -110,7 +223,7 @@ export function computeSnapshotJumpRoute(project, filesTouched, change) {
 
 // A step is orphaned when at least one of its changeIds matches a rewound-branch revision and
 // none matches a surviving one — those are the dimmed, unpickable rows.
-export function checkStepIsOrphaned(step, revisionIndex) {
+export function checkStepIsOrphaned(step: WireStepSnapshot, revisionIndex: RevisionIndex): boolean {
     let matchesRewound = false;
     for (const changeId of step.changeIds) {
         const revision = revisionIndex.get(changeId);
@@ -127,7 +240,7 @@ export function checkStepIsOrphaned(step, revisionIndex) {
 
 // Tie-break rank for nodes sharing a timestamp: turns first (a commit records the state the turn
 // built up), then commits, then session ends (they close the session after everything in it).
-function computeNodeKindRank(kind) {
+function computeNodeKindRank(kind: TimelineNode["kind"]): number {
     if (kind === SESSION_END_NODE_KIND) {
         return 2;
     }
@@ -138,7 +251,7 @@ function computeNodeKindRank(kind) {
 }
 
 // Chronological; ties resolved by kind rank, insertion order otherwise (sort is stable).
-function compareTimelineNodes(a, b) {
+function compareTimelineNodes(a: TimelineNode, b: TimelineNode): number {
     if (a.when < b.when) {
         return -1;
     }
@@ -150,7 +263,7 @@ function compareTimelineNodes(a, b) {
 
 // Only an agent turn that owns surviving snapshots can be picked — user prompts, session ends,
 // snapshot-less replies, and orphaned turns all sit in no segment.
-function checkNodeIsPickable(node) {
+function checkNodeIsPickable(node: TimelineNode): boolean {
     if (node.kind !== AGENT_TURN_NODE_KIND) {
         return false;
     }
@@ -162,8 +275,8 @@ function checkNodeIsPickable(node) {
 
 // One pick-segment id per node: commit nodes end their segment (hard stops) and, like every
 // unpickable node, belong to none (null). Picks are only legal inside a single segment.
-export function computePickSegments(nodes) {
-    const segments = [];
+export function computePickSegments(nodes: TimelineNode[]): (number | null)[] {
+    const segments: (number | null)[] = [];
     let segment = 0;
     for (const node of nodes) {
         if (node.kind === COMMIT_NODE_KIND) {
@@ -183,7 +296,7 @@ export function computePickSegments(nodes) {
 // A pick is legal when empty, or when every picked node shares ONE segment and the picked set is
 // exactly the pickable nodes between its min and max index (orphans inside the span are skipped,
 // not gaps; a commit inside the span always splits the segment, so it can never be crossed).
-export function checkPickIsLegal(nodes, pickedNodeIndexes) {
+export function checkPickIsLegal(nodes: TimelineNode[], pickedNodeIndexes: number[]): boolean {
     if (pickedNodeIndexes.length === 0) {
         return true;
     }
@@ -216,10 +329,10 @@ export function checkPickIsLegal(nodes, pickedNodeIndexes) {
 // The selection bar's summary: picked turn count, DISTINCT file paths across the picked nodes,
 // and the 1-based SNAPSHOT index range for the /api/range-patch call (the server still speaks
 // snapshot indexes; a turn spans every snapshot it owns).
-export function computeRangeSummary(nodes, pickedNodeIndexes) {
-    const pickedNodes = pickedNodeIndexes.map((index) => nodes[index]);
-    const filePaths = [...new Set(pickedNodes.flatMap((node) => node.fileChanges.map((change) => change.path)))];
-    const stepIndexes = pickedNodes.flatMap((node) => node.snapshots.map((snapshot) => snapshot.index));
+export function computeRangeSummary(nodes: TimelineNode[], pickedNodeIndexes: number[]) {
+    const pickedNodes = pickedNodeIndexes.map((index) => nodes[index]!);
+    const filePaths = [...new Set(pickedNodes.flatMap((node) => node.fileChanges!.map((change) => change.path)))];
+    const stepIndexes = pickedNodes.flatMap((node) => node.snapshots!.map((snapshot) => snapshot.index));
     return {
         stepCount: pickedNodes.length,
         filePaths,
@@ -230,9 +343,9 @@ export function computeRangeSummary(nodes, pickedNodeIndexes) {
 
 // Split a multi-file range patch on its `diff --git ` headers into per-file blocks, each keyed by
 // its patch-relative b/ path (the range-diff inspector shows one file's block at a time).
-export function splitPatchByFile(patchText) {
-    const blocks = [];
-    let current = null;
+export function splitPatchByFile(patchText: string): { path: string; block: string }[] {
+    const blocks: { path: string; lines: string[] }[] = [];
+    let current: { path: string; lines: string[] } | null = null;
     for (const line of patchText.split("\n")) {
         if (line.startsWith("diff --git ")) {
             if (current !== null) {
@@ -253,7 +366,7 @@ export function splitPatchByFile(patchText) {
 
 // True when this agent-turn node is the snapshot's owner candidate: same session, at or after the
 // snapshot (tool calls execute before the assistant's reply text is emitted).
-function checkNodeCanOwnSnapshot(node, snapshot) {
+function checkNodeCanOwnSnapshot(node: TurnNode, snapshot: SnapshotInstant): boolean {
     if (node.kind !== AGENT_TURN_NODE_KIND) {
         return false;
     }
@@ -267,8 +380,8 @@ function checkNodeCanOwnSnapshot(node, snapshot) {
 // message order, chronological per session). Ownerless snapshots are always a trailing suffix of
 // their session (steps are chronological), so they collect into ONE synthetic empty-text agent
 // turn per session — no file change is ever silently dropped.
-function attachSnapshotsToAgentTurns(turnNodes, steps) {
-    const syntheticTurns = new Map();
+function attachSnapshotsToAgentTurns(turnNodes: TurnNode[], steps: WireStepSnapshot[]): void {
+    const syntheticTurns = new Map<string | undefined, TurnNode>();
     for (const snapshot of steps) {
         const owner = turnNodes.find((node) => checkNodeCanOwnSnapshot(node, snapshot));
         if (owner !== undefined) {
@@ -281,7 +394,7 @@ function attachSnapshotsToAgentTurns(turnNodes, steps) {
             synthetic.when = snapshot.when;
             continue;
         }
-        const trailingTurn = {
+        const trailingTurn: TurnNode = {
             kind: AGENT_TURN_NODE_KIND,
             when: snapshot.when,
             sessionId: snapshot.sessionId,
@@ -295,8 +408,8 @@ function attachSnapshotsToAgentTurns(turnNodes, steps) {
 }
 
 // The chronologically last agent turn of a session, or undefined when the session has none.
-function findLastAgentTurnOfSession(turnNodes, sessionId) {
-    let last;
+function findLastAgentTurnOfSession(turnNodes: TurnNode[], sessionId: string | undefined): TurnNode | undefined {
+    let last: TurnNode | undefined;
     for (const node of turnNodes) {
         if (node.kind !== AGENT_TURN_NODE_KIND) {
             continue;
@@ -313,7 +426,7 @@ function findLastAgentTurnOfSession(turnNodes, sessionId) {
 // attribution rule, reusing its owner check. An operation after the session's last reply (e.g. a
 // final commit) falls back to that last turn so no recorded git command is silently dropped.
 // Runs AFTER attachSnapshotsToAgentTurns so synthetic trailing turns are already candidates.
-function attachGitOperationsToAgentTurns(turnNodes, gitOperations) {
+function attachGitOperationsToAgentTurns(turnNodes: TurnNode[], gitOperations: WireGitOperation[]): void {
     for (const operation of gitOperations) {
         const instant = { sessionId: operation.sessionId, when: operation.timestamp };
         const owner = turnNodes.find((node) => checkNodeCanOwnSnapshot(node, instant));
@@ -330,7 +443,7 @@ function attachGitOperationsToAgentTurns(turnNodes, gitOperations) {
 
 // A git row's text inside the stars, matching the user's reference sketch: `git init`,
 // `git add <paths>`, `git commit "<message>"`, `git branch: <name>`.
-function formatGitOperationLabel(operation) {
+function formatGitOperationLabel(operation: WireGitOperation): string {
     if (operation.detail === "") {
         return `git ${operation.kind}`;
     }
@@ -345,7 +458,7 @@ function formatGitOperationLabel(operation) {
 
 // Commit pick hard-stops: from the document's commit operations (which carry the message) when it
 // ships gitOperations; an older cached document lacks the field and falls back to commitMarkers.
-function deriveCommitNodes(document) {
+function deriveCommitNodes(document: WireTimelineDocument): CommitNode[] {
     if (document.gitOperations === undefined) {
         return document.commitMarkers.map((marker) => ({
             kind: COMMIT_NODE_KIND,
@@ -366,8 +479,8 @@ function deriveCommitNodes(document) {
 // One session-end node per distinct session (insertion order), timestamped at the session's last
 // turn; compareTimelineNodes ranks it after everything else sharing that timestamp. Unattributed
 // turns (no sessionId — e.g. script executions) are not a session and get no end node.
-function appendSessionEndNodes(turnNodes) {
-    const lastTurnTimes = new Map();
+function appendSessionEndNodes(turnNodes: (TurnNode | SessionEndNode)[]): void {
+    const lastTurnTimes = new Map<string, string>();
     for (const node of turnNodes) {
         if (node.sessionId === undefined) {
             continue;
@@ -388,7 +501,7 @@ function appendSessionEndNodes(turnNodes) {
 
 // Walk the sorted nodes: user turns, agent turns, and session ends get stepNumber 1..N
 // continuously across sessions; commit nodes stay unnumbered.
-function assignStepNumbers(nodes) {
+function assignStepNumbers(nodes: TimelineNode[]): void {
     let stepNumber = 0;
     for (const node of nodes) {
         if (node.kind === COMMIT_NODE_KIND) {
@@ -401,8 +514,8 @@ function assignStepNumbers(nodes) {
 
 // A turn's file chips: deriveFileChanges merged over its snapshots, deduped by path (first kind
 // wins, matching deriveFileChanges' own seenPaths convention).
-function deriveMergedFileChanges(snapshots, revisionIndex) {
-    const changes = [];
+function deriveMergedFileChanges(snapshots: WireStepSnapshot[], revisionIndex: RevisionIndex): FileChange[] {
+    const changes: FileChange[] = [];
     const seenPaths = new Set();
     for (const snapshot of snapshots) {
         for (const change of deriveFileChanges(snapshot, revisionIndex)) {
@@ -418,7 +531,7 @@ function deriveMergedFileChanges(snapshots, revisionIndex) {
 
 // Orphaned when the turn owns snapshots and EVERY one sits on a rewound branch; a turn with any
 // surviving snapshot — or none at all — stays on the spine.
-function checkTurnIsOrphaned(snapshots, revisionIndex) {
+function checkTurnIsOrphaned(snapshots: WireStepSnapshot[], revisionIndex: RevisionIndex): boolean {
     if (snapshots.length === 0) {
         return false;
     }
@@ -427,7 +540,7 @@ function checkTurnIsOrphaned(snapshots, revisionIndex) {
 
 // fileChanges + isOrphaned on every non-commit node (user turns and session ends own no
 // snapshots, so they resolve to no chips and never orphaned).
-function deriveNodeFileChanges(nodes, revisionIndex) {
+function deriveNodeFileChanges(nodes: TimelineNode[], revisionIndex: RevisionIndex): void {
     for (const node of nodes) {
         if (node.kind === COMMIT_NODE_KIND) {
             continue;
@@ -440,7 +553,7 @@ function deriveNodeFileChanges(nodes, revisionIndex) {
 // True when the message text is harness-generated rather than typed/authored: slash-command
 // envelopes (<command-message>, <command-name>, <local-command-stdout>) and injected
 // <system-reminder> blocks. These render dimmer than genuine user prompts and agent replies.
-function checkMessageTextIsSystem(text) {
+function checkMessageTextIsSystem(text: string): boolean {
     if (text.includes("<command-")) {
         return true;
     }
@@ -455,9 +568,9 @@ function checkMessageTextIsSystem(text) {
 // StepSnapshots attach to the first agent reply of their own session at or after them (tool calls
 // run before the reply's text is emitted); leftovers get a synthetic reply node so no file change
 // is ever dropped.
-export function buildTurnTimelineViewModel(document) {
+export function buildTurnTimelineViewModel(document: WireTimelineDocument): { nodes: TimelineNode[] } {
     const revisionIndex = indexRevisionsByChangeId(document);
-    const turnNodes = document.messages.map((message) => ({
+    const turnNodes: TurnNode[] = document.messages.map((message) => ({
         kind: message.role === USER_ROLE ? USER_TURN_NODE_KIND : AGENT_TURN_NODE_KIND,
         when: message.timestamp,
         sessionId: message.sessionId,
@@ -479,7 +592,7 @@ export function buildTurnTimelineViewModel(document) {
 
 // True when an agent turn owns the raw line: one of its snapshots' changeIds appears verbatim in
 // the line text (the inverse of findLineForChangeId's substring convention).
-function checkAgentTurnOwnsRawLine(node, rawLineText) {
+function checkAgentTurnOwnsRawLine(node: TimelineNode, rawLineText: string): boolean {
     if (node.kind !== AGENT_TURN_NODE_KIND) {
         return false;
     }
@@ -488,18 +601,18 @@ function checkAgentTurnOwnsRawLine(node, rawLineText) {
 }
 
 // True when a user turn owns the raw line: its message uuid appears verbatim in the line text.
-function checkUserTurnOwnsRawLine(node, rawLineText) {
+function checkUserTurnOwnsRawLine(node: TimelineNode, rawLineText: string): boolean {
     if (node.kind !== USER_TURN_NODE_KIND) {
         return false;
     }
-    return rawLineText.includes(node.uuid);
+    return rawLineText.includes(node.uuid!);
 }
 
 // The index of the timeline node owning the raw JSONL line; -1 when no node matches (e.g. a
 // summary line carrying neither a changeId nor a prompt uuid). ChangeId matches win over uuid
 // matches: a file-history-snapshot line embeds BOTH a changeId and the uuid of the prompt that
 // triggered it, and such a line is about the file change, not the prompt.
-export function findTimelineNodeIndexForRawLine(nodes, rawLineText) {
+export function findTimelineNodeIndexForRawLine(nodes: TimelineNode[], rawLineText: string): number {
     const agentTurnIndex = nodes.findIndex((node) => checkAgentTurnOwnsRawLine(node, rawLineText));
     if (agentTurnIndex >= 0) {
         return agentTurnIndex;
@@ -510,7 +623,7 @@ export function findTimelineNodeIndexForRawLine(nodes, rawLineText) {
 // A click that ends with a non-collapsed text selection is a selection drag, not a close
 // request — the background-close handler must ignore it (item 10b). Browsers may return
 // null from window.getSelection(); that never blocks.
-export function checkSelectionBlocksBackgroundClose(selection) {
+export function checkSelectionBlocksBackgroundClose(selection: { isCollapsed: boolean } | null): boolean {
     if (selection === null) {
         return false;
     }
@@ -520,7 +633,7 @@ export function checkSelectionBlocksBackgroundClose(selection) {
 // The inline tag naming what an unattributed-lane step is (item 10d): its chips' event
 // kinds, deduped in first-appearance order, humanized ("script-execution" → "script run",
 // otherwise hyphens → spaces), joined with " · "; undefined when the step has no chips.
-export function computeUnattributedStepTag(eventKinds) {
+export function computeUnattributedStepTag(eventKinds: string[]): string | undefined {
     const humanizedKinds = [...new Set(eventKinds)].map((kind) => {
         if (kind === "script-execution") {
             return "script run";
@@ -542,7 +655,7 @@ const ORPHAN_LANE_COLOR = "var(--muted)";
 const UNATTRIBUTED_SESSION_LABEL = "(unattributed)";
 
 // The letter half of a chip's letter+color badge (color alone never carries the meaning).
-function computeOpLetter(change) {
+function computeOpLetter(change: FileChange): string {
     if (change.eventKind === "rename") {
         return "R";
     }
@@ -564,12 +677,12 @@ function computeOpLetter(change) {
     return "M";
 }
 
-function computeBaseName(path) {
+function computeBaseName(path: string): string {
     return path.slice(path.lastIndexOf("/") + 1);
 }
 
 // One file chip: letter badge + name ("old → new" for renames).
-function renderFileChip(change, onclick) {
+function renderFileChip(change: FileChange, onclick: EventListener): HTMLElement {
     const letter = computeOpLetter(change);
     const label = change.renamedFrom !== undefined
         ? `${computeBaseName(change.renamedFrom)} → ${computeBaseName(change.path)}`
@@ -584,19 +697,20 @@ function renderFileChip(change, onclick) {
 // view a drawer JSONL link opens. anchorJsonl scrolls to that session's first node.
 // anchorLine (optional, 0-based raw line of anchorJsonl): scroll to the owning step, open the
 // inspector on it.
-export async function renderTimelineView(container, project, anchorJsonl, anchorLine) {
+export async function renderTimelineView(container: HTMLElement, project: string, anchorJsonl?: string, anchorLine?: string): Promise<void> {
     const result = await fetchDocument(project, undefined);
     if (result.consentRequired !== undefined) {
         renderConsentDialog(container, project, result.consentRequired);
         return;
     }
-    const reconstructionDocument = result.document;
+    // app.ts ships the streamed document as an opaque Record; this view reads the timeline fields.
+    const reconstructionDocument = result.document as WireTimelineDocument;
     const { nodes } = buildTurnTimelineViewModel(reconstructionDocument);
-    const listing = (await fetchJson("/api/projects")).find((entry) => entry.name === project);
-    const findJsonlForSession = (sessionId) =>
-        listing?.jsonlFiles.find((file) => file.fileName.startsWith(sessionId))?.fileName;
+    const listing = (await fetchJson<WireProjectListing[]>("/api/projects")).find((entry) => entry.name === project);
+    const findJsonlForSession = (sessionId: string | undefined) =>
+        listing?.jsonlFiles.find((file) => file.fileName.startsWith(sessionId!))?.fileName;
 
-    const sessionColors = new Map();
+    const sessionColors = new Map<string, string>();
     for (const node of nodes) {
         if (node.sessionId === undefined) {
             continue;
@@ -622,10 +736,10 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
     body.append(railSvg);
 
     // ── selection state + bar ──
-    const pickBoxes = new Map();      // node index -> checkbox
-    const nodeRows = new Map();       // node index -> row element
-    let pickedIndexes = [];
-    let activeChip = null;            // the chip whose file the preview drawer is showing
+    const pickBoxes = new Map<number, HTMLInputElement>();      // node index -> checkbox
+    const nodeRows = new Map<number, HTMLElement>();       // node index -> row element
+    let pickedIndexes: number[] = [];
+    let activeChip: HTMLElement | null = null;            // the chip whose file the preview drawer is showing
     const clearActiveChip = () => {
         if (activeChip === null) {
             return;
@@ -650,7 +764,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
     };
 
     let cachedPatch = { key: "", text: "" };
-    const fetchRangePatch = async (fromStep, toStep) => {
+    const fetchRangePatch = async (fromStep: number, toStep: number): Promise<string> => {
         const key = `${fromStep}-${toStep}`;
         if (cachedPatch.key !== key) {
             const params = buildConsentParams();
@@ -696,7 +810,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
 
     // The transcript line carrying a changeId, probed across the project's JSONLs (raw text is
     // cached after the first fetch); undefined for synthetic changeIds that match no line.
-    const findTranscriptLineForChangeId = async (changeId) => {
+    const findTranscriptLineForChangeId = async (changeId: string): Promise<TranscriptLocation | undefined> => {
         for (const file of listing?.jsonlFiles ?? []) {
             const rawLines = await fetchRawRecords(project, file.fileName);
             const line = findLineForChangeId(rawLines, changeId);
@@ -708,7 +822,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
     };
 
     // ── inspector jump (requirement 6): turn -> first resolvable changeId -> (jsonl, line) ──
-    const openStepInspector = async (node, previewPane) => {
+    const openStepInspector = async (node: TurnNode, previewPane: HTMLElement): Promise<void> => {
         for (const snapshot of node.snapshots) {
             for (const changeId of snapshot.changeIds) {
                 const located = await findTranscriptLineForChangeId(changeId);
@@ -728,7 +842,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
     // Clicking a turn opens the transcript drawer on the message's OWN JSONL line (the record
     // embedding its uuid — findLineForChangeId is a generic substring scan, so it resolves uuids
     // too). Synthetic agent turns carry no uuid and fall back to the changeId scan above.
-    const openTurnInspector = async (node, previewPane) => {
+    const openTurnInspector = async (node: TurnNode, previewPane: HTMLElement): Promise<void> => {
         if (node.uuid === undefined) {
             openStepInspector(node, previewPane);
             return;
@@ -754,8 +868,8 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
 
     // Toggle shared by the drawer-opening file buttons: true when the click closed an already-open
     // drawer for the same button (the caller stops there); false to (re)open with this button active.
-    const toggleDrawerButton = (chipElement) => {
-        const pane = document.getElementById("inspector");
+    const toggleDrawerButton = (chipElement: HTMLElement): boolean => {
+        const pane = document.getElementById("inspector")!;
         if (chipElement === activeChip) {
             if (!pane.classList.contains("hidden")) {
                 pane.classList.add("hidden");
@@ -772,12 +886,12 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
     // ── file preview (requirements 5 + 7): state at step, or per-file range diff when picked —
     // rendered into the details drawer (lines wrapped); the clicked chip stays highlighted while
     // its file is showing. ──
-    const showFilePreview = async (node, change, chipElement) => {
+    const showFilePreview = async (node: TurnNode, change: FileChange, chipElement: HTMLElement): Promise<void> => {
         if (toggleDrawerButton(chipElement)) {
             return;
         }
         const drawer = openInspectorPane();
-        document.getElementById("inspector").classList.add("file-preview-drawer");
+        document.getElementById("inspector")!.classList.add("file-preview-drawer");
         if (pickedIndexes.length > 0) {
             const summary = computeRangeSummary(nodes, pickedIndexes);
             const patchText = await fetchRangePatch(summary.fromStepIndex, summary.toStepIndex);
@@ -785,7 +899,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
                 change.path === entry.path || change.path.endsWith(`/${entry.path}`));
             const diffPane = el("div", { class: "timeline-preview" });
             renderDiffText(diffPane, block?.block ?? "(file unchanged across the picked range)");
-            const pickedNumbers = pickedIndexes.map((picked) => nodes[picked].stepNumber);
+            const pickedNumbers = pickedIndexes.map((picked) => nodes[picked]!.stepNumber!);
             drawer.append(
                 el("div", { class: "timeline-preview-head", text: `${change.path} · diff before step ${Math.min(...pickedNumbers)} → at step ${Math.max(...pickedNumbers)}` }),
                 diffPane,
@@ -811,10 +925,10 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
     // The revision's RESULT line: among the lines carrying the changeId, the tool result (the
     // record holding the toolUseResult/structuredPatch payload) beats the tool_use call that
     // merely requested it; first match is the fallback.
-    const findRevisionResultLine = async (changeId) => {
+    const findRevisionResultLine = async (changeId: string): Promise<TranscriptLocation | undefined> => {
         for (const file of listing?.jsonlFiles ?? []) {
             const rawLines = await fetchRawRecords(project, file.fileName);
-            const matches = [];
+            const matches: number[] = [];
             rawLines.forEach((text, line) => {
                 if (text.includes(changeId)) {
                     matches.push(line);
@@ -823,16 +937,16 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
             if (matches.length === 0) {
                 continue;
             }
-            const resultLine = matches.find((line) => rawLines[line].includes('"toolUseResult"'));
-            return { jsonlName: file.fileName, rawLines, line: resultLine ?? matches[0] };
+            const resultLine = matches.find((line) => rawLines[line]!.includes('"toolUseResult"'));
+            return { jsonlName: file.fileName, rawLines, line: resultLine ?? matches[0]! };
         }
         return undefined;
     };
 
     // { } button: the raw JSONL record that caused this revision (the structuredPatch line),
     // opened in the details pane — distinct from the turn click, which opens the MESSAGE's line.
-    const showRevisionJson = async (change, previewPane) => {
-        const located = await findRevisionResultLine(change.changeId);
+    const showRevisionJson = async (change: FileChange, previewPane: HTMLElement): Promise<void> => {
+        const located = await findRevisionResultLine(change.changeId!);
         if (located === undefined) {
             previewPane.classList.remove("hidden");
             previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this revision (synthetic change id)" }));
@@ -844,7 +958,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
     // { } button on a git row: the Bash tool_use line that ran the command, matched by the
     // record's OWN uuid field (the turn-click convention — a bare-uuid scan could land on a line
     // that merely references it).
-    const showGitOperationJson = async (operation, previewPane) => {
+    const showGitOperationJson = async (operation: WireGitOperation, previewPane: HTMLElement): Promise<void> => {
         const jsonlName = operation.sessionId === undefined ? undefined : findJsonlForSession(operation.sessionId);
         if (jsonlName === undefined) {
             previewPane.classList.remove("hidden");
@@ -854,7 +968,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
         const rawLines = await fetchRawRecords(project, jsonlName);
         let line = findLineForChangeId(rawLines, `"uuid":"${operation.uuid}"`);
         if (line < 0) {
-            line = findLineForChangeId(rawLines, operation.uuid);
+            line = findLineForChangeId(rawLines, operation.uuid!);
         }
         if (line < 0) {
             previewPane.classList.remove("hidden");
@@ -866,12 +980,12 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
 
     // +/- button: this revision's computed diff vs the previous revision, from the server's
     // per-revision diff artifact (one @@ block per revision; splitDiffBlocks slices them).
-    const showRevisionDiff = async (change, chipElement) => {
+    const showRevisionDiff = async (change: FileChange, chipElement: HTMLElement): Promise<void> => {
         if (toggleDrawerButton(chipElement)) {
             return;
         }
         const drawer = openInspectorPane();
-        document.getElementById("inspector").classList.add("file-preview-drawer");
+        document.getElementById("inspector")!.classList.add("file-preview-drawer");
         const history = reconstructionDocument.filesTouched.find((entry) =>
             entry.revisions.some((revision) => revision.changeId === change.changeId));
         if (history === undefined) {
@@ -893,17 +1007,17 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
 
     // One file's button row: [ name ] [{ }] [+/-] — revision state, the JSON that caused the
     // revision, and the revision's computed diff. The action buttons need a resolvable changeId.
-    const renderFileButtonRow = (node, change, previewPane) => {
-        const buttons = [renderFileChip(change, (event) => {
+    const renderFileButtonRow = (node: TurnNode, change: FileChange, previewPane: HTMLElement): HTMLElement => {
+        const buttons = [renderFileChip(change, (event: Event) => {
             event.stopPropagation();
-            showFilePreview(node, change, event.currentTarget);
+            showFilePreview(node, change, event.currentTarget as HTMLElement);
         })];
         if (change.changeId !== undefined) {
             buttons.push(el("span", {
                 class: "timeline-chip timeline-chip-action",
                 title: "Show JSON for revision in inspector",
                 text: "{ }",
-                onclick: (event) => {
+                onclick: (event: Event) => {
                     event.stopPropagation();
                     showRevisionJson(change, previewPane);
                 },
@@ -912,9 +1026,9 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
                 class: "timeline-chip timeline-chip-action",
                 title: "Show Diff in Inspector",
                 text: "+/-",
-                onclick: (event) => {
+                onclick: (event: Event) => {
                     event.stopPropagation();
-                    showRevisionDiff(change, event.currentTarget);
+                    showRevisionDiff(change, event.currentTarget as HTMLElement);
                 },
             }));
             const jumpRoute = computeSnapshotJumpRoute(project, reconstructionDocument.filesTouched, change);
@@ -923,7 +1037,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
                     class: "timeline-chip timeline-chip-action",
                     title: "Jump to File History Snapshot",
                     text: "⤷",
-                    onclick: (event) => {
+                    onclick: (event: Event) => {
                         event.stopPropagation();
                         location.hash = jumpRoute;
                     },
@@ -935,7 +1049,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
 
     // One git row: `* git <label> * (time)` plus a { } button opening the Bash tool_use line that
     // ran the command in the details pane (same button shape as the file rows').
-    const renderGitOperationRow = (operation, previewPane) => {
+    const renderGitOperationRow = (operation: WireGitOperation, previewPane: HTMLElement): HTMLElement => {
         const parts = [el("span", {
             class: "timeline-gitop",
             text: `* ${formatGitOperationLabel(operation)} * (${new Date(operation.timestamp).toLocaleTimeString()})`,
@@ -946,7 +1060,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
                 class: "timeline-chip timeline-chip-action",
                 title: "Show JSON for git command in inspector",
                 text: "{ }",
-                onclick: (event) => {
+                onclick: (event: Event) => {
                     event.stopPropagation();
                     showGitOperationJson(operation, previewPane);
                 },
@@ -957,7 +1071,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
 
     // Each turn's own JSONL line label ("L:<n> (of <total>)", numbered like the details pane),
     // resolved up front — one cached raw fetch per session file.
-    const lineLabels = new Map();
+    const lineLabels = new Map<number, string>();
     for (const [index, node] of nodes.entries()) {
         if (node.uuid === undefined) {
             continue;
@@ -976,7 +1090,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
     }
 
     // The row's right-edge meta column: the timestamp with the turn's JSONL line label under it.
-    const renderRowMeta = (node, index) => {
+    const renderRowMeta = (node: TimelineNode, index: number): HTMLElement => {
         const parts = [el("span", { class: "timeline-time", text: new Date(node.when).toLocaleTimeString() })];
         const lineLabel = lineLabels.get(index);
         if (lineLabel !== undefined) {
@@ -986,26 +1100,26 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
     };
 
     // ── rows ──
-    let selectedRow = null;
-    let previousNode = null;
+    let selectedRow: HTMLElement | null = null;
+    let previousNode: TimelineNode | null = null;
     nodes.forEach((node, index) => {
         const sessionKey = node.sessionId ?? UNATTRIBUTED_SESSION_LABEL;
         if (previousNode === null || (previousNode.sessionId ?? UNATTRIBUTED_SESSION_LABEL) !== sessionKey) {
-            const color = sessionColors.get(node.sessionId) ?? ORPHAN_LANE_COLOR;
+            const color = sessionColors.get(node.sessionId!) ?? ORPHAN_LANE_COLOR;
             const jsonlName = node.sessionId === undefined ? undefined : findJsonlForSession(node.sessionId);
             // The session link opens the transcript in the inspector drawer, keeping the
             // timeline visible — never navigates away from it.
-            const openSessionTranscript = async (event) => {
+            const openSessionTranscript = async (event: Event) => {
                 event.preventDefault();
-                const rawLines = await fetchRawRecords(project, jsonlName);
-                openTranscriptInspector({ jsonlName, rawLines, line: 0 });
+                const rawLines = await fetchRawRecords(project, jsonlName!);
+                openTranscriptInspector({ jsonlName: jsonlName!, rawLines, line: 0 });
             };
             const header = el("div", { class: "timeline-session", "data-color": color, "data-session": sessionKey }, [
                 el("span", { class: "swatch", style: `background:${color}` }),
                 jsonlName !== undefined
                     ? el("a", { href: routeToConversation(project, jsonlName), text: sessionKey.slice(0, 8), onclick: openSessionTranscript })
                     : el("span", { text: sessionKey.slice(0, 8) }),
-                el("span", { class: "muted", text: jsonlName ?? "", onclick: jsonlName === undefined ? undefined : openSessionTranscript }),
+                el("span", { class: "muted", text: jsonlName ?? "", onclick: (jsonlName === undefined ? undefined : openSessionTranscript) as EventListener }),
                 el("span", { class: "line" }),
             ]);
             body.append(header);
@@ -1069,7 +1183,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
         }
         if (node.kind === AGENT_TURN_NODE_KIND) {
             if (checkNodeIsPickable(node)) {
-                const pick = el("input", { class: "timeline-pick", type: "checkbox" });
+                const pick = el("input", { class: "timeline-pick", type: "checkbox" }) as HTMLInputElement;
                 pickBoxes.set(index, pick);
                 pick.addEventListener("change", () => {
                     const candidate = [...pickBoxes.entries()].filter(([, box]) => box.checked).map(([i]) => i);
@@ -1084,7 +1198,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
             // Unattributed-lane steps have no session context to explain them — tag each row
             // with what it is (its chips' event kinds, item 10d); the title is the tooltip.
             const unattributedTag = sessionKey === UNATTRIBUTED_SESSION_LABEL
-                ? computeUnattributedStepTag(node.fileChanges.map((change) => change.eventKind))
+                ? computeUnattributedStepTag(node.fileChanges!.map((change) => change.eventKind))
                 : undefined;
             const rowTop = el("div", { class: "timeline-row-top" }, [
                 el("span", { class: "timeline-step-label", text: `Step ${node.stepNumber}` }),
@@ -1110,7 +1224,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
                     node.gitOperations.map((operation) => renderGitOperationRow(operation, previewPane))));
             }
             row.append(el("div", { class: "timeline-chips" },
-                node.fileChanges.map((change) => renderFileButtonRow(node, change, previewPane))));
+                node.fileChanges!.map((change) => renderFileButtonRow(node, change, previewPane))));
             row.append(previewPane);
         }
         body.append(row);
@@ -1127,16 +1241,16 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
         if (checkSelectionBlocksBackgroundClose(window.getSelection())) {
             return;
         }
-        if (event.target.closest(".timeline-row, .timeline-session, .timeline-selectbar") !== null) {
+        if ((event.target as Element).closest(".timeline-row, .timeline-session, .timeline-selectbar") !== null) {
             return;
         }
-        document.getElementById("inspector").classList.add("hidden");
+        document.getElementById("inspector")!.classList.add("hidden");
         clearActiveChip();
     };
 
     // ── graph rail, drawn from row geometry (port of the approved mockup's drawRail) ──
     // Session-end nodes reuse the commit's hollow-circle rendering — both read as terminators.
-    function checkRailDotIsHollow(nodeKind) {
+    function checkRailDotIsHollow(nodeKind: string): boolean {
         if (nodeKind === COMMIT_NODE_KIND) {
             return true;
         }
@@ -1147,17 +1261,17 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
         const ORPHAN_X = 68;
         railSvg.setAttribute("width", "96");
         railSvg.setAttribute("height", String(body.scrollHeight));
-        const parts = [];
+        const parts: string[] = [];
         let color = "var(--accent)";
-        let prevMain = null;
-        let orphans = [];
-        let forkFrom = null;
+        let prevMain: number | null = null;
+        let orphans: number[] = [];
+        let forkFrom: number | null = null;
         const flushOrphans = () => {
             if (orphans.length === 0) {
                 return;
             }
-            const first = orphans[0];
-            const last = orphans[orphans.length - 1];
+            const first = orphans[0]!;
+            const last = orphans[orphans.length - 1]!;
             if (forkFrom !== null) {
                 parts.push(`<path d="M ${MAIN_X} ${forkFrom} C ${MAIN_X} ${forkFrom + 40}, ${ORPHAN_X} ${first - 40}, ${ORPHAN_X} ${first}" fill="none" stroke="${ORPHAN_LANE_COLOR}" stroke-width="2" stroke-dasharray="5 4"/>`);
             }
@@ -1172,10 +1286,10 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
             }
             orphans = [];
         };
-        for (const child of body.children) {
+        for (const child of body.children as HTMLCollectionOf<HTMLElement>) {
             if (child.classList.contains("timeline-session")) {
                 flushOrphans();
-                color = child.dataset.color;
+                color = child.dataset.color!;
                 prevMain = null;               // the spine breaks between sessions
                 continue;
             }
@@ -1224,7 +1338,7 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
     // Line anchor: scroll to the step owning the raw line and open the inspector on that exact
     // line (openStepInspector would re-derive first-matching changeId and could land elsewhere).
     if (anchorLine !== undefined) {
-        const rawLines = await fetchRawRecords(project, anchorJsonl);
+        const rawLines = await fetchRawRecords(project, anchorJsonl!);
         const rawLineIndex = Number(anchorLine);
         const nodeIndex = findTimelineNodeIndexForRawLine(nodes, rawLines[rawLineIndex] ?? "");
         const anchoredRow = nodeRows.get(nodeIndex);
@@ -1232,6 +1346,6 @@ export async function renderTimelineView(container, project, anchorJsonl, anchor
             anchoredRow.classList.add("anchored");
             anchoredRow.scrollIntoView({ block: "center" });
         }
-        openTranscriptInspector({ jsonlName: anchorJsonl, rawLines, line: rawLineIndex });
+        openTranscriptInspector({ jsonlName: anchorJsonl!, rawLines, line: rawLineIndex });
     }
 }

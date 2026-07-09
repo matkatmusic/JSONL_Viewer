@@ -10,12 +10,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildProjectDocument } from "../src/viewer_api.ts";
 import { stripTrailingNewline } from "../src/reconstruction_steps.ts";
-import { buildFileHistoryViewModel, computeAnchoredRevisionIndex, findRevisionForChangeId, splitDiffBlocks } from "../webapp/views/file-history.js";
-import { computeSplitRows, DiffDisplayMode, resolveInitialDiffDisplayMode, SplitRowKind } from "../webapp/views/diff-vs-base.js";
-import { findBackupTimeForBlob, findToolNavigationTargets } from "../webapp/inspector.js";
-import { buildConversationViewModel } from "../webapp/views/conversation.js";
-import { buildProjectViewModel } from "../webapp/views/project.js";
-import { filterProjectsByName } from "../webapp/views/projects.js";
+import { buildFileHistoryViewModel, computeAnchoredRevisionIndex, findRevisionForChangeId, splitDiffBlocks } from "../webapp/views/file-history.ts";
+import { computeSplitRows, DiffDisplayMode, resolveInitialDiffDisplayMode, SplitRowKind } from "../webapp/views/diff-vs-base.ts";
+import { findBackupTimeForBlob, findToolNavigationTargets } from "../webapp/inspector.ts";
+import { buildConversationViewModel } from "../webapp/views/conversation.ts";
+import { buildProjectViewModel } from "../webapp/views/project.ts";
+import { filterProjectsByName } from "../webapp/views/projects.ts";
 import { Path } from "../src/structures/domain.ts";
 import { jsonlPathsForScenario, readNonEmptyLines } from "./utilities.ts";
 import { S19_JSONL } from "./fixtures.ts";
@@ -50,7 +50,7 @@ test("test_file_state_viewmodel_matches_scenario_step_states", () => {
     assert.ok(viewModel.revisions.length >= 2, `2+ revisions, got ${viewModel.revisions.length}`);
     // assert the final revision's derived content equals the recorded final step state.
     const finalRevision = viewModel.revisions[viewModel.revisions.length - 1]!;
-    assert.equal(stripTrailingNewline(finalRevision.content), readStrippedGroundTruth("step-009"));
+    assert.equal(stripTrailingNewline(finalRevision.content!), readStrippedGroundTruth("step-009"));
 });
 
 test("test_file_state_viewmodel_matches_intermediate_step", () => {
@@ -110,12 +110,12 @@ test("test_conversation_viewmodel_interleaves_collapsed_stubs", () => {
     let nextMessageEntry: any;
     for (let index = firstMessageIndex + 1; index < entries.length; index += 1) {
         if (entries[index]!.kind === "message") { nextMessageEntry = entries[index]; break; }
-        stubUuids.push(entries[index]!.uuid);
+        stubUuids.push(entries[index]!.uuid!);
     }
     assert.ok(nextMessageEntry !== undefined, "a following message bounds the stub run");
     // ground truth: the lineVerdicts strictly between the two messages' lines.
     const lineOf = (uuid: string) => document.lineVerdicts.find((verdict: any) => verdict.uuid === uuid)!.line;
-    const startLine = lineOf(entries[firstMessageIndex]!.message.uuid);
+    const startLine = lineOf(entries[firstMessageIndex]!.message!.uuid);
     const endLine = lineOf(nextMessageEntry.message.uuid);
     const expectedUuids = document.lineVerdicts
         .filter((verdict: any) => verdict.line > startLine && verdict.line < endLine)

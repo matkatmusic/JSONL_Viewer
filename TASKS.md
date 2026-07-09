@@ -144,9 +144,21 @@ Second sweep 2026-07-08 (afternoon): `implementation-notes-items10-11-12.md` rev
 
 ## New items (2026-07-07)
 
-- [ ] **18. WebApp: convert to TypeScript and add build step** — all 10 webapp files are plain `.js`
+- [x] **18. WebApp: convert to TypeScript and add build step** — all 10 webapp files are plain `.js`
   served directly by the node server with no transpilation. Add a build step (esbuild/tsc) so
   webapp source is TypeScript, output is bundled JS.
+  **Closed 2026-07-08 (tsc transpile, no bundler — user-approved approach):** all 10 webapp files
+  `git mv`'d to `.ts` and fully typed under strict + noUncheckedIndexedAccess (zero `as any`;
+  local `Wire*` types for serialized JSON shapes; `declare global` for the script-tag xterm
+  globals). New `tsconfig.webapp.json` emits to `webapp/dist/` with
+  `rewriteRelativeImportExtensions` (source imports `.ts` like `src/`, emitted JS imports `.js`);
+  `npm run build:webapp`, and `npm run app` builds first. The server serves `.js` from
+  `webapp/dist/` and everything else (index.html, styles.css, vendor/) from `webapp/` via
+  `resolveStaticFilePath` (`src/viewer_api.ts`, +2 tests in `tests/viewer-static.test.ts`).
+  `fetchDocument`/`peekCachedDocument`/`fetchJson` are generic so each view names the wire
+  fields it reads. Zero behavior changes (timeline.ts verified byte-identical after
+  transpilation); zero new dependencies; vendor/ untouched. Tests written/adapted, not run —
+  user runs the suite.
 - [x] **19. 'Jump to File History Snapshot' button** — a per-revision button in the timeline
   (reminiscent of filter buttons from previous HTML viewer versions) that navigates to the
   file-history view anchored at that revision's snapshot.
@@ -314,11 +326,19 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   as numbered steps, rendered dimmed via `checkMessageTextIsSystem`
   (`webapp/views/timeline.js:441`). Filtering them out would renumber steps and hide real
   turns. No code change.
-- [ ] **34. Deterministic synthetic changeIds** — the real fix for item 25's zero-chip turns:
+- [x] **34. Deterministic synthetic changeIds** — the real fix for item 25's zero-chip turns:
   derive script-execution changeIds from target + run timestamp so the step timeline and
   file-history replays agree, instead of per-replay `randomUUID()`
   (`reconstruction_script_stage.ts:303`). Touches changeId-uniqueness assumptions; needs a
   user go-ahead. (implementation-notes-items13-19-21-25-close)
+  **Closed 2026-07-08 (user-approved):** synthetic script-execution changeIds are now
+  `scriptRun:<tool_use id | epoch-ms>:<target path>` via `computeScriptExecutionChangeId`
+  (`src/reconstruction_script_execution.ts`; `ScriptRun` gained `toolUseId`), following the
+  `originalFile:` prefix precedent. `resolveSyntheticChangeIdToSourceId` unwraps the new prefix
+  via `resolveScriptRunChangeIdToSourceId`, so those steps also gain session attribution.
+  `reconstruction_git_evidence.ts`'s randomUUID splice deliberately untouched (commit markers
+  are the viewer's commit signal). 8 tests written (not run — user runs the suite); after the
+  scenario sweep, re-check item 31's "(unattributed)" CSS rule.
 - [ ] **35. Content-keyed memoization of `executeRunOnce`** — if the branches-pass/steps-pass
   double reconstruction on real transcripts is still too costly after `f311059`'s
   lineage-window fix. Explicitly YAGNI until a new logs capture shows it matters.
@@ -332,3 +352,7 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   render as thin dashed separators with header text hidden — if visible-but-muted text is
   preferred, restore the `.diff-line-hunk` rule and change only its color.
 - [ ] **37. Jump To Timeline button doesn't scroll timeline so selected timeline entry is centered in view**.  tested in `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline/session/ba044097-b975-4ae4-a7f8-d9093e7fbf88.jsonl/at/49`.  **Reproduce**: find a file revision in the timeline, click the 'jump to snapshot' button to see the revison, then in the Details view (showing the revision), click the 'Jump to Timeline' button.  **Expected**: The conversation bubble with the attached file being shown in the Details view should become centered by automatically scrolling the timeline. **Actual**: the timeline does not scroll when the Details view drawer expands causing the timeline view's width to change, causing all timeline bubbles to reformat without repositioning.  **Cause**: changing the width of the timeline causes all message bubbles to resize/reposition without keeping the selected message centered in the view.
+- [ ] **38. selected FileHistorySnapshot's orange selection rectangle is missing the left side (occluded)**
+- [ ] **39. Diff Vs Base view is wider than the pane's width, causing scrollbars to appear.**  Diff Vs Base content view in Details page should be the same width as the Details view, so no scroll bars appear. 
+- [ ] **40. Diff vs Base view: Line numbers aren't displayed in In-line view**
+- [ ] **41. Timeline selection doesn't change when Details View's item is a node in the timeline**.  **Reproduce**: using `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline`, select Step 3 (line 29/138). in the Details View (json displayed), advance to line 32/138 by pressing the `next >` button.  **Expected**: the Step 4 message bubble should selected. **Actual**: Step 3's message bubble remains selected. 

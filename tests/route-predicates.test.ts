@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkNavigationStartsNewProjectLoad, checkRouteIsTimeline } from "../webapp/app.js";
+import { checkNavigationStartsNewProjectLoad, checkRouteIsTimeline } from "../webapp/app.ts";
 
 test("test_check_route_is_timeline_accepts_every_project_route", () => {
     // Scenario: the timeline is ALWAYS a loaded project's base view (user decision 2026-07-06) —

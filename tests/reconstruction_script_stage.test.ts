@@ -134,3 +134,28 @@ test("test_s37_ledger_has_a_script_execution_revision_renamed_without_the_commen
     assert.ok(!text.includes("add_entry"), "no pre-rename name survives");
     assert.ok(!text.includes(COMMENT), "the out-of-band comment is not in the post-script revision");
 });
+
+test("test_injectScriptExecutions_stamps_the_same_changeId_across_replays", () => {
+    // Scenario: the step-timeline replay and the file-history replay each call the stage
+    // independently over the same records; the synthetic event must carry the identical
+    // changeId both times so the two replays' events join (TASKS.md item 34).
+    // Steps:
+    // build records with a run whose script writes "out.txt" (never Written/Edited elsewhere).
+    const records = [
+        buildToolRecord(ToolName.Write, { file_path: "/proj/runit.py", content: "x" }, "2026-01-01T00:00:01Z"),
+        buildToolRecord(
+            ToolName.CtxExecute,
+            { cwd: "/proj", code: 'open("out.txt", "w").write("created\\n")\n' },
+            "2026-01-01T00:00:02Z",
+        ),
+    ];
+    // inject twice with identical inputs — one call per replay.
+    const firstReplayEvents = injectScriptExecutions(records, [], emptyReader, new Path("/proj/out.txt"));
+    const secondReplayEvents = injectScriptExecutions(records, [], emptyReader, new Path("/proj/out.txt"));
+    // assert both replays produced the scriptExecution event.
+    assert.equal(firstReplayEvents.length, 1);
+    assert.equal(secondReplayEvents.length, 1);
+    assert.equal(firstReplayEvents[0]!.kind, EventKind.scriptExecution);
+    // assert the changeIds are identical across the two replays.
+    assert.equal(firstReplayEvents[0]!.changeId.toString(), secondReplayEvents[0]!.changeId.toString());
+});

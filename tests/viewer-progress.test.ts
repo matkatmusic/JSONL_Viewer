@@ -22,7 +22,7 @@ import { reportReconstructionProgress } from "../src/reconstruction_progress.ts"
 import { Path } from "../src/structures/domain.ts";
 import { S19_JSONL } from "./fixtures.ts";
 import { copyFixtureIntoTempDir } from "./utilities.ts";
-import { matchJsonlSourceLink, routeToTimeline, splitNdjsonChunk } from "../webapp/app.js";
+import { matchJsonlSourceLink, routeToTimeline, splitNdjsonChunk } from "../webapp/app.ts";
 
 // The uncounted (stageless) labels of a progress stream, in order — drops the per-record events.
 function stageLabelsOf(events: ProgressEvent[]): string[] {

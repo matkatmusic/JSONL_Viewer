@@ -252,6 +252,17 @@ export function buildDocumentWithConsent(
     }
 }
 
+// The on-disk file for a static request: the compiled webapp/dist copy when the build emitted
+// one (transpiled .js), else the webapp/ source (index.html, styles.css, vendor/*.js). The
+// server realpath+prefix-checks the result before reading it.
+export function resolveStaticFilePath(relative: string, distDir: string, webappDir: string): string {
+    const compiledCandidate = resolve(distDir, relative);
+    if (existsSync(compiledCandidate)) {
+        return compiledCandidate;
+    }
+    return resolve(webappDir, relative);
+}
+
 // Trust boundary for the HTTP layer: `project` and `jsonl` arrive as NAMES, never paths.
 // Resolve them against the projects dir and verify the resolved REAL path is still under it;
 // anything escaping (traversal, absolute names, symlink tricks) is a loud error the server maps

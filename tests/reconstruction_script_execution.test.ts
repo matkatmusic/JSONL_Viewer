@@ -1,8 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+    computeScriptExecutionChangeId,
     configureSandboxMemoPersistence,
     findScriptExecutionRuns,
+    resolveScriptRunChangeIdToSourceId,
     getPreExecutionState,
     isScriptExecutionRun,
     parseScriptFileRefs,
@@ -349,4 +351,86 @@ test("test_persisted_failure_outcomes_round_trip", () => {
     } finally {
         configureSandboxMemoPersistence(undefined);
     }
+});
+
+// --- item 34: deterministic synthetic changeIds -----------------------------------------------------
+
+test("test_computeScriptExecutionChangeId_is_deterministic_for_same_run_and_target", () => {
+    // Scenario: the step-timeline replay and the file-history replay each derive the changeId for
+    // the same run+target independently; both derivations must yield the identical value.
+    // Steps:
+    // a run with a tool_use id and a target path exists.
+    const run: ScriptRun = {
+        code: "python3 apply_renames.py",
+        timestamp: new Date("2026-07-01T20:53:49.772Z"),
+        toolUseId: new Uuid("toolu_01GkePu7Mj4DmkPivZapZB8z"),
+    };
+    const target = new Path("/tmp/demo/core_inventory.py");
+    // computing the id twice must yield the identical value.
+    const firstChangeId = computeScriptExecutionChangeId(run, target);
+    const secondChangeId = computeScriptExecutionChangeId(run, target);
+    assert.equal(firstChangeId.toString(), secondChangeId.toString());
+});
+
+test("test_computeScriptExecutionChangeId_differs_per_target", () => {
+    // Scenario: one run changing two files yields two distinct changeIds, so each file's
+    // synthetic event stays individually addressable.
+    // Steps:
+    // one run, two different targets.
+    const run: ScriptRun = {
+        code: "python3 apply_renames.py",
+        timestamp: new Date("2026-07-01T20:53:49.772Z"),
+        toolUseId: new Uuid("toolu_01GkePu7Mj4DmkPivZapZB8z"),
+    };
+    const firstChangeId = computeScriptExecutionChangeId(run, new Path("/tmp/demo/core_inventory.py"));
+    const secondChangeId = computeScriptExecutionChangeId(run, new Path("/tmp/demo/reports.py"));
+    // the two ids must differ.
+    assert.notEqual(firstChangeId.toString(), secondChangeId.toString());
+});
+
+test("test_computeScriptExecutionChangeId_embeds_tool_use_id", () => {
+    // Scenario: the id's source segment is the run's tool_use id, so session attribution can
+    // unwrap the id back to a tool_use the session index knows.
+    const run: ScriptRun = {
+        code: "python3 apply_renames.py",
+        timestamp: new Date("2026-07-01T20:53:49.772Z"),
+        toolUseId: new Uuid("toolu_01GkePu7Mj4DmkPivZapZB8z"),
+    };
+    const changeId = computeScriptExecutionChangeId(run, new Path("/tmp/demo/core_inventory.py"));
+    // the id is the prefix, then the tool_use id, then the target path.
+    assert.equal(changeId.toString(), "scriptRun:toolu_01GkePu7Mj4DmkPivZapZB8z:/tmp/demo/core_inventory.py");
+});
+
+test("test_computeScriptExecutionChangeId_falls_back_to_timestamp_without_tool_use_id", () => {
+    // Scenario: a synthetic run no tool_use produced still gets a deterministic id, derived
+    // from its epoch-ms timestamp (which never contains ":").
+    const timestamp = new Date("2026-07-01T20:53:49.772Z");
+    const run: ScriptRun = { code: "python3 apply_renames.py", timestamp };
+    const changeId = computeScriptExecutionChangeId(run, new Path("/tmp/demo/core_inventory.py"));
+    assert.equal(changeId.toString(), `scriptRun:${timestamp.getTime()}:/tmp/demo/core_inventory.py`);
+});
+
+test("test_resolveScriptRunChangeIdToSourceId_extracts_source_segment", () => {
+    // Scenario: unwrapping a scriptRun changeId exposes the tool_use id the session index knows.
+    assert.equal(resolveScriptRunChangeIdToSourceId("scriptRun:toolu_abc:/a/b.py"), "toolu_abc");
+});
+
+test("test_resolveScriptRunChangeIdToSourceId_returns_undefined_for_other_ids", () => {
+    // Scenario: real record uuids and originalFile: seed ids are not scriptRun ids and must
+    // pass through the resolver untouched.
+    assert.equal(resolveScriptRunChangeIdToSourceId("0b7f2b4c-1234-4abc-8def-0123456789ab"), undefined);
+    assert.equal(resolveScriptRunChangeIdToSourceId("originalFile:toolu_x"), undefined);
+});
+
+test("test_findScriptExecutionRuns_carries_the_tool_use_id", () => {
+    // Scenario: a run parsed from a transcript record remembers which tool_use block produced
+    // it, so the synthetic event's changeId can embed a session-attributable id.
+    // Steps:
+    // one assistant record with a Bash tool_use block.
+    const records = [buildToolRecord(ToolName.Bash, { command: "python3 apply_renames.py" }, "2026-07-01T20:53:49.772Z")];
+    // find the runs.
+    const runs = findScriptExecutionRuns(records);
+    // assert the run carries the block's id.
+    assert.equal(runs.length, 1);
+    assert.equal(runs[0]!.toolUseId?.toString(), "toolu_x");
 });

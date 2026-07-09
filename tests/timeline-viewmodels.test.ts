@@ -21,8 +21,8 @@ import {
     USER_TURN_NODE_KIND,
     AGENT_TURN_NODE_KIND,
     SESSION_END_NODE_KIND,
-} from "../webapp/views/timeline.js";
-import { routeToFileHistory } from "../webapp/app.js";
+} from "../webapp/views/timeline.ts";
+import { routeToFileHistory } from "../webapp/app.ts";
 import { buildProjectDocument, renderRangePatch } from "../src/viewer_api.ts";
 import { Path } from "../src/structures/domain.ts";
 import { RecordType, EventKind, GitOperationKind } from "../src/structures/vocabulary.ts";
@@ -125,7 +125,7 @@ test("test_timeline_file_changes_carry_event_kinds", () => {
     const { nodes } = buildTurnTimelineViewModel(s2Document);
     const fileChanges = nodes
         .filter((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND)
-        .flatMap((node: { fileChanges: { path: string; eventKind: string; renamedFrom?: string }[] }) => node.fileChanges);
+        .flatMap((node) => node.fileChanges!);
     const renameChange = fileChanges.find((change: { eventKind: string }) => change.eventKind === EventKind.rename);
     assert.ok(renameChange !== undefined);
     assert.ok(renameChange.renamedFrom !== undefined);
@@ -231,7 +231,7 @@ test("test_range_summary_counts_distinct_files", () => {
     assert.equal(picked.length, 2);
     const summary = computeRangeSummary(nodes, picked);
     const expectedPaths = new Set(
-        picked.flatMap((index) => nodes[index]!.fileChanges.map((change: { path: string }) => change.path)),
+        picked.flatMap((index) => nodes[index]!.fileChanges!.map((change: { path: string }) => change.path)),
     );
     assert.equal(summary.stepCount, 2);
     assert.deepEqual(new Set(summary.filePaths), expectedPaths);
@@ -252,7 +252,7 @@ test("test_range_summary_spans_underlying_snapshots_of_picked_turns", () => {
     const summary = computeRangeSummary(nodes, picked);
     // the range spans the min..max snapshot index across BOTH nodes' snapshots.
     const snapshotIndexes = picked.flatMap((index) =>
-        nodes[index]!.snapshots.map((snapshot: { index: number }) => snapshot.index));
+        nodes[index]!.snapshots!.map((snapshot: { index: number }) => snapshot.index));
     assert.ok(snapshotIndexes.length >= 2);
     assert.equal(summary.fromStepIndex, Math.min(...snapshotIndexes));
     assert.equal(summary.toStepIndex, Math.max(...snapshotIndexes));
@@ -309,7 +309,7 @@ test("test_findTimelineNodeIndexForRawLine_finds_step_owning_line", () => {
     const agentNodeIndex = nodes.findIndex((node: { kind: string; snapshots?: { length: number } }) =>
         node.kind === AGENT_TURN_NODE_KIND && node.snapshots!.length > 0);
     assert.ok(agentNodeIndex >= 0);
-    const changeId = nodes[agentNodeIndex]!.snapshots[0].changeIds[0];
+    const changeId = nodes[agentNodeIndex]!.snapshots![0]!.changeIds[0];
     assert.ok(changeId !== undefined);
     // craft a raw line embedding that changeId and look up its owning node.
     const nodeIndex = findTimelineNodeIndexForRawLine(nodes, `{"id":"${changeId}"}`);
@@ -327,7 +327,7 @@ test("test_findTimelineNodeIndexForRawLine_prefers_changeId_over_message_uuid", 
     const agentNodeIndex = nodes.findIndex((node: { kind: string; snapshots?: { length: number } }) =>
         node.kind === AGENT_TURN_NODE_KIND && node.snapshots!.length > 0);
     const userNode = nodes.find((node: { kind: string }) => node.kind === USER_TURN_NODE_KIND);
-    const changeId = nodes[agentNodeIndex]!.snapshots[0].changeIds[0];
+    const changeId = nodes[agentNodeIndex]!.snapshots![0]!.changeIds[0];
     // craft a raw line embedding BOTH identifiers and look it up.
     const nodeIndex = findTimelineNodeIndexForRawLine(
         nodes,
@@ -409,8 +409,8 @@ test("test_agent_turn_owns_snapshots_between_prompts", () => {
     const agentNodes = nodes.filter((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND);
     // for every snapshot: exactly one agent-turn node owns it.
     for (const step of s2Document.steps) {
-        const owners = agentNodes.filter((node: { snapshots: { index: number }[] }) =>
-            node.snapshots.some((snapshot: { index: number }) => snapshot.index === step.index));
+        const owners = agentNodes.filter((node) =>
+            node.snapshots!.some((snapshot: { index: number }) => snapshot.index === step.index));
         assert.equal(owners.length, 1);
         // the owner is in the snapshot's own session, at or after the snapshot.
         assert.equal(owners[0]!.sessionId, step.sessionId);
@@ -426,7 +426,7 @@ test("test_agent_turn_carries_no_snapshot_of_other_sessions", () => {
     const { nodes } = buildTurnTimelineViewModel(s84Document);
     // assert every owned snapshot's sessionId equals its node's sessionId.
     for (const node of nodes.filter((entry: { kind: string }) => entry.kind === AGENT_TURN_NODE_KIND)) {
-        for (const snapshot of node.snapshots) {
+        for (const snapshot of node.snapshots!) {
             assert.equal(snapshot.sessionId, node.sessionId);
         }
     }
@@ -489,13 +489,13 @@ test("test_file_changes_carry_their_change_id", () => {
     const revisionIndex = indexRevisionsByChangeId(s2Document);
     let checked = 0;
     for (const node of nodes.filter((entry: { kind: string }) => entry.kind === AGENT_TURN_NODE_KIND)) {
-        for (const change of node.fileChanges) {
+        for (const change of node.fileChanges!) {
             if (change.changeId === undefined) {
                 continue;
             }
             // the changeId belongs to one of the node's own snapshots...
-            assert.ok(node.snapshots.some((snapshot: { changeIds: string[] }) =>
-                snapshot.changeIds.includes(change.changeId)));
+            assert.ok(node.snapshots!.some((snapshot: { changeIds: string[] }) =>
+                snapshot.changeIds.includes(change.changeId!)));
             // ...and resolves to this chip's path.
             assert.equal(revisionIndex.get(change.changeId)!.path, change.path);
             checked += 1;
@@ -573,7 +573,7 @@ test("test_unattributed_snapshots_get_no_session_end_node", () => {
     // assert the unattributed snapshot still lands on a synthetic agent turn.
     const synthetic = nodes.find((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND);
     assert.ok(synthetic !== undefined);
-    assert.equal(synthetic.snapshots.length, 1);
+    assert.equal(synthetic.snapshots!.length, 1);
     // assert exactly one session-end node exists — session-a's — and none for undefined.
     const sessionEnds = nodes.filter((node: { kind: string }) => node.kind === SESSION_END_NODE_KIND);
     assert.equal(sessionEnds.length, 1);
@@ -619,12 +619,12 @@ test("test_orphaned_snapshots_dim_their_agent_turn", () => {
     let orphanedCount = 0;
     for (const node of nodes.filter((entry: { kind: string }) => entry.kind === AGENT_TURN_NODE_KIND)) {
         // a snapshot-less agent turn is never orphaned.
-        if (node.snapshots.length === 0) {
+        if (node.snapshots!.length === 0) {
             assert.equal(node.isOrphaned, false);
             continue;
         }
         // otherwise orphaned exactly when EVERY owned snapshot is on the rewound branch.
-        const expected = node.snapshots.every((snapshot: { changeIds: string[] }) =>
+        const expected = node.snapshots!.every((snapshot) =>
             checkStepIsOrphaned(snapshot, revisionIndex));
         assert.equal(node.isOrphaned, expected);
         if (expected) {
@@ -654,14 +654,14 @@ test("test_agent_turns_own_every_git_operation_of_their_session", () => {
     const { nodes } = buildTurnTimelineViewModel(s85Document);
     const agentNodes = nodes.filter((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND);
     // assert the turns collectively own the document's operations, in document order.
-    const owned = agentNodes.flatMap((node: { gitOperations: { command: string }[] }) => node.gitOperations);
+    const owned = agentNodes.flatMap((node) => node.gitOperations!);
     assert.deepEqual(
         owned.map((operation: { command: string }) => operation.command),
         s85Document.gitOperations.map((operation: { command: string }) => operation.command),
     );
     // assert no operation crossed into another session's turn.
     for (const node of agentNodes) {
-        for (const operation of node.gitOperations) {
+        for (const operation of node.gitOperations!) {
             assert.equal(operation.sessionId, node.sessionId);
         }
     }
@@ -709,7 +709,7 @@ test("test_git_operations_attach_by_the_snapshot_attribution_rule", () => {
     // assert the reply turn owns BOTH operations, in order (init by the rule, commit by fallback).
     const reply = nodes.find((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND)!;
     assert.deepEqual(
-        reply.gitOperations.map((operation: { kind: string }) => operation.kind),
+        reply.gitOperations!.map((operation: { kind: string }) => operation.kind),
         [GitOperationKind.init, GitOperationKind.commit],
     );
 });

@@ -16,6 +16,7 @@ import {
     parseRangePatchQuery,
     readBlobSnapshot,
     resolveProjectFile,
+    resolveStaticFilePath,
     getProjectsDir,
     setProjectsDir,
 } from "./viewer_api.ts";
@@ -26,6 +27,7 @@ import { Path, Uuid } from "./structures/domain.ts";
 
 const DEFAULT_PORT = 7343;
 const WEBAPP_DIR = resolve(import.meta.dirname, "..", "webapp");
+const WEBAPP_DIST_DIR = resolve(import.meta.dirname, "..", "webapp", "dist");
 
 const CONTENT_TYPES: Record<string, string> = {
     ".html": "text/html; charset=utf-8",
@@ -60,11 +62,14 @@ function sendText(response: ServerResponse, status: number, text: string, conten
     response.end(text);
 }
 
-// Serve `/` (index.html) and `/app/*` from webapp/, refusing any resolved path outside it.
+// Serve `/` (index.html) and `/app/*` from webapp/dist/ then webapp/, refusing any resolved
+// path outside those roots.
 function serveStaticFile(response: ServerResponse, urlPath: string): void {
     const relative = urlPath === "/" ? "index.html" : urlPath.replace(/^\/app\//, "");
-    const resolved = realpathSync(resolve(WEBAPP_DIR, relative));
-    if (!resolved.startsWith(WEBAPP_DIR + sep)) {
+    const resolved = realpathSync(resolveStaticFilePath(relative, WEBAPP_DIST_DIR, WEBAPP_DIR));
+    // dist lives inside webapp/, so the WEBAPP_DIR check covers both today; the explicit second
+    // clause keeps a future dist relocation from silently opening a traversal hole.
+    if (!resolved.startsWith(WEBAPP_DIR + sep) && !resolved.startsWith(WEBAPP_DIST_DIR + sep)) {
         sendText(response, 400, "path escapes webapp/");
         return;
     }
