@@ -125,6 +125,47 @@ export function computeSplitRows(diffText: string): SplitRow[] {
     return rows;
 }
 
+// One rendered inline-view line; number fields are set only when a numeric hunk header has
+// seeded that side's counter (item 40).
+export type InlineRow = { text: string; lineClass: string; oldLineNumber?: number; newLineNumber?: number };
+
+// Unified diff text -> inline rows in original line order, raw prefixes kept. "@@ -a,b +c,d @@"
+// headers seed the per-side counters; "-" advances old only, "+" advances new only, context
+// inside a hunk advances both; preamble lines and headers carry no numbers.
+export function computeInlineRows(diffText: string): InlineRow[] {
+    const rows: InlineRow[] = [];
+    let insideHunk = false;
+    let oldLineCounter: number | undefined = undefined;
+    let newLineCounter: number | undefined = undefined;
+    for (const line of diffText.split("\n")) {
+        if (line.startsWith("@@")) {
+            insideHunk = true;
+            const numericHeader = NUMERIC_HUNK_HEADER.exec(line);
+            oldLineCounter = numericHeader === null ? undefined : Number(numericHeader[1]);
+            newLineCounter = numericHeader === null ? undefined : Number(numericHeader[2]);
+            rows.push({ text: line, lineClass: "diff-line-hunk" });
+            continue;
+        }
+        const row: InlineRow = { text: line, lineClass: computeFullRowLineClass(line) };
+        if (insideHunk && line.startsWith("-") && oldLineCounter !== undefined) {
+            row.oldLineNumber = oldLineCounter++;
+        }
+        if (insideHunk && line.startsWith("+") && newLineCounter !== undefined) {
+            row.newLineNumber = newLineCounter++;
+        }
+        if (insideHunk && !line.startsWith("-") && !line.startsWith("+")) {
+            if (oldLineCounter !== undefined) {
+                row.oldLineNumber = oldLineCounter++;
+            }
+            if (newLineCounter !== undefined) {
+                row.newLineNumber = newLineCounter++;
+            }
+        }
+        rows.push(row);
+    }
+    return rows;
+}
+
 // Which layout every diff pane uses. Module-level so the choice sticks across re-renders, and
 // mirrored to localStorage so it survives reloads (item 10f).
 export const DiffDisplayMode = Object.freeze({ split: "split", inline: "inline" } as const);
@@ -157,11 +198,23 @@ function writeStoredDiffMode(mode: DiffDisplayModeValue): void {
 
 let diffDisplayMode = resolveInitialDiffDisplayMode(readStoredDiffMode());
 
-// Today's classic unified rendering: one colored div per raw line.
+// Inline view as a 3-column grid: old number | new number | raw unified line (item 40); the
+// text column wraps instead of overflowing the pane (item 39). Hunk-header rows emit two empty
+// gutter cells + the header cell — the .diff-line-hunk rule collapses it to a dashed separator.
 function renderInlineDiffLines(pane: HTMLElement, diffText: string): void {
-    for (const line of diffText.split("\n")) {
-        pane.append(el("div", { class: computeFullRowLineClass(line), text: line }));
+    // item 40: the un-numbered per-line divs, replaced by the numbered grid below.
+    // for (const line of diffText.split("\n")) {
+    //     pane.append(el("div", { class: computeFullRowLineClass(line), text: line }));
+    // }
+    const grid = el("div", { class: "diff-inline" });
+    for (const row of computeInlineRows(diffText)) {
+        grid.append(
+            el("div", { class: "diff-line-num", text: row.oldLineNumber === undefined ? "" : String(row.oldLineNumber) }),
+            el("div", { class: "diff-line-num", text: row.newLineNumber === undefined ? "" : String(row.newLineNumber) }),
+            el("div", { class: row.lineClass, text: row.text }),
+        );
     }
+    pane.append(grid);
 }
 
 // The split grid: 4 columns (old number | old text | new number | new text). Full rows span

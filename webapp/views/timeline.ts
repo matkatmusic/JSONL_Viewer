@@ -1344,8 +1344,12 @@ export async function renderTimelineView(container: HTMLElement, project: string
         const anchoredRow = nodeRows.get(nodeIndex);
         if (anchoredRow !== undefined) {
             anchoredRow.classList.add("anchored");
-            anchoredRow.scrollIntoView({ block: "center" });
+            // item 37: scroll moved below openTranscriptInspector — opening the drawer shrinks
+            // the timeline column and reflows every bubble, so centering must run against the
+            // post-drawer layout.
+            // anchoredRow.scrollIntoView({ block: "center" });
         }
         openTranscriptInspector({ jsonlName: anchorJsonl!, rawLines, line: rawLineIndex });
+        anchoredRow?.scrollIntoView({ block: "center" });
     }
 }

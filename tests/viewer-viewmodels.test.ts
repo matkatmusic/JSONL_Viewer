@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import { buildProjectDocument } from "../src/viewer_api.ts";
 import { stripTrailingNewline } from "../src/reconstruction_steps.ts";
 import { buildFileHistoryViewModel, computeAnchoredRevisionIndex, findRevisionForChangeId, splitDiffBlocks } from "../webapp/views/file-history.ts";
-import { computeSplitRows, DiffDisplayMode, resolveInitialDiffDisplayMode, SplitRowKind } from "../webapp/views/diff-vs-base.ts";
+import { computeInlineRows, computeSplitRows, DiffDisplayMode, resolveInitialDiffDisplayMode, SplitRowKind } from "../webapp/views/diff-vs-base.ts";
 import { findBackupTimeForBlob, findToolNavigationTargets } from "../webapp/inspector.ts";
 import { buildConversationViewModel } from "../webapp/views/conversation.ts";
 import { buildProjectViewModel } from "../webapp/views/project.ts";
@@ -485,6 +485,56 @@ test("test_computeSplitRows_advances_line_numbers_from_the_hunk_header_seed", ()
         left: { text: "ctx2", lineClass: "", lineNumber: 7 },
         right: { text: "ctx2", lineClass: "", lineNumber: 10 },
     });
+});
+
+// -------------------- inline diff rows (item 40) --------------------
+
+test("test_computeInlineRows_numbers_context_lines_on_both_sides", () => {
+    // Scenario: inside a hunk, a context line carries a line number from BOTH files, each
+    // seeded by the "@@ -a,b +c,d @@" header (old side from a, new side from c).
+    // Steps:
+    // compute inline rows for a one-hunk diff holding a single context line.
+    const rows = computeInlineRows("@@ -3,2 +7,2 @@\n keep");
+    // the context line keeps its raw unified " " prefix and is numbered old 3 / new 7.
+    assert.deepEqual(rows[1], { text: " keep", lineClass: "", oldLineNumber: 3, newLineNumber: 7 });
+});
+
+test("test_computeInlineRows_numbers_deletions_on_old_side_only", () => {
+    // Scenario: a deletion line exists only in the old file — it gets an old number and no new
+    // number, and advances only the old counter.
+    // Steps:
+    // compute inline rows for a hunk holding one deletion then one context line.
+    const rows = computeInlineRows("@@ -1,2 +1,1 @@\n-gone\n keep");
+    // the deletion is numbered old 1 only.
+    assert.deepEqual(rows[1], { text: "-gone", lineClass: "diff-line-del", oldLineNumber: 1 });
+    // the following context line shows the deletion advanced only the old counter: old 2 / new 1.
+    assert.deepEqual(rows[2], { text: " keep", lineClass: "", oldLineNumber: 2, newLineNumber: 1 });
+});
+
+test("test_computeInlineRows_numbers_additions_on_new_side_only", () => {
+    // Scenario: an addition line exists only in the new file — it gets a new number and no old
+    // number, and advances only the new counter.
+    // Steps:
+    // compute inline rows for a hunk holding one addition then one context line.
+    const rows = computeInlineRows("@@ -1,1 +1,2 @@\n+born\n keep");
+    // the addition is numbered new 1 only.
+    assert.deepEqual(rows[1], { text: "+born", lineClass: "diff-line-add", newLineNumber: 1 });
+    // the following context line shows the addition advanced only the new counter: old 1 / new 2.
+    assert.deepEqual(rows[2], { text: " keep", lineClass: "", oldLineNumber: 1, newLineNumber: 2 });
+});
+
+test("test_computeInlineRows_leaves_preamble_and_hunk_headers_unnumbered", () => {
+    // Scenario: lines before the first "@@" (revision-block preamble) and the hunk headers
+    // themselves carry no line numbers; headers keep the hunk color class.
+    // Steps:
+    // compute inline rows for a diff carrying a preamble line before its hunk.
+    const rows = computeInlineRows("revision #2\n@@ -1,1 +1,1 @@\n same");
+    // the preamble row is plain and unnumbered.
+    assert.deepEqual(rows[0], { text: "revision #2", lineClass: "" });
+    // the hunk header row is hunk-colored and unnumbered.
+    assert.deepEqual(rows[1], { text: "@@ -1,1 +1,1 @@", lineClass: "diff-line-hunk" });
+    // the context line after the header is numbered from both seeds.
+    assert.deepEqual(rows[2], { text: " same", lineClass: "", oldLineNumber: 1, newLineNumber: 1 });
 });
 
 test("test_resolveInitialDiffDisplayMode_returns_stored_mode", () => {

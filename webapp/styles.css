@@ -140,9 +140,10 @@ a:hover { text-decoration: underline; }
 .inspector-pane.file-preview-drawer .timeline-preview {
     white-space: pre-wrap; overflow-wrap: anywhere; max-height: none;
 }
-.inspector-pane.file-preview-drawer .diff-text {
+/* item 39: base .diff-text now wraps — override retired. */
+/* .inspector-pane.file-preview-drawer .diff-text {
     white-space: pre-wrap; overflow-wrap: anywhere;
-}
+} */
 /* Snapshot drawer (TASKS item 23): the Details pane splits in half — JSON above, the raised
    blob content below, each scrolling on its own. Item 10g: the split needs the content column
    to BE a flex column — max-height on two block children doesn't halve a plain block. */
@@ -211,7 +212,10 @@ a:hover { text-decoration: underline; }
 }
 .stub-row:hover { background: var(--control); color: var(--text); }
 .edit-marker { color: var(--orange); font-size: 11px; padding: 0 8px; }
-.anchored { outline: 2px solid var(--anchor); }
+/* item 38: outline-offset -2px draws the ring inside the element's own box — a plain outline
+   paints outside it and gets its left edge clipped by scroll containers with no left padding
+   (.inspector-content). */
+.anchored { outline: 2px solid var(--anchor); outline-offset: -2px; }
 
 /* ─── File history view ───────────────────────────────────────── */
 .revision-row { border: 1px solid var(--border); border-radius: 6px; margin: 8px 0; padding: 8px 12px; }
@@ -237,7 +241,9 @@ a:hover { text-decoration: underline; }
 .raw-line-num { color: var(--muted); min-width: 44px; text-align: right; flex-shrink: 0; }
 .raw-line-verdict { color: var(--muted); font-size: 10px; min-width: 110px; flex-shrink: 0; }
 .raw-line-text { overflow: hidden; text-overflow: ellipsis; }
-.diff-text { white-space: pre; font-size: 12px; }
+/* item 39: pre-wrap + overflow-wrap keep long diff lines inside the pane instead of setting
+   its scroll width (matches .diff-split > div). */
+.diff-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
 .diff-line-add { color: var(--green); }
 .diff-line-del { color: var(--red); }
 /* Item 10e: "@@ -a,b +c,d @@" headers read as noise — render each as a thin dashed gap
@@ -250,6 +256,10 @@ a:hover { text-decoration: underline; }
 .diff-split > div { white-space: pre-wrap; overflow-wrap: anywhere; }
 .diff-split .diff-full { grid-column: 1 / -1; }
 .diff-split .diff-line-num { color: var(--muted); text-align: right; user-select: none; }
+/* Inline view grid: old number | new number | raw line (items 39/40). */
+.diff-inline { display: grid; grid-template-columns: max-content max-content 1fr; column-gap: 8px; font-size: 12px; }
+.diff-inline > div { white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-inline .diff-line-num { color: var(--muted); text-align: right; user-select: none; }
 .diff-view-toggle { margin-bottom: 4px; }
 
 /* ─── Inspector ───────────────────────────────────────────────── */

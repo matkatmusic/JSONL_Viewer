@@ -28,6 +28,9 @@ All reviewed notes moved to `plans/archived/`.
 Second sweep 2026-07-08 (afternoon): `implementation-notes-items10-11-12.md` reviewed — items
 10/11/12 all closed above; its three open questions became item 36. Notes archived.
 
+Third sweep 2026-07-08 (evening): `implementation-notes-items34-18.md` reviewed — items 34/18
+closed above; its two follow-ups became items 41–42. Notes archived.
+
 ## Done
 
 - [x] **1. Commit staged jfred-claude-scenarios submodule migration** — committed as `f5d43b5`.
@@ -351,8 +354,33 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   `styles.css .layout.timeline-route .inspector-pane` if too wide; (c) 10e: `@@` hunk gaps
   render as thin dashed separators with header text hidden — if visible-but-muted text is
   preferred, restore the `.diff-line-hunk` rule and change only its color.
-- [ ] **37. Jump To Timeline button doesn't scroll timeline so selected timeline entry is centered in view**.  tested in `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline/session/ba044097-b975-4ae4-a7f8-d9093e7fbf88.jsonl/at/49`.  **Reproduce**: find a file revision in the timeline, click the 'jump to snapshot' button to see the revison, then in the Details view (showing the revision), click the 'Jump to Timeline' button.  **Expected**: The conversation bubble with the attached file being shown in the Details view should become centered by automatically scrolling the timeline. **Actual**: the timeline does not scroll when the Details view drawer expands causing the timeline view's width to change, causing all timeline bubbles to reformat without repositioning.  **Cause**: changing the width of the timeline causes all message bubbles to resize/reposition without keeping the selected message centered in the view.
-- [ ] **38. selected FileHistorySnapshot's orange selection rectangle is missing the left side (occluded)**
-- [ ] **39. Diff Vs Base view is wider than the pane's width, causing scrollbars to appear.**  Diff Vs Base content view in Details page should be the same width as the Details view, so no scroll bars appear. 
-- [ ] **40. Diff vs Base view: Line numbers aren't displayed in In-line view**
+- [x] **37. Jump To Timeline button doesn't scroll timeline so selected timeline entry is centered in view**.  tested in `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline/session/ba044097-b975-4ae4-a7f8-d9093e7fbf88.jsonl/at/49`.  **Reproduce**: find a file revision in the timeline, click the 'jump to snapshot' button to see the revison, then in the Details view (showing the revision), click the 'Jump to Timeline' button.  **Expected**: The conversation bubble with the attached file being shown in the Details view should become centered by automatically scrolling the timeline. **Actual**: the timeline does not scroll when the Details view drawer expands causing the timeline view's width to change, causing all timeline bubbles to reformat without repositioning.  **Cause**: changing the width of the timeline causes all message bubbles to resize/reposition without keeping the selected message centered in the view.
+  **Closed 2026-07-08:** the anchored-row `scrollIntoView({ block: "center" })` ran BEFORE
+  `openTranscriptInspector` expanded the Details drawer, so the drawer's width change reflowed
+  every bubble after centering. The scroll now runs after the (synchronous) drawer open
+  (`webapp/views/timeline.ts`, anchor-line block), centering against the post-drawer layout.
+- [x] **38. selected FileHistorySnapshot's orange selection rectangle is missing the left side (occluded)**
+  **Closed 2026-07-08:** `outline` paints outside the border box, and the left 2px fell outside
+  the scroll container's content box (`.inspector-content` has no left padding). Added
+  `outline-offset: -2px` to `.anchored` (`webapp/styles.css`) so the ring draws inside the
+  element's own box — un-clippable everywhere `.anchored` is used.
+- [x] **39. Diff Vs Base view is wider than the pane's width, causing scrollbars to appear.**  Diff Vs Base content view in Details page should be the same width as the Details view, so no scroll bars appear. 
+  **Closed 2026-07-08:** `.diff-text` used `white-space: pre`, forbidding wraps so long diff
+  lines set the pane's scroll width. Now `pre-wrap` + `overflow-wrap: anywhere` (matching
+  `.diff-split > div`); the now-redundant `.file-preview-drawer .diff-text` override retired
+  (commented out). The new inline grid (item 40) wraps its text column the same way.
+- [x] **40. Diff vs Base view: Line numbers aren't displayed in In-line view**
+  **Closed 2026-07-08:** inline view now renders a 3-column grid (old № | new № | raw line) via
+  the new `computeInlineRows` (`webapp/views/diff-vs-base.ts`), the same hunk-header-seeded
+  counters as the split view: deletions number the old side, additions the new side, context
+  both; preamble/headers unnumbered. 4 tests in `tests/viewer-viewmodels.test.ts` (written,
+  not run — user runs the suite).
+- [ ] **41. Re-check the "(unattributed)" CSS hide rule now that item 34 landed** — with
+  deterministic `scriptRun:` changeIds the 29 scenarios from item 31's sweep should now
+  attribute their script turns; after the suite + scenario sweep passes, re-run the lane-header
+  check and remove the rule (`webapp/styles.css` ~254) if no scenario still emits an
+  unattributed lane header. (implementation-notes-items34-18)
+- [ ] **42. `npm run app` rebuilds the webapp on every start (~1s tsc)** — add an `app:fast`
+  script that skips the build only if the delay grates. YAGNI until it does.
+  (implementation-notes-items34-18)
 - [ ] **41. Timeline selection doesn't change when Details View's item is a node in the timeline**.  **Reproduce**: using `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline`, select Step 3 (line 29/138). in the Details View (json displayed), advance to line 32/138 by pressing the `next >` button.  **Expected**: the Step 4 message bubble should selected. **Actual**: Step 3's message bubble remains selected. 
