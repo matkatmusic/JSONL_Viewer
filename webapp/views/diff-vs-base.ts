@@ -204,8 +204,8 @@ function writeStoredDiffMode(mode: DiffDisplayModeValue): void {
 let diffDisplayMode = resolveInitialDiffDisplayMode(readStoredDiffMode());
 
 // Inline view as a 3-column grid: old number | new number | raw unified line (item 40); the
-// text column wraps instead of overflowing the pane (item 39). Hunk-header rows emit two empty
-// gutter cells + the header cell — the .diff-line-hunk rule collapses it to a dashed separator.
+// text column wraps instead of overflowing the pane (item 39). Hunk-header rows span all
+// columns as muted "@@ -a,b +c,d @@" text, matching the split view (item 36c).
 function renderInlineDiffLines(pane: HTMLElement, diffText: string): void {
     // item 40: the un-numbered per-line divs, replaced by the numbered grid below.
     // for (const line of diffText.split("\n")) {
@@ -213,6 +213,10 @@ function renderInlineDiffLines(pane: HTMLElement, diffText: string): void {
     // }
     const grid = el("div", { class: "diff-inline" });
     for (const row of computeInlineRows(diffText)) {
+        if (row.lineClass === "diff-line-hunk") {
+            grid.append(el("div", { class: `diff-full ${row.lineClass}`, text: row.text }));
+            continue;
+        }
         grid.append(
             el("div", { class: "diff-line-num", text: row.oldLineNumber === undefined ? "" : String(row.oldLineNumber) }),
             el("div", { class: "diff-line-num", text: row.newLineNumber === undefined ? "" : String(row.newLineNumber) }),

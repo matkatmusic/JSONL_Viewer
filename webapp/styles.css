@@ -127,7 +127,8 @@ a:hover { text-decoration: underline; }
    reading; --drawer-width tracks the Files column's open/collapsed state); hidden (display:none
    via the global .hidden) the timeline takes the full width. */
 .layout.timeline-route .inspector-pane {
-    flex: 0 0 calc((100% - var(--drawer-width)) * 0.5);
+    /* flex: 0 0 calc((100% - var(--drawer-width)) * 0.5); */
+    flex: 0 0 calc((100% - var(--drawer-width)) * 0.45);
 }
 /* Item 10a: collapsed inspector keeps a 24px rail holding the focusable « expand button,
    mirroring the Files drawer's collapsed state (display:none left no reopen affordance).
@@ -246,18 +247,21 @@ a:hover { text-decoration: underline; }
 .diff-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
 .diff-line-add { color: var(--green); }
 .diff-line-del { color: var(--red); }
-/* Item 10e: "@@ -a,b +c,d @@" headers read as noise — render each as a thin dashed gap
-   separator instead; font-size 0 hides the text while the row keeps its slot in the grid. */
+/* Item 36c (user-decided): hunk headers show their "@@ -a,b +c,d @@" text, muted, spanning
+   the full row in both views — replaces item 10e's dashed separator. */
 /* .diff-line-hunk { color: var(--accent); } */
-.diff-line-hunk { font-size: 0; height: 9px; border-bottom: 1px dashed var(--border); margin: 2px 0 4px; }
+/* .diff-line-hunk { font-size: 0; height: 9px; border-bottom: 1px dashed var(--border); margin: 2px 0 4px; } */
+.diff-line-hunk { color: var(--muted); margin: 4px 0 2px; }
 /* Side-by-side diff: old-number | old-text | new-number | new-text grid; full rows (hunk
    headers, preamble) span all columns. */
 .diff-split { display: grid; grid-template-columns: max-content 1fr max-content 1fr; column-gap: 8px; font-size: 12px; }
 .diff-split > div { white-space: pre-wrap; overflow-wrap: anywhere; }
 .diff-split .diff-full { grid-column: 1 / -1; }
 .diff-split .diff-line-num { color: var(--muted); text-align: right; user-select: none; }
-/* Inline view grid: old number | new number | raw line (items 39/40). */
+/* Inline view grid: old number | new number | raw line (items 39/40); hunk headers span all
+   columns like the split view (item 36c). */
 .diff-inline { display: grid; grid-template-columns: max-content max-content 1fr; column-gap: 8px; font-size: 12px; }
+.diff-inline .diff-full { grid-column: 1 / -1; }
 .diff-inline > div { white-space: pre-wrap; overflow-wrap: anywhere; }
 .diff-inline .diff-line-num { color: var(--muted); text-align: right; user-select: none; }
 .diff-view-toggle { margin-bottom: 4px; }

@@ -370,12 +370,14 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   `readStoredDiffMode` at `diff-vs-base.ts:199`), but the proposed try/catch does NOT silence
   it — on Node 26 even `typeof localStorage` triggers the warning because touching the global
   getter at all is what warns. The guard is now `typeof window === "undefined"` (verified:
-  import prints nothing). **(b)/(c) await the user's visual check; repro:** `npm run app`,
-  open `#/project/s84-multiagent-scripts-git-baseline/timeline`, click any step — the Details
+  import prints nothing). **(c) DONE 2026-07-08 (user-decided via screenshots — muted `@@`
+  text in both views):** `.diff-line-hunk` shows its text in `var(--muted)` (dashed-separator
+  rule commented out, `styles.css`), and the inline grid's hunk rows now span all 3 columns
+  via a `diff-full` cell (`renderInlineDiffLines` + `.diff-inline .diff-full`), matching the
+  split view. Verified headlessly on s39: both views render full-width muted headers.
+  **(b) still awaits the user's visual check; repro:** `npm run app`, open
+  `#/project/s84-multiagent-scripts-git-baseline/timeline`, click any step — the Details
   pane takes half the space beside the Files column (`styles.css:130`); judge if too wide.
-  For (c), open any multi-hunk diff (a file chip's `+/-` button) — hunk boundaries are thin
-  dashed lines (`styles.css:252`); if `@@` text is preferred, restore the commented rule at
-  `styles.css:251` with a muted color.
 - [x] **37. Jump To Timeline button doesn't scroll timeline so selected timeline entry is centered in view**.  tested in `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline/session/ba044097-b975-4ae4-a7f8-d9093e7fbf88.jsonl/at/49`.  **Reproduce**: find a file revision in the timeline, click the 'jump to snapshot' button to see the revison, then in the Details view (showing the revision), click the 'Jump to Timeline' button.  **Expected**: The conversation bubble with the attached file being shown in the Details view should become centered by automatically scrolling the timeline. **Actual**: the timeline does not scroll when the Details view drawer expands causing the timeline view's width to change, causing all timeline bubbles to reformat without repositioning.  **Cause**: changing the width of the timeline causes all message bubbles to resize/reposition without keeping the selected message centered in the view.
   **Closed 2026-07-08:** the anchored-row `scrollIntoView({ block: "center" })` ran BEFORE
   `openTranscriptInspector` expanded the Details drawer, so the drawer's width change reflowed
@@ -453,4 +455,10 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   scoped — `row.scrollIntoView({ block: "nearest" })` after the selection swap in
   `syncSelectedRowToShownLine`; "nearest" scrolls only when the bubble is outside the pane.
   Webapp rebuilt (`webapp/dist/` current); restart any long-running 7343 server to see it.
-- [ ] **46. Add engine capabilities for handling customized paths for the following data sources**: JSONL project path, File History Snapshot Path, git repo Path & git commit hash to use as the base commit, on-disk location of project where conversations took place.
+- [ ] **46. Add engine capabilities for handling customized paths for the following data sources**: JSONL project path, File History Snapshot Path, git repo Path & git commit hash to use as the base commit, on-disk location of project where conversations took place.  when parsing JSONL files that have a CWD, the on-disk location path would override the extracted CWD.  File History Snapshot (FHS) path: when this argument is set, when a FHS path is detected in a JSONL file, the lookup process to get the correct FHS path would be: `<Custom_FHS_Path>/<JSONL_Session_UUID>/<FHS_hash@vN>`.  
+- [ ] **47** `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline` Step 17: clicking the [+\-] buttons doesn't show a file diff. clicking '{ }' goes to line 59, but the message bubble contents displayed in the step is on line 61
+- [ ] **48**: `http://127.0.0.1:7343/#/project/s43-git-baseline-uncommitted-module/file/%2Fprivate%2Fvar%2Ffolders%2Ffy%2Fwg2tzrv957sg2vqjcvdkdzvm0000gn%2FT%2Frun-scenario.g6zoy9u6%2Finventory.py` the file inspector displays scroll bars instead of making everything fit in the assigned width (resulting in no scroll bars displayed)
+- [ ] **49. Add Syntax Highlighting for known languages in Details view**: `http://127.0.0.1:7343/#/project/s43-git-baseline-uncommitted-module/timeline` click on Step 6: `[inventory.py]` so the Details view appear.  Render known languages with proper syntax highlighting.
+- [ ] **50**. Opening of Details drawer doesn't keep selected message centered in timeline view. 
+- [ ] **51**. Consider using 'git diff' as tool that produces diff content for Diff view in Details view, so that headers like `@@ -863,7 +896,7 @@ export async function renderTimelineView(…)` are shown, instead of the current header display: `@@ -77,6 +77,19 @@`
+- [ ] **52** differentiate (visually) tool calls/results, from agent replies.  For context: `http://127.0.0.1:7343/#/project/s39-git-baseline-seed/timeline` step 4 (agent reply) vs Step 5 (tool results with file chips)
