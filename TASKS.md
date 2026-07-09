@@ -35,6 +35,16 @@ Fourth sweep 2026-07-08 (late evening): `implementation-notes-item43-inspector-s
 reviewed — item 43 closed above; its one open question became item 45. Notes + the item-43 plan
 file archived.
 
+Fifth sweep 2026-07-09: nothing to sweep — no implementation-notes/handoffs created since the
+fourth sweep (commits `23b5159`/`3211798` touched only TASKS.md). Only unarchived handoffs
+anywhere are the June 22–25 per-scenario `api-from-scenarios` files inside `plans/s*//m*/`
+(frozen legacy island, colocated with scenario artifacts) — deliberately left in place.
+
+Sixth sweep 2026-07-09: `implementation-notes-items47-52-webapp-viewer-fixes.md` + its plan
+file reviewed — items 47–52 all closed above; two tradeoff flags became items 53–54. The
+notes' "suite intentionally not run" remainder lands in the standing post-session suite run
+(item-44 precedent, not tracked separately). Both files archived.
+
 ## Done
 
 - [x] **1. Commit staged jfred-claude-scenarios submodule migration** — committed as `f5d43b5`.
@@ -239,7 +249,7 @@ file archived.
 
 ## Minor open items from implementation-notes / handoffs (2026-07-07)
 
-- [ ] **24. s39 attribution: git rows land on synthetic turn** — s39 session 1's reply text
+- [x] **24. s39 attribution: git rows land on synthetic turn** — s39 session 1's reply text
   precedes its tool calls, so file chips + git rows land on a synthetic empty-text Step 5
   instead of the reply (Step 4). The attribution rule is user-approved; changing it needs an
   explicit user decision. (handoff-develop-20260707-1619)
@@ -251,6 +261,10 @@ file archived.
   Write / git add+commit) follow at lines 33-66 — same turn, but the engine splits at the
   text record. Decision still pending: keep the honest split, or merge a trailing tool-only
   agent turn's rows into the preceding reply step.
+  **Closed 2026-07-09 (user-decided via item 55):** neither merge nor split-as-was — tool
+  calls became standalone UN-BUBBLED rows sorted chronologically between the bubbles
+  (git init / ls / rtk ls / mkdir render between Step 4's reply and Step 5's files bubble),
+  and the files bubble KEEPS its own step number. Verified headlessly on s39.
 - [x] **25. s84 Step 17: pickable agent turn with zero visible chips** — its snapshot's changeIds
   resolve to no revision and `changedPaths` is empty. Engine data question, unaddressed.
   (handoff-develop-20260707-1619)
@@ -414,9 +428,20 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   `indexChangeIdsToSessionIds`. The rule (`webapp/styles.css:296`) stays load-bearing;
   attributing blob-ref/git-evidence steps (e.g. blob → owning-session lookup) would be a new
   engine item if wanted.
-- [ ] **42. `npm run app` rebuilds the webapp on every start (~1s tsc)** — add an `app:fast`
+- [x] **42. `npm run app` rebuilds the webapp on every start (~1s tsc)** — add an `app:fast`
   script that skips the build only if the delay grates. YAGNI until it does.
   (implementation-notes-items34-18)
+  **Note 2026-07-09:** was implemented in `RevEng/.vscode/` instead of one level higher —
+  needs to be re-done at the correct level.
+  **Closed 2026-07-09:** re-done at the correct level, versioned in this repo — the
+  workspace-root `claude code src/.vscode` is now a SYMLINK to `RevEng/.vscode-parent/`,
+  whose launch.json carries `preLaunchTask: build:webapp` (plus the pre-existing chrome
+  tree-viewer config) and whose tasks.json points the npm task at the `RevEng` folder
+  (`"path": "RevEng"`). A straight symlink to `RevEng/.vscode/` can't work —
+  `${workspaceFolder}` resolves differently at each root — so the parent-tuned variant
+  lives in the repo and the parent links to it. `RevEng/.vscode/` stays for opening RevEng
+  directly. The original `app:fast` npm-script idea stays unbuilt — the launch-config
+  build step superseded it.
 - [x] **43. Timeline selection doesn't change when Details View's item is a node in the timeline**.  **Reproduce**: using `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline`, select Step 3 (line 29/138). in the Details View (json displayed), advance to line 32/138 by pressing the `next >` button.  **Expected**: the Step 4 message bubble should selected. **Actual**: Step 3's message bubble remains selected. 
   **Closed 2026-07-08:** `openTranscriptInspector`'s existing-but-never-wired `onJumpToLine`
   hook is now passed by all 7 timeline inspector-open sites via a closure wrapper
@@ -456,9 +481,113 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   `syncSelectedRowToShownLine`; "nearest" scrolls only when the bubble is outside the pane.
   Webapp rebuilt (`webapp/dist/` current); restart any long-running 7343 server to see it.
 - [ ] **46. Add engine capabilities for handling customized paths for the following data sources**: JSONL project path, File History Snapshot Path, git repo Path & git commit hash to use as the base commit, on-disk location of project where conversations took place.  when parsing JSONL files that have a CWD, the on-disk location path would override the extracted CWD.  File History Snapshot (FHS) path: when this argument is set, when a FHS path is detected in a JSONL file, the lookup process to get the correct FHS path would be: `<Custom_FHS_Path>/<JSONL_Session_UUID>/<FHS_hash@vN>`.  
-- [ ] **47** `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline` Step 17: clicking the [+\-] buttons doesn't show a file diff. clicking '{ }' goes to line 59, but the message bubble contents displayed in the step is on line 61
-- [ ] **48**: `http://127.0.0.1:7343/#/project/s43-git-baseline-uncommitted-module/file/%2Fprivate%2Fvar%2Ffolders%2Ffy%2Fwg2tzrv957sg2vqjcvdkdzvm0000gn%2FT%2Frun-scenario.g6zoy9u6%2Finventory.py` the file inspector displays scroll bars instead of making everything fit in the assigned width (resulting in no scroll bars displayed)
-- [ ] **49. Add Syntax Highlighting for known languages in Details view**: `http://127.0.0.1:7343/#/project/s43-git-baseline-uncommitted-module/timeline` click on Step 6: `[inventory.py]` so the Details view appear.  Render known languages with proper syntax highlighting.
-- [ ] **50**. Opening of Details drawer doesn't keep selected message centered in timeline view. 
-- [ ] **51**. Consider using 'git diff' as tool that produces diff content for Diff view in Details view, so that headers like `@@ -863,7 +896,7 @@ export async function renderTimelineView(…)` are shown, instead of the current header display: `@@ -77,6 +77,19 @@`
-- [ ] **52** differentiate (visually) tool calls/results, from agent replies.  For context: `http://127.0.0.1:7343/#/project/s39-git-baseline-seed/timeline` step 4 (agent reply) vs Step 5 (tool results with file chips)
+- [x] **47** `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline` Step 17: clicking the [+\-] buttons doesn't show a file diff. clicking '{ }' goes to line 59, but the message bubble contents displayed in the step is on line 61
+  **Closed 2026-07-09:** two causes, both fixed. (a) Step 17 is the `core_inventory.py`
+  RENAME revision — its `/api/diff` block is the bare `@@ renamed … @@` kind header with no
+  body, so the +/- pane looked empty; `computeRevisionDiffFallbackText`
+  (`webapp/views/timeline.ts`) now renders "renamed <old> → <new> (content unchanged)" for
+  body-less blocks (3 new tests in `tests/timeline-viewmodels.test.ts`). (b) the chip's `{ }`
+  targeted the tool_result line that caused the revision (line 59) while the bubble's text
+  record is line 61 — user-decided retarget: `{ }` now opens the step's own message line via
+  `openTurnInspector`; `showRevisionJson`/`findRevisionResultLine` commented out (item-47
+  marker). Tests written, not run — user runs the suite.
+- [x] **48**: `http://127.0.0.1:7343/#/project/s43-git-baseline-uncommitted-module/file/%2Fprivate%2Fvar%2Ffolders%2Ffy%2Fwg2tzrv957sg2vqjcvdkdzvm0000gn%2FT%2Frun-scenario.g6zoy9u6%2Finventory.py` the file inspector displays scroll bars instead of making everything fit in the assigned width (resulting in no scroll bars displayed)
+  **Closed 2026-07-09:** `.revision-content` (`webapp/styles.css`) used `white-space: pre`,
+  so long lines set the horizontal scroll width — now `pre-wrap` + `overflow-wrap: anywhere`,
+  the exact item-39 pattern (old declaration commented out). The per-revision
+  `max-height: 300px` vertical cap is deliberate and untouched. CSS-only.
+- [x] **49. Add Syntax Highlighting for known languages in Details view**: `http://127.0.0.1:7343/#/project/s43-git-baseline-uncommitted-module/timeline` click on Step 6: `[inventory.py]` so the Details view appear.  Render known languages with proper syntax highlighting.
+  **Closed 2026-07-09 (user-decided: vendor highlight.js):** highlight.js 11.11.1 single-file
+  build + github/github-dark themes vendored into `webapp/vendor/` (xterm pattern, no npm
+  dependency; themes media-gated to the light/dark palettes in `index.html`). New
+  `webapp/highlight.ts`: `computeLanguageForPath` (extension map) + `renderCodeInto` (falls
+  back to plain text when the language or the `hljs` global is absent — node:test safe).
+  Applied to the three file-content surfaces: timeline file preview
+  (`views/timeline.ts`), file-history revision content (`views/file-history.ts`), inspector
+  snapshot drawer (`inspector.ts`); `.hljs { background: transparent }` keeps
+  `var(--code-bg)` the background authority. 5 tests in new `tests/highlight.test.ts`
+  (written, not run — user runs the suite).
+- [x] **50**. Opening of Details drawer doesn't keep selected message centered in timeline view. 
+  **Closed 2026-07-09:** the USER_TURN/AGENT_TURN (and session-end) click handlers opened the
+  drawer and stopped — the drawer's width change reflowed every bubble uncompensated. Each
+  handler now awaits the inspector open and then runs
+  `row.scrollIntoView({ block: "center" })` against the post-drawer layout
+  (`webapp/views/timeline.ts`), the same ordering item 37 established for the `/at/<line>`
+  anchor route. DOM-only, no view-model change.
+- [x] **51**. Consider using 'git diff' as tool that produces diff content for Diff view in Details view, so that headers like `@@ -863,7 +896,7 @@ export async function renderTimelineView(…)` are shown, instead of the current header display: `@@ -77,6 +77,19 @@`
+  **Closed 2026-07-09 (user-decided: shell out to real git):** new `src/render_git_diff.ts`
+  (`runGitUnifiedDiff`) writes before/after temp files and runs
+  `git diff --no-index --no-color --unified=3` (exit 1 = success; preamble stripped; sides
+  newline-terminated so no `\ No newline` markers); `renderDiffWithContext`
+  (`src/reconstruction_render.ts`) now takes its hunk bodies from git while keeping the
+  engine's `@@ <kind> @ <ts> @@` block headers, so `splitDiffBlocks` still splits per
+  revision (verified end-to-end on s84: `@@ -7,6 +7,11 @@ def add_item(items, name, qty):`).
+  Webapp's `NUMERIC_HUNK_HEADER` relaxed for git's count-1 short form (`@@ -5 +5,2 @@`).
+  CLI `renderDiff` untouched; one git spawn per revision per /api/diff request (memo is the
+  named upgrade path). 4 tests in new `tests/render_git_diff.test.ts` + 2 short-form
+  view-model tests in `tests/viewer-viewmodels.test.ts`; 2 assertions in
+  `tests/reconstruction_render.test.ts` reconciled against real git output (written, not
+  run — user runs the suite).
+- [x] **52** differentiate (visually) tool calls/results, from agent replies.  For context: `http://127.0.0.1:7343/#/project/s39-git-baseline-seed/timeline` step 4 (agent reply) vs Step 5 (tool results with file chips)
+  **Closed 2026-07-09 (user-decided: distinct bubble/border color + tag):** new
+  `computeToolActivityTag` (`webapp/views/timeline.ts`) — a blank-text agent turn with file
+  chips is tagged "tool result", with only git rows "tool call"; replies and user turns get
+  nothing. Tagged rows gain a `.tool-activity` class: violet border + tint
+  (`--lane-violet`, unused by any bubble category) plus the `.timeline-tag.tool-activity-tag`
+  label next to the step number (`webapp/styles.css`). 3 tests in
+  `tests/timeline-viewmodels.test.ts` (written, not run — user runs the suite).
+
+## New items (2026-07-09, sixth sweep of implementation-notes-items47-52)
+
+- [x] **53. Chip `{ }` now duplicates the row-click target — remove or keep?** — item 47b
+  retargeted the chip's `{ }` to open the step's own message line, the same action as
+  clicking the bubble. Kept as an explicit affordance; removal is a user call.
+  (implementation-notes-items47-52-webapp-viewer-fixes, Tradeoffs)
+  **Closed 2026-07-09 (user-decided via item 55):** neither removed nor kept-as-duplicate —
+  the chip's `{ }` REVERTED to opening that file's OWN causing line (the Write/Edit
+  tool_use record, e.g. s39 `orders.py` → L:51), undoing item 47b; each chip row now also
+  shows its snapshot timestamp and the causing line's `L:n (of N)` label. Chips whose
+  synthetic changeId resolves to no line keep the turn-message fallback so the button
+  never dead-ends.
+- [x] **54. Memoize `runGitUnifiedDiff`** — item 51 spawns `git diff --no-index` once per
+  revision per `/api/diff` request, no memo. Content-hash memo is the named upgrade path
+  (ponytail comment in `src/render_git_diff.ts`); YAGNI until diff-route latency shows up.
+  (implementation-notes-items47-52-webapp-viewer-fixes, Tradeoffs)
+  **Closed 2026-07-09 (user-decided: keep deferred, close as YAGNI):** no diff-route latency
+  complaint exists and each spawn is ~10ms; the upgrade path stays documented in the code
+  (`src/render_git_diff.ts:24`, ponytail comment: memoize on (before, after) content).
+  Nothing built; reopen only if `/api/diff` latency actually shows up.
+
+## New items (2026-07-09, user-specified timeline redesign)
+
+- [x] **55. Timeline tool-call rows redesign** — user-specified (s39 screenshot + chat): every
+  tool call renders as an un-bubbled row `* <summary, 50 chars> * [{ }] <TS> L:n (of N)`
+  between the conversation bubbles; the files bubble keeps its step number; chips regain
+  per-chip `{ }` targets + labels (closes items 24 and 53); plus the inspector Prev/Next
+  selection-sync bug (stepping onto snapshot lines 49/50 selected Step 3).
+  Plan: `plans/timeline-tool-call-rows.md`.
+  **Closed 2026-07-09 (implemented; suite NOT run — user runs it):**
+  (a) engine: new `src/reconstruction_tool_calls.ts` — `findToolCalls` extracts every
+  non-Write/Edit tool_use (name, one-line summary, record uuid, toolUseId, timestamp)
+  PLUS one extra row per PreToolUse hook whose `updatedInput.command` differs from the
+  tool_use's own command (s39's `rtk ls` and `rtk git add`; the ls tool_use and the rtk
+  hook SHARE toolUseId `toolu_015S4…` — the "hook-only execution" theory was wrong);
+  document/wire gains `toolCalls[]` (`reconstruction_json.ts`).
+  (b) view-model: `TOOL_CALL_NODE_KIND` nodes sort chronologically among turns
+  (`deriveToolCallNodes`; rank turn < tool-call < commit < session-end); never numbered,
+  never pickable; `appendSessionEndNodes` now also scans tool-call instants so a trailing
+  `git add` row precedes its session end. Git rows retired from turn bubbles
+  (`attachGitOperationsToAgentTurns` + `renderGitOperationRow` commented out with item-55
+  markers; `deriveCommitNodes` untouched); `computeToolActivityTag`'s "tool call" branch
+  retired ("tool result" stays).
+  (c) selection-sync bug fix: `findTimelineNodeIndexForRawLine` is now tiered — agent turns
+  (changeIds + own `"uuid":"…"` line), tool-call rows (own record line, then toolUseId
+  reference — hook attachments/tool_results select their row), user turns (own
+  `"uuid":"…"` line ONLY; the bare-substring match that fired on snapshot `messageId`s and
+  caused the Step-3 jump is gone). Lines owned by no node keep the current selection.
+  (d) chips: `FileChange.when` + causing-line `L:n (of N)` labels; `{ }` opens the causing
+  record (item-53 closure above).
+  Tests: `tests/reconstruction_tool_calls.test.ts` (5) + 9 new / 2 adjusted in
+  `tests/timeline-viewmodels.test.ts` (written, not run). Verified live headlessly on s39:
+  rows/labels/step numbers/rail exactly match the user's mock; L:32/33/39/44 rows, chips
+  L:51/L:55; raw-line 48 → mkdir row, 49/50 → selection unchanged.

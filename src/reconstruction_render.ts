@@ -6,6 +6,7 @@ import type { FileRevision, LineEntry } from "./reconstruction_engine.ts";
 import { EventKind } from "./structures/vocabulary.ts";
 import { DOES_NOT_EXIST_YET } from "./structures/line-model.ts";
 import type { Path } from "./structures/domain.ts";
+import { runGitUnifiedDiff } from "./render_git_diff.ts";
 
 // A line's believed content right now is the last value in its history.
 function currentText(entry: LineEntry): string {
@@ -241,9 +242,16 @@ export function renderDiffWithContext(revisions: FileRevision[]): string {
     for (const revision of revisions) {
         const blockLines = [computeDiffBlockHeader(previous, revision)];
         if (!isRenameRevision(revision)) {
-            const alignedLines = computeAlignedDiffLines(previous, revision);
-            for (const range of computeHunkRanges(alignedLines)) {
-                blockLines.push(renderHunk(alignedLines.slice(range.start, range.end + 1)));
+            // item 51: pure-TS hunk generation, replaced by real git below (function context).
+            // const alignedLines = computeAlignedDiffLines(previous, revision);
+            // for (const range of computeHunkRanges(alignedLines)) {
+            //     blockLines.push(renderHunk(alignedLines.slice(range.start, range.end + 1)));
+            // }
+            const beforeLines = previous === undefined ? [] : previous.lines.map(currentText);
+            const afterLines = revision.lines.map(currentText);
+            const hunks = runGitUnifiedDiff(beforeLines, afterLines);
+            if (hunks !== "") {
+                blockLines.push(hunks);
             }
         }
         blocks.push(blockLines.join("\n"));

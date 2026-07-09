@@ -487,6 +487,29 @@ test("test_computeSplitRows_advances_line_numbers_from_the_hunk_header_seed", ()
     });
 });
 
+test("test_computeSplitRows_seeds_counters_from_gits_short_form_header_with_function_context", () => {
+    // Scenario: real git omits ",count" when a side's count is 1 and appends function context
+    // ("@@ -5 +5,2 @@ def reorder():") — the header must still render as a full-width hunk row
+    // and seed both line counters from 5 (item 51).
+    // Steps:
+    // split a one-hunk diff headed by the git short form: one context line, one addition.
+    const rows = computeSplitRows("@@ -5 +5,2 @@ def reorder():\n keep\n+born");
+    // the git-shaped header is a full-width hunk row.
+    assert.deepEqual(rows[0], { kind: SplitRowKind.full, text: "@@ -5 +5,2 @@ def reorder():", lineClass: "diff-line-hunk" });
+    // the context line is numbered from the header's seeds: old 5 / new 5.
+    assert.deepEqual(rows[1], {
+        kind: SplitRowKind.pair,
+        left: { text: "keep", lineClass: "", lineNumber: 5 },
+        right: { text: "keep", lineClass: "", lineNumber: 5 },
+    });
+    // the addition consumes new 6 beside an empty left cell.
+    assert.deepEqual(rows[2], {
+        kind: SplitRowKind.pair,
+        left: undefined,
+        right: { text: "born", lineClass: "diff-line-add", lineNumber: 6 },
+    });
+});
+
 // -------------------- inline diff rows (item 40) --------------------
 
 test("test_computeInlineRows_numbers_context_lines_on_both_sides", () => {
@@ -535,6 +558,20 @@ test("test_computeInlineRows_leaves_preamble_and_hunk_headers_unnumbered", () =>
     assert.deepEqual(rows[1], { text: "@@ -1,1 +1,1 @@", lineClass: "diff-line-hunk" });
     // the context line after the header is numbered from both seeds.
     assert.deepEqual(rows[2], { text: " same", lineClass: "", oldLineNumber: 1, newLineNumber: 1 });
+});
+
+test("test_computeInlineRows_seeds_counters_from_gits_short_form_header_with_function_context", () => {
+    // Scenario: the inline view meets the same git short-form header ("@@ -5 +5,2 @@
+    // def reorder():") — it renders as a hunk row and seeds both counters from 5 (item 51).
+    // Steps:
+    // compute inline rows for a one-hunk diff headed by the git short form.
+    const rows = computeInlineRows("@@ -5 +5,2 @@ def reorder():\n keep\n+born");
+    // the git-shaped header row is hunk-colored and unnumbered.
+    assert.deepEqual(rows[0], { text: "@@ -5 +5,2 @@ def reorder():", lineClass: "diff-line-hunk" });
+    // the context line is numbered from the header's seeds: old 5 / new 5.
+    assert.deepEqual(rows[1], { text: " keep", lineClass: "", oldLineNumber: 5, newLineNumber: 5 });
+    // the addition consumes new 6 only.
+    assert.deepEqual(rows[2], { text: "+born", lineClass: "diff-line-add", newLineNumber: 6 });
 });
 
 test("test_resolveInitialDiffDisplayMode_returns_stored_mode", () => {

@@ -228,8 +228,12 @@ a:hover { text-decoration: underline; }
 .revision-content {
     background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px;
     padding: 8px; overflow-x: auto; font-size: 12px; max-height: 300px; overflow-y: auto;
-    white-space: pre; margin-top: 6px;
+    /* (item 48) old: white-space: pre; — long lines forced horizontal scrollbars */
+    white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 6px;
 }
+/* (item 49) the vendored highlight.js themes ship their own background; the panes'
+   var(--code-bg) stays the single background authority */
+.hljs { background: transparent; }
 
 /* ─── Raw lines / diff views ──────────────────────────────────── */
 .filter-bar { display: flex; gap: 10px; align-items: center; margin: 8px 0; }
@@ -335,12 +339,24 @@ a:hover { text-decoration: underline; }
 /* the pick checkbox lives in the rail gutter, LEFT of the rail line at x=32 so it never
    occludes the row's node dot */
 .timeline-row[data-node-kind="agent-turn"]:not(.system) .timeline-pick { left: -92px; }
+/* (item 52) tool-activity steps (tool calls/results, no reply text) read as a third
+   category next to agent replies (code-bg) and user prompts (accent tint): violet border
+   + tint, plus their "tool call"/"tool result" tag */
+.timeline-row.tool-activity[data-node-kind="agent-turn"]:not(.system) {
+    border-color: var(--lane-violet);
+    background: rgba(109, 58, 184, 0.07);
+}
+.timeline-tag.tool-activity-tag { color: var(--lane-violet); border: 1px solid var(--lane-violet); }
 /* the chip whose file the preview drawer is showing */
 .timeline-chip.active {
     border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent);
     background: var(--badge-accent-bg);
 }
 .timeline-row.system { opacity: 0.55; }
+/* (item 55) tool-call rows: un-bubbled one-liners (`* cmd * [{ }] <TS> L:n`) between the turn
+   bubbles — compact vertical padding, no bubble chrome (bubble rules key on agent/user kinds) */
+.timeline-row[data-node-kind="tool-call"] { padding-top: 2px; padding-bottom: 2px; }
+.timeline-row[data-node-kind="tool-call"] .timeline-row-top { gap: 8px; align-items: center; }
 .timeline-time { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .timeline-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .timeline-gitops { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-bottom: 6px; }

@@ -10,6 +10,7 @@ import { isGenuineUserPrompt } from "./reconstruction_tree.ts";
 import { recordVerdict } from "./reconstruction_parse_lines.ts";
 import { findConversationBranches } from "./reconstruction_branch.ts";
 import { findGitCommitEvents, findGitOperations, type GitOperation } from "./reconstruction_git_evidence.ts";
+import { findToolCalls, type ToolCall } from "./reconstruction_tool_calls.ts";
 import {
     reconstructStepTimeline,
     type RepoSnapshot,
@@ -239,6 +240,7 @@ export type ReconstructionDocument = {
     lineVerdicts: LineVerdict[];
     commitMarkers: CommitMarker[];
     gitOperations: GitOperation[];
+    toolCalls: ToolCall[];
 };
 
 export function buildReconstructionDocument(
@@ -273,6 +275,7 @@ export function buildReconstructionDocument(
         sessionId: event.sessionId,
     }));
     const gitOperations = findGitOperations(records);
+    const toolCalls = findToolCalls(records);
     return {
         sessionId: findSessionId(records),
         messages,
@@ -283,5 +286,6 @@ export function buildReconstructionDocument(
         lineVerdicts,
         commitMarkers,
         gitOperations,
+        toolCalls,
     };
 }

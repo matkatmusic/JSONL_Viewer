@@ -21,11 +21,13 @@ import { openInspectorPane, openTranscriptInspector } from "../inspector.ts";
 import { findLineForChangeId, findRevisionForChangeId, splitDiffBlocks } from "./file-history.ts";
 import { renderDiffText } from "./diff-vs-base.ts";
 import { downloadText } from "./download.ts";
+import { renderCodeInto } from "../highlight.ts";
 
 export const COMMIT_NODE_KIND = "commit";
 export const USER_TURN_NODE_KIND = "user-turn";
 export const AGENT_TURN_NODE_KIND = "agent-turn";
 export const SESSION_END_NODE_KIND = "session-end";
+export const TOOL_CALL_NODE_KIND = "tool-call";
 const USER_ROLE = "user";
 const EDIT_EVENT_KIND = "edit";
 const COMMIT_OPERATION_KIND = "commit";
@@ -56,6 +58,17 @@ type WireGitOperation = {
     uuid?: string;
 };
 type WireCommitMarker = { timestamp: string; sessionId?: string };
+// One non-file-edit tool call (item 55): summary is its one-line command/path/pattern; uuid is
+// the record the row's line label and { } button resolve through; toolUseId joins the call to
+// its hook attachments and tool_result lines.
+type WireToolCall = {
+    toolName: string;
+    summary: string;
+    timestamp: string;
+    sessionId?: string;
+    uuid: string;
+    toolUseId: string;
+};
 type WireTimelineDocument = {
     filesTouched: WireFileHistory[];
     rewoundFilesTouched: WireFileHistory[];
@@ -63,6 +76,8 @@ type WireTimelineDocument = {
     steps: WireStepSnapshot[];
     gitOperations?: WireGitOperation[];
     commitMarkers: WireCommitMarker[];
+    // Optional: an older cached document lacks the field (same convention as gitOperations).
+    toolCalls?: WireToolCall[];
 };
 type WireJsonlFile = { fileName: string };
 type WireProjectListing = { name: string; jsonlFiles: WireJsonlFile[] };
@@ -77,13 +92,15 @@ type RevisionIndexEntry = {
 };
 type RevisionIndex = Map<string, RevisionIndexEntry>;
 
-// deriveFileChanges' chips: one displayable file change per distinct path.
+// deriveFileChanges' chips: one displayable file change per distinct path; `when` is the owning
+// snapshot's instant (the chip row's timestamp, item 55).
 type FileChange = {
     path: string;
     eventKind: string;
     renamedFrom: string | undefined;
     isFirstRevision: boolean;
     changeId: string | undefined;
+    when: string;
 };
 
 // The (sessionId, when) instant snapshot ownership is decided on (checkNodeCanOwnSnapshot).
@@ -108,6 +125,9 @@ type TurnNode = {
     fileChanges?: FileChange[];
     isOrphaned?: boolean;
     detail?: undefined;
+    summary?: undefined;
+    toolName?: undefined;
+    toolUseId?: undefined;
 };
 
 // One session-end terminator per session (appendSessionEndNodes).
@@ -124,6 +144,9 @@ type SessionEndNode = {
     isSystem?: undefined;
     gitOperations?: undefined;
     detail?: undefined;
+    summary?: undefined;
+    toolName?: undefined;
+    toolUseId?: undefined;
 };
 
 // One git-commit hard stop (deriveCommitNodes); never numbered, never pickable.
@@ -140,9 +163,32 @@ type CommitNode = {
     stepNumber?: undefined;
     fileChanges?: undefined;
     isOrphaned?: undefined;
+    summary?: undefined;
+    toolName?: undefined;
+    toolUseId?: undefined;
 };
 
-type TimelineNode = TurnNode | SessionEndNode | CommitNode;
+// One un-bubbled tool-call row (item 55; deriveToolCallNodes): `* <summary> * [{ }] <TS> L:n`.
+// Never numbered, never pickable; sorts chronologically among the turns it ran between.
+type ToolCallNode = {
+    kind: typeof TOOL_CALL_NODE_KIND;
+    when: string;
+    sessionId: string | undefined;
+    uuid: string;
+    toolName: string;
+    summary: string;
+    toolUseId: string;
+    text?: undefined;
+    isSystem?: undefined;
+    snapshots?: undefined;
+    gitOperations?: undefined;
+    stepNumber?: undefined;
+    fileChanges?: undefined;
+    isOrphaned?: undefined;
+    detail?: undefined;
+};
+
+type TimelineNode = TurnNode | SessionEndNode | CommitNode | ToolCallNode;
 
 // changeId -> { path, eventKind, renamedFrom, isRewound } across surviving AND rewound histories,
 // so a step's changeIds resolve to displayable file chips and orphan detection in one lookup.
@@ -191,6 +237,7 @@ export function deriveFileChanges(step: WireStepSnapshot, revisionIndex: Revisio
             renamedFrom: revision.renamedFrom,
             isFirstRevision: revision.isFirstRevision,
             changeId,
+            when: step.when,
         });
     }
     for (const path of step.changedPaths) {
@@ -198,7 +245,7 @@ export function deriveFileChanges(step: WireStepSnapshot, revisionIndex: Revisio
             continue;
         }
         seenPaths.add(path);
-        changes.push({ path, eventKind: EDIT_EVENT_KIND, renamedFrom: undefined, isFirstRevision: false, changeId: undefined });
+        changes.push({ path, eventKind: EDIT_EVENT_KIND, renamedFrom: undefined, isFirstRevision: false, changeId: undefined, when: step.when });
     }
     return changes;
 }
@@ -239,12 +286,16 @@ export function checkStepIsOrphaned(step: WireStepSnapshot, revisionIndex: Revis
 }
 
 // Tie-break rank for nodes sharing a timestamp: turns first (a commit records the state the turn
-// built up), then commits, then session ends (they close the session after everything in it).
+// built up), then tool rows (they ran after the reply they follow, item 55), then commits, then
+// session ends (they close the session after everything in it).
 function computeNodeKindRank(kind: TimelineNode["kind"]): number {
     if (kind === SESSION_END_NODE_KIND) {
-        return 2;
+        return 3;
     }
     if (kind === COMMIT_NODE_KIND) {
+        return 2;
+    }
+    if (kind === TOOL_CALL_NODE_KIND) {
         return 1;
     }
     return 0;
@@ -422,6 +473,8 @@ function findLastAgentTurnOfSession(turnNodes: TurnNode[], sessionId: string | u
     return last;
 }
 
+// (item 55) UNUSED since git rows became standalone tool-call nodes (deriveToolCallNodes) — kept
+// per the comment-out-don't-delete convention; delete once the tool-row layout is confirmed.
 // Per git operation: the FIRST agent-turn node of its own session at or after it — the snapshot
 // attribution rule, reusing its owner check. An operation after the session's last reply (e.g. a
 // final commit) falls back to that last turn so no recorded git command is silently dropped.
@@ -477,22 +530,30 @@ function deriveCommitNodes(document: WireTimelineDocument): CommitNode[] {
 }
 
 // One session-end node per distinct session (insertion order), timestamped at the session's last
-// turn; compareTimelineNodes ranks it after everything else sharing that timestamp. Unattributed
-// turns (no sessionId — e.g. script executions) are not a session and get no end node.
-function appendSessionEndNodes(turnNodes: (TurnNode | SessionEndNode)[]): void {
+// turn OR tool call — the end node closes the session after everything in it (a trailing `git
+// add` row must precede its session end, item 55); compareTimelineNodes ranks it after everything
+// else sharing that timestamp. Unattributed turns (no sessionId — e.g. script executions) are not
+// a session and get no end node.
+function appendSessionEndNodes(turnNodes: (TurnNode | SessionEndNode)[], toolCallNodes: ToolCallNode[]): void {
     const lastTurnTimes = new Map<string, string>();
-    for (const node of turnNodes) {
-        if (node.sessionId === undefined) {
-            continue;
+    const noteSessionInstant = (sessionId: string | undefined, when: string): void => {
+        if (sessionId === undefined) {
+            return;
         }
-        const latest = lastTurnTimes.get(node.sessionId);
+        const latest = lastTurnTimes.get(sessionId);
         if (latest === undefined) {
-            lastTurnTimes.set(node.sessionId, node.when);
-            continue;
+            lastTurnTimes.set(sessionId, when);
+            return;
         }
-        if (node.when > latest) {
-            lastTurnTimes.set(node.sessionId, node.when);
+        if (when > latest) {
+            lastTurnTimes.set(sessionId, when);
         }
+    };
+    for (const node of turnNodes) {
+        noteSessionInstant(node.sessionId, node.when);
+    }
+    for (const node of toolCallNodes) {
+        noteSessionInstant(node.sessionId, node.when);
     }
     for (const [sessionId, when] of lastTurnTimes) {
         turnNodes.push({ kind: SESSION_END_NODE_KIND, when, sessionId, snapshots: [] });
@@ -500,11 +561,14 @@ function appendSessionEndNodes(turnNodes: (TurnNode | SessionEndNode)[]): void {
 }
 
 // Walk the sorted nodes: user turns, agent turns, and session ends get stepNumber 1..N
-// continuously across sessions; commit nodes stay unnumbered.
+// continuously across sessions; commit nodes and tool-call rows stay unnumbered.
 function assignStepNumbers(nodes: TimelineNode[]): void {
     let stepNumber = 0;
     for (const node of nodes) {
         if (node.kind === COMMIT_NODE_KIND) {
+            continue;
+        }
+        if (node.kind === TOOL_CALL_NODE_KIND) {
             continue;
         }
         stepNumber += 1;
@@ -538,11 +602,15 @@ function checkTurnIsOrphaned(snapshots: WireStepSnapshot[], revisionIndex: Revis
     return snapshots.every((snapshot) => checkStepIsOrphaned(snapshot, revisionIndex));
 }
 
-// fileChanges + isOrphaned on every non-commit node (user turns and session ends own no
-// snapshots, so they resolve to no chips and never orphaned).
+// fileChanges + isOrphaned on every turn/session-end node (user turns and session ends own no
+// snapshots, so they resolve to no chips and never orphaned); commit and tool-call nodes carry
+// no snapshots at all and are skipped.
 function deriveNodeFileChanges(nodes: TimelineNode[], revisionIndex: RevisionIndex): void {
     for (const node of nodes) {
         if (node.kind === COMMIT_NODE_KIND) {
+            continue;
+        }
+        if (node.kind === TOOL_CALL_NODE_KIND) {
             continue;
         }
         node.fileChanges = deriveMergedFileChanges(node.snapshots, revisionIndex);
@@ -581,41 +649,107 @@ export function buildTurnTimelineViewModel(document: WireTimelineDocument): { no
         gitOperations: [],
     }));
     attachSnapshotsToAgentTurns(turnNodes, document.steps);
-    attachGitOperationsToAgentTurns(turnNodes, document.gitOperations ?? []);
-    appendSessionEndNodes(turnNodes);
+    // (item 55) old: attachGitOperationsToAgentTurns(turnNodes, document.gitOperations ?? []);
+    // — git rows generalized into standalone tool-call nodes (every Bash call is a toolCall);
+    // gitOperations still feed deriveCommitNodes' hard stops.
+    const toolCallNodes = deriveToolCallNodes(document);
+    appendSessionEndNodes(turnNodes, toolCallNodes);
     const commitNodes = deriveCommitNodes(document);
-    const nodes = [...turnNodes, ...commitNodes].sort(compareTimelineNodes);
+    const nodes = [...turnNodes, ...commitNodes, ...toolCallNodes].sort(compareTimelineNodes);
     assignStepNumbers(nodes);
     deriveNodeFileChanges(nodes, revisionIndex);
     return { nodes };
 }
 
+// One un-bubbled row per document tool call (item 55); the sort interleaves them chronologically
+// with the turns they ran between.
+function deriveToolCallNodes(document: WireTimelineDocument): ToolCallNode[] {
+    return (document.toolCalls ?? []).map((call) => ({
+        kind: TOOL_CALL_NODE_KIND,
+        when: call.timestamp,
+        sessionId: call.sessionId,
+        uuid: call.uuid,
+        toolName: call.toolName,
+        summary: call.summary,
+        toolUseId: call.toolUseId,
+    }));
+}
+
+// A tool row's display text: first line only, capped at 50 chars, so the row's [{ }] button,
+// timestamp, and L:n label always stay visible (item 55, user-specified cap).
+const TOOL_CALL_SUMMARY_MAX_CHARS = 50;
+export function truncateToolCallSummary(summary: string): string {
+    const firstLine = summary.split("\n")[0]!;
+    if (firstLine.length <= TOOL_CALL_SUMMARY_MAX_CHARS) {
+        return firstLine;
+    }
+    return `${firstLine.slice(0, TOOL_CALL_SUMMARY_MAX_CHARS)}…`;
+}
+
 // True when an agent turn owns the raw line: one of its snapshots' changeIds appears verbatim in
-// the line text (the inverse of findLineForChangeId's substring convention).
+// the line text (the inverse of findLineForChangeId's substring convention), or the line IS the
+// turn's own message record (its "uuid":"…" field, item 55 — so stepping onto a reply's record
+// line selects the reply's step).
 function checkAgentTurnOwnsRawLine(node: TimelineNode, rawLineText: string): boolean {
     if (node.kind !== AGENT_TURN_NODE_KIND) {
         return false;
+    }
+    if (node.uuid !== undefined) {
+        if (rawLineText.includes(`"uuid":"${node.uuid}"`)) {
+            return true;
+        }
     }
     return node.snapshots.some((snapshot) =>
         snapshot.changeIds.some((changeId) => rawLineText.includes(changeId)));
 }
 
-// True when a user turn owns the raw line: its message uuid appears verbatim in the line text.
+// True when a tool-call row's own record IS the raw line (its "uuid":"…" field) — the ls row and
+// its rtk-rewrite row share a toolUseId, so each row's own line must resolve by record first.
+function checkToolCallOwnsRawLineByRecord(node: TimelineNode, rawLineText: string): boolean {
+    if (node.kind !== TOOL_CALL_NODE_KIND) {
+        return false;
+    }
+    return rawLineText.includes(`"uuid":"${node.uuid}"`);
+}
+
+// True when the raw line references a tool-call row's toolUseId verbatim — hook attachments and
+// tool_result records carry the toolu id, mapping those lines back to the call that ran (item 55).
+function checkToolCallOwnsRawLineByToolUseId(node: TimelineNode, rawLineText: string): boolean {
+    if (node.kind !== TOOL_CALL_NODE_KIND) {
+        return false;
+    }
+    return rawLineText.includes(node.toolUseId!);
+}
+
+// True when a user turn owns the raw line: the line IS its message record — the uuid must appear
+// as the record's own "uuid":"…" field. A bare-substring match would fire on lines that merely
+// REFERENCE the prompt (a file-history-snapshot's inner snapshot.messageId, a parentUuid) and
+// wrongly re-select an earlier step (the s39 lines-49/50 → Step 3 bug, item 55).
 function checkUserTurnOwnsRawLine(node: TimelineNode, rawLineText: string): boolean {
     if (node.kind !== USER_TURN_NODE_KIND) {
         return false;
     }
-    return rawLineText.includes(node.uuid!);
+    return rawLineText.includes(`"uuid":"${node.uuid!}"`);
 }
 
 // The index of the timeline node owning the raw JSONL line; -1 when no node matches (e.g. a
-// summary line carrying neither a changeId nor a prompt uuid). ChangeId matches win over uuid
-// matches: a file-history-snapshot line embeds BOTH a changeId and the uuid of the prompt that
-// triggered it, and such a line is about the file change, not the prompt.
+// summary line, or a snapshot line whose changeIds resolve to no node). Tiers, most specific
+// first: (1) agent turns by changeId / own record line — a file-history-snapshot line embeds BOTH
+// a changeId and the uuid of the prompt that triggered it, and such a line is about the file
+// change, not the prompt; (2) tool-call rows by their own record line; (3) tool-call rows by
+// toolUseId (hook attachments, tool_results); (4) user turns by their own record line.
 export function findTimelineNodeIndexForRawLine(nodes: TimelineNode[], rawLineText: string): number {
     const agentTurnIndex = nodes.findIndex((node) => checkAgentTurnOwnsRawLine(node, rawLineText));
     if (agentTurnIndex >= 0) {
         return agentTurnIndex;
+    }
+    const toolCallRecordIndex = nodes.findIndex((node) => checkToolCallOwnsRawLineByRecord(node, rawLineText));
+    if (toolCallRecordIndex >= 0) {
+        return toolCallRecordIndex;
+    }
+    const toolCallReferenceIndex = nodes.findIndex((node) => checkToolCallOwnsRawLineByToolUseId(node, rawLineText));
+    if (toolCallReferenceIndex >= 0) {
+        return toolCallReferenceIndex;
     }
     return nodes.findIndex((node) => checkUserTurnOwnsRawLine(node, rawLineText));
 }
@@ -644,6 +778,46 @@ export function computeUnattributedStepTag(eventKinds: string[]): string | undef
         return undefined;
     }
     return humanizedKinds.join(" · ");
+}
+
+// A diff block with no hunk lines (a rename block is just its kind header) renders as an
+// explanation instead of an empty-looking pane (item 47); multi-line blocks return undefined
+// (render as a diff).
+export function computeRevisionDiffFallbackText(block: string | undefined, change: FileChange): string | undefined {
+    if (block === undefined) {
+        return "(no diff block for this revision)";
+    }
+    if (block.trim().split("\n").length > 1) {
+        return undefined;
+    }
+    if (change.renamedFrom !== undefined) {
+        return `renamed ${change.renamedFrom} → ${change.path} (content unchanged)`;
+    }
+    return `${block.trim()}\n(no content change in this revision)`;
+}
+
+// An agent turn with no reply text is tool activity, not a reply (item 52): file chips mean
+// the step shows tool RESULTS. Replies (non-blank text) and chip-less turns return undefined.
+// (item 55) the "tool call" branch is retired — git rows moved out of turn bubbles into
+// standalone tool-call nodes, so a blank turn whose only content is gitOperations no longer
+// exists; the parameter stays for wire-shape compatibility.
+export function computeToolActivityTag(node: {
+    kind: string;
+    text: string;
+    fileChanges?: FileChange[];
+    gitOperations?: readonly unknown[];
+}): string | undefined {
+    if (node.kind !== AGENT_TURN_NODE_KIND) {
+        return undefined;
+    }
+    if (node.text.trim() !== "") {
+        return undefined;
+    }
+    if ((node.fileChanges ?? []).length > 0) {
+        return "tool result";
+    }
+    // (item 55) old: if ((node.gitOperations ?? []).length > 0) { return "tool call"; }
+    return undefined;
 }
 
 // ─── render half (DOM only — every computation lives in the view-model above) ───────────────────
@@ -945,6 +1119,13 @@ export async function renderTimelineView(container: HTMLElement, project: string
         // The turn's final state of the file: the LAST owned snapshot that carries it.
         const carrier = [...node.snapshots].reverse().find((snapshot) => snapshot.files[change.path] !== undefined);
         const content = carrier?.files[change.path];
+        // (item 49) old: el("div", { class: "timeline-preview", text: content ?? "(no snapshot carries this file at this step)" })
+        const contentPane = el("div", { class: "timeline-preview" });
+        if (content === undefined) {
+            contentPane.textContent = "(no snapshot carries this file at this step)";
+        } else {
+            renderCodeInto(contentPane, content, change.path);
+        }
         drawer.append(
             el("div", { class: "timeline-preview-head" }, [
                 el("span", { text: `${change.path} · state at step ${node.stepNumber}` }),
@@ -954,43 +1135,48 @@ export async function renderTimelineView(container: HTMLElement, project: string
                     onclick: () => downloadText(`${computeBaseName(change.path)}.step${node.stepNumber}`, content ?? ""),
                 }),
             ]),
-            el("div", { class: "timeline-preview", text: content ?? "(no snapshot carries this file at this step)" }),
+            contentPane,
         );
     };
 
-    // The revision's RESULT line: among the lines carrying the changeId, the tool result (the
-    // record holding the toolUseResult/structuredPatch payload) beats the tool_use call that
-    // merely requested it; first match is the fallback.
-    const findRevisionResultLine = async (changeId: string): Promise<TranscriptLocation | undefined> => {
-        for (const file of listing?.jsonlFiles ?? []) {
-            const rawLines = await fetchRawRecords(project, file.fileName);
-            const matches: number[] = [];
-            rawLines.forEach((text, line) => {
-                if (text.includes(changeId)) {
-                    matches.push(line);
-                }
-            });
-            if (matches.length === 0) {
-                continue;
-            }
-            const resultLine = matches.find((line) => rawLines[line]!.includes('"toolUseResult"'));
-            return { jsonlName: file.fileName, rawLines, line: resultLine ?? matches[0]! };
-        }
-        return undefined;
-    };
+    // (item 47) dead since the chip's { } retarget to openTurnInspector — the user chose the
+    // bubble's own message line over the revision-causing tool_result line. Delete after the
+    // retarget is confirmed working.
+    // // The revision's RESULT line: among the lines carrying the changeId, the tool result (the
+    // // record holding the toolUseResult/structuredPatch payload) beats the tool_use call that
+    // // merely requested it; first match is the fallback.
+    // const findRevisionResultLine = async (changeId: string): Promise<TranscriptLocation | undefined> => {
+    //     for (const file of listing?.jsonlFiles ?? []) {
+    //         const rawLines = await fetchRawRecords(project, file.fileName);
+    //         const matches: number[] = [];
+    //         rawLines.forEach((text, line) => {
+    //             if (text.includes(changeId)) {
+    //                 matches.push(line);
+    //             }
+    //         });
+    //         if (matches.length === 0) {
+    //             continue;
+    //         }
+    //         const resultLine = matches.find((line) => rawLines[line]!.includes('"toolUseResult"'));
+    //         return { jsonlName: file.fileName, rawLines, line: resultLine ?? matches[0]! };
+    //     }
+    //     return undefined;
+    // };
+    //
+    // // { } button: the raw JSONL record that caused this revision (the structuredPatch line),
+    // // opened in the details pane — distinct from the turn click, which opens the MESSAGE's line.
+    // const showRevisionJson = async (change: FileChange, previewPane: HTMLElement): Promise<void> => {
+    //     const located = await findRevisionResultLine(change.changeId!);
+    //     if (located === undefined) {
+    //         previewPane.classList.remove("hidden");
+    //         previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this revision (synthetic change id)" }));
+    //         return;
+    //     }
+    //     openTranscriptInspectorSynced(located);
+    // };
 
-    // { } button: the raw JSONL record that caused this revision (the structuredPatch line),
-    // opened in the details pane — distinct from the turn click, which opens the MESSAGE's line.
-    const showRevisionJson = async (change: FileChange, previewPane: HTMLElement): Promise<void> => {
-        const located = await findRevisionResultLine(change.changeId!);
-        if (located === undefined) {
-            previewPane.classList.remove("hidden");
-            previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this revision (synthetic change id)" }));
-            return;
-        }
-        openTranscriptInspectorSynced(located);
-    };
-
+    // (item 55) UNUSED since git rows became tool-call rows (openToolCallLine below) — kept per
+    // the comment-out-don't-delete convention; delete once the tool-row layout is confirmed.
     // { } button on a git row: the Bash tool_use line that ran the command, matched by the
     // record's OWN uuid field (the turn-click convention — a bare-uuid scan could land on a line
     // that merely references it).
@@ -1009,6 +1195,26 @@ export async function renderTimelineView(container: HTMLElement, project: string
         if (line < 0) {
             previewPane.classList.remove("hidden");
             previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this git command" }));
+            return;
+        }
+        openTranscriptInspectorSynced({ jsonlName, rawLines, line });
+    };
+
+    // { } button on a tool-call row (item 55): the tool_use record's line (or the hook attachment
+    // that rewrote the command), matched by the record's OWN uuid field. The inspector's
+    // line-sync then selects the row itself.
+    const openToolCallLine = async (node: ToolCallNode, previewPane: HTMLElement): Promise<void> => {
+        const jsonlName = node.sessionId === undefined ? undefined : findJsonlForSession(node.sessionId);
+        if (jsonlName === undefined) {
+            previewPane.classList.remove("hidden");
+            previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this tool call" }));
+            return;
+        }
+        const rawLines = await fetchRawRecords(project, jsonlName);
+        const line = findLineForChangeId(rawLines, `"uuid":"${node.uuid}"`);
+        if (line < 0) {
+            previewPane.classList.remove("hidden");
+            previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this tool call" }));
             return;
         }
         openTranscriptInspectorSynced({ jsonlName, rawLines, line });
@@ -1034,16 +1240,24 @@ export async function renderTimelineView(container: HTMLElement, project: string
         params.set("mode", "revisions");
         const blocks = splitDiffBlocks(await fetchText(`/api/diff?${params}`));
         const diffPane = el("div", { class: "timeline-preview" });
-        renderDiffText(diffPane, blocks[revisionNumber] ?? "(no diff block for this revision)");
+        // (item 47) old: renderDiffText(diffPane, blocks[revisionNumber] ?? "(no diff block for this revision)");
+        const fallbackText = computeRevisionDiffFallbackText(blocks[revisionNumber], change);
+        if (fallbackText === undefined) {
+            renderDiffText(diffPane, blocks[revisionNumber]!);
+        } else {
+            diffPane.append(el("div", { class: "muted", text: fallbackText }));
+        }
         drawer.append(
             el("div", { class: "timeline-preview-head", text: `${change.path} · diff for revision ${revisionNumber + 1} (vs previous)` }),
             diffPane,
         );
     };
 
-    // One file's button row: [ name ] [{ }] [+/-] — revision state, the JSON that caused the
-    // revision, and the revision's computed diff. The action buttons need a resolvable changeId.
-    const renderFileButtonRow = (node: TurnNode, change: FileChange, previewPane: HTMLElement): HTMLElement => {
+    // One file's button row: [ name ] [{ }] [+/-] [⤷] <TS> L:n — revision state, the file's OWN
+    // causing line, the revision's computed diff, the snapshot jump, and the causing line's
+    // timestamp + label (item 55). The action buttons need a resolvable changeId.
+    const renderFileButtonRow = (node: TurnNode, nodeIndex: number, change: FileChange, previewPane: HTMLElement): HTMLElement => {
+        const causingLocation = chipLineLocations.get(`${nodeIndex}:${change.path}`);
         const buttons = [renderFileChip(change, (event: Event) => {
             event.stopPropagation();
             showFilePreview(node, change, event.currentTarget as HTMLElement);
@@ -1051,11 +1265,18 @@ export async function renderTimelineView(container: HTMLElement, project: string
         if (change.changeId !== undefined) {
             buttons.push(el("span", {
                 class: "timeline-chip timeline-chip-action",
-                title: "Show JSON for revision in inspector",
+                title: "Show this file's causing record in inspector",
                 text: "{ }",
                 onclick: (event: Event) => {
                     event.stopPropagation();
-                    showRevisionJson(change, previewPane);
+                    // (item 55, closing item 53) old: openTurnInspector(node, previewPane); —
+                    // reverted item 47b: the chip opens its file's OWN causing line (e.g. the
+                    // Write tool_use), user-decided; synthetic changeIds keep the turn fallback.
+                    if (causingLocation === undefined) {
+                        openTurnInspector(node, previewPane);
+                        return;
+                    }
+                    openTranscriptInspectorSynced(causingLocation);
                 },
             }));
             buttons.push(el("span", {
@@ -1080,9 +1301,20 @@ export async function renderTimelineView(container: HTMLElement, project: string
                 }));
             }
         }
+        // The chip row's meta (item 55): the snapshot's timestamp, plus the causing line's
+        // L:n label when it resolved (same numbering as the details pane).
+        buttons.push(el("span", { class: "timeline-time", text: new Date(change.when).toLocaleTimeString() }));
+        if (causingLocation !== undefined) {
+            buttons.push(el("span", {
+                class: "timeline-time",
+                text: `L:${causingLocation.line} (of ${causingLocation.rawLines.length - 1})`,
+            }));
+        }
         return el("div", { class: "timeline-chip-row" }, buttons);
     };
 
+    // (item 55) UNUSED since git rows became tool-call rows (the TOOL_CALL_NODE_KIND branch
+    // below) — kept per the comment-out-don't-delete convention; delete once confirmed.
     // One git row: `* git <label> * (time)` plus a { } button opening the Bash tool_use line that
     // ran the command in the details pane (same button shape as the file rows').
     const renderGitOperationRow = (operation: WireGitOperation, previewPane: HTMLElement): HTMLElement => {
@@ -1123,6 +1355,24 @@ export async function renderTimelineView(container: HTMLElement, project: string
         }
         // Numbered exactly like the details pane's "line <n> / <max>" (0-based, max index).
         lineLabels.set(index, `L:${line} (of ${rawLines.length - 1})`);
+    }
+
+    // Per-chip causing-line locations (item 55): each chip's { } opens its file's OWN causing
+    // record (the Write/Edit tool_use line — reverting item 47b, user-decided) and its row shows
+    // that line's L:n label. Synthetic changeIds resolve to no entry; their chips fall back to
+    // the turn's own message line. Keyed `${nodeIndex}:${path}` (chips are deduped by path).
+    const chipLineLocations = new Map<string, TranscriptLocation>();
+    for (const [index, node] of nodes.entries()) {
+        for (const change of node.fileChanges ?? []) {
+            if (change.changeId === undefined) {
+                continue;
+            }
+            const located = await findTranscriptLineForChangeId(change.changeId);
+            if (located === undefined) {
+                continue;
+            }
+            chipLineLocations.set(`${index}:${change.path}`, located);
+        }
     }
 
     // The row's right-edge meta column: the timestamp with the turn's JSONL line label under it.
@@ -1190,14 +1440,18 @@ export async function renderTimelineView(container: HTMLElement, project: string
                 el("span", { class: "timeline-prompt", text: `“${node.text}”` }),
                 renderRowMeta(node, index),
             ]);
-            rowTop.addEventListener("click", () => {
+            rowTop.addEventListener("click", async () => {
                 if (selectedRow !== null) {
                     selectedRow.classList.remove("selected");
                 }
                 selectedRow = row;
                 row.classList.add("selected");
                 drawRail();
-                openTurnInspector(node, previewPane);
+                await openTurnInspector(node, previewPane);
+                // (item 50) the drawer open narrows the timeline column and reflows every
+                // bubble; center the clicked row against the post-drawer layout (same fix
+                // as item 37's anchor route).
+                row.scrollIntoView({ block: "center" });
             });
             row.append(rowTop);
         }
@@ -1213,6 +1467,8 @@ export async function renderTimelineView(container: HTMLElement, project: string
                 rowTop.addEventListener("click", async () => {
                     const rawLines = await fetchRawRecords(project, jsonlName);
                     openTranscriptInspectorSynced({ jsonlName, rawLines, line: rawLines.length - 1 });
+                    // (item 50) same post-drawer centering as the turn handlers.
+                    row.scrollIntoView({ block: "center" });
                 });
             }
             row.append(rowTop);
@@ -1236,8 +1492,17 @@ export async function renderTimelineView(container: HTMLElement, project: string
             const unattributedTag = sessionKey === UNATTRIBUTED_SESSION_LABEL
                 ? computeUnattributedStepTag(node.fileChanges!.map((change) => change.eventKind))
                 : undefined;
+            // Tool-activity turns (no reply text, only tool calls/results) read as their own
+            // category: violet bubble variant + a "tool call"/"tool result" tag (item 52).
+            const toolActivityTag = computeToolActivityTag(node);
+            if (toolActivityTag !== undefined) {
+                row.classList.add("tool-activity");
+            }
             const rowTop = el("div", { class: "timeline-row-top" }, [
                 el("span", { class: "timeline-step-label", text: `Step ${node.stepNumber}` }),
+                ...(toolActivityTag === undefined
+                    ? []
+                    : [el("span", { class: "timeline-tag tool-activity-tag", text: toolActivityTag })]),
                 ...(node.isOrphaned ? [el("span", { class: "timeline-tag", text: "orphaned" })] : []),
                 ...(unattributedTag === undefined
                     ? []
@@ -1245,22 +1510,50 @@ export async function renderTimelineView(container: HTMLElement, project: string
                 el("span", { class: "timeline-prompt", text: node.text }),
                 renderRowMeta(node, index),
             ]);
-            rowTop.addEventListener("click", () => {
+            rowTop.addEventListener("click", async () => {
                 if (selectedRow !== null) {
                     selectedRow.classList.remove("selected");
                 }
                 selectedRow = row;
                 row.classList.add("selected");
                 drawRail();
-                openTurnInspector(node, previewPane);
+                await openTurnInspector(node, previewPane);
+                // (item 50) the drawer open narrows the timeline column and reflows every
+                // bubble; center the clicked row against the post-drawer layout (same fix
+                // as item 37's anchor route).
+                row.scrollIntoView({ block: "center" });
             });
             row.append(rowTop);
-            if (node.gitOperations.length > 0) {
-                row.append(el("div", { class: "timeline-gitops" },
-                    node.gitOperations.map((operation) => renderGitOperationRow(operation, previewPane))));
-            }
+            // (item 55) old: git rows rendered inside the turn bubble — now standalone
+            // tool-call rows (the TOOL_CALL_NODE_KIND branch below).
+            // if (node.gitOperations.length > 0) {
+            //     row.append(el("div", { class: "timeline-gitops" },
+            //         node.gitOperations.map((operation) => renderGitOperationRow(operation, previewPane))));
+            // }
             row.append(el("div", { class: "timeline-chips" },
-                node.fileChanges!.map((change) => renderFileButtonRow(node, change, previewPane))));
+                node.fileChanges!.map((change) => renderFileButtonRow(node, index, change, previewPane))));
+            row.append(previewPane);
+        }
+        if (node.kind === TOOL_CALL_NODE_KIND) {
+            // Un-bubbled one-liner (item 55): `* <summary, 50 chars> * [{ }] <TS> L:n (of N)`.
+            const rowTop = el("div", { class: "timeline-row-top" }, [
+                el("span", {
+                    class: "timeline-gitop",
+                    text: `* ${truncateToolCallSummary(node.summary)} *`,
+                    title: `${node.toolName}: ${node.summary}`,
+                }),
+                el("span", {
+                    class: "timeline-chip timeline-chip-action",
+                    title: "Show this tool call's JSON in inspector",
+                    text: "{ }",
+                    onclick: (event: Event) => {
+                        event.stopPropagation();
+                        openToolCallLine(node, previewPane);
+                    },
+                }),
+                renderRowMeta(node, index),
+            ]);
+            row.append(rowTop);
             row.append(previewPane);
         }
         body.append(row);
@@ -1330,6 +1623,10 @@ export async function renderTimelineView(container: HTMLElement, project: string
                 continue;
             }
             if (child.dataset.nodeKind === undefined) {
+                continue;
+            }
+            // (item 55) tool-call rows get no rail dot — the spine runs straight through them.
+            if (child.dataset.nodeKind === TOOL_CALL_NODE_KIND) {
                 continue;
             }
             const cy = child.offsetTop + 18;   // dot on the row's first line (rows grow with previews)

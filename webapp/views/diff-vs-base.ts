@@ -46,7 +46,9 @@ function computeFullRowLineClass(line: string): string {
 
 // The standard numeric hunk header the server's context renderer emits inside a revision
 // block; groups 1/2 are the 1-based old/new start lines that seed the gutter counters.
-const NUMERIC_HUNK_HEADER = /^@@ -(\d+),\d+ \+(\d+),\d+ @@/;
+// git omits ",count" when a side's count is 1, so each count is optional (item 51).
+// const NUMERIC_HUNK_HEADER = /^@@ -(\d+),\d+ \+(\d+),\d+ @@/;  // item 51: pre-git mandatory counts
+const NUMERIC_HUNK_HEADER = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
 
 // A split-view cell; lineNumber is set only when a numeric hunk header has seeded that side.
 function buildSplitCell(text: string, lineClass: string, lineNumber: number | undefined): SplitCell {

@@ -14,6 +14,7 @@ import {
     routeToTimeline,
 } from "../app.ts";
 import { downloadText } from "./download.ts";
+import { renderCodeInto } from "../highlight.ts";
 
 // app.ts is being typed in parallel; typed view of its untyped `el` for this file's call sites.
 const el = elUntyped as (
@@ -212,7 +213,13 @@ export async function renderFileHistoryView(container: HTMLElement, project: str
 
     const anchoredRevisionIndex = computeAnchoredRevisionIndex(anchorRev, viewModel.revisions.length);
     viewModel.revisions.forEach((revision, index) => {
-        const contentPane = el("pre", { class: "revision-content hidden", text: revision.content ?? "(no step snapshot carries this file yet)" });
+        // const contentPane = el("pre", { class: "revision-content hidden", text: revision.content ?? "(no step snapshot carries this file yet)" }); // (item 49)
+        const contentPane = el("pre", { class: "revision-content hidden" });
+        if (revision.content === undefined) {
+            contentPane.textContent = "(no step snapshot carries this file yet)";
+        } else {
+            renderCodeInto(contentPane, revision.content, target);
+        }
         const revisionRow = el("div", { class: "revision-row" }, [
             el("div", { class: "revision-head" }, [
                 el("span", { class: "muted", text: `#${index + 1}` }),

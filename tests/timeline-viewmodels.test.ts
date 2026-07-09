@@ -9,6 +9,8 @@ import {
     buildTurnTimelineViewModel,
     computePickSegments,
     computeSnapshotJumpRoute,
+    computeRevisionDiffFallbackText,
+    computeToolActivityTag,
     computeUnattributedStepTag,
     checkPickIsLegal,
     checkSelectionBlocksBackgroundClose,
@@ -17,16 +19,19 @@ import {
     findTimelineNodeIndexForRawLine,
     indexRevisionsByChangeId,
     splitPatchByFile,
+    truncateToolCallSummary,
     COMMIT_NODE_KIND,
     USER_TURN_NODE_KIND,
     AGENT_TURN_NODE_KIND,
     SESSION_END_NODE_KIND,
+    TOOL_CALL_NODE_KIND,
 } from "../webapp/views/timeline.ts";
 import { routeToFileHistory } from "../webapp/app.ts";
 import { buildProjectDocument, renderRangePatch } from "../src/viewer_api.ts";
 import { Path } from "../src/structures/domain.ts";
 import { RecordType, EventKind, GitOperationKind } from "../src/structures/vocabulary.ts";
-import { S2_JSONL, S45_JSONL, S40_JSONL_PATHS, S84_JSONL_PATHS, S85_JSONL_PATHS } from "./fixtures.ts";
+import { readFileSync } from "node:fs";
+import { S2_JSONL, S45_JSONL, S39_JSONL_PATHS, S40_JSONL_PATHS, S84_JSONL_PATHS, S85_JSONL_PATHS } from "./fixtures.ts";
 
 // Built once per scenario — wire shape, shared read-only across tests.
 const s84Document = JSON.parse(JSON.stringify(buildProjectDocument(S84_JSONL_PATHS, undefined)));
@@ -34,6 +39,14 @@ const s85Document = JSON.parse(JSON.stringify(buildProjectDocument(S85_JSONL_PAT
 const s2Document = JSON.parse(JSON.stringify(buildProjectDocument([new Path(S2_JSONL)], undefined)));
 const s45Document = JSON.parse(JSON.stringify(buildProjectDocument([new Path(S45_JSONL)], undefined)));
 const s40Document = JSON.parse(JSON.stringify(buildProjectDocument(S40_JSONL_PATHS, undefined)));
+// s39's git-baseline seed session alone (item 55): its tool calls and raw lines are known
+// line-by-line (git init L32, ls L33, rtk-rewrite hook L39, mkdir L44, Writes L51/L55).
+const S39_SEED_JSONL_PATH = S39_JSONL_PATHS.find((path) => path.toString().includes("b9783f4b"))!;
+const s39SeedDocument = JSON.parse(JSON.stringify(buildProjectDocument([S39_SEED_JSONL_PATH], undefined)));
+// Raw lines split exactly like webapp/app.ts fetchRawRecords (non-blank lines only).
+const s39SeedRawLines = readFileSync(S39_SEED_JSONL_PATH.toString(), "utf8")
+    .split("\n")
+    .filter((line) => line.trim().length > 0);
 
 test("test_timeline_nodes_are_chronological_across_sessions", () => {
     // Scenario: a multi-agent project's nodes form ONE strictly chronological timeline, however
@@ -854,4 +867,226 @@ test("test_computeUnattributedStepTag_returns_undefined_for_no_kinds", () => {
     // Steps:
     // assert an empty kind list yields undefined.
     assert.equal(computeUnattributedStepTag([]), undefined);
+});
+
+test("test_computeRevisionDiffFallbackText_explains_a_missing_block", () => {
+    // Scenario: the +/- drawer got no block for this revision (item 47).
+    // Steps:
+    // assert an undefined block yields the "no diff block" message.
+    const change = { path: "/tmp/a.py", eventKind: EventKind.rename, renamedFrom: undefined, isFirstRevision: false, changeId: "c1", when: "2026-01-01T00:00:00.000Z" };
+    assert.equal(computeRevisionDiffFallbackText(undefined, change), "(no diff block for this revision)");
+});
+
+test("test_computeRevisionDiffFallbackText_explains_a_rename_block", () => {
+    // Scenario: a rename revision's block is its kind header alone (renderDiffWithContext emits
+    // no body for renames), which rendered as an empty-looking +/- pane (item 47, s84 Step 17).
+    // Steps:
+    // assert a single-line block on a renamedFrom-carrying change yields the rename explanation.
+    const change = { path: "/tmp/core_inventory.py", eventKind: EventKind.rename, renamedFrom: "/tmp/inventory.py", isFirstRevision: false, changeId: "c1", when: "2026-01-01T00:00:00.000Z" };
+    const block = "@@ renamed /tmp/inventory.py → /tmp/core_inventory.py @ 2026-07-01T20:51:55.964Z @@";
+    assert.equal(
+        computeRevisionDiffFallbackText(block, change),
+        "renamed /tmp/inventory.py → /tmp/core_inventory.py (content unchanged)",
+    );
+});
+
+test("test_computeRevisionDiffFallbackText_passes_real_diff_blocks_through", () => {
+    // Scenario: a block with hunk lines renders as a diff, not as fallback text.
+    // Steps:
+    // assert a multi-line block yields undefined.
+    const change = { path: "/tmp/a.py", eventKind: EventKind.overwrite, renamedFrom: undefined, isFirstRevision: false, changeId: "c1", when: "2026-01-01T00:00:00.000Z" };
+    const block = "@@ changed @ 2026-07-01T20:50:14.283Z @@\n@@ -1,2 +1,2 @@\n-old\n+new";
+    assert.equal(computeRevisionDiffFallbackText(block, change), undefined);
+});
+
+test("test_computeToolActivityTag_tags_chip_carrying_blank_turns_as_tool_result", () => {
+    // Scenario: an agent turn with no reply text but file chips is tool activity — the chips
+    // show tool RESULTS (item 52; s39 Step 5).
+    // Steps:
+    // assert a blank-text agent turn with a file change is tagged "tool result".
+    const change = { path: "/tmp/a.py", eventKind: EventKind.overwrite, renamedFrom: undefined, isFirstRevision: true, changeId: "c1", when: "2026-01-01T00:00:00.000Z" };
+    assert.equal(
+        computeToolActivityTag({ kind: AGENT_TURN_NODE_KIND, text: "", fileChanges: [change], gitOperations: [] }),
+        "tool result",
+    );
+});
+
+// (item 55) the "tool call" branch is retired — git rows moved out of agent-turn bubbles into
+// standalone tool-call nodes, so a blank turn with only gitOperations no longer exists.
+// test("test_computeToolActivityTag_tags_gitop_only_blank_turns_as_tool_call", () => {
+//     // Scenario: a blank agent turn with only git rows shows the Bash tool CALLS that ran them.
+//     // Steps:
+//     // assert a blank-text agent turn with a git operation and no chips is tagged "tool call".
+//     const operation = { kind: GitOperationKind.commit, when: "2026-01-01T00:00:00.000Z" };
+//     assert.equal(
+//         computeToolActivityTag({ kind: AGENT_TURN_NODE_KIND, text: " ", fileChanges: [], gitOperations: [operation] }),
+//         "tool call",
+//     );
+// });
+test("test_computeToolActivityTag_ignores_gitop_only_blank_turns", () => {
+    // Scenario (item 55): git rows are standalone tool-call nodes now — a blank agent turn whose
+    // only content is gitOperations gets NO tag (the old "tool call" tag is retired).
+    // Steps:
+    // assert a blank-text agent turn with a git operation and no chips is untagged.
+    const operation = { kind: GitOperationKind.commit, when: "2026-01-01T00:00:00.000Z" };
+    assert.equal(
+        computeToolActivityTag({ kind: AGENT_TURN_NODE_KIND, text: " ", fileChanges: [], gitOperations: [operation] }),
+        undefined,
+    );
+});
+
+test("test_computeToolActivityTag_ignores_replies_and_user_turns", () => {
+    // Scenario: real replies (non-blank text) and user turns are never tool activity.
+    // Steps:
+    // assert a texted agent turn with chips gets no tag; a user turn gets no tag.
+    const change = { path: "/tmp/a.py", eventKind: EventKind.overwrite, renamedFrom: undefined, isFirstRevision: true, changeId: "c1", when: "2026-01-01T00:00:00.000Z" };
+    assert.equal(
+        computeToolActivityTag({ kind: AGENT_TURN_NODE_KIND, text: "Done.", fileChanges: [change], gitOperations: [] }),
+        undefined,
+    );
+    assert.equal(
+        computeToolActivityTag({ kind: USER_TURN_NODE_KIND, text: "", fileChanges: [], gitOperations: [] }),
+        undefined,
+    );
+});
+
+// ─── tool-call rows (item 55): every non-file-edit tool call is an un-bubbled timeline node ─────
+
+test("test_document_ships_tool_calls_on_the_wire", () => {
+    // Scenario: the wire document carries toolCalls[] so the timeline can render tool rows.
+    // Steps:
+    // assert the seed session ships its six calls (git init, ls, rtk ls, mkdir, git add,
+    // rtk git add) with string-serialized fields.
+    assert.ok(s39SeedDocument.toolCalls.length >= 6);
+    for (const call of s39SeedDocument.toolCalls) {
+        assert.equal(typeof call.uuid, "string");
+        assert.equal(typeof call.toolUseId, "string");
+        assert.equal(typeof call.timestamp, "string");
+        assert.equal(typeof call.summary, "string");
+        assert.equal(typeof call.toolName, "string");
+    }
+});
+
+test("test_tool_call_nodes_sort_between_reply_and_files_bubble", () => {
+    // Scenario: s39's reply "Setting up the repo…" precedes its tool calls; the four commands
+    // before the Writes must render as rows between the reply bubble and the files bubble, the
+    // post-Write git add rows between the files bubble and the session end.
+    // Steps:
+    // build the seed-session timeline.
+    const { nodes } = buildTurnTimelineViewModel(s39SeedDocument);
+    const findToolRow = (prefix: string) => nodes.findIndex((node) =>
+        node.kind === TOOL_CALL_NODE_KIND && node.summary!.startsWith(prefix));
+    const replyIndex = nodes.findIndex((node) =>
+        node.kind === AGENT_TURN_NODE_KIND && (node.text ?? "").startsWith("Setting up the repo"));
+    const filesBubbleIndex = nodes.findIndex((node) =>
+        node.kind === AGENT_TURN_NODE_KIND && node.text === "" && (node.fileChanges ?? []).length === 2);
+    const sessionEndIndex = nodes.findIndex((node) => node.kind === SESSION_END_NODE_KIND);
+    // the pre-Write commands sit between the reply bubble and the files bubble, in run order.
+    assert.ok(replyIndex >= 0 && filesBubbleIndex >= 0 && sessionEndIndex >= 0);
+    assert.ok(replyIndex < findToolRow("git init"));
+    assert.ok(findToolRow("git init") < findToolRow("ls /private/"));
+    assert.ok(findToolRow("ls /private/") < findToolRow("rtk ls "));
+    assert.ok(findToolRow("rtk ls ") < findToolRow("mkdir -p"));
+    assert.ok(findToolRow("mkdir -p") < filesBubbleIndex);
+    // the post-Write git add (and its rtk rewrite) sit after the files bubble, BEFORE the
+    // session end — the end node closes the session after everything in it.
+    assert.ok(filesBubbleIndex < findToolRow("git add"));
+    assert.ok(findToolRow("git add") < findToolRow("rtk git add"));
+    assert.ok(findToolRow("rtk git add") < sessionEndIndex);
+});
+
+test("test_tool_call_nodes_are_never_numbered", () => {
+    // Scenario: tool rows are not steps — numbering must skip them (like commit nodes), so the
+    // seed session keeps its six numbered steps ending with the session end.
+    // Steps:
+    // build the seed-session timeline.
+    const { nodes } = buildTurnTimelineViewModel(s39SeedDocument);
+    // assert every tool-call node is unnumbered.
+    for (const node of nodes.filter((entry) => entry.kind === TOOL_CALL_NODE_KIND)) {
+        assert.equal(node.stepNumber, undefined);
+    }
+    // assert the session-end step keeps step number 6 (steps 1-5 are the conversation turns).
+    const sessionEnd = nodes.find((node) => node.kind === SESSION_END_NODE_KIND);
+    assert.equal(sessionEnd!.stepNumber, 6);
+});
+
+test("test_find_node_for_raw_line_maps_hook_attachment_to_its_tool_call", () => {
+    // Scenario: raw line 48 is a PostToolUse hook attachment carrying the mkdir toolUseID — the
+    // inspector's Prev/Next sync must land on the mkdir tool row, never an earlier prompt step.
+    // Steps:
+    // build the seed-session timeline and look up raw line 48.
+    const { nodes } = buildTurnTimelineViewModel(s39SeedDocument);
+    const nodeIndex = findTimelineNodeIndexForRawLine(nodes, s39SeedRawLines[48]!);
+    // the owning node is the mkdir tool-call row.
+    assert.ok(nodeIndex >= 0);
+    assert.equal(nodes[nodeIndex]!.kind, TOOL_CALL_NODE_KIND);
+    assert.ok(nodes[nodeIndex]!.summary!.startsWith("mkdir -p"));
+});
+
+test("test_find_node_for_raw_line_keeps_selection_on_snapshot_lines", () => {
+    // Scenario (the reported bug): raw lines 49/50 are file-history-snapshot records whose inner
+    // snapshot.messageId is the Step-3 PROMPT's uuid — the bare-substring uuid match selected
+    // Step 3. Snapshot lines owned by no node must return -1 (selection unchanged).
+    // Steps:
+    // build the seed-session timeline and look up both snapshot lines.
+    const { nodes } = buildTurnTimelineViewModel(s39SeedDocument);
+    // neither snapshot line resolves to any node (their changeIds are the Write toolu ids, which
+    // do not appear in the snapshot lines; the prompt uuid appears only as "messageId").
+    assert.equal(findTimelineNodeIndexForRawLine(nodes, s39SeedRawLines[49]!), -1);
+    assert.equal(findTimelineNodeIndexForRawLine(nodes, s39SeedRawLines[50]!), -1);
+});
+
+test("test_find_node_for_raw_line_matches_agent_turns_own_message_line", () => {
+    // Scenario: stepping the inspector onto a reply's own record line (raw line 31, the
+    // "Setting up the repo…" text record) must select that reply's step.
+    // Steps:
+    // build the seed-session timeline and look up raw line 31.
+    const { nodes } = buildTurnTimelineViewModel(s39SeedDocument);
+    const nodeIndex = findTimelineNodeIndexForRawLine(nodes, s39SeedRawLines[31]!);
+    // the owning node is the reply agent turn.
+    assert.ok(nodeIndex >= 0);
+    assert.equal(nodes[nodeIndex]!.kind, AGENT_TURN_NODE_KIND);
+    assert.ok(nodes[nodeIndex]!.text!.startsWith("Setting up the repo"));
+});
+
+test("test_user_turn_uuid_match_requires_uuid_key_form", () => {
+    // Scenario: a user turn owns a raw line only when the line IS its record — the uuid must
+    // appear as a "uuid":"…" field, not merely referenced (snapshot messageId, parentUuid).
+    // Steps:
+    // build s2's turn timeline and take its first user turn.
+    const { nodes } = buildTurnTimelineViewModel(s2Document);
+    const userNodeIndex = nodes.findIndex((node) => node.kind === USER_TURN_NODE_KIND);
+    const userUuid = nodes[userNodeIndex]!.uuid;
+    // a line referencing the uuid as a messageId matches nothing.
+    assert.equal(findTimelineNodeIndexForRawLine(nodes, `{"messageId":"${userUuid}"}`), -1);
+    // the record's own "uuid":"…" form still matches the user turn.
+    assert.equal(findTimelineNodeIndexForRawLine(nodes, `{"uuid":"${userUuid}"}`), userNodeIndex);
+});
+
+test("test_file_changes_carry_snapshot_timestamp", () => {
+    // Scenario: chip rows show a per-chip timestamp — each FileChange carries the `when` of the
+    // snapshot that contributed it.
+    // Steps:
+    // build the seed-session timeline and take the files bubble.
+    const { nodes } = buildTurnTimelineViewModel(s39SeedDocument);
+    const filesBubble = nodes.find((node) =>
+        node.kind === AGENT_TURN_NODE_KIND && node.text === "" && (node.fileChanges ?? []).length === 2);
+    // every chip's `when` is one of the bubble's snapshot instants.
+    const snapshotWhens = new Set(filesBubble!.snapshots!.map((snapshot) => snapshot.when));
+    for (const change of filesBubble!.fileChanges!) {
+        assert.ok(snapshotWhens.has(change.when));
+    }
+});
+
+test("test_truncate_tool_call_summary_caps_at_50_chars", () => {
+    // Scenario: tool rows stay single-line so the [{ }] <TS> L:n parts remain visible — long
+    // summaries truncate to 50 chars plus an ellipsis, multi-line summaries keep line one only.
+    // Steps:
+    // assert a 120-char summary truncates to 50 chars + ellipsis.
+    const longSummary = "x".repeat(120);
+    assert.equal(truncateToolCallSummary(longSummary), `${"x".repeat(50)}…`);
+    // assert a short summary passes through unchanged.
+    assert.equal(truncateToolCallSummary("git init"), "git init");
+    // assert only the first line of a multi-line summary is used.
+    assert.equal(truncateToolCallSummary("line one\nline two"), "line one");
 });

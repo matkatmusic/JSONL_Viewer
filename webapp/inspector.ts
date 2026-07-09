@@ -8,6 +8,7 @@
 
 import { el as elUntyped, fetchJson, parseRouteSegments, peekCachedDocument, routeToFileHistory } from "./app.ts";
 import { findRevisionForChangeId } from "./views/file-history.ts";
+import { renderCodeInto } from "./highlight.ts";
 
 // ── local wire types (parsed JSONL is dynamic; these name only the fields this file reads) ──
 
@@ -504,6 +505,8 @@ export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLin
         // Re-clicking a link while a drawer is open replaces the drawer's contents.
         pane.querySelector(".snapshot-pane")?.remove();
         pane.classList.add("snapshot-drawer");
+        const snapshotText = el("pre", { class: "inspector-text" });
+        renderCodeInto(snapshotText, result.content ?? "", entry.relativePath);
         const drawer = el("div", { class: "snapshot-pane" }, [
             el("div", { class: "snapshot-pane-header" }, [
                 el("span", { class: "muted", text: `${entry.relativePath} — ${blobName}` }),
@@ -516,7 +519,8 @@ export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLin
                     },
                 }),
             ]),
-            el("pre", { class: "inspector-text", text: result.content ?? "" }),
+            // el("pre", { class: "inspector-text", text: result.content ?? "" }), // (item 49)
+            snapshotText,
         ]);
         content.append(drawer);
     };

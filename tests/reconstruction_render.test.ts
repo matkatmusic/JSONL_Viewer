@@ -268,14 +268,16 @@ test("test_context_diff_surrounds_a_middle_change_with_three_context_lines", () 
     assert.ok(out.indexOf("-line 5") < out.indexOf("+line 5 REPLACED"));
     // lines beyond the context window are absent from the changed block.
     const changedBlock = out.slice(out.indexOf("@@ changed"));
-    assert.ok(!changedBlock.includes("line 1\n"));
+    // assert.ok(!changedBlock.includes("line 1\n"));  // item 51: git's hunk header now carries "line 1" as function context
+    assert.ok(!changedBlock.includes("\n line 1\n"), "line 1 is not a context body line");
     assert.ok(!changedBlock.includes(" line 10"));
 });
 
 test("test_context_diff_renders_a_creation_as_one_all_addition_hunk", () => {
     // Scenario: a created file has no old side: hunk header -0,0 and every line a "+".
     const out = renderDiffWithContext(createThenAppendRevs());
-    assert.ok(out.includes("@@ -0,0 +1,1 @@"));
+    // assert.ok(out.includes("@@ -0,0 +1,1 @@"));  // item 51: git omits ",count" when a side's count is 1
+    assert.ok(out.includes("@@ -0,0 +1 @@"));
     assert.ok(out.includes("+line one"));
 });
 
