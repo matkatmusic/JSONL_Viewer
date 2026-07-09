@@ -1,0 +1,12 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build:webapp",
+            "type": "npm",
+            "script": "build:webapp",
+            "problemMatcher": ["$tsc"],
+            "presentation": { "reveal": "silent", "clear": true }
+        }
+    ]
+}

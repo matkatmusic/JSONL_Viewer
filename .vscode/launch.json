@@ -16,6 +16,7 @@
             "type": "node",
             "request": "launch",
             "name": "Debug viewer server (port 7343)",
+            "preLaunchTask": "build:webapp",
             "runtimeExecutable": "node",
             "runtimeArgs": ["--import", "tsx"],
             "program": "${workspaceFolder}/src/viewer_server.ts",

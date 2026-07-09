@@ -383,4 +383,4 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
 - [ ] **42. `npm run app` rebuilds the webapp on every start (~1s tsc)** — add an `app:fast`
   script that skips the build only if the delay grates. YAGNI until it does.
   (implementation-notes-items34-18)
-- [ ] **41. Timeline selection doesn't change when Details View's item is a node in the timeline**.  **Reproduce**: using `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline`, select Step 3 (line 29/138). in the Details View (json displayed), advance to line 32/138 by pressing the `next >` button.  **Expected**: the Step 4 message bubble should selected. **Actual**: Step 3's message bubble remains selected. 
+- [ ] **43. Timeline selection doesn't change when Details View's item is a node in the timeline**.  **Reproduce**: using `http://127.0.0.1:7343/#/project/s84-multiagent-scripts-git-baseline/timeline`, select Step 3 (line 29/138). in the Details View (json displayed), advance to line 32/138 by pressing the `next >` button.  **Expected**: the Step 4 message bubble should selected. **Actual**: Step 3's message bubble remains selected. 
