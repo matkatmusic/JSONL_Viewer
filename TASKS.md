@@ -618,3 +618,98 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   chooses No, the timeline's first shown step is the baseline commit (the engine may skip the
   work the beacon supersedes); otherwise reconstruct as we currently do. User-specified
   2026-07-09; deferred out of item 46's scope.
+
+## New items (2026-07-09, GitHub publication)
+
+From the publication assessment (2026-07-09, two-explorer audit of privacy + webapp/static
+feasibility). Strategy decision underpinning all of these: publish a NEW curated public repo
+and keep this repo private as the dev repo — this repo's git HISTORY is unpublishable
+(item 58's findings are baked into past commits), so scrubbing-in-place via `git filter-repo`
+was rejected as days of surgery vs. an afternoon of curated copying. Execution order:
+57 (naming decision) → 59 + 60 (prep in THIS repo) → 58 (assemble public repo) →
+62 (screenshots) → 61 (README) = launch; 63–64 are post-launch follow-ups.
+
+- [ ] **57. Decide the public name/brand** — blocks item 60's README title and the public
+  repo's name (item 58). `package.json` says `jsonl-viewer` (`"private": true`); root
+  `README.md` says "JSONL_Viewer"; JFReD ("JSONL File Reconstruction Debugger",
+  `jfred/jfred.html`) is technically a sub-tool — the static, browser-only debugger over the
+  frozen legacy `api/` engine — NOT the Engine-B product in `src/`. The user referred to the
+  whole project as "JFRED" when requesting publication, so JFReD may be the intended brand
+  for everything; if so, `package.json` name/description and the README must commit to it
+  consistently. Pure user decision, zero code.
+
+- [ ] **58. Assemble the curated public repo (privacy-clean copy)** — create a fresh repo
+  containing ONLY: `src/`, `webapp/`, `web-shared/`, `jfred/` + `api/` (JFReD's engine
+  scripts — note `api/` and `web-shared/` are currently UNTRACKED here), `tests/` +
+  `tests/fixtures/` (synthetic, already clean), `package.json`, `tsconfig.json`,
+  `tsconfig.webapp.json`, `LICENSE` (GPLv3, already fine), and `docs/engine-b-overview.md`
+  (the best explanatory doc — currently untracked!). MUST NOT copy (audit findings,
+  ranked): (1) `uncovered-real-jsonl-lines.md` — indexes 1,398 REAL transcripts from
+  `~/Programming/jot-recovery` with real session paths and query content; (2) `plans/`
+  — private dev journals, 273 files contain the OS username in absolute paths;
+  (3) the `scenarios` submodule (private repo, real executed JSONL) and `tmux_lib`
+  submodule; (4) `TASKS.md`, `CLAUDE.md`, `recon/`, `.claude/`, `.vscode*/`,
+  `monitor-handoff.sh`, `verify_gaps.ts`, `cli-json-notes.md`, `logs*.txt`,
+  `engine-pipeline-diagrams.html`, root mockup/scratch files. The two home-dir symlinks
+  (`projects`, `test-transcript.jsonl`) are untracked and must stay out; add both to the
+  public `.gitignore`. Verify with `git grep matkatmusicllc` = 0 hits in the new repo
+  before the first push. Depends on item 59 for the suite to pass without the submodule.
+
+- [ ] **59. Scrub hardcoded home paths + decouple tests from the scenarios submodule** —
+  two code changes the public copy needs: (a) `tests/fixtures.ts:17-18` hardcodes
+  `/Users/matkatmusicllc/...` scenario roots — parameterize (env var or relative
+  `scenarios/executed` probe that skips gracefully when absent); `src/Impl_template.md`,
+  `src/Plan_template.md`, `src/Plan_Impl_template.md` also carry absolute worktree paths
+  (simplest: don't publish the templates — they're dev-process files). (b) exactly 4 test
+  files touch `scenarios/`: `tests/check_scenario_coverage.test.ts`, `tests/fixtures.ts`,
+  `tests/reconstruction_steps_name_at_time.test.ts` (commented-out ref), and
+  `tests/viewer-viewmodels.test.ts` — make those tests self-skip when `scenarios/executed`
+  is absent so the public suite (the other ~66 files run off committed `tests/fixtures/`)
+  is green on a bare clone. Do this in THIS repo so both repos share the code.
+
+- [ ] **60. Bundle a sanitized sample session (demo data)** — the public repo needs one
+  committed, clean-room JSONL session (plus its file-history sidecar blobs) so
+  `npm run app` shows a populated timeline out-of-the-box and JFReD has a demo file. Cheapest
+  path: generate a fresh capture with the existing scenario runner (`/run-scenario`) against
+  a toy project in a temp dir, then verify zero personal paths inside (the transcript records
+  cwd — use a neutral temp cwd or post-process). This is also the data every screenshot in
+  item 61 uses.
+
+- [ ] **61. Write the public README (the actual pitch)** — replace the 139-byte stub. Outline
+  agreed 2026-07-09: (1) hook — one sentence + hero screenshot: Claude Code's `/rewind`
+  does NOT track changes made outside Claude (link
+  https://code.claude.com/docs/en/checkpointing) — external edits, script runs, and git
+  operations are invisible to checkpoints; this tool reconstructs the COMPLETE file-change
+  history of a session from its JSONL transcript, file-history sidecar backups, and git
+  evidence. (2) screenshots per item 62. (3) "How it works" — 3–4 paragraphs distilled
+  from `docs/engine-b-overview.md` (per-line belief map, never-fabricate rule, evidence
+  tiers: transcript → sidecar blobs → git). (4) quick start (`npm install && npm run app`).
+  (5) honest scope notes: consent gate for script replay (impure execution off by default),
+  what reconstruction can/can't recover. Screenshots land via item 62.
+
+- [ ] **62. Capture README screenshots + timeline GIF** — against the item-60 sample session
+  on a fresh `npm run app` build, capture with the headless browse daemon: (a) HERO: the
+  timeline view (`webapp/views/timeline.ts` — the flagship surface: numbered conversation
+  bubbles, un-bubbled tool rows, file chips, git rows); (b) Diff-vs-Base view (split mode
+  with line gutters); (c) the Details/inspector drawer with a snapshot open; (d) JFReD's
+  three-pane PREVIOUS/COMPUTED/NEXT stepper (`jfred/jfred.html`). Plus one animated GIF
+  scrubbing the timeline / stepping revisions — worth more than all stills; record via
+  screenshot sequence → `ffmpeg`/`gifski`. Light theme, consistent window size, no personal
+  paths visible in any frame (the sample session's temp cwd will show — item 60 must make
+  it neutral).
+
+- [ ] **63. GitHub Pages demo tier — publish JFReD static (cheap path)** — supersedes the
+  approach in item 17 for the FIRST public demo: `jfred/` + `api/` + `web-shared/` is
+  ALREADY a zero-server browser app (client-side JSONL load + legacy-engine reconstruction,
+  `jfred/jfred-load.js`), so Pages can host it as-is with the item-60 sample JSONL
+  preloaded. Label it honestly as the debugger demo running the frozen legacy `api/`
+  engine, not Engine B. Item 17 (canned ReconstructionDocument JSON + `webapp/` static-data
+  shim replacing `/api/*` — the full-fidelity Engine-B demo) stays open as the later,
+  bigger tier; do NOT build the shim for launch — the README GIF (item 62) covers what the
+  live webapp looks like.
+
+- [ ] **64. Public-repo CI workflow** — no `.github/` exists anywhere today. One workflow in
+  the public repo: `npm ci`, `tsc --noEmit` (`npm run typecheck`), `npm test` — viable on a
+  bare clone only after item 59 makes the suite scenario-submodule-optional. Add
+  `npm run build:webapp` to catch webapp tsconfig breakage. Nothing else (no matrix, no
+  release automation) until the repo has users.
