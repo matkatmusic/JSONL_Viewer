@@ -172,7 +172,9 @@ export function computeInlineRows(diffText: string): InlineRow[] {
 // mirrored to localStorage so it survives reloads (item 10f).
 export const DiffDisplayMode = Object.freeze({ split: "split", inline: "inline" } as const);
 type DiffDisplayModeValue = (typeof DiffDisplayMode)[keyof typeof DiffDisplayMode];
-const DIFF_MODE_STORAGE_KEY = "diffDisplayMode";
+// Exported (item 66): the Details pane's Columns/Inline toggle persists through the SAME key
+// and value vocabulary, so both diff surfaces share one remembered preference.
+export const DIFF_MODE_STORAGE_KEY = "diffDisplayMode";
 
 // A stored value resolves to a mode: only the exact "inline" wire string opts out of the
 // split default (null / garbage / absent all mean split).

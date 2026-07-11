@@ -6,8 +6,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+    buildFilesSidebarViewModel,
+    buildSessionsSidebarViewModel,
     buildTurnTimelineViewModel,
+    checkRowIsExpandable,
+    computeGraphLaneRuns,
     computePickSegments,
+    computeRolePillLabel,
+    computeRowSummaryText,
+    computeSessionShortLabel,
+    deriveCommitChangedFiles,
+    findContributingNodeIndexes,
+    findJsonlForSession,
+    findSessionStartIndexes,
+    computeSessionStartLabel,
     computeSnapshotJumpRoute,
     computeRevisionDiffFallbackText,
     computeToolActivityTag,
@@ -1132,4 +1144,615 @@ test("test_truncate_tool_call_summary_caps_at_50_chars", () => {
     assert.equal(truncateToolCallSummary("git init"), "git init");
     // assert only the first line of a multi-line summary is used.
     assert.equal(truncateToolCallSummary("line one\nline two"), "line one");
+});
+
+// ── item 66: fork-style view-model helpers ───────────────────────────────────────────────────────
+
+// Shared fixture for the commit walk-back helpers: two surviving replies (alpha.py, beta.py), two
+// ADJACENT orphaned replies (gamma.py, delta.py live only on the rewound branch), a first commit,
+// one more surviving reply (alpha.py's second revision), and a second commit. Sorted node order:
+// [0 prompt, 1 replyA, 2 replyB, 3 replyO1, 4 replyO2, 5 commit#1, 6 replyD, 7 session-end,
+// 8 commit#2].
+const commitWalkDocument = {
+    messages: [{
+        uuid: "prompt-1",
+        role: RecordType.user,
+        sessionId: "session-a",
+        timestamp: "2026-01-01T00:00:00.000Z",
+        text: "edit files and commit twice",
+    }, {
+        uuid: "reply-a",
+        role: RecordType.assistant,
+        sessionId: "session-a",
+        timestamp: "2026-01-01T00:00:10.000Z",
+        text: "wrote alpha",
+    }, {
+        uuid: "reply-b",
+        role: RecordType.assistant,
+        sessionId: "session-a",
+        timestamp: "2026-01-01T00:00:20.000Z",
+        text: "wrote beta",
+    }, {
+        uuid: "reply-o1",
+        role: RecordType.assistant,
+        sessionId: "session-a",
+        timestamp: "2026-01-01T00:00:30.000Z",
+        text: "wrote gamma (later rewound)",
+    }, {
+        uuid: "reply-o2",
+        role: RecordType.assistant,
+        sessionId: "session-a",
+        timestamp: "2026-01-01T00:00:32.000Z",
+        text: "wrote delta (later rewound)",
+    }, {
+        uuid: "reply-d",
+        role: RecordType.assistant,
+        sessionId: "session-a",
+        timestamp: "2026-01-01T00:00:50.000Z",
+        text: "edited alpha again",
+    }],
+    steps: [
+        { index: 1, when: "2026-01-01T00:00:05.000Z", sessionId: "session-a", changeIds: ["change-alpha-1"], changedPaths: [], files: {} },
+        { index: 2, when: "2026-01-01T00:00:15.000Z", sessionId: "session-a", changeIds: ["change-beta-1"], changedPaths: [], files: {} },
+        { index: 3, when: "2026-01-01T00:00:25.000Z", sessionId: "session-a", changeIds: ["change-gamma-1"], changedPaths: [], files: {} },
+        { index: 4, when: "2026-01-01T00:00:31.000Z", sessionId: "session-a", changeIds: ["change-delta-1"], changedPaths: [], files: {} },
+        { index: 5, when: "2026-01-01T00:00:45.000Z", sessionId: "session-a", changeIds: ["change-alpha-2"], changedPaths: [], files: {} },
+    ],
+    filesTouched: [{
+        target: "alpha.py",
+        revisions: [
+            { kind: EventKind.write, changeId: "change-alpha-1", timestamp: "2026-01-01T00:00:05.000Z" },
+            { kind: EventKind.edit, changeId: "change-alpha-2", timestamp: "2026-01-01T00:00:45.000Z" },
+        ],
+    }, {
+        target: "beta.py",
+        revisions: [{ kind: EventKind.write, changeId: "change-beta-1", timestamp: "2026-01-01T00:00:15.000Z" }],
+    }],
+    rewoundFilesTouched: [{
+        target: "gamma.py",
+        revisions: [{ kind: EventKind.write, changeId: "change-gamma-1", timestamp: "2026-01-01T00:00:25.000Z" }],
+    }, {
+        target: "delta.py",
+        revisions: [{ kind: EventKind.write, changeId: "change-delta-1", timestamp: "2026-01-01T00:00:31.000Z" }],
+    }],
+    commitMarkers: [],
+    gitOperations: [{
+        kind: GitOperationKind.commit,
+        detail: "first",
+        command: 'git commit -m "first"',
+        timestamp: "2026-01-01T00:00:35.000Z",
+        sessionId: "session-a",
+    }, {
+        kind: GitOperationKind.commit,
+        detail: "second",
+        command: 'git commit -m "second"',
+        timestamp: "2026-01-01T00:00:55.000Z",
+        sessionId: "session-a",
+    }],
+};
+
+// The indexes of a timeline's commit nodes, in order.
+function findCommitNodeIndexes(nodes: { kind: string }[]): number[] {
+    return nodes.flatMap((node, index) => (node.kind === COMMIT_NODE_KIND ? [index] : []));
+}
+
+test("test_commit_nodes_carry_result_hash_from_git_operations", () => {
+    // Scenario: the engine ships the commit's short hash on the wire (GitOperation.resultHash,
+    // item 66 locked decision 2) — deriveCommitNodes must copy it onto the commit node so the
+    // render can show the `GIT COMMIT [hash]` pill; an operation without one stays undefined.
+    // Steps:
+    // build a minimal document with two commit operations, one carrying a resultHash.
+    const document = {
+        messages: [{
+            uuid: "prompt-1",
+            role: RecordType.user,
+            sessionId: "session-a",
+            timestamp: "2026-01-01T00:00:00.000Z",
+            text: "commit it",
+        }],
+        steps: [],
+        filesTouched: [],
+        rewoundFilesTouched: [],
+        commitMarkers: [],
+        gitOperations: [{
+            kind: GitOperationKind.commit,
+            detail: "fix: x",
+            command: 'git commit -m "fix: x"',
+            timestamp: "2026-01-01T00:00:05.000Z",
+            sessionId: "session-a",
+            resultHash: "4fa08d2",
+        }, {
+            kind: GitOperationKind.commit,
+            detail: "later",
+            command: 'git commit -m "later"',
+            timestamp: "2026-01-01T00:00:10.000Z",
+            sessionId: "session-a",
+        }],
+    };
+    const { nodes } = buildTurnTimelineViewModel(document);
+    // assert the first commit node carries the operation's hash.
+    const commitNodes = nodes.filter((node: { kind: string }) => node.kind === COMMIT_NODE_KIND);
+    assert.equal(commitNodes.length, 2);
+    assert.equal(commitNodes[0]!.resultHash, "4fa08d2");
+    // assert the hash-less operation's node has no hash.
+    assert.equal(commitNodes[1]!.resultHash, undefined);
+});
+
+test("test_computeRowSummaryText_uses_first_text_line", () => {
+    // Scenario: a user or agent turn's one-line row text is the FIRST line of its message text
+    // (the collapsed fork-style row shows one line; the bubble shows the rest).
+    // Steps:
+    // build a minimal document with a multi-line prompt and a multi-line reply.
+    const document = {
+        messages: [{
+            uuid: "prompt-1",
+            role: RecordType.user,
+            sessionId: "session-a",
+            timestamp: "2026-01-01T00:00:00.000Z",
+            text: "first line of the prompt\nsecond line",
+        }, {
+            uuid: "reply-1",
+            role: RecordType.assistant,
+            sessionId: "session-a",
+            timestamp: "2026-01-01T00:00:10.000Z",
+            text: "first line of the reply\nrest of the reply",
+        }],
+        steps: [],
+        filesTouched: [],
+        rewoundFilesTouched: [],
+        commitMarkers: [],
+    };
+    const { nodes } = buildTurnTimelineViewModel(document);
+    // assert the user turn's summary is its first text line only.
+    const userTurn = nodes.find((node: { kind: string }) => node.kind === USER_TURN_NODE_KIND)!;
+    assert.equal(computeRowSummaryText(userTurn), "first line of the prompt");
+    // assert the agent turn's summary is its first text line only.
+    const agentTurn = nodes.find((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND)!;
+    assert.equal(computeRowSummaryText(agentTurn), "first line of the reply");
+});
+
+test("test_computeRowSummaryText_formats_tool_calls_as_name_parens_summary", () => {
+    // Scenario: a tool-call row reads like the mockup's `Bash(npx tsc --noEmit)` — tool name,
+    // parens, the truncated one-line summary.
+    // Steps:
+    // build a minimal document with a short and a long Bash tool call.
+    const longCommand = "x".repeat(120);
+    const document = {
+        messages: [],
+        steps: [],
+        filesTouched: [],
+        rewoundFilesTouched: [],
+        commitMarkers: [],
+        toolCalls: [{
+            toolName: "Bash",
+            summary: "npx tsc --noEmit",
+            timestamp: "2026-01-01T00:00:05.000Z",
+            sessionId: "session-a",
+            uuid: "call-1",
+            toolUseId: "toolu_call1",
+        }, {
+            toolName: "Bash",
+            summary: longCommand,
+            timestamp: "2026-01-01T00:00:10.000Z",
+            sessionId: "session-a",
+            uuid: "call-2",
+            toolUseId: "toolu_call2",
+        }],
+    };
+    const { nodes } = buildTurnTimelineViewModel(document);
+    const toolCalls = nodes.filter((node: { kind: string }) => node.kind === TOOL_CALL_NODE_KIND);
+    // assert the short call formats as name(summary).
+    assert.equal(computeRowSummaryText(toolCalls[0]!), "Bash(npx tsc --noEmit)");
+    // assert the long call's summary is truncated through truncateToolCallSummary.
+    assert.equal(computeRowSummaryText(toolCalls[1]!), `Bash(${"x".repeat(50)}…)`);
+});
+
+test("test_computeRowSummaryText_labels_session_ends", () => {
+    // Scenario: a session-end row reads `end of session <short8>` — the session's 8-char label,
+    // matching the sidebar and the uuid column.
+    // Steps:
+    // build a minimal one-prompt document with a realistic session uuid.
+    const document = {
+        messages: [{
+            uuid: "prompt-1",
+            role: RecordType.user,
+            sessionId: "0a1b2c3d-4e5f-6789-abcd-ef0123456789",
+            timestamp: "2026-01-01T00:00:00.000Z",
+            text: "hello",
+        }],
+        steps: [],
+        filesTouched: [],
+        rewoundFilesTouched: [],
+        commitMarkers: [],
+    };
+    const { nodes } = buildTurnTimelineViewModel(document);
+    // assert the session-end row text names the first 8 chars of the session id.
+    const sessionEnd = nodes.find((node: { kind: string }) => node.kind === SESSION_END_NODE_KIND)!;
+    assert.equal(computeRowSummaryText(sessionEnd), "end of session 0a1b2c3d");
+});
+
+test("test_computeRowSummaryText_falls_back_for_blank_agent_turns", () => {
+    // Scenario: a synthetic trailing agent turn has no reply text — its row must read
+    // "(tool activity)" instead of rendering blank.
+    // Steps:
+    // build a document whose only agent turn is synthetic (a snapshot with no later reply).
+    const document = {
+        messages: [{
+            uuid: "prompt-1",
+            role: RecordType.user,
+            sessionId: "session-a",
+            timestamp: "2026-01-01T00:00:00.000Z",
+            text: "write a file",
+        }],
+        steps: [{
+            index: 1,
+            when: "2026-01-01T00:00:05.000Z",
+            sessionId: "session-a",
+            changeIds: ["change-1"],
+            changedPaths: ["notes.txt"],
+            files: {},
+        }],
+        filesTouched: [],
+        rewoundFilesTouched: [],
+        commitMarkers: [],
+    };
+    const { nodes } = buildTurnTimelineViewModel(document);
+    // assert the blank synthetic turn falls back to the tool-activity label.
+    const agentTurn = nodes.find((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND)!;
+    assert.equal(agentTurn.text, "");
+    assert.equal(computeRowSummaryText(agentTurn), "(tool activity)");
+});
+
+test("test_computeSessionShortLabel_takes_first_eight_chars", () => {
+    // Scenario: session ids everywhere in the fork layout (uuid column, sidebar, session-end
+    // rows) shorten to their first 8 characters.
+    // Steps:
+    // assert a full uuid shortens to its first 8 chars.
+    assert.equal(computeSessionShortLabel("0a1b2c3d-4e5f-6789-abcd-ef0123456789"), "0a1b2c3d");
+    // assert an id shorter than 8 chars passes through whole.
+    assert.equal(computeSessionShortLabel("abc"), "abc");
+});
+
+test("test_deriveCommitChangedFiles_unions_files_since_previous_commit", () => {
+    // Scenario: a commit's changed-file list is the union of every file change on the surviving
+    // rows between it and the previous commit (or the timeline start) — the mockup's
+    // findContributingRows data.
+    // Steps:
+    // build the commit-walk timeline and take the FIRST commit.
+    const { nodes } = buildTurnTimelineViewModel(commitWalkDocument);
+    const [firstCommitIndex] = findCommitNodeIndexes(nodes);
+    // assert its changed files union alpha.py and beta.py (the two surviving replies before it).
+    const changes = deriveCommitChangedFiles(nodes, firstCommitIndex!);
+    assert.deepEqual(changes.map((change) => change.path).sort(), ["alpha.py", "beta.py"]);
+});
+
+test("test_deriveCommitChangedFiles_stops_at_previous_commit", () => {
+    // Scenario: the walk back from a commit stops at the previous commit EXCLUSIVE — files
+    // committed earlier never leak into the later commit's list.
+    // Steps:
+    // build the commit-walk timeline and take the SECOND commit.
+    const { nodes } = buildTurnTimelineViewModel(commitWalkDocument);
+    const commitIndexes = findCommitNodeIndexes(nodes);
+    const changes = deriveCommitChangedFiles(nodes, commitIndexes[1]!);
+    // assert only replyD's alpha.py revision (after commit #1) is listed — via its changeId.
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0]!.path, "alpha.py");
+    assert.equal(changes[0]!.changeId, "change-alpha-2");
+});
+
+test("test_deriveCommitChangedFiles_skips_orphaned_nodes", () => {
+    // Scenario: orphaned (rewound-branch) rows never contribute to a commit's changed files —
+    // their edits were rewound before the commit happened.
+    // Steps:
+    // build the commit-walk timeline and take the first commit (the orphans sit just before it).
+    const { nodes } = buildTurnTimelineViewModel(commitWalkDocument);
+    const [firstCommitIndex] = findCommitNodeIndexes(nodes);
+    // assert neither rewound-branch file appears.
+    const paths = deriveCommitChangedFiles(nodes, firstCommitIndex!).map((change) => change.path);
+    assert.ok(!paths.includes("gamma.py"));
+    assert.ok(!paths.includes("delta.py"));
+});
+
+test("test_deriveCommitChangedFiles_dedupes_paths_keeping_latest", () => {
+    // Scenario: when two rows before one commit touch the SAME path, the commit lists the path
+    // once, keeping the occurrence closest to the commit (the latest revision).
+    // Steps:
+    // build a minimal document: two replies each revising alpha.py, then one commit.
+    const document = {
+        messages: [{
+            uuid: "prompt-1",
+            role: RecordType.user,
+            sessionId: "session-a",
+            timestamp: "2026-01-01T00:00:00.000Z",
+            text: "edit alpha twice",
+        }, {
+            uuid: "reply-1",
+            role: RecordType.assistant,
+            sessionId: "session-a",
+            timestamp: "2026-01-01T00:00:10.000Z",
+            text: "wrote alpha",
+        }, {
+            uuid: "reply-2",
+            role: RecordType.assistant,
+            sessionId: "session-a",
+            timestamp: "2026-01-01T00:00:20.000Z",
+            text: "edited alpha",
+        }],
+        steps: [
+            { index: 1, when: "2026-01-01T00:00:05.000Z", sessionId: "session-a", changeIds: ["change-a1"], changedPaths: [], files: {} },
+            { index: 2, when: "2026-01-01T00:00:15.000Z", sessionId: "session-a", changeIds: ["change-a2"], changedPaths: [], files: {} },
+        ],
+        filesTouched: [{
+            target: "alpha.py",
+            revisions: [
+                { kind: EventKind.write, changeId: "change-a1", timestamp: "2026-01-01T00:00:05.000Z" },
+                { kind: EventKind.edit, changeId: "change-a2", timestamp: "2026-01-01T00:00:15.000Z" },
+            ],
+        }],
+        rewoundFilesTouched: [],
+        commitMarkers: [],
+        gitOperations: [{
+            kind: GitOperationKind.commit,
+            detail: "both edits",
+            command: 'git commit -m "both edits"',
+            timestamp: "2026-01-01T00:00:30.000Z",
+            sessionId: "session-a",
+        }],
+    };
+    const { nodes } = buildTurnTimelineViewModel(document);
+    const [commitIndex] = findCommitNodeIndexes(nodes);
+    const changes = deriveCommitChangedFiles(nodes, commitIndex!);
+    // assert alpha.py appears exactly once, carrying the LATER revision's changeId.
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0]!.path, "alpha.py");
+    assert.equal(changes[0]!.changeId, "change-a2");
+});
+
+test("test_findContributingNodeIndexes_marks_nodes_touching_commit_files", () => {
+    // Scenario: selecting a commit highlights every surviving row (since the previous commit)
+    // whose file changes overlap the commit's changed files — the mockup's `.contrib` rows.
+    // Steps:
+    // build the commit-walk timeline and take the first commit.
+    const { nodes } = buildTurnTimelineViewModel(commitWalkDocument);
+    const [firstCommitIndex] = findCommitNodeIndexes(nodes);
+    // assert exactly replyA (index 1) and replyB (index 2) contribute — never the prompt or the
+    // orphaned replies.
+    assert.deepEqual(findContributingNodeIndexes(nodes, firstCommitIndex!), [1, 2]);
+});
+
+test("test_findContributingNodeIndexes_returns_empty_for_no_overlap", () => {
+    // Scenario: a commit preceded by rows that changed no files highlights nothing.
+    // Steps:
+    // build a minimal document: prompt, snapshot-less reply, then a commit.
+    const document = {
+        messages: [{
+            uuid: "prompt-1",
+            role: RecordType.user,
+            sessionId: "session-a",
+            timestamp: "2026-01-01T00:00:00.000Z",
+            text: "just commit",
+        }, {
+            uuid: "reply-1",
+            role: RecordType.assistant,
+            sessionId: "session-a",
+            timestamp: "2026-01-01T00:00:10.000Z",
+            text: "committed",
+        }],
+        steps: [],
+        filesTouched: [],
+        rewoundFilesTouched: [],
+        commitMarkers: [],
+        gitOperations: [{
+            kind: GitOperationKind.commit,
+            detail: "empty",
+            command: 'git commit -m "empty"',
+            timestamp: "2026-01-01T00:00:20.000Z",
+            sessionId: "session-a",
+        }],
+    };
+    const { nodes } = buildTurnTimelineViewModel(document);
+    const [commitIndex] = findCommitNodeIndexes(nodes);
+    // assert no row contributes.
+    assert.deepEqual(findContributingNodeIndexes(nodes, commitIndex!), []);
+});
+
+test("test_buildFilesSidebarViewModel_lists_targets_with_revision_counts", () => {
+    // Scenario: the Files sidebar lists every surviving touched file with its revision count.
+    // Steps:
+    // build the sidebar view-model from the commit-walk document (alpha 2 revs, beta 1 rev).
+    const entries = buildFilesSidebarViewModel(commitWalkDocument);
+    assert.deepEqual(entries, [
+        { target: "alpha.py", revisionCount: 2 },
+        { target: "beta.py", revisionCount: 1 },
+    ]);
+});
+
+test("test_buildSessionsSidebarViewModel_groups_rows_per_session", () => {
+    // Scenario: the Sessions sidebar shows one entry per distinct session in first-appearance
+    // order, counting that session's rows and remembering its first row for flash-scroll.
+    // Steps:
+    // build s84's timeline (multi-session) and the sessions sidebar with no listing.
+    const { nodes } = buildTurnTimelineViewModel(s84Document);
+    const entries = buildSessionsSidebarViewModel(nodes, undefined);
+    // assert one entry per distinct attributed sessionId.
+    const attributedIds = nodes
+        .map((node: { sessionId?: string }) => node.sessionId)
+        .filter((sessionId: string | undefined) => sessionId !== undefined);
+    assert.equal(entries.length, new Set(attributedIds).size);
+    for (const entry of entries) {
+        // each entry counts exactly its session's rows.
+        assert.equal(entry.rowCount, attributedIds.filter((sessionId) => sessionId === entry.sessionId).length);
+        // firstNodeIndex is the session's first row.
+        assert.equal(nodes[entry.firstNodeIndex]!.sessionId, entry.sessionId);
+        assert.ok(!nodes.slice(0, entry.firstNodeIndex).some((node: { sessionId?: string }) => node.sessionId === entry.sessionId));
+        // the short label is the session's first 8 chars.
+        assert.equal(entry.shortLabel, entry.sessionId.slice(0, 8));
+    }
+    // entries follow first-appearance order.
+    for (let i = 1; i < entries.length; i += 1) {
+        assert.ok(entries[i]!.firstNodeIndex > entries[i - 1]!.firstNodeIndex);
+    }
+});
+
+test("test_buildSessionsSidebarViewModel_matches_jsonl_by_session_prefix", () => {
+    // Scenario: a session's sidebar entry names the project JSONL whose file name starts with the
+    // session id (the lifted findJsonlForSession rule); no match → undefined.
+    // Steps:
+    // build a one-prompt timeline and a listing where the second file matches the session prefix.
+    const document = {
+        messages: [{
+            uuid: "prompt-1",
+            role: RecordType.user,
+            sessionId: "0a1b2c3d-4e5f",
+            timestamp: "2026-01-01T00:00:00.000Z",
+            text: "hello",
+        }],
+        steps: [],
+        filesTouched: [],
+        rewoundFilesTouched: [],
+        commitMarkers: [],
+    };
+    const { nodes } = buildTurnTimelineViewModel(document);
+    const listing = { name: "p", jsonlFiles: [{ fileName: "other.jsonl" }, { fileName: "0a1b2c3d-4e5f.jsonl" }] };
+    // assert the entry resolves the matching JSONL file name.
+    const entries = buildSessionsSidebarViewModel(nodes, listing);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0]!.jsonlFileName, "0a1b2c3d-4e5f.jsonl");
+    // assert the lifted helper returns undefined when nothing matches or nothing is asked.
+    assert.equal(findJsonlForSession(listing, "ffffffff"), undefined);
+    assert.equal(findJsonlForSession(listing, undefined), undefined);
+});
+
+test("test_computeGraphLaneRuns_finds_contiguous_orphan_runs", () => {
+    // Scenario: the fork gutter draws one lane-2 rail per CONTIGUOUS run of orphaned rows — the
+    // commit-walk timeline's two adjacent orphaned replies form exactly one run.
+    // Steps:
+    // build the commit-walk timeline (orphans at node indexes 3 and 4).
+    const { nodes } = buildTurnTimelineViewModel(commitWalkDocument);
+    assert.deepEqual(computeGraphLaneRuns(nodes), [{ startIndex: 3, endIndex: 4 }]);
+});
+
+test("test_computeGraphLaneRuns_returns_empty_when_nothing_is_orphaned", () => {
+    // Scenario: a timeline with no rewound branch draws no lane-2 rail at all.
+    // Steps:
+    // build the s39 seed-session timeline (linear, no rewinds).
+    const { nodes } = buildTurnTimelineViewModel(s39SeedDocument);
+    assert.ok(nodes.length > 0);
+    assert.deepEqual(computeGraphLaneRuns(nodes), []);
+});
+
+test("test_checkRowIsExpandable_excludes_commits_and_session_ends", () => {
+    // Scenario: commit and session-end rows are thin one-liners with no tri and no bubble;
+    // user turns, agent turns, and tool-call rows all expand.
+    // Steps:
+    // build the commit-walk timeline for the turn/commit/end kinds.
+    const { nodes } = buildTurnTimelineViewModel(commitWalkDocument);
+    const byKind = (kind: string) => nodes.find((node: { kind: string }) => node.kind === kind)!;
+    assert.equal(checkRowIsExpandable(byKind(COMMIT_NODE_KIND)), false);
+    assert.equal(checkRowIsExpandable(byKind(SESSION_END_NODE_KIND)), false);
+    assert.equal(checkRowIsExpandable(byKind(USER_TURN_NODE_KIND)), true);
+    assert.equal(checkRowIsExpandable(byKind(AGENT_TURN_NODE_KIND)), true);
+    // the s39 seed session supplies a real tool-call row — it expands too.
+    const { nodes: seedNodes } = buildTurnTimelineViewModel(s39SeedDocument);
+    const toolCall = seedNodes.find((node: { kind: string }) => node.kind === TOOL_CALL_NODE_KIND)!;
+    assert.equal(checkRowIsExpandable(toolCall), true);
+});
+
+test("test_computeRolePillLabel_names_each_row_kind", () => {
+    // Scenario: timeline rows open with a pill-style role tag — "User" on user turns,
+    // "Agent" on agent turns, "Tool" on tool-call rows; commit and session-end rows
+    // carry no pill (their row text already names what they are).
+    // Steps:
+    // build the timeline nodes from the s39 wire document.
+    const { nodes } = buildTurnTimelineViewModel(s39SeedDocument);
+    // a user turn labels "User".
+    const userTurn = nodes.find((node: { kind: string }) => node.kind === USER_TURN_NODE_KIND)!;
+    assert.equal(computeRolePillLabel(userTurn), "User");
+    // an agent turn labels "Agent".
+    const agentTurn = nodes.find((node: { kind: string }) => node.kind === AGENT_TURN_NODE_KIND)!;
+    assert.equal(computeRolePillLabel(agentTurn), "Agent");
+    // a tool-call row labels "Tool".
+    const toolCall = nodes.find((node: { kind: string }) => node.kind === TOOL_CALL_NODE_KIND)!;
+    assert.equal(computeRolePillLabel(toolCall), "Tool");
+    // a session-end row gets no pill.
+    const sessionEnd = nodes.find((node: { kind: string }) => node.kind === SESSION_END_NODE_KIND)!;
+    assert.equal(computeRolePillLabel(sessionEnd), undefined);
+});
+
+test("test_computeRolePillLabel_marks_script_running_turns_as_script", () => {
+    // Scenario: an agent turn whose file chips include a script-made revision IS the
+    // script run's row — its pill reads "Script" instead of "Agent".
+    // Steps:
+    // build an agent turn carrying one script-execution file change.
+    const scriptTurn = {
+        kind: AGENT_TURN_NODE_KIND,
+        when: "2026-01-01T00:00:00Z",
+        sessionId: "s",
+        text: "",
+        snapshots: [],
+        gitOperations: [],
+        fileChanges: [{ path: "/tmp/a.py", eventKind: "script-execution", renamedFrom: undefined, isFirstRevision: false, changeId: "scriptRun:x:/tmp/a.py", when: "2026-01-01T00:00:00Z" }],
+    };
+    // the pill labels the turn "Script".
+    assert.equal(computeRolePillLabel(scriptTurn as never), "Script");
+    // the same turn with a plain edit chip stays "Agent".
+    const editTurn = { ...scriptTurn, fileChanges: [{ ...scriptTurn.fileChanges[0]!, eventKind: "edit" }] };
+    assert.equal(computeRolePillLabel(editTurn as never), "Agent");
+});
+
+test("test_findSessionStartIndexes_marks_each_sessions_first_node_once", () => {
+    // Scenario: an interleaved multi-session timeline shows a start marker where each
+    // session's FIRST row sits — one marker per session, none at later interleave
+    // switches back to an already-started session.
+    // Steps:
+    // build a 4-node interleave: session A, session B, back to A, back to B.
+    const nodes = [
+        { kind: USER_TURN_NODE_KIND, when: "2026-01-01T00:00:01Z", sessionId: "aaaa1111-0000-4000-8000-000000000001", text: "a1", snapshots: [], gitOperations: [] },
+        { kind: USER_TURN_NODE_KIND, when: "2026-01-01T00:00:02Z", sessionId: "bbbb2222-0000-4000-8000-000000000002", text: "b1", snapshots: [], gitOperations: [] },
+        { kind: USER_TURN_NODE_KIND, when: "2026-01-01T00:00:03Z", sessionId: "aaaa1111-0000-4000-8000-000000000001", text: "a2", snapshots: [], gitOperations: [] },
+        { kind: USER_TURN_NODE_KIND, when: "2026-01-01T00:00:04Z", sessionId: "bbbb2222-0000-4000-8000-000000000002", text: "b2", snapshots: [], gitOperations: [] },
+    ];
+    const starts = findSessionStartIndexes(nodes as never);
+    // exactly two markers: node 0 starts session A, node 1 starts session B.
+    assert.deepEqual(starts, [
+        { nodeIndex: 0, sessionId: "aaaa1111-0000-4000-8000-000000000001" },
+        { nodeIndex: 1, sessionId: "bbbb2222-0000-4000-8000-000000000002" },
+    ]);
+});
+
+test("test_findSessionStartIndexes_skips_unattributed_nodes", () => {
+    // Scenario: nodes with no sessionId (unattributed steps) never produce a start marker.
+    // Steps:
+    // build one unattributed node followed by one session node.
+    const nodes = [
+        { kind: AGENT_TURN_NODE_KIND, when: "2026-01-01T00:00:01Z", sessionId: undefined, text: "", snapshots: [], gitOperations: [] },
+        { kind: USER_TURN_NODE_KIND, when: "2026-01-01T00:00:02Z", sessionId: "cccc3333-0000-4000-8000-000000000003", text: "c1", snapshots: [], gitOperations: [] },
+    ];
+    const starts = findSessionStartIndexes(nodes as never);
+    // only the attributed node yields a marker.
+    assert.deepEqual(starts, [{ nodeIndex: 1, sessionId: "cccc3333-0000-4000-8000-000000000003" }]);
+});
+
+test("test_computeSessionStartLabel_uses_custom_title_when_present", () => {
+    // Scenario: session-start markers name the session with its user-given custom title —
+    // "Session <custom-title> started: <sessionId>" — falling back to
+    // "Session started: <sessionId>" when the session was never named.
+    // Steps:
+    // a titles map naming one of two sessions.
+    const sessionTitles = { "aaaa1111-0000-4000-8000-000000000001": "fork-style-mockup" };
+    // the named session leads with its title.
+    assert.equal(
+        computeSessionStartLabel(sessionTitles, "aaaa1111-0000-4000-8000-000000000001"),
+        "Session fork-style-mockup started: aaaa1111-0000-4000-8000-000000000001",
+    );
+    // the unnamed session falls back to id-only.
+    assert.equal(
+        computeSessionStartLabel(sessionTitles, "bbbb2222-0000-4000-8000-000000000002"),
+        "Session started: bbbb2222-0000-4000-8000-000000000002",
+    );
+    // an absent titles map (older cached documents) also falls back.
+    assert.equal(
+        computeSessionStartLabel(undefined, "bbbb2222-0000-4000-8000-000000000002"),
+        "Session started: bbbb2222-0000-4000-8000-000000000002",
+    );
 });

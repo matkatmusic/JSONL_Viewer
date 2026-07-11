@@ -13,5 +13,5 @@
         "rootDir": "webapp"
     },
     "include": ["webapp"],
-    "exclude": ["webapp/vendor", "webapp/dist"]
+    "exclude": ["webapp/vendor", "webapp/dist", "webapp/archive"]
 }

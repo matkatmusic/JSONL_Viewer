@@ -5,6 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildProjectDocument } from "../src/viewer_api.ts";
+import { findSessionTitles } from "../src/reconstruction_json.ts";
 import { Path, Uuid } from "../src/structures/domain.ts";
 import { S45_JSONL, S84_JSONL_PATHS, S85_JSONL_PATHS } from "./fixtures.ts";
 
@@ -77,4 +78,30 @@ test("test_document_lists_commit_markers_for_s85", () => {
         assert.ok(marker.sessionId instanceof Uuid);
     }
     assert.ok(s84Document.commitMarkers.length >= 1);
+});
+
+test("test_session_titles_map_custom_title_records", () => {
+    // Scenario: users name sessions; each JSONL carries a `custom-title` record
+    // ({type:"custom-title", customTitle, sessionId}). findSessionTitles maps every
+    // session id to its title so the timeline's session-start markers can show it.
+    // Steps:
+    // build two custom-title records for two sessions plus one unrelated record.
+    const records = [
+        { type: "custom-title", customTitle: "tackle TASKS.md 1", sessionId: new Uuid("aaaa1111-0000-4000-8000-000000000001") },
+        { type: "custom-title", customTitle: "fork-style-mockup", sessionId: new Uuid("bbbb2222-0000-4000-8000-000000000002") },
+        { type: "user", sessionId: new Uuid("aaaa1111-0000-4000-8000-000000000001") },
+    ];
+    // map the titles.
+    const titles = findSessionTitles(records as never);
+    // each session id resolves to its own title; nothing else leaks in.
+    assert.deepEqual(titles, {
+        "aaaa1111-0000-4000-8000-000000000001": "tackle TASKS.md 1",
+        "bbbb2222-0000-4000-8000-000000000002": "fork-style-mockup",
+    });
+});
+
+test("test_document_carries_session_titles", () => {
+    // Scenario: the wire document ships sessionTitles; scenario captures have no
+    // custom-title records, so s84's map is empty (the marker falls back to id-only).
+    assert.deepEqual(s84Document.sessionTitles, {});
 });

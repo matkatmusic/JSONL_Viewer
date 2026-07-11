@@ -14,11 +14,10 @@ import {
     fetchText,
     getConsentChoice,
     renderConsentDialog,
+    routeToConversation,
     routeToFileHistory,
 } from "../app.ts";
 import { openInspectorPane, openTranscriptInspector } from "../inspector.ts";
-import { renderDetailsCommitMode, renderDetailsFileMode, renderDetailsMessageMode, type DetailsContext } from "./details.ts";
-import { clearSidebarFileSelection, renderForkSidebar } from "./sidebar.ts";
 import { findLineForChangeId, findRevisionForChangeId, splitDiffBlocks } from "./file-history.ts";
 import { renderDiffText } from "./diff-vs-base.ts";
 import { downloadText } from "./download.ts";
@@ -32,6 +31,7 @@ export const TOOL_CALL_NODE_KIND = "tool-call";
 const USER_ROLE = "user";
 const EDIT_EVENT_KIND = "edit";
 const COMMIT_OPERATION_KIND = "commit";
+const BRANCH_OPERATION_KIND = "branch";
 
 // ── local wire + view-model types ────────────────────────────────────────────────────────────────
 // The document arrives via fetch + JSON.parse, so ids/paths/dates are plain strings on the wire;
@@ -39,7 +39,7 @@ const COMMIT_OPERATION_KIND = "commit";
 
 type WireRename = { from: string; to: string };
 type WireRevision = { kind: string; changeId: string; timestamp: string; rename?: WireRename };
-export type WireFileHistory = { target: string; revisions: WireRevision[] };
+type WireFileHistory = { target: string; revisions: WireRevision[] };
 type WireMessage = { role: string; timestamp: string; sessionId?: string; uuid: string; text: string };
 type WireStepSnapshot = {
     index: number;
@@ -56,9 +56,6 @@ type WireGitOperation = {
     timestamp: string;
     sessionId?: string;
     uuid?: string;
-    // The commit's short hash from its tool_result text (item 66); absent on non-commit
-    // operations, older cached documents, and commits whose result echoed no hash.
-    resultHash?: string;
 };
 type WireCommitMarker = { timestamp: string; sessionId?: string };
 // One non-file-edit tool call (item 55): summary is its one-line command/path/pattern; uuid is
@@ -72,7 +69,7 @@ type WireToolCall = {
     uuid: string;
     toolUseId: string;
 };
-export type WireTimelineDocument = {
+type WireTimelineDocument = {
     filesTouched: WireFileHistory[];
     rewoundFilesTouched: WireFileHistory[];
     messages: WireMessage[];
@@ -81,8 +78,6 @@ export type WireTimelineDocument = {
     commitMarkers: WireCommitMarker[];
     // Optional: an older cached document lacks the field (same convention as gitOperations).
     toolCalls?: WireToolCall[];
-    // Optional (same convention): user-given session names from `custom-title` records.
-    sessionTitles?: Record<string, string>;
 };
 type WireJsonlFile = { fileName: string };
 type WireProjectListing = { name: string; jsonlFiles: WireJsonlFile[] };
@@ -99,7 +94,7 @@ type RevisionIndex = Map<string, RevisionIndexEntry>;
 
 // deriveFileChanges' chips: one displayable file change per distinct path; `when` is the owning
 // snapshot's instant (the chip row's timestamp, item 55).
-export type FileChange = {
+type FileChange = {
     path: string;
     eventKind: string;
     renamedFrom: string | undefined;
@@ -130,7 +125,6 @@ type TurnNode = {
     fileChanges?: FileChange[];
     isOrphaned?: boolean;
     detail?: undefined;
-    resultHash?: undefined;
     summary?: undefined;
     toolName?: undefined;
     toolUseId?: undefined;
@@ -150,7 +144,6 @@ type SessionEndNode = {
     isSystem?: undefined;
     gitOperations?: undefined;
     detail?: undefined;
-    resultHash?: undefined;
     summary?: undefined;
     toolName?: undefined;
     toolUseId?: undefined;
@@ -162,8 +155,6 @@ type CommitNode = {
     when: string;
     sessionId: string | undefined;
     detail?: string;
-    // The commit's short hash (item 66) — the fork layout's `GIT COMMIT [hash]` pill.
-    resultHash?: string;
     uuid?: undefined;
     text?: undefined;
     isSystem?: undefined;
@@ -195,10 +186,9 @@ type ToolCallNode = {
     fileChanges?: undefined;
     isOrphaned?: undefined;
     detail?: undefined;
-    resultHash?: undefined;
 };
 
-export type TimelineNode = TurnNode | SessionEndNode | CommitNode | ToolCallNode;
+type TimelineNode = TurnNode | SessionEndNode | CommitNode | ToolCallNode;
 
 // changeId -> { path, eventKind, renamedFrom, isRewound } across surviving AND rewound histories,
 // so a step's changeIds resolve to displayable file chips and orphan detection in one lookup.
@@ -468,10 +458,56 @@ function attachSnapshotsToAgentTurns(turnNodes: TurnNode[], steps: WireStepSnaps
     }
 }
 
-// (item 66) the item-55 dead git-row machinery (attachGitOperationsToAgentTurns,
-// findLastAgentTurnOfSession, formatGitOperationLabel, renderGitOperationRow,
-// showGitOperationJson) is deleted here per the plan — it lives on in
-// webapp/archive/timeline-pre-item66.ts.
+// The chronologically last agent turn of a session, or undefined when the session has none.
+function findLastAgentTurnOfSession(turnNodes: TurnNode[], sessionId: string | undefined): TurnNode | undefined {
+    let last: TurnNode | undefined;
+    for (const node of turnNodes) {
+        if (node.kind !== AGENT_TURN_NODE_KIND) {
+            continue;
+        }
+        if (node.sessionId !== sessionId) {
+            continue;
+        }
+        last = node;
+    }
+    return last;
+}
+
+// (item 55) UNUSED since git rows became standalone tool-call nodes (deriveToolCallNodes) — kept
+// per the comment-out-don't-delete convention; delete once the tool-row layout is confirmed.
+// Per git operation: the FIRST agent-turn node of its own session at or after it — the snapshot
+// attribution rule, reusing its owner check. An operation after the session's last reply (e.g. a
+// final commit) falls back to that last turn so no recorded git command is silently dropped.
+// Runs AFTER attachSnapshotsToAgentTurns so synthetic trailing turns are already candidates.
+function attachGitOperationsToAgentTurns(turnNodes: TurnNode[], gitOperations: WireGitOperation[]): void {
+    for (const operation of gitOperations) {
+        const instant = { sessionId: operation.sessionId, when: operation.timestamp };
+        const owner = turnNodes.find((node) => checkNodeCanOwnSnapshot(node, instant));
+        if (owner !== undefined) {
+            owner.gitOperations.push(operation);
+            continue;
+        }
+        const trailing = findLastAgentTurnOfSession(turnNodes, operation.sessionId);
+        if (trailing !== undefined) {
+            trailing.gitOperations.push(operation);
+        }
+    }
+}
+
+// A git row's text inside the stars, matching the user's reference sketch: `git init`,
+// `git add <paths>`, `git commit "<message>"`, `git branch: <name>`.
+function formatGitOperationLabel(operation: WireGitOperation): string {
+    if (operation.detail === "") {
+        return `git ${operation.kind}`;
+    }
+    if (operation.kind === COMMIT_OPERATION_KIND) {
+        return `git commit "${operation.detail}"`;
+    }
+    if (operation.kind === BRANCH_OPERATION_KIND) {
+        return `git branch: ${operation.detail}`;
+    }
+    return `git ${operation.kind} ${operation.detail}`;
+}
 
 // Commit pick hard-stops: from the document's commit operations (which carry the message) when it
 // ships gitOperations; an older cached document lacks the field and falls back to commitMarkers.
@@ -490,7 +526,6 @@ function deriveCommitNodes(document: WireTimelineDocument): CommitNode[] {
             when: operation.timestamp,
             sessionId: operation.sessionId,
             detail: operation.detail,
-            resultHash: operation.resultHash,
         }));
 }
 
@@ -785,207 +820,13 @@ export function computeToolActivityTag(node: {
     return undefined;
 }
 
-// A session id's 8-char short label — the fork layout's uuid column, sidebar entries, and
-// session-end rows all shorten sessions the same way (item 66).
-export function computeSessionShortLabel(sessionId: string): string {
-    return sessionId.slice(0, 8);
-}
-
-// Wire event kind of a script-made revision (mirrors EventKind.scriptExecution).
-const SCRIPT_EXECUTION_EVENT_KIND = "script-execution";
-
-// The session-start marker's text: the session's user-given custom title when the document
-// carries one ("Session <title> started: <id>"), else id-only ("Session started: <id>").
-// sessionTitles is optional — older cached documents predate the field.
-export function computeSessionStartLabel(sessionTitles: Record<string, string> | undefined, sessionId: string): string {
-    const title = sessionTitles === undefined ? undefined : sessionTitles[sessionId];
-    if (title === undefined) return `Session started: ${sessionId}`;
-    return `Session ${title} started: ${sessionId}`;
-}
-
-// Where each session's FIRST node sits, in first-appearance order — the timeline inserts a
-// session-start marker row before these indexes (item 66 follow-up; an interleaved
-// multi-JSONL project otherwise never shows where a later session began). Unattributed
-// nodes yield no marker, and interleave switches back to a started session add none.
-export function findSessionStartIndexes(nodes: TimelineNode[]): { nodeIndex: number; sessionId: string }[] {
-    const starts: { nodeIndex: number; sessionId: string }[] = [];
-    const seenSessionIds = new Set<string>();
-    for (const [nodeIndex, node] of nodes.entries()) {
-        if (node.sessionId === undefined) continue;
-        if (seenSessionIds.has(node.sessionId)) continue;
-        seenSessionIds.add(node.sessionId);
-        starts.push({ nodeIndex, sessionId: node.sessionId });
-    }
-    return starts;
-}
-
-// The pill-style role tag opening a row — "User" / "Agent" / "Tool" / "Script" (item 66
-// follow-up). An agent turn whose file chips carry a script-made revision is the script
-// run's row, so it reads "Script"; commit and session-end rows get none (their text names
-// them).
-export function computeRolePillLabel(node: TimelineNode): string | undefined {
-    if (node.kind === USER_TURN_NODE_KIND) return "User";
-    if (node.kind === TOOL_CALL_NODE_KIND) return "Tool";
-    if (node.kind !== AGENT_TURN_NODE_KIND) return undefined;
-    const ranScript = (node.fileChanges ?? []).some((change) => change.eventKind === SCRIPT_EXECUTION_EVENT_KIND);
-    if (ranScript) return "Script";
-    return "Agent";
-}
-
-// A row's collapsed one-line text, per node kind (item 66): turns show their first text line
-// (a blank synthetic agent turn reads "(tool activity)"); tool calls read like the mockup's
-// `Bash(npx tsc --noEmit)`; commits show their message; session ends name their session.
-export function computeRowSummaryText(node: TimelineNode): string {
-    if (node.kind === COMMIT_NODE_KIND) {
-        return node.detail ?? "git commit";
-    }
-    if (node.kind === SESSION_END_NODE_KIND) {
-        return `end of session ${computeSessionShortLabel(node.sessionId)}`;
-    }
-    if (node.kind === TOOL_CALL_NODE_KIND) {
-        return `${node.toolName}(${truncateToolCallSummary(node.summary)})`;
-    }
-    const firstLine = node.text.split("\n")[0]!;
-    if (node.kind === AGENT_TURN_NODE_KIND && firstLine.trim() === "") {
-        return "(tool activity)";
-    }
-    return firstLine;
-}
-
-// A commit's changed-file list (item 66, mockup logic): walk back from the commit to the previous
-// commit EXCLUSIVE (or the timeline start), collecting every surviving row's file changes; each
-// path is listed once, keeping the occurrence CLOSEST to the commit (its latest revision).
-export function deriveCommitChangedFiles(nodes: TimelineNode[], commitIndex: number): FileChange[] {
-    const changes: FileChange[] = [];
-    const seenPaths = new Set<string>();
-    for (let index = commitIndex - 1; index >= 0; index -= 1) {
-        const node = nodes[index]!;
-        if (node.kind === COMMIT_NODE_KIND) {
-            break;
-        }
-        if (node.isOrphaned === true) {
-            continue;
-        }
-        for (const change of node.fileChanges ?? []) {
-            if (seenPaths.has(change.path)) {
-                continue;
-            }
-            seenPaths.add(change.path);
-            changes.push(change);
-        }
-    }
-    return changes;
-}
-
-// The rows a selected commit highlights (`.contrib`, item 66): the same walk back to the previous
-// commit, including every surviving row whose file changes overlap the commit's changed paths.
-export function findContributingNodeIndexes(nodes: TimelineNode[], commitIndex: number): number[] {
-    const changedPaths = new Set(deriveCommitChangedFiles(nodes, commitIndex).map((change) => change.path));
-    const indexes: number[] = [];
-    for (let index = commitIndex - 1; index >= 0; index -= 1) {
-        const node = nodes[index]!;
-        if (node.kind === COMMIT_NODE_KIND) {
-            break;
-        }
-        if (node.isOrphaned === true) {
-            continue;
-        }
-        if ((node.fileChanges ?? []).some((change) => changedPaths.has(change.path))) {
-            indexes.push(index);
-        }
-    }
-    return indexes.reverse();
-}
-
-// The Files sidebar's entries (item 66): every surviving touched file with its revision count.
-export function buildFilesSidebarViewModel(document: WireTimelineDocument): { target: string; revisionCount: number }[] {
-    return document.filesTouched.map((history) => ({
-        target: history.target,
-        revisionCount: history.revisions.length,
-    }));
-}
-
-// The project JSONL whose file name starts with the session id (JSONLs are named after their
-// session uuid); undefined when unattributed or when the listing has no match. Lifted out of
-// renderTimelineView (item 66) so the Sessions sidebar view-model can resolve it too.
-export function findJsonlForSession(listing: WireProjectListing | undefined, sessionId: string | undefined): string | undefined {
-    if (sessionId === undefined) {
-        return undefined;
-    }
-    return listing?.jsonlFiles.find((file) => file.fileName.startsWith(sessionId))?.fileName;
-}
-
-// One Sessions-sidebar entry per distinct attributed session, in first-appearance order.
-type SessionSidebarEntry = {
-    sessionId: string;
-    shortLabel: string;
-    jsonlFileName: string | undefined;
-    rowCount: number;
-    firstNodeIndex: number;
-};
-
-// The Sessions sidebar's entries (item 66): group the timeline rows by sessionId (unattributed
-// rows belong to no session), counting rows and remembering the first row for flash-scroll.
-export function buildSessionsSidebarViewModel(nodes: TimelineNode[], listing: WireProjectListing | undefined): SessionSidebarEntry[] {
-    const entries: SessionSidebarEntry[] = [];
-    const entriesBySessionId = new Map<string, SessionSidebarEntry>();
-    nodes.forEach((node, index) => {
-        if (node.sessionId === undefined) {
-            return;
-        }
-        const existing = entriesBySessionId.get(node.sessionId);
-        if (existing !== undefined) {
-            existing.rowCount += 1;
-            return;
-        }
-        const entry: SessionSidebarEntry = {
-            sessionId: node.sessionId,
-            shortLabel: computeSessionShortLabel(node.sessionId),
-            jsonlFileName: findJsonlForSession(listing, node.sessionId),
-            rowCount: 1,
-            firstNodeIndex: index,
-        };
-        entriesBySessionId.set(node.sessionId, entry);
-        entries.push(entry);
-    });
-    return entries;
-}
-
-// The fork gutter's lane-2 spans (item 66): one {startIndex, endIndex} per CONTIGUOUS run of
-// orphaned rows — the run's first row draws the fork curve, its last the merge-back end.
-export function computeGraphLaneRuns(nodes: TimelineNode[]): { startIndex: number; endIndex: number }[] {
-    const runs: { startIndex: number; endIndex: number }[] = [];
-    let currentRun: { startIndex: number; endIndex: number } | undefined;
-    nodes.forEach((node, index) => {
-        if (node.isOrphaned !== true) {
-            currentRun = undefined;
-            return;
-        }
-        if (currentRun !== undefined) {
-            currentRun.endIndex = index;
-            return;
-        }
-        currentRun = { startIndex: index, endIndex: index };
-        runs.push(currentRun);
-    });
-    return runs;
-}
-
-// Whether a row gets a tri + bubble (item 66): commit and session-end rows are thin one-liners
-// (locked decision 4); every turn and tool-call row expands.
-export function checkRowIsExpandable(node: TimelineNode): boolean {
-    if (node.kind === COMMIT_NODE_KIND) {
-        return false;
-    }
-    return node.kind !== SESSION_END_NODE_KIND;
-}
-
 // ─── render half (DOM only — every computation lives in the view-model above) ───────────────────
 
 // Fixed session-lane palette, assigned by first appearance; a session keeps its color for the
 // whole list (never re-cycled mid-list).
 const SESSION_LANE_VARIABLES = ["--accent", "--green", "--orange", "--lane-violet", "--lane-teal"];
 const ORPHAN_LANE_COLOR = "var(--muted)";
+const UNATTRIBUTED_SESSION_LABEL = "(unattributed)";
 
 // The letter half of a chip's letter+color badge (color alone never carries the meaning).
 function computeOpLetter(change: FileChange): string {
@@ -1026,61 +867,6 @@ function renderFileChip(change: FileChange, onclick: EventListener): HTMLElement
     ]);
 }
 
-// The mockup's role-* text/bubble class per node kind (agent turns are the assistant role).
-function computeRoleClass(kind: TimelineNode["kind"]): string {
-    if (kind === USER_TURN_NODE_KIND) {
-        return "role-user";
-    }
-    if (kind === AGENT_TURN_NODE_KIND) {
-        return "role-assistant";
-    }
-    if (kind === TOOL_CALL_NODE_KIND) {
-        return "role-tool";
-    }
-    if (kind === COMMIT_NODE_KIND) {
-        return "role-commit";
-    }
-    return "role-end";
-}
-
-// Commit and session-end dots render hollow (border ring) — both read as terminators (the old
-// SVG rail's convention, now the .g-hollow class).
-function checkDotIsHollow(kind: TimelineNode["kind"]): boolean {
-    if (kind === COMMIT_NODE_KIND) {
-        return true;
-    }
-    return kind === SESSION_END_NODE_KIND;
-}
-
-// The fork gutter cell (mockup buildGraphCell): the lane-1 rail tinted with the row's session
-// color; rows inside a computeGraphLaneRuns run add the lane-2 rail (fork curve on the run's
-// first row, cut-off on its last) and put their dot on lane 2 (CSS colors it).
-function buildGraphCell(kind: TimelineNode["kind"], index: number, laneRuns: { startIndex: number; endIndex: number }[], sessionColor: string): HTMLElement {
-    const cell = el("div", { class: "tl-graph" });
-    cell.append(el("span", { class: "g-rail g-l1", style: `background:${sessionColor}` }));
-    const run = laneRuns.find((candidate) => index >= candidate.startIndex && index <= candidate.endIndex);
-    if (run !== undefined) {
-        const lane2 = el("span", { class: "g-rail g-l2" });
-        if (index === run.startIndex) {
-            lane2.classList.add("g-start");
-            cell.append(el("span", { class: "g-fork" }));
-        }
-        if (index === run.endIndex) {
-            lane2.classList.add("g-end");
-        }
-        cell.append(lane2);
-    }
-    const dot = el("span", { class: `g-dot ${run === undefined ? "g-l1" : "g-l2"}` });
-    if (checkDotIsHollow(kind)) {
-        dot.classList.add("g-hollow");
-        dot.style.color = sessionColor;                    // .g-hollow's ring is currentColor
-    } else if (run === undefined) {
-        dot.style.background = sessionColor;               // lane-2 dots keep the CSS lane color
-    }
-    cell.append(dot);
-    return cell;
-}
-
 // The project-wide revision timeline (#/project/<name>/timeline[/session/<jsonl>]) — the default
 // view a drawer JSONL link opens. anchorJsonl scrolls to that session's first node.
 // anchorLine (optional, 0-based raw line of anchorJsonl): scroll to the owning step, open the
@@ -1095,9 +881,8 @@ export async function renderTimelineView(container: HTMLElement, project: string
     const reconstructionDocument = result.document as WireTimelineDocument;
     const { nodes } = buildTurnTimelineViewModel(reconstructionDocument);
     const listing = (await fetchJson<WireProjectListing[]>("/api/projects")).find((entry) => entry.name === project);
-    // (item 66) old local closure, lifted into the exported view-model helper findJsonlForSession:
-    // const findJsonlForSession = (sessionId: string | undefined) =>
-    //     listing?.jsonlFiles.find((file) => file.fileName.startsWith(sessionId!))?.fileName;
+    const findJsonlForSession = (sessionId: string | undefined) =>
+        listing?.jsonlFiles.find((file) => file.fileName.startsWith(sessionId!))?.fileName;
 
     const sessionColors = new Map<string, string>();
     for (const node of nodes) {
@@ -1110,19 +895,23 @@ export async function renderTimelineView(container: HTMLElement, project: string
         sessionColors.set(node.sessionId, `var(${SESSION_LANE_VARIABLES[sessionColors.size % SESSION_LANE_VARIABLES.length]})`);
     }
 
-    // The pane header's summary + expand-all button are STATIC skeleton elements outside
-    // `container` (index.html); each render rewrites them.
     const numberedNodes = nodes.filter((node) => node.stepNumber !== undefined);
     const touchedCount = new Set(nodes.flatMap((node) => (node.fileChanges ?? []).map((change) => change.path))).size;
-    document.getElementById("timeline-summary")!.textContent =
-        `${sessionColors.size} session${sessionColors.size === 1 ? "" : "s"} · ${numberedNodes.length} steps · ${touchedCount} files`;
+    container.append(el("div", { class: "pane-title", text: `${project} · revision timeline` }));
+    container.append(el("div", {
+        class: "muted",
+        text: `${sessionColors.size} session(s) · ${numberedNodes.length} steps · ${touchedCount} files touched · click a step for its JSONL line, a chip for the file state`,
+    }));
+
+    const body = el("div", { class: "timeline-body" });
+    // SVG needs the SVG namespace, which el() (createElement) can't produce.
+    const railSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    railSvg.setAttribute("class", "timeline-rail");
+    body.append(railSvg);
 
     // ── selection state + bar ──
     const pickBoxes = new Map<number, HTMLInputElement>();      // node index -> checkbox
     const nodeRows = new Map<number, HTMLElement>();       // node index -> row element
-    const previewPanes = new Map<number, HTMLElement>();   // node index -> its fallback-message pane
-    const expandableRows: HTMLElement[] = [];              // rows #toggle-all expands/collapses
-    let selectedRow: HTMLElement | null = null;
     let pickedIndexes: number[] = [];
     let activeChip: HTMLElement | null = null;            // the chip whose file the preview drawer is showing
     const clearActiveChip = () => {
@@ -1134,11 +923,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
     };
     const barText = el("span", {});
     const ruleHint = el("span", { class: "timeline-rule", text: "picks must be contiguous — commits are hard stops" });
-    // The selectbar is the static #timeline-selectbar strip under the rows (fork layout);
-    // visibility is the mockup's .visible class, driven by updateSelectbar.
-    const selectbar = document.getElementById("timeline-selectbar")!;
-    selectbar.hidden = false;
-    selectbar.classList.remove("visible");
+    const selectbar = el("div", { class: "timeline-selectbar hidden" });
 
     const buildConsentParams = () => {
         const params = new URLSearchParams({ project });
@@ -1177,32 +962,23 @@ export async function renderTimelineView(container: HTMLElement, project: string
         for (const [index, row] of nodeRows) {
             row.classList.toggle("picked", pickBoxes.get(index)?.checked === true);
         }
-        selectbar.classList.toggle("visible", pickedIndexes.length > 0);
+        selectbar.classList.toggle("hidden", pickedIndexes.length === 0);
         if (pickedIndexes.length > 0) {
             const summary = computeRangeSummary(nodes, pickedIndexes);
             barText.textContent =
                 `${summary.stepCount} step${summary.stepCount === 1 ? "" : "s"} picked · ` +
                 `${summary.filePaths.length} file${summary.filePaths.length === 1 ? "" : "s"}`;
         }
+        drawRail();
     };
 
-    // replaceChildren (not append): the selectbar is static, re-renders must not stack contents.
-    selectbar.replaceChildren(barText, ruleHint, el("button", {
+    selectbar.append(barText, ruleHint, el("span", { class: "spacer" }), el("button", {
         class: "toolbar-btn",
         text: "Export .patch",
         onclick: async () => {
             const summary = computeRangeSummary(nodes, pickedIndexes);
             const patchText = await fetchRangePatch(summary.fromStepIndex, summary.toStepIndex);
             downloadText(`${project}-steps-${summary.fromStepIndex}-${summary.toStepIndex}.patch`, patchText);
-        },
-    }), el("button", {
-        class: "toolbar-btn",
-        text: "Clear",
-        onclick: () => {
-            for (const box of pickBoxes.values()) {
-                box.checked = false;
-            }
-            updateSelectbar();
         },
     }));
 
@@ -1240,10 +1016,10 @@ export async function renderTimelineView(container: HTMLElement, project: string
         }
         selectedRow = row;
         row.classList.add("selected");
-        // Item 45: bring the newly selected row into view; "nearest" scrolls only when the
-        // row is outside the pane, so in-view steps don't jump. Selection-swap + scroll ONLY —
-        // the details pane already shows the inspector that drove this sync (item 66).
+        // Item 45: bring the newly selected bubble into view; "nearest" scrolls only when the
+        // bubble is outside the pane, so in-view steps don't jump.
         row.scrollIntoView({ block: "nearest" });
+        drawRail();
     };
 
     // Every timeline transcript-inspector open routes through this wrapper so line changes
@@ -1270,6 +1046,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
         // of opening the inspector on nothing.
         previewPane.classList.remove("hidden");
         previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this step (synthetic change id)" }));
+        drawRail();
     };
 
     // Clicking a turn opens the transcript drawer on the message's OWN JSONL line (the record
@@ -1280,7 +1057,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
             openStepInspector(node, previewPane);
             return;
         }
-        const jsonlName = findJsonlForSession(listing, node.sessionId);
+        const jsonlName = findJsonlForSession(node.sessionId);
         if (jsonlName === undefined) {
             openStepInspector(node, previewPane);
             return;
@@ -1362,14 +1139,72 @@ export async function renderTimelineView(container: HTMLElement, project: string
         );
     };
 
-    // (item 66) the dead item-47 findRevisionResultLine/showRevisionJson comment block and the
-    // dead item-55 showGitOperationJson helper are deleted here — see the archive copy.
+    // (item 47) dead since the chip's { } retarget to openTurnInspector — the user chose the
+    // bubble's own message line over the revision-causing tool_result line. Delete after the
+    // retarget is confirmed working.
+    // // The revision's RESULT line: among the lines carrying the changeId, the tool result (the
+    // // record holding the toolUseResult/structuredPatch payload) beats the tool_use call that
+    // // merely requested it; first match is the fallback.
+    // const findRevisionResultLine = async (changeId: string): Promise<TranscriptLocation | undefined> => {
+    //     for (const file of listing?.jsonlFiles ?? []) {
+    //         const rawLines = await fetchRawRecords(project, file.fileName);
+    //         const matches: number[] = [];
+    //         rawLines.forEach((text, line) => {
+    //             if (text.includes(changeId)) {
+    //                 matches.push(line);
+    //             }
+    //         });
+    //         if (matches.length === 0) {
+    //             continue;
+    //         }
+    //         const resultLine = matches.find((line) => rawLines[line]!.includes('"toolUseResult"'));
+    //         return { jsonlName: file.fileName, rawLines, line: resultLine ?? matches[0]! };
+    //     }
+    //     return undefined;
+    // };
+    //
+    // // { } button: the raw JSONL record that caused this revision (the structuredPatch line),
+    // // opened in the details pane — distinct from the turn click, which opens the MESSAGE's line.
+    // const showRevisionJson = async (change: FileChange, previewPane: HTMLElement): Promise<void> => {
+    //     const located = await findRevisionResultLine(change.changeId!);
+    //     if (located === undefined) {
+    //         previewPane.classList.remove("hidden");
+    //         previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this revision (synthetic change id)" }));
+    //         return;
+    //     }
+    //     openTranscriptInspectorSynced(located);
+    // };
+
+    // (item 55) UNUSED since git rows became tool-call rows (openToolCallLine below) — kept per
+    // the comment-out-don't-delete convention; delete once the tool-row layout is confirmed.
+    // { } button on a git row: the Bash tool_use line that ran the command, matched by the
+    // record's OWN uuid field (the turn-click convention — a bare-uuid scan could land on a line
+    // that merely references it).
+    const showGitOperationJson = async (operation: WireGitOperation, previewPane: HTMLElement): Promise<void> => {
+        const jsonlName = operation.sessionId === undefined ? undefined : findJsonlForSession(operation.sessionId);
+        if (jsonlName === undefined) {
+            previewPane.classList.remove("hidden");
+            previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this git command" }));
+            return;
+        }
+        const rawLines = await fetchRawRecords(project, jsonlName);
+        let line = findLineForChangeId(rawLines, `"uuid":"${operation.uuid}"`);
+        if (line < 0) {
+            line = findLineForChangeId(rawLines, operation.uuid!);
+        }
+        if (line < 0) {
+            previewPane.classList.remove("hidden");
+            previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this git command" }));
+            return;
+        }
+        openTranscriptInspectorSynced({ jsonlName, rawLines, line });
+    };
 
     // { } button on a tool-call row (item 55): the tool_use record's line (or the hook attachment
     // that rewrote the command), matched by the record's OWN uuid field. The inspector's
     // line-sync then selects the row itself.
     const openToolCallLine = async (node: ToolCallNode, previewPane: HTMLElement): Promise<void> => {
-        const jsonlName = node.sessionId === undefined ? undefined : findJsonlForSession(listing, node.sessionId);
+        const jsonlName = node.sessionId === undefined ? undefined : findJsonlForSession(node.sessionId);
         if (jsonlName === undefined) {
             previewPane.classList.remove("hidden");
             previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript line for this tool call" }));
@@ -1478,6 +1313,30 @@ export async function renderTimelineView(container: HTMLElement, project: string
         return el("div", { class: "timeline-chip-row" }, buttons);
     };
 
+    // (item 55) UNUSED since git rows became tool-call rows (the TOOL_CALL_NODE_KIND branch
+    // below) — kept per the comment-out-don't-delete convention; delete once confirmed.
+    // One git row: `* git <label> * (time)` plus a { } button opening the Bash tool_use line that
+    // ran the command in the details pane (same button shape as the file rows').
+    const renderGitOperationRow = (operation: WireGitOperation, previewPane: HTMLElement): HTMLElement => {
+        const parts = [el("span", {
+            class: "timeline-gitop",
+            text: `* ${formatGitOperationLabel(operation)} * (${new Date(operation.timestamp).toLocaleTimeString()})`,
+            title: operation.command,
+        })];
+        if (operation.uuid !== undefined) {
+            parts.push(el("span", {
+                class: "timeline-chip timeline-chip-action",
+                title: "Show JSON for git command in inspector",
+                text: "{ }",
+                onclick: (event: Event) => {
+                    event.stopPropagation();
+                    showGitOperationJson(operation, previewPane);
+                },
+            }));
+        }
+        return el("div", { class: "timeline-chip-row" }, parts);
+    };
+
     // Each turn's own JSONL line label ("L:<n> (of <total>)", numbered like the details pane),
     // resolved up front — one cached raw fetch per session file.
     const lineLabels = new Map<number, string>();
@@ -1485,7 +1344,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
         if (node.uuid === undefined) {
             continue;
         }
-        const jsonlName = node.sessionId === undefined ? undefined : findJsonlForSession(listing, node.sessionId);
+        const jsonlName = node.sessionId === undefined ? undefined : findJsonlForSession(node.sessionId);
         if (jsonlName === undefined) {
             continue;
         }
@@ -1516,266 +1375,314 @@ export async function renderTimelineView(container: HTMLElement, project: string
         }
     }
 
-    // The session transcript at its LAST line — a session-end row's opener (the old session-
-    // header link behavior, re-homed onto the row's { } button).
-    const openSessionEndTranscript = async (node: TimelineNode, previewPane: HTMLElement): Promise<void> => {
-        const jsonlName = findJsonlForSession(listing, node.sessionId);
-        if (jsonlName === undefined) {
-            previewPane.classList.remove("hidden");
-            previewPane.replaceChildren(el("div", { class: "muted", text: "no transcript for this session" }));
-            return;
+    // The row's right-edge meta column: the timestamp with the turn's JSONL line label under it.
+    const renderRowMeta = (node: TimelineNode, index: number): HTMLElement => {
+        const parts = [el("span", { class: "timeline-time", text: new Date(node.when).toLocaleTimeString() })];
+        const lineLabel = lineLabels.get(index);
+        if (lineLabel !== undefined) {
+            parts.push(el("span", { class: "timeline-time", text: lineLabel }));
         }
-        const rawLines = await fetchRawRecords(project, jsonlName);
-        openTranscriptInspectorSynced({ jsonlName, rawLines, line: rawLines.length - 1 });
+        return el("span", { class: "timeline-meta" }, parts);
     };
 
-    // The per-kind inspector opener shared by the { } buttons and the details pane
-    // (DetailsContext.openNodeInspector). Deliberately does NOT re-call selectTimelineRow —
-    // the details pane calls this while rendering, and reopening the selection would loop.
-    const openNodeInspector = (nodeIndex: number): void => {
-        const node = nodes[nodeIndex]!;
-        const previewPane = previewPanes.get(nodeIndex)!;
-        if (node.kind === TOOL_CALL_NODE_KIND) {
-            void openToolCallLine(node, previewPane);
-            return;
-        }
-        if (node.kind === SESSION_END_NODE_KIND) {
-            void openSessionEndTranscript(node, previewPane);
-            return;
-        }
-        if (node.kind === COMMIT_NODE_KIND) {
-            return;                                        // a commit is a repo event: no JSONL record
-        }
-        void openTurnInspector(node, previewPane);
-    };
-
-    // Restart the row-flash animation (mockup jumpToTimelineRow's remove/reflow/add dance).
-    const flashRowElement = (row: HTMLElement): void => {
-        row.classList.remove("flash");
-        void row.offsetWidth;                              // restart the CSS animation
-        row.classList.add("flash");
-        setTimeout(() => row.classList.remove("flash"), 1300);
-    };
-
-    // Sidebar session clicks and the session-anchor route land here: scroll + flash the row.
-    const jumpToTimelineRow = (nodeIndex: number): void => {
-        const row = nodeRows.get(nodeIndex);
-        if (row === undefined) {
-            return;
-        }
-        row.scrollIntoView({ block: "start" });
-        flashRowElement(row);
-    };
-
-    // Row selection (mockup selectRow): swap .selected, re-derive the commit-contribution
-    // highlight, render the matching details mode, THEN center the row — the details render
-    // reflows the panes, so centering must run against the post-render layout (item 50).
-    async function selectTimelineRow(nodeIndex: number): Promise<void> {
-        const row = nodeRows.get(nodeIndex);
-        if (row === undefined) {
-            return;
-        }
-        if (selectedRow !== null) {
-            selectedRow.classList.remove("selected");
-        }
-        selectedRow = row;
-        row.classList.add("selected");
-        for (const other of nodeRows.values()) {
-            other.classList.remove("contrib");
-        }
-        clearSidebarFileSelection();                       // the details pane leaves file mode
-        const node = nodes[nodeIndex]!;
-        if (node.kind === COMMIT_NODE_KIND) {
-            for (const contributingIndex of findContributingNodeIndexes(nodes, nodeIndex)) {
-                nodeRows.get(contributingIndex)?.classList.add("contrib");
-            }
-            await renderDetailsCommitMode(node, nodeIndex, detailsContext);
-        } else {
-            await renderDetailsMessageMode(node, nodeIndex, detailsContext);
-        }
-        row.scrollIntoView({ block: "center" });
-    }
-
-    // Built once per render; the details pane drives the timeline back through these callbacks.
-    const detailsContext: DetailsContext = {
-        project,
-        document: reconstructionDocument,
-        nodes,
-        openNodeInspector,
-        selectTimelineRow: (nodeIndex: number) => {
-            void selectTimelineRow(nodeIndex).then(() => {
-                const row = nodeRows.get(nodeIndex);
-                if (row !== undefined) {
-                    flashRowElement(row);
-                }
-            });
-        },
-    };
-
-    // ── rows: one .tl-row per node (mockup renderTimeline) ──
-    const laneRuns = computeGraphLaneRuns(nodes);
-    // Session-start markers: an interleaved multi-JSONL project otherwise never shows where
-    // a later session began (item 66 follow-up, user-reported on s58).
-    const sessionStartsByIndex = new Map(
-        findSessionStartIndexes(nodes).map((start) => [start.nodeIndex, start.sessionId]),
-    );
+    // ── rows ──
+    let selectedRow: HTMLElement | null = null;
+    let previousNode: TimelineNode | null = null;
     nodes.forEach((node, index) => {
-        const sessionColor = node.sessionId === undefined
-            ? ORPHAN_LANE_COLOR
-            : sessionColors.get(node.sessionId) ?? ORPHAN_LANE_COLOR;
-
-        const startedSessionId = sessionStartsByIndex.get(index);
-        if (startedSessionId !== undefined) {
-            const marker = el("div", { class: "tl-session-start" });
-            marker.style.color = sessionColor;
-            marker.append(el("span", {
-                class: "tl-session-start-label",
-                text: computeSessionStartLabel(reconstructionDocument.sessionTitles, startedSessionId),
-            }));
-            container.append(marker);
+        const sessionKey = node.sessionId ?? UNATTRIBUTED_SESSION_LABEL;
+        if (previousNode === null || (previousNode.sessionId ?? UNATTRIBUTED_SESSION_LABEL) !== sessionKey) {
+            const color = sessionColors.get(node.sessionId!) ?? ORPHAN_LANE_COLOR;
+            const jsonlName = node.sessionId === undefined ? undefined : findJsonlForSession(node.sessionId);
+            // The session link opens the transcript in the inspector drawer, keeping the
+            // timeline visible — never navigates away from it.
+            const openSessionTranscript = async (event: Event) => {
+                event.preventDefault();
+                const rawLines = await fetchRawRecords(project, jsonlName!);
+                openTranscriptInspectorSynced({ jsonlName: jsonlName!, rawLines, line: 0 });
+            };
+            const header = el("div", { class: "timeline-session", "data-color": color, "data-session": sessionKey }, [
+                el("span", { class: "swatch", style: `background:${color}` }),
+                jsonlName !== undefined
+                    ? el("a", { href: routeToConversation(project, jsonlName), text: sessionKey.slice(0, 8), onclick: openSessionTranscript })
+                    : el("span", { text: sessionKey.slice(0, 8) }),
+                el("span", { class: "muted", text: jsonlName ?? "", onclick: (jsonlName === undefined ? undefined : openSessionTranscript) as EventListener }),
+                el("span", { class: "line" }),
+            ]);
+            body.append(header);
+        }
+        if (previousNode !== null && previousNode.isOrphaned === true && node.isOrphaned !== true) {
+            body.append(el("div", { class: "timeline-divider" }, [
+                el("span", { text: "↺ rewound — steps above are orphaned" }),
+                el("span", { class: "line" }),
+            ]));
         }
 
         const previewPane = el("div", { class: "hidden" });
-        previewPanes.set(index, previewPane);
-        const row = el("div", { class: `tl-row${node.isOrphaned === true ? " orphan" : ""}` });
-        row.append(buildGraphCell(node.kind, index, laneRuns, sessionColor));
-        const main = el("div", { class: "tl-main" });
-        const line = el("div", { class: "tl-line" });
-
-        // Pick cell (existing pick model: only surviving agent turns with snapshots).
-        const pickCell = el("span", { class: "tl-pick" });
-        if (checkNodeIsPickable(node)) {
-            const pick = el("input", { type: "checkbox" }) as HTMLInputElement;
-            pickBoxes.set(index, pick);
-            pick.addEventListener("click", (event) => event.stopPropagation()); // picking must not change selection
-            pick.addEventListener("change", () => {
-                const candidate = [...pickBoxes.entries()].filter(([, box]) => box.checked).map(([i]) => i);
-                if (!checkPickIsLegal(nodes, candidate)) {
-                    pick.checked = !pick.checked;
-                    flashRule();
-                }
-                updateSelectbar();
-            });
-            pickCell.append(pick);
-        }
-        line.append(pickCell);
-
-        if (node.kind === COMMIT_NODE_KIND) {
-            line.append(el("span", { class: "tl-tri", text: "" }));   // spacer keeps columns aligned
-            line.append(el("span", { class: "commit-label", text: "git commit" }));
-            if (node.resultHash !== undefined) {                       // no hash → no pill (a blank "—" reads broken)
-                line.append(el("span", { class: "commit-pill", text: node.resultHash }));
-            }
-        } else if (checkRowIsExpandable(node)) {
-            const tri = el("span", { class: "tl-tri", text: "▸" });
-            tri.addEventListener("click", (event) => {
-                event.stopPropagation();                   // expansion must not change selection
-                row.classList.toggle("expanded");
-                updateToggleLabel();
-            });
-            line.append(tri);
-        } else {
-            line.append(el("span", { class: "tl-tri", text: "" }));   // session ends stay thin
-        }
-        const rolePillLabel = computeRolePillLabel(node);
-        if (rolePillLabel !== undefined) {
-            line.append(el("span", { class: `role-pill role-pill-${rolePillLabel.toLowerCase()}`, text: rolePillLabel }));
-        }
-        line.append(el("span", {
-            class: `tl-text ${computeRoleClass(node.kind)}${node.isSystem === true ? " system" : ""}`,
-            text: computeRowSummaryText(node),
-        }));
-        line.append(el("span", { class: "tl-ts", text: new Date(node.when).toLocaleString() }));
-        line.append(el("span", { class: "tl-pos", text: lineLabels.get(index) ?? "" }));
-        line.append(el("span", { class: "tl-uuid", text: node.sessionId === undefined ? "" : computeSessionShortLabel(node.sessionId) }));
-        if (node.kind !== COMMIT_NODE_KIND) {              // commits are repo events: no JSONL record
-            line.append(el("button", {
-                class: "tl-json",
-                text: "{ }",
-                title: "Show this row's JSONL record in the details pane",
-                onclick: async (event: Event) => {
-                    event.stopPropagation();
-                    await selectTimelineRow(index);
-                    openNodeInspector(index);
-                },
-            }));
-        }
-        line.addEventListener("click", () => {
-            void selectTimelineRow(index);
+        const row = el("div", {
+            class: `timeline-row${node.isOrphaned ? " orphan" : ""}${node.isSystem ? " system" : ""}`,
+            "data-node-kind": node.kind,
+            "data-session": sessionKey,
         });
-        main.append(line);
-
-        // Expandable rows carry the mockup bubble: the full text, plus the file-chips block on
-        // agent turns (the kept renderFileButtonRow machinery).
-        if (checkRowIsExpandable(node)) {
-            const bubble = el("div", { class: `tl-bubble ${computeRoleClass(node.kind)}` });
-            bubble.append(node.kind === TOOL_CALL_NODE_KIND ? `${node.toolName}(${node.summary})` : node.text ?? "");
-            if (node.kind === AGENT_TURN_NODE_KIND) {
-                bubble.append(el("div", { class: "timeline-chips" },
-                    node.fileChanges!.map((change) => renderFileButtonRow(node, index, change, previewPane))));
+        if (node.isOrphaned) {
+            row.setAttribute("data-branch", "orphan");
+        }
+        if (node.kind === COMMIT_NODE_KIND) {
+            row.append(el("div", { class: "timeline-row-top" }, [
+                el("span", { class: "timeline-step-label", text: "git commit" }),
+                el("span", { class: "timeline-tag commit", text: "commit" }),
+                el("span", { class: "timeline-prompt", text: node.detail === undefined ? "" : `“${node.detail}”` }),
+                el("span", { class: "timeline-time", text: new Date(node.when).toLocaleTimeString() }),
+            ]));
+        }
+        if (node.kind === USER_TURN_NODE_KIND) {
+            const rowTop = el("div", { class: "timeline-row-top" }, [
+                el("span", { class: "timeline-step-label", text: `Step ${node.stepNumber}` }),
+                el("span", { class: "timeline-prompt", text: `“${node.text}”` }),
+                renderRowMeta(node, index),
+            ]);
+            rowTop.addEventListener("click", async () => {
+                if (selectedRow !== null) {
+                    selectedRow.classList.remove("selected");
+                }
+                selectedRow = row;
+                row.classList.add("selected");
+                drawRail();
+                await openTurnInspector(node, previewPane);
+                // (item 50) the drawer open narrows the timeline column and reflows every
+                // bubble; center the clicked row against the post-drawer layout (same fix
+                // as item 37's anchor route).
+                row.scrollIntoView({ block: "center" });
+            });
+            row.append(rowTop);
+        }
+        if (node.kind === SESSION_END_NODE_KIND) {
+            const jsonlName = node.sessionId === undefined ? undefined : findJsonlForSession(node.sessionId);
+            const rowTop = el("div", { class: "timeline-row-top" }, [
+                el("span", { class: "timeline-step-label", text: `Step ${node.stepNumber}` }),
+                el("span", { class: "timeline-prompt timeline-session-end", text: `end of session ${jsonlName ?? node.sessionId}` }),
+                el("span", { class: "timeline-time", text: new Date(node.when).toLocaleTimeString() }),
+            ]);
+            // Clicking the session-end step opens the session transcript at its LAST line.
+            if (jsonlName !== undefined) {
+                rowTop.addEventListener("click", async () => {
+                    const rawLines = await fetchRawRecords(project, jsonlName);
+                    openTranscriptInspectorSynced({ jsonlName, rawLines, line: rawLines.length - 1 });
+                    // (item 50) same post-drawer centering as the turn handlers.
+                    row.scrollIntoView({ block: "center" });
+                });
             }
-            main.append(bubble);
-            expandableRows.push(row);
+            row.append(rowTop);
         }
-        main.append(previewPane);
-        row.append(main);
-        container.append(row);
+        if (node.kind === AGENT_TURN_NODE_KIND) {
+            if (checkNodeIsPickable(node)) {
+                const pick = el("input", { class: "timeline-pick", type: "checkbox" }) as HTMLInputElement;
+                pickBoxes.set(index, pick);
+                pick.addEventListener("change", () => {
+                    const candidate = [...pickBoxes.entries()].filter(([, box]) => box.checked).map(([i]) => i);
+                    if (!checkPickIsLegal(nodes, candidate)) {
+                        pick.checked = !pick.checked;
+                        flashRule();
+                    }
+                    updateSelectbar();
+                });
+                row.append(pick);
+            }
+            // Unattributed-lane steps have no session context to explain them — tag each row
+            // with what it is (its chips' event kinds, item 10d); the title is the tooltip.
+            const unattributedTag = sessionKey === UNATTRIBUTED_SESSION_LABEL
+                ? computeUnattributedStepTag(node.fileChanges!.map((change) => change.eventKind))
+                : undefined;
+            // Tool-activity turns (no reply text, only tool calls/results) read as their own
+            // category: violet bubble variant + a "tool call"/"tool result" tag (item 52).
+            const toolActivityTag = computeToolActivityTag(node);
+            if (toolActivityTag !== undefined) {
+                row.classList.add("tool-activity");
+            }
+            const rowTop = el("div", { class: "timeline-row-top" }, [
+                el("span", { class: "timeline-step-label", text: `Step ${node.stepNumber}` }),
+                ...(toolActivityTag === undefined
+                    ? []
+                    : [el("span", { class: "timeline-tag tool-activity-tag", text: toolActivityTag })]),
+                ...(node.isOrphaned ? [el("span", { class: "timeline-tag", text: "orphaned" })] : []),
+                ...(unattributedTag === undefined
+                    ? []
+                    : [el("span", { class: "timeline-tag", text: unattributedTag, title: `attributed to no session — ${unattributedTag}` })]),
+                el("span", { class: "timeline-prompt", text: node.text }),
+                renderRowMeta(node, index),
+            ]);
+            rowTop.addEventListener("click", async () => {
+                if (selectedRow !== null) {
+                    selectedRow.classList.remove("selected");
+                }
+                selectedRow = row;
+                row.classList.add("selected");
+                drawRail();
+                await openTurnInspector(node, previewPane);
+                // (item 50) the drawer open narrows the timeline column and reflows every
+                // bubble; center the clicked row against the post-drawer layout (same fix
+                // as item 37's anchor route).
+                row.scrollIntoView({ block: "center" });
+            });
+            row.append(rowTop);
+            // (item 55) old: git rows rendered inside the turn bubble — now standalone
+            // tool-call rows (the TOOL_CALL_NODE_KIND branch below).
+            // if (node.gitOperations.length > 0) {
+            //     row.append(el("div", { class: "timeline-gitops" },
+            //         node.gitOperations.map((operation) => renderGitOperationRow(operation, previewPane))));
+            // }
+            row.append(el("div", { class: "timeline-chips" },
+                node.fileChanges!.map((change) => renderFileButtonRow(node, index, change, previewPane))));
+            row.append(previewPane);
+        }
+        if (node.kind === TOOL_CALL_NODE_KIND) {
+            // Un-bubbled one-liner (item 55): `* <summary, 50 chars> * [{ }] <TS> L:n (of N)`.
+            const rowTop = el("div", { class: "timeline-row-top" }, [
+                el("span", {
+                    class: "timeline-gitop",
+                    text: `* ${truncateToolCallSummary(node.summary)} *`,
+                    title: `${node.toolName}: ${node.summary}`,
+                }),
+                el("span", {
+                    class: "timeline-chip timeline-chip-action",
+                    title: "Show this tool call's JSON in inspector",
+                    text: "{ }",
+                    onclick: (event: Event) => {
+                        event.stopPropagation();
+                        openToolCallLine(node, previewPane);
+                    },
+                }),
+                renderRowMeta(node, index),
+            ]);
+            row.append(rowTop);
+            row.append(previewPane);
+        }
+        body.append(row);
         nodeRows.set(index, row);
+        previousNode = node;
     });
-    // ── Expand All / Collapse All (mockup updateToggleLabel). #toggle-all is a static skeleton
-    // element outside `container`; onclick property assignment (not addEventListener) so
-    // re-renders never stack handlers. ──
-    const toggleAllButton = document.getElementById("toggle-all") as HTMLButtonElement;
-    const updateToggleLabel = (): void => {
-        const anyCollapsed = expandableRows.some((expandable) => !expandable.classList.contains("expanded"));
-        toggleAllButton.textContent = anyCollapsed ? "Expand All" : "Collapse All";
-    };
-    toggleAllButton.onclick = () => {
-        const anyCollapsed = expandableRows.some((expandable) => !expandable.classList.contains("expanded"));
-        for (const expandable of expandableRows) {
-            expandable.classList.toggle("expanded", anyCollapsed);
+    body.append(selectbar);
+    container.append(body);
+
+    // Clicking empty timeline background (not a row, session header, or the pick/export
+    // bar) closes the inspector overlay. Assigned as a property (not addEventListener) so
+    // renderRoute can clear it with `view.onclick = null` before other routes render.
+    container.onclick = (event) => {
+        if (checkSelectionBlocksBackgroundClose(window.getSelection())) {
+            return;
         }
-        updateToggleLabel();
+        if ((event.target as Element).closest(".timeline-row, .timeline-session, .timeline-selectbar") !== null) {
+            return;
+        }
+        document.getElementById("inspector")!.classList.add("hidden");
+        clearActiveChip();
     };
-    updateToggleLabel();
 
-    // ── fork sidebar (phase 6): the Sessions + Files panes in the static #drawer ──
-    renderForkSidebar(
-        document.getElementById("drawer")!,
-        buildSessionsSidebarViewModel(nodes, listing),
-        buildFilesSidebarViewModel(reconstructionDocument),
-        {
-            onSessionClick: jumpToTimelineRow,
-            onFileClick: (target: string) => {
-                void renderDetailsFileMode(target, detailsContext);
-            },
-        },
-    );
+    // ── graph rail, drawn from row geometry (port of the approved mockup's drawRail) ──
+    // Session-end nodes reuse the commit's hollow-circle rendering — both read as terminators.
+    function checkRailDotIsHollow(nodeKind: string): boolean {
+        if (nodeKind === COMMIT_NODE_KIND) {
+            return true;
+        }
+        return nodeKind === SESSION_END_NODE_KIND;
+    }
+    function drawRail() {
+        const MAIN_X = 32;
+        const ORPHAN_X = 68;
+        railSvg.setAttribute("width", "96");
+        railSvg.setAttribute("height", String(body.scrollHeight));
+        const parts: string[] = [];
+        let color = "var(--accent)";
+        let prevMain: number | null = null;
+        let orphans: number[] = [];
+        let forkFrom: number | null = null;
+        const flushOrphans = () => {
+            if (orphans.length === 0) {
+                return;
+            }
+            const first = orphans[0]!;
+            const last = orphans[orphans.length - 1]!;
+            if (forkFrom !== null) {
+                parts.push(`<path d="M ${MAIN_X} ${forkFrom} C ${MAIN_X} ${forkFrom + 40}, ${ORPHAN_X} ${first - 40}, ${ORPHAN_X} ${first}" fill="none" stroke="${ORPHAN_LANE_COLOR}" stroke-width="2" stroke-dasharray="5 4"/>`);
+            }
+            if (last > first) {
+                parts.push(`<line x1="${ORPHAN_X}" y1="${first}" x2="${ORPHAN_X}" y2="${last}" stroke="${ORPHAN_LANE_COLOR}" stroke-width="2" stroke-dasharray="5 4"/>`);
+            }
+            parts.push(`<line x1="${ORPHAN_X}" y1="${last}" x2="${ORPHAN_X}" y2="${last + 26}" stroke="${ORPHAN_LANE_COLOR}" stroke-width="2" stroke-dasharray="5 4"/>`);
+            parts.push(`<line x1="${ORPHAN_X - 5}" y1="${last + 21}" x2="${ORPHAN_X + 5}" y2="${last + 31}" stroke="${ORPHAN_LANE_COLOR}" stroke-width="2"/>`);
+            parts.push(`<line x1="${ORPHAN_X + 5}" y1="${last + 21}" x2="${ORPHAN_X - 5}" y2="${last + 31}" stroke="${ORPHAN_LANE_COLOR}" stroke-width="2"/>`);
+            for (const y of orphans) {
+                parts.push(`<circle cx="${ORPHAN_X}" cy="${y}" r="5" fill="var(--panel)" stroke="${ORPHAN_LANE_COLOR}" stroke-width="2"/>`);
+            }
+            orphans = [];
+        };
+        for (const child of body.children as HTMLCollectionOf<HTMLElement>) {
+            if (child.classList.contains("timeline-session")) {
+                flushOrphans();
+                color = child.dataset.color!;
+                prevMain = null;               // the spine breaks between sessions
+                continue;
+            }
+            if (child.dataset.nodeKind === undefined) {
+                continue;
+            }
+            // (item 55) tool-call rows get no rail dot — the spine runs straight through them.
+            if (child.dataset.nodeKind === TOOL_CALL_NODE_KIND) {
+                continue;
+            }
+            const cy = child.offsetTop + 18;   // dot on the row's first line (rows grow with previews)
+            if (child.dataset.branch === "orphan") {
+                if (orphans.length === 0) {
+                    forkFrom = prevMain;
+                }
+                orphans.push(cy);
+                continue;
+            }
+            if (prevMain !== null) {
+                parts.push(`<line x1="${MAIN_X}" y1="${prevMain}" x2="${MAIN_X}" y2="${cy}" stroke="${color}" stroke-width="2"/>`);
+            }
+            if (checkRailDotIsHollow(child.dataset.nodeKind)) {
+                parts.push(`<circle cx="${MAIN_X}" cy="${cy}" r="7" fill="var(--panel)" stroke="${color}" stroke-width="2"/>`);
+                parts.push(`<circle cx="${MAIN_X}" cy="${cy}" r="2.5" fill="${color}"/>`);
+            } else {
+                if (child.classList.contains("selected")) {
+                    parts.push(`<circle cx="${MAIN_X}" cy="${cy}" r="9" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.6"/>`);
+                }
+                parts.push(`<circle cx="${MAIN_X}" cy="${cy}" r="6" fill="${color}" stroke="var(--panel)" stroke-width="2"/>`);
+            }
+            prevMain = cy;
+        }
+        flushOrphans();
+        // innerHTML is safe here: every part is code-generated geometry — no page/user content.
+        railSvg.innerHTML = parts.join("");
+    }
+    drawRail();
+    window.addEventListener("resize", drawRail);
 
-    // (item 66) GONE with the fork port (see webapp/archive/timeline-pre-item66.ts): the
-    // background click-to-close handler, the SVG drawRail + resize listener, the per-session
-    // header rows, and the orphan divider — the CSS gutter and the details pane replace them.
-
-    // ── session anchor (…/timeline/session/<jsonl>): flash-scroll the session's first row ──
-    if (anchorJsonl !== undefined && anchorLine === undefined) {
-        const firstNodeIndex = nodes.findIndex((candidate) =>
-            candidate.sessionId !== undefined && anchorJsonl.startsWith(candidate.sessionId));
-        if (firstNodeIndex >= 0) {
-            jumpToTimelineRow(firstNodeIndex);
+    // ── session anchor: scroll to and highlight the session's first node ──
+    if (anchorJsonl !== undefined) {
+        const anchorSession = anchorJsonl.replace(/\.jsonl$/, "");
+        const target = body.querySelector(`.timeline-session[data-session="${anchorSession}"]`);
+        if (target !== null) {
+            target.scrollIntoView({ block: "start" });
+            target.classList.add("anchored");
         }
     }
 
-    // Line anchor (…/at/<n>): select the owning row, open the inspector on that exact line
-    // (openStepInspector would re-derive first-matching changeId and could land elsewhere),
-    // and only THEN center-scroll — the details open reflows the panes (item 37 ordering).
+    // Line anchor: scroll to the step owning the raw line and open the inspector on that exact
+    // line (openStepInspector would re-derive first-matching changeId and could land elsewhere).
     if (anchorLine !== undefined) {
         const rawLines = await fetchRawRecords(project, anchorJsonl!);
         const rawLineIndex = Number(anchorLine);
         const nodeIndex = findTimelineNodeIndexForRawLine(nodes, rawLines[rawLineIndex] ?? "");
-        if (nodeIndex >= 0) {
-            await selectTimelineRow(nodeIndex);
+        const anchoredRow = nodeRows.get(nodeIndex);
+        if (anchoredRow !== undefined) {
+            anchoredRow.classList.add("anchored");
+            // item 37: scroll moved below openTranscriptInspector — opening the drawer shrinks
+            // the timeline column and reflows every bubble, so centering must run against the
+            // post-drawer layout.
+            // anchoredRow.scrollIntoView({ block: "center" });
         }
         openTranscriptInspectorSynced({ jsonlName: anchorJsonl!, rawLines, line: rawLineIndex });
-        nodeRows.get(nodeIndex)?.scrollIntoView({ block: "center" });
+        anchoredRow?.scrollIntoView({ block: "center" });
     }
 }

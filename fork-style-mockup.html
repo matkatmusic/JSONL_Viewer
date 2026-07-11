@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>JFRED — Fork-style mockup</title>
+<style>
+    :root {
+        --bg: #1b1f27;
+        --panel: #20252e;
+        --panel-alt: #242a34;
+        --border: #333a45;
+        --border-strong: #414a58;
+        --text: #d5dae2;
+        --muted: #7d8590;
+        --accent: #2f6fbf;
+        --sel: #1f4e8c;
+        --sel-hover: #262c37;
+        --green: #3fb950;
+        --red: #f47067;
+        --orange: #d29244;
+        --violet: #b48cff;
+        --add-bg: rgba(63, 185, 80, 0.16);
+        --del-bg: rgba(244, 112, 103, 0.14);
+        --hunk-bg: rgba(47, 111, 191, 0.18);
+        --mono: "SF Mono", Menlo, Consolas, monospace;
+        --ui: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+        background: var(--bg);
+        color: var(--text);
+        font: 12px/1.5 var(--ui);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    /* ---------- toolbar ---------- */
+    #toolbar {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        position: relative;
+        padding: 4px 12px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+    }
+    #toolbar b { color: var(--text); font-weight: 600; }
+    #toolbar-title { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+    .popover {
+        position: absolute;
+        top: calc(100% + 2px);
+        right: 12px;
+        z-index: 10;
+        background: var(--panel-alt);
+        border: 1px solid var(--border-strong);
+        border-radius: 4px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+        font-family: var(--ui);
+    }
+    #projects-menu { right: 90px; min-width: 260px; padding: 2px 0; }
+    .menu-item {
+        padding: 4px 12px;
+        font-family: var(--mono);
+        font-size: 11px;
+        cursor: pointer;
+    }
+    .menu-item:hover { background: var(--sel); color: #fff; }
+    #paths-popover { min-width: 340px; padding: 10px; }
+    #paths-popover label {
+        display: block;
+        font-size: 10px;
+        color: var(--muted);
+        margin-bottom: 8px;
+    }
+    #paths-popover input {
+        display: block;
+        width: 100%;
+        margin-top: 2px;
+        padding: 3px 6px;
+        background: var(--bg);
+        border: 1px solid var(--border-strong);
+        border-radius: 3px;
+        color: var(--text);
+        font: 11px var(--mono);
+    }
+
+    /* ---------- main layout ---------- */
+    #content { flex: 1 1 auto; display: flex; min-height: 0; }
+    #sidebar {
+        flex: 0 0 240px;
+        background: var(--panel);
+        border-right: 1px solid var(--border);
+        overflow-y: auto;
+        padding: 4px 0;
+    }
+    #rightcol { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+    .pane-title {
+        padding: 5px 10px;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+    }
+    .file-item {
+        padding: 3px 10px 3px 18px;
+        font-family: var(--mono);
+        font-size: 11px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: pointer;
+        color: var(--text);
+    }
+    .file-item:hover { background: var(--sel-hover); }
+    .file-item.selected { background: var(--sel); color: #fff; }
+    .file-item .revcount { color: var(--muted); margin-left: 6px; }
+    .file-item.selected .revcount { color: #bcd0ea; }
+    .session-item {
+        padding: 3px 10px 3px 18px;
+        cursor: pointer;
+    }
+    .session-item:hover { background: var(--sel-hover); }
+    .session-item .sess-file { font-family: var(--mono); font-size: 11px; color: var(--text); }
+    .session-item .sess-meta { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+    .session-item .sess-meta .sess-uuid { color: var(--orange); }
+
+    /* ---------- splitters ---------- */
+    .splitter-h {
+        flex: 0 0 5px;
+        cursor: row-resize;
+        background: var(--border);
+        border-top: 1px solid var(--bg);
+        border-bottom: 1px solid var(--bg);
+    }
+    .splitter-v {
+        flex: 0 0 5px;
+        cursor: col-resize;
+        background: var(--border);
+        border-left: 1px solid var(--bg);
+        border-right: 1px solid var(--bg);
+    }
+    .splitter-h:hover, .splitter-v:hover { background: var(--accent); }
+
+    /* ---------- timeline ---------- */
+    #timeline {
+        flex: 0 0 42%;
+        min-height: 80px;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        background: var(--bg);
+    }
+    #timeline-header {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 10px;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel);
+    }
+    button {
+        background: var(--panel-alt);
+        border: 1px solid var(--border-strong);
+        color: var(--text);
+        font: 11px var(--ui);
+        border-radius: 3px;
+        padding: 2px 8px;
+        cursor: pointer;
+    }
+    button:hover { background: var(--sel-hover); border-color: var(--accent); }
+
+    #timeline-rows { flex: 1 1 auto; overflow-y: auto; position: relative; }
+    @keyframes rowflash {
+        0% { background: var(--sel); }
+        100% { background: transparent; }
+    }
+    .tl-row.flash .tl-line { animation: rowflash 1.2s ease-out; }
+    .tl-row { border-bottom: 1px solid #232833; cursor: default; display: flex; }
+    .tl-main { flex: 1 1 auto; min-width: 0; }
+    .tl-row.orphan .tl-main { opacity: 0.5; }
+
+    /* branch-graph gutter */
+    .tl-graph { position: relative; flex: 0 0 30px; }
+    .g-rail { position: absolute; top: 0; bottom: 0; width: 2px; }
+    .g-rail.g-l1 { left: 9px; background: var(--accent); }
+    .g-rail.g-l2 { left: 21px; background: var(--orange); }
+    .g-rail.g-start { top: 11px; }
+    .g-rail.g-end { bottom: auto; height: 13px; }
+    .g-dot {
+        position: absolute;
+        top: 6px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        border: 2px solid var(--bg);
+    }
+    .g-dot.g-l1 { left: 4px; background: var(--accent); }
+    .g-dot.g-l2 { left: 16px; background: var(--orange); }
+    .g-fork {
+        position: absolute;
+        top: 0;
+        left: 10px;
+        width: 12px;
+        height: 11px;
+        border-top: 2px solid var(--orange);
+        border-right: 2px solid var(--orange);
+        border-top-right-radius: 10px;
+    }
+
+    /* contiguous-pick rail */
+    .tl-pick { flex: 0 0 16px; text-align: center; }
+    .tl-pick input { cursor: pointer; accent-color: var(--accent); }
+    #selectbar {
+        flex: 0 0 auto;
+        display: none;
+        align-items: center;
+        gap: 8px;
+        padding: 3px 10px;
+        background: var(--panel);
+        border-top: 1px solid var(--border);
+        font-size: 11px;
+    }
+    #selectbar.visible { display: flex; }
+    #selectbar span { flex: 1 1 auto; }
+
+    /* contributing-node highlight while a commit is selected */
+    .tl-row.contrib .tl-line {
+        box-shadow: inset 3px 0 0 var(--orange);
+        background: rgba(210, 146, 68, 0.09);
+    }
+    .tl-row.contrib.selected .tl-line { background: var(--sel); }
+
+    /* commit rows */
+    .commit-label {
+        flex: 0 0 auto;
+        font-family: var(--mono);
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+    }
+    .commit-pill {
+        flex: 0 0 auto;
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--orange);
+        border: 1px solid var(--orange);
+        border-radius: 8px;
+        padding: 0 6px;
+    }
+    .tl-line {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 2px 8px;
+        white-space: nowrap;
+        min-width: 0;
+    }
+    .tl-row:hover .tl-line { background: var(--sel-hover); }
+    .tl-row.selected .tl-line, .tl-row.selected:hover .tl-line { background: var(--sel); color: #fff; }
+    .tl-tri {
+        flex: 0 0 16px;
+        text-align: center;
+        color: var(--muted);
+        cursor: pointer;
+        user-select: none;
+        transition: transform 0.1s;
+        display: inline-block;
+    }
+    .tl-row.expanded .tl-tri { transform: rotate(90deg); }
+    .tl-text {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-family: var(--mono);
+        font-size: 11px;
+    }
+    .tl-text.role-user { color: #8ab8f0; }
+    .tl-text.role-assistant { color: #c8b3f5; }
+    .tl-text.role-tool { color: #ddb06a; }
+    .tl-text.role-script { color: #5fc9c1; }
+    .tl-text.role-commit { color: var(--text); }
+    .tl-row.selected .tl-text { color: #fff; }
+    .tl-ts { flex: 0 0 150px; text-align: right; color: var(--muted); font-size: 11px; }
+    .tl-pos { flex: 0 0 82px; text-align: right; color: var(--muted); font-size: 11px; }
+    .tl-uuid {
+        flex: 0 0 72px;
+        text-align: right;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--orange);
+    }
+    .tl-row.selected .tl-ts, .tl-row.selected .tl-pos { color: #bcd0ea; }
+    .tl-json {
+        flex: 0 0 auto;
+        font-family: var(--mono);
+        font-size: 9px;
+        padding: 1px 4px;
+    }
+    .tl-bubble {
+        display: none;
+        margin: 2px 8px 6px 32px;
+        padding: 6px 10px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--muted);
+        background: var(--panel);
+        font-family: var(--mono);
+        font-size: 11px;
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
+    }
+    .tl-row.expanded .tl-bubble { display: block; }
+    .tl-bubble.role-user { border-left-color: #4c8fdd; background: #202a3a; }
+    .tl-bubble.role-assistant { border-left-color: var(--violet); background: #262133; }
+    .tl-bubble.role-tool { border-left-color: var(--orange); background: #2b2620; }
+    .tl-bubble.role-script { border-left-color: #2f9d94; background: #1c2827; }
+
+    /* ---------- details ---------- */
+    #details {
+        flex: 1 1 auto;
+        min-height: 80px;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        background: var(--bg);
+    }
+    #details-header {
+        flex: 0 0 auto;
+        padding: 4px 10px;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel);
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    #details-body { flex: 1 1 auto; display: flex; min-height: 0; }
+    #details-left {
+        flex: 0 0 260px;
+        min-width: 140px;
+        overflow-y: auto;
+        background: var(--panel);
+        padding: 4px 0;
+    }
+    #details-right { flex: 1 1 auto; min-width: 160px; display: flex; flex-direction: column; min-height: 0; }
+    #details-right-header {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 3px 10px;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+        border-bottom: 1px solid var(--border);
+        background: var(--panel-alt);
+        white-space: nowrap;
+    }
+    #details-right-label { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+    #diff-mode-toggle { flex: 0 0 auto; }
+    #diff-mode-toggle:not([hidden]) { display: inline-flex; }
+    #diff-mode-toggle button {
+        font-size: 10px;
+        padding: 1px 7px;
+        border-radius: 0;
+    }
+    #diff-mode-toggle button:first-child { border-radius: 3px 0 0 3px; }
+    #diff-mode-toggle button:last-child { border-radius: 0 3px 3px 0; border-left: none; }
+    #diff-mode-toggle button.active {
+        background: var(--sel);
+        border-color: var(--accent);
+        color: #fff;
+    }
+    #details-right-body { flex: 1 1 auto; overflow: auto; }
+
+    .dfile {
+        padding: 3px 10px 3px 18px;
+        font-family: var(--mono);
+        font-size: 11px;
+        cursor: pointer;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .dfile:hover { background: var(--sel-hover); }
+    .dfile.selected { background: var(--sel); color: #fff; }
+    .dempty { padding: 8px 12px; color: var(--muted); font-style: italic; }
+
+    .rev-card {
+        margin: 4px 8px;
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--panel-alt);
+        cursor: pointer;
+    }
+    .rev-card:hover { border-color: var(--accent); }
+    .rev-card.selected { border-color: var(--accent); background: #1e3252; }
+    .rev-card .rev-head {
+        font-family: var(--mono);
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 4px;
+    }
+    .op-badge {
+        font-size: 9px;
+        font-weight: 600;
+        text-transform: uppercase;
+        border-radius: 3px;
+        padding: 0 5px;
+        color: #fff;
+    }
+    .op-write { background: #2c6e35; }
+    .op-edit { background: #1f5a99; }
+    .op-user-edit { background: #7a4bb0; }
+    .op-overwrite { background: #a35217; }
+    .rev-ts { color: var(--muted); font-size: 10px; }
+    .rev-actions { display: flex; flex-wrap: wrap; gap: 3px; }
+    .rev-actions button { font-size: 9px; padding: 1px 5px; }
+
+    /* ---------- JSON view ---------- */
+    pre.json {
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 8px 12px;
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
+    }
+    .j-key { color: #79b8ff; }
+    .j-str { color: #9ece8f; }
+    .j-num { color: #e8a45c; }
+    .j-bool { color: #d2a8ff; }
+
+    /* ---------- diff view ---------- */
+    .diff { font-family: var(--mono); font-size: 11px; padding: 4px 0; min-width: max-content; }
+    .diff-line { display: flex; white-space: pre; }
+    .diff-ln {
+        flex: 0 0 36px;
+        text-align: right;
+        padding-right: 6px;
+        color: var(--muted);
+        user-select: none;
+    }
+    .diff-body { padding-left: 8px; }
+    .diff-line.add { background: var(--add-bg); }
+    .diff-line.add .diff-body { color: #a5d6a7; }
+    .diff-line.del { background: var(--del-bg); }
+    .diff-line.del .diff-body { color: #f0a8a2; }
+    .diff-line.hunk { background: var(--hunk-bg); color: #8ab8f0; }
+
+    .diff-cols {
+        display: grid;
+        grid-template-columns: 40px minmax(160px, 1fr) 40px minmax(160px, 1fr);
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 4px 0;
+        min-width: max-content;
+    }
+    .dc-ln {
+        text-align: right;
+        padding-right: 6px;
+        color: var(--muted);
+        user-select: none;
+    }
+    .dc-body { padding-left: 8px; white-space: pre; }
+    .dc-ln.dc-right { border-left: 1px solid var(--border); }
+    .dc-del { background: var(--del-bg); }
+    .dc-body.dc-del { color: #f0a8a2; }
+    .dc-add { background: var(--add-bg); }
+    .dc-body.dc-add { color: #a5d6a7; }
+    .dc-hunk {
+        grid-column: 1 / -1;
+        background: var(--hunk-bg);
+        color: #8ab8f0;
+        padding-left: 8px;
+        white-space: pre;
+    }
+
+    /* ---------- console ---------- */
+    #console-row {
+        flex: 0 0 180px;
+        min-height: 60px;
+        background: #14171d;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+    #console-header {
+        flex: 0 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 2px 10px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+        font-size: 10px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+    #console-lines {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: #9fb0a5;
+        padding: 4px 10px;
+    }
+    #console-bar {
+        flex: 0 0 auto;
+        display: none;
+        align-items: center;
+        gap: 10px;
+        padding: 2px 10px;
+        background: var(--panel);
+        border-top: 1px solid var(--border);
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+    }
+    #console-bar span { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+    #rightcol.console-collapsed #console-row,
+    #rightcol.console-collapsed #split-dc { display: none; }
+    #rightcol.console-collapsed #console-bar { display: flex; }
+</style>
+</head>
+<body>
+<div id="toolbar">
+    <span id="toolbar-title">JFRED &mdash; project: <b>s86-concurrent-overlap-rewind-code</b></span>
+    <button id="projects-btn">Projects ▾</button>
+    <button id="paths-btn">Paths…</button>
+    <div id="projects-menu" class="popover" hidden></div>
+    <div id="paths-popover" class="popover" hidden>
+        <label>Projects folder
+            <input id="path-projects" value="~/.claude/projects/-Users-matkatmusicllc-Desktop-claude-code-src">
+        </label>
+        <label>File history dir
+            <input id="path-history" value="~/.claude/file-history/9c30c8bc-6435-4dc7-be24-4763e8f119b3">
+        </label>
+        <button id="paths-apply">Change folder</button>
+    </div>
+</div>
+<div id="content">
+    <div id="sidebar">
+        <div class="pane-title">Sessions</div>
+        <div id="sidebar-sessions"></div>
+        <div class="pane-title">Files</div>
+        <div id="sidebar-files"></div>
+    </div>
+    <div id="rightcol">
+        <div id="timeline">
+            <div id="timeline-header">
+                <span class="pane-title" style="padding:0;">Timeline</span>
+                <button id="toggle-all">Expand All</button>
+            </div>
+            <div id="timeline-rows"></div>
+            <div id="selectbar">
+                <span id="selectbar-count"></span>
+                <button>Export .patch</button>
+                <button id="selectbar-clear">Clear</button>
+            </div>
+        </div>
+        <div id="split-td" class="splitter-h"></div>
+        <div id="details">
+            <div id="details-header">No selection</div>
+            <div id="details-body">
+                <div id="details-left"></div>
+                <div id="split-lr" class="splitter-v"></div>
+                <div id="details-right">
+                    <div id="details-right-header">
+                        <span id="details-right-label">JSON</span>
+                        <span id="diff-mode-toggle" hidden><button
+                            id="dm-columns">Columns</button><button
+                            id="dm-inline">Inline</button></span>
+                    </div>
+                    <div id="details-right-body"></div>
+                </div>
+            </div>
+        </div>
+        <div id="split-dc" class="splitter-h"></div>
+        <div id="console-row">
+            <div id="console-header">
+                <span>Console</span>
+                <button id="console-hide">Hide console</button>
+            </div>
+            <div id="console-lines"></div>
+        </div>
+        <div id="console-bar">
+            <span id="console-last"></span>
+            <button id="console-show">Show console</button>
+        </div>
+    </div>
+</div>
+
+<script>
+"use strict";
+
+/* ============================ fake data ============================ */
+
+var SESSION_A = "3f9c2b7a-41d6-4e08-9b3a-6c2f8d1e5a70";
+var SESSION_B = "8d41e6c0-92bf-47a3-8c15-0e7b3f6a2d94";
+
+var DIFFS = {
+    timelineScroll: [
+        "@@ -142,7 +142,10 @@ function jumpToStep(stepIndex) {",
+        "     const row = rows[stepIndex];",
+        "-    row.scrollIntoView({ block: 'center' });",
+        "-    flashRow(row);",
+        "+    // wait for the virtualized rows to finish mounting",
+        "+    renderComplete.then(() => {",
+        "+        const clamped = Math.min(stepIndex, rows.length - 1);",
+        "+        rows[clamped].scrollIntoView({ block: 'center' });",
+        "+        flashRow(rows[clamped]);",
+        "+    });",
+        " }"
+    ],
+    timelineClamp: [
+        "@@ -88,6 +88,9 @@ function resolveRowIndex(uuid) {",
+        "     const idx = order.indexOf(uuid);",
+        "+    if (idx === -1) {",
+        "+        return order.length - 1;",
+        "+    }",
+        "     return idx;",
+        " }"
+    ],
+    consoleCollapse: [
+        "@@ -31,8 +31,12 @@ export function onProjectLoaded() {",
+        "     appendLine('[jfred] project ready');",
+        "-    consolePane.focus();",
+        "+    // auto-collapse once loading finishes; never steal focus",
+        "+    setTimeout(() => {",
+        "+        collapseConsole();",
+        "+    }, 400);",
+        " }"
+    ],
+    stylesSelection: [
+        "@@ -204,4 +204,8 @@",
+        " .tl-row:hover { background: var(--sel-hover); }",
+        "+.tl-row.selected {",
+        "+    background: var(--sel);",
+        "+    color: #fff;",
+        "+}"
+    ],
+    stylesSplitter: [
+        "@@ -260,2 +260,6 @@",
+        " .splitter-h { cursor: row-resize; }",
+        "+.splitter-h:hover,",
+        "+.splitter-v:hover {",
+        "+    background: var(--accent);",
+        "+}"
+    ],
+    detailsMode: [
+        "@@ -55,7 +55,11 @@ export function renderDetails(state) {",
+        "-    renderMessageMode(state.selected);",
+        "+    if (state.mode === 'file') {",
+        "+        renderFileRevisions(state.file);",
+        "+    } else {",
+        "+        renderMessageMode(state.selected);",
+        "+    }",
+        " }"
+    ],
+    watcherDebounce: [
+        "@@ -17,6 +17,10 @@ const watcher = fs.watch(projectDir, { recursive: true });",
+        " watcher.on('change', (event, name) => {",
+        "-    reindex(name);",
+        "+    clearTimeout(pending[name]);",
+        "+    pending[name] = setTimeout(() => {",
+        "+        reindex(name);",
+        "+    }, 150);",
+        " });"
+    ],
+    indexConsole: [
+        "@@ -42,3 +42,7 @@",
+        "     <div id=\"details\"></div>",
+        "+    <div id=\"console-row\">",
+        "+        <div id=\"console-lines\"></div>",
+        "+    </div>",
+        " </div>"
+    ]
+};
+
+var SIDEBAR_FILES = [
+    {
+        path: "webapp/dist/views/timeline.js",
+        revisions: [
+            { op: "write", ts: "7/8/2026, 12:41:05 PM", diff: "timelineScroll" },
+            { op: "edit", ts: "7/8/2026, 1:06:30 PM", diff: "timelineClamp" },
+            { op: "user-edit", ts: "7/8/2026, 1:22:14 PM", diff: "timelineScroll" },
+            { op: "edit", ts: "7/8/2026, 2:03:48 PM", diff: "timelineClamp" }
+        ]
+    },
+    {
+        path: "webapp/styles.css",
+        revisions: [
+            { op: "edit", ts: "7/8/2026, 12:55:19 PM", diff: "stylesSelection" },
+            { op: "edit", ts: "7/8/2026, 1:31:02 PM", diff: "stylesSplitter" },
+            { op: "overwrite", ts: "7/8/2026, 2:10:33 PM", diff: "stylesSelection" }
+        ]
+    },
+    {
+        path: "webapp/dist/views/details.js",
+        revisions: [
+            { op: "write", ts: "7/8/2026, 1:12:41 PM", diff: "detailsMode" },
+            { op: "edit", ts: "7/8/2026, 1:58:07 PM", diff: "detailsMode" }
+        ]
+    },
+    {
+        path: "server/watcher.js",
+        revisions: [
+            { op: "edit", ts: "7/8/2026, 12:47:56 PM", diff: "watcherDebounce" },
+            { op: "edit", ts: "7/8/2026, 1:40:22 PM", diff: "watcherDebounce" },
+            { op: "user-edit", ts: "7/8/2026, 2:15:09 PM", diff: "watcherDebounce" }
+        ]
+    },
+    {
+        path: "webapp/index.html",
+        revisions: [
+            { op: "edit", ts: "7/8/2026, 1:02:11 PM", diff: "indexConsole" },
+            { op: "overwrite", ts: "7/8/2026, 1:49:55 PM", diff: "indexConsole" }
+        ]
+    }
+];
+
+function makeMsg(role, text, ts, session, uuid, files) {
+    return { role: role, text: text, ts: ts, session: session, uuid: uuid, files: files || [] };
+}
+
+function makeCommit(hash, text, ts, session, uuid, files) {
+    var commit = makeMsg("commit", text, ts, session, uuid, files);
+    commit.hash = hash;
+    return commit;
+}
+
+var MESSAGES = [
+    makeMsg("user",
+        "Fix the scroll race in jump-to-timeline. Clicking a revision card scrolls to the wrong row when the timeline is still rendering the virtualized list.",
+        "7/8/2026, 12:38:12 PM", SESSION_A, "a1b2c3d4-0001-4a00-8000-000000000001"),
+    makeMsg("assistant",
+        "I'll trace how jumpToStep resolves the target row.\n\nThe scroll fires before the virtualized rows mount, so scrollIntoView computes an offset against a stale container height. Plan:\n1. Defer the scroll until renderComplete resolves.\n2. Re-resolve and clamp the row index at scroll time.",
+        "7/8/2026, 12:39:04 PM", SESSION_A, "a1b2c3d4-0002-4a00-8000-000000000002"),
+    makeMsg("tool",
+        "Read(webapp/dist/views/timeline.js)\n  Read 412 lines",
+        "7/8/2026, 12:39:20 PM", SESSION_A, "a1b2c3d4-0003-4a00-8000-000000000003"),
+    makeMsg("tool",
+        "ctx_execute(parse timeline.js exports)\n  exports: jumpToStep, resolveRowIndex, renderTimeline, flashRow\n  4 exported symbols, 412 lines, 0 TODOs",
+        "7/8/2026, 12:39:48 PM", SESSION_A, "a1b2c3d4-0013-4a00-8000-000000000024"),
+    makeMsg("tool",
+        "Edit(webapp/dist/views/timeline.js)\n  Replaced synchronous scrollIntoView with a renderComplete-gated scroll (+7 -2)",
+        "7/8/2026, 12:41:05 PM", SESSION_A, "a1b2c3d4-0004-4a00-8000-000000000004",
+        [{ path: "webapp/dist/views/timeline.js", diff: "timelineScroll" }]),
+    makeMsg("tool",
+        "Edit(server/watcher.js)\n  Debounced reindex on file change events (+5 -1)",
+        "7/8/2026, 12:47:56 PM", SESSION_A, "a1b2c3d4-0005-4a00-8000-000000000005",
+        [{ path: "server/watcher.js", diff: "watcherDebounce" }]),
+    makeMsg("assistant",
+        "Patched jumpToStep to await renderComplete before scrolling, and debounced the watcher so a burst of JSONL appends doesn't trigger overlapping reindex passes.\n\nAlso clamped the row index so a deleted trailing row can't push the scroll past the end of the list.",
+        "7/8/2026, 12:48:40 PM", SESSION_A, "a1b2c3d4-0006-4a00-8000-000000000006",
+        [{ path: "webapp/dist/views/timeline.js", diff: "timelineScroll" },
+         { path: "server/watcher.js", diff: "watcherDebounce" }]),
+    makeMsg("script",
+        "run-scenario s86-concurrent-overlap.txt — exit 0\n  [1/4] prompt: fix the scroll race ... ok\n  [2/4] edit: webapp/dist/views/timeline.js ... ok\n  [3/4] rewind to step 2 ... ok\n  [4/4] prompt: verify jump target ... ok\n  scenario complete: 4/4 steps, exit 0",
+        "7/8/2026, 12:50:31 PM", SESSION_A, "a1b2c3d4-0010-4a00-8000-000000000018"),
+    makeMsg("tool",
+        "Bash(npx tsc --noEmit)\n  $ npx tsc --noEmit\n  (no output — typecheck clean, exit 0)",
+        "7/8/2026, 12:50:52 PM", SESSION_A, "a1b2c3d4-0014-4a00-8000-000000000025"),
+    makeCommit("b3c7d0c", "fix: gate jump-to-timeline scroll on renderComplete",
+        "7/8/2026, 12:51:12 PM", SESSION_A, "a1b2c3d4-0011-4a00-8000-000000000019",
+        [{ path: "webapp/dist/views/timeline.js", diff: "timelineScroll" },
+         { path: "webapp/index.html", diff: "indexConsole" }]),
+    makeMsg("user",
+        "Selected rows are almost invisible in the dark theme. Give me a proper Fork-style blue full-row highlight.",
+        "7/8/2026, 12:53:30 PM", SESSION_A, "a1b2c3d4-0007-4a00-8000-000000000007"),
+    makeMsg("tool",
+        "Edit(webapp/styles.css)\n  Added .tl-row.selected full-row highlight (+4 -0)",
+        "7/8/2026, 12:55:19 PM", SESSION_A, "a1b2c3d4-0008-4a00-8000-000000000008",
+        [{ path: "webapp/styles.css", diff: "stylesSelection" }]),
+    makeMsg("assistant",
+        "Done. Selection now paints the entire row with var(--sel) and flips the text to white, matching Fork's commit-list behavior. Hover uses a subtler --sel-hover so the two states stay distinguishable.",
+        "7/8/2026, 12:56:02 PM", SESSION_A, "a1b2c3d4-0009-4a00-8000-000000000009",
+        [{ path: "webapp/styles.css", diff: "stylesSelection" }]),
+    makeCommit("9e12f4a", "style: Fork-style selected row highlight",
+        "7/8/2026, 12:57:44 PM", SESSION_A, "a1b2c3d4-0012-4a00-8000-000000000020",
+        [{ path: "webapp/styles.css", diff: "stylesSelection" },
+         { path: "webapp/styles.css.map", diff: "stylesSplitter" }]),
+    makeMsg("user",
+        "The console pane keeps stealing focus after the project loads. Auto-collapse it once loading finishes and leave a one-line status bar.",
+        "7/8/2026, 1:00:45 PM", SESSION_B, "b9e8d7c6-0001-4b00-8000-000000000010"),
+    makeMsg("tool",
+        "Edit(webapp/index.html)\n  Moved console-row inside the right column flexbox (+4 -0)",
+        "7/8/2026, 1:02:11 PM", SESSION_B, "b9e8d7c6-0002-4b00-8000-000000000011",
+        [{ path: "webapp/index.html", diff: "indexConsole" }]),
+    makeMsg("tool",
+        "Bash(npm run build:webapp)\n  webpack 5.99.2 compiled successfully in 2841 ms",
+        "7/8/2026, 1:04:52 PM", SESSION_B, "b9e8d7c6-0003-4b00-8000-000000000012"),
+    makeMsg("tool",
+        "Edit(webapp/dist/views/timeline.js)\n  Clamped resolveRowIndex for uuids missing from the order map (+3 -0)",
+        "7/8/2026, 1:06:30 PM", SESSION_B, "b9e8d7c6-0004-4b00-8000-000000000013",
+        [{ path: "webapp/dist/views/timeline.js", diff: "timelineClamp" }]),
+    makeMsg("assistant",
+        "Console now auto-collapses 400ms after the last loading line, replaced by a status bar showing the final log line with a Show console button.\n\nFocus stays wherever it was; the pane never calls focus() anymore.",
+        "7/8/2026, 1:08:17 PM", SESSION_B, "b9e8d7c6-0005-4b00-8000-000000000014",
+        [{ path: "webapp/index.html", diff: "indexConsole" }]),
+    makeMsg("script",
+        "run-scenario console-autocollapse.txt — exit 0\n  [1/3] prompt: reload project ... ok\n  [2/3] assert: console collapsed within 2s ... ok\n  [3/3] assert: focus unchanged ... ok\n  scenario complete: 3/3 steps, exit 0",
+        "7/8/2026, 1:09:03 PM", SESSION_B, "b9e8d7c6-0009-4b00-8000-000000000021"),
+    makeMsg("tool",
+        "Bash(git status --short)\n  $ git status --short\n   M webapp/index.html\n   M webapp/styles.css\n  2 files modified",
+        "7/8/2026, 1:09:24 PM", SESSION_B, "b9e8d7c6-0012-4b00-8000-000000000026"),
+    makeCommit("4fa08d2", "fix: auto-collapse console after project load",
+        "7/8/2026, 1:09:41 PM", SESSION_B, "b9e8d7c6-0010-4b00-8000-000000000022",
+        [{ path: "webapp/index.html", diff: "indexConsole" },
+         { path: "webapp/styles.css", diff: "stylesSplitter" }]),
+    makeMsg("user",
+        "Now split the details pane: message file list on the left, JSON or diff on the right. Clicking a sidebar file should switch to a File Revisions mode.",
+        "7/8/2026, 1:10:33 PM", SESSION_B, "b9e8d7c6-0006-4b00-8000-000000000015"),
+    makeMsg("tool",
+        "Write(webapp/dist/views/details.js)\n  Created two-mode details renderer, 168 lines",
+        "7/8/2026, 1:12:41 PM", SESSION_B, "b9e8d7c6-0007-4b00-8000-000000000016",
+        [{ path: "webapp/dist/views/details.js", diff: "detailsMode" }]),
+    makeMsg("assistant",
+        "Details pane now has two modes:\n- message mode: files touched on the left, JSON record (default) or per-file diff on the right\n- file-revisions mode: revision cards on the left, selected revision's diff on the right\n\nClicking a timeline row always returns to message mode.",
+        "7/8/2026, 1:14:26 PM", SESSION_B, "b9e8d7c6-0008-4b00-8000-000000000017",
+        [{ path: "webapp/dist/views/details.js", diff: "detailsMode" }]),
+    makeMsg("script",
+        "run-scenario details-two-mode.txt — exit 0\n  [1/3] click: timeline row 4 ... json shown, ok\n  [2/3] click: sidebar webapp/styles.css ... 3 revision cards, ok\n  [3/3] click: revision #2 ... diff swapped, ok\n  scenario complete: 3/3 steps, exit 0",
+        "7/8/2026, 1:15:58 PM", SESSION_B, "b9e8d7c6-0011-4b00-8000-000000000023")
+];
+
+// rows 10-13 were abandoned after a rewind at row 9: they sit on lane 2 of the graph
+var ORPHAN_START = 10;
+var ORPHAN_END = 13;
+
+var CONSOLE_LINES = [
+    "[jfred] scanning ~/.claude/projects/s86-concurrent-overlap-rewind-code ...",
+    "[jfred] found 2 session files (3f9c2b7a, 8d41e6c0)",
+    "[jfred] parsing 3f9c2b7a-41d6-4e08.jsonl ... 14 rows",
+    "[jfred] parsing 8d41e6c0-92bf-47a3.jsonl ... 12 rows",
+    "[jfred] indexing file-history: 5 files, 14 revisions",
+    "[jfred] project ready (26 timeline entries)"
+];
+
+/* ============================ helpers ============================ */
+
+function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) { node.className = cls; }
+    if (text !== undefined) { node.textContent = text; }
+    return node;
+}
+
+function escapeHtml(str) {
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/* ============================ state ============================ */
+
+var state = {
+    selectedRow: -1,       // timeline index, -1 = none
+    detailsMode: "none",   // "none" | "message" | "file"
+    rightView: null,       // "json" | file path (message mode) | revision index (file mode)
+    sidebarFile: null,     // path when in file mode
+    selectedRev: 0,
+    diffMode: localStorage.getItem("diffDisplayMode") || "inline",
+    currentDiff: null      // { label, lines } while a diff is displayed
+};
+
+/* ============================ sidebar ============================ */
+
+function renderSidebar() {
+    var container = document.getElementById("sidebar-files");
+    SIDEBAR_FILES.forEach(function (file) {
+        var item = el("div", "file-item");
+        item.textContent = file.path;
+        var count = el("span", "revcount", "(" + file.revisions.length + ")");
+        item.appendChild(count);
+        item.dataset.path = file.path;
+        item.addEventListener("click", function () {
+            enterFileMode(file.path);
+        });
+        container.appendChild(item);
+    });
+}
+
+function renderSessions() {
+    var container = document.getElementById("sidebar-sessions");
+    var sessions = [];
+    MESSAGES.forEach(function (msg, i) {
+        var found = sessions.find(function (s) { return s.uuid === msg.session; });
+        if (found) {
+            found.rowCount += 1;
+        } else {
+            sessions.push({ uuid: msg.session, firstRow: i, rowCount: 1 });
+        }
+    });
+    sessions.forEach(function (session) {
+        var short = session.uuid.slice(0, 8);
+        var item = el("div", "session-item");
+        item.appendChild(el("div", "sess-file", short + "….jsonl"));
+        var meta = el("div", "sess-meta");
+        meta.appendChild(el("span", "sess-uuid", short));
+        meta.appendChild(document.createTextNode(" · " + session.rowCount + " rows"));
+        item.appendChild(meta);
+        item.addEventListener("click", function () {
+            jumpToTimelineRow(session.firstRow);
+        });
+        container.appendChild(item);
+    });
+}
+
+function jumpToTimelineRow(index) {
+    var container = document.getElementById("timeline-rows");
+    var row = container.children[index];
+    container.scrollTop = row.offsetTop;
+    row.classList.remove("flash");
+    void row.offsetWidth; // restart the CSS animation
+    row.classList.add("flash");
+    setTimeout(function () { row.classList.remove("flash"); }, 1300);
+}
+
+function markSidebarSelection() {
+    var items = document.querySelectorAll("#sidebar .file-item");
+    items.forEach(function (item) {
+        var isSelected = state.detailsMode === "file" && item.dataset.path === state.sidebarFile;
+        item.classList.toggle("selected", isSelected);
+    });
+}
+
+/* ============================ timeline ============================ */
+
+function firstLine(text) {
+    return text.split("\n")[0];
+}
+
+function buildGraphCell(i, isOrphan) {
+    var cell = el("div", "tl-graph");
+    cell.appendChild(el("span", "g-rail g-l1"));
+    if (isOrphan) {
+        var lane2 = el("span", "g-rail g-l2");
+        if (i === ORPHAN_START) {
+            lane2.classList.add("g-start");
+            cell.appendChild(el("span", "g-fork"));
+        }
+        if (i === ORPHAN_END) { lane2.classList.add("g-end"); }
+        cell.appendChild(lane2);
+    }
+    cell.appendChild(el("span", "g-dot " + (isOrphan ? "g-l2" : "g-l1")));
+    return cell;
+}
+
+function renderTimeline() {
+    var container = document.getElementById("timeline-rows");
+    MESSAGES.forEach(function (msg, i) {
+        var row = el("div", "tl-row");
+        row.dataset.index = i;
+        var isOrphan = i >= ORPHAN_START && i <= ORPHAN_END;
+        if (isOrphan) { row.classList.add("orphan"); }
+        var isCommit = msg.role === "commit";
+
+        row.appendChild(buildGraphCell(i, isOrphan));
+        var main = el("div", "tl-main");
+        var line = el("div", "tl-line");
+
+        var pickCell = el("span", "tl-pick");
+        if (!isCommit) {
+            var box = document.createElement("input");
+            box.type = "checkbox";
+            box.addEventListener("click", function (ev) {
+                ev.stopPropagation(); // picking must not change selection
+                togglePick(i);
+            });
+            pickCell.appendChild(box);
+        }
+        line.appendChild(pickCell);
+
+        if (isCommit) {
+            line.appendChild(el("span", "tl-tri", "")); // spacer keeps columns aligned
+            line.appendChild(el("span", "commit-label", "git commit"));
+            line.appendChild(el("span", "commit-pill", msg.hash));
+            line.appendChild(el("span", "tl-text role-commit", msg.text));
+        } else {
+            var tri = el("span", "tl-tri", "▸");
+            tri.addEventListener("click", function (ev) {
+                ev.stopPropagation(); // expansion must not change selection
+                row.classList.toggle("expanded");
+                updateToggleLabel();
+            });
+            line.appendChild(tri);
+            line.appendChild(el("span", "tl-text role-" + msg.role, firstLine(msg.text)));
+        }
+
+        line.appendChild(el("span", "tl-ts", msg.ts));
+        line.appendChild(el("span", "tl-pos", "L: " + (i + 1) + " (of " + MESSAGES.length + ")"));
+        line.appendChild(el("span", "tl-uuid", msg.session.slice(0, 8)));
+        if (!isCommit) { // commits are repo events: no JSONL record, no JSON view
+            var jsonBtn = el("button", "tl-json", "{ }");
+            jsonBtn.addEventListener("click", function (ev) {
+                ev.stopPropagation();
+                selectRow(i);
+                showJsonView();
+            });
+            line.appendChild(jsonBtn);
+        }
+        line.addEventListener("click", function () {
+            selectRow(i);
+        });
+
+        main.appendChild(line);
+        if (!isCommit) {
+            main.appendChild(el("div", "tl-bubble role-" + msg.role, msg.text));
+        }
+        row.appendChild(main);
+        container.appendChild(row);
+    });
+
+    document.getElementById("toggle-all").addEventListener("click", function () {
+        var rows = document.querySelectorAll(".tl-row");
+        var anyCollapsed = document.querySelectorAll(".tl-row:not(.expanded)").length > 0;
+        rows.forEach(function (row) {
+            row.classList.toggle("expanded", anyCollapsed);
+        });
+        updateToggleLabel();
+    });
+}
+
+/* contiguous picks: clicking a distant checkbox extends the range through everything between */
+var pick = { min: -1, max: -1 };
+
+function togglePick(i) {
+    if (pick.min === -1) {
+        pick.min = i;
+        pick.max = i;
+    } else if (i < pick.min) {
+        pick.min = i;
+    } else if (i > pick.max) {
+        pick.max = i;
+    } else if (pick.min === pick.max) {
+        pick.min = -1;
+        pick.max = -1;
+    }
+    updatePicks();
+}
+
+function clearPicks() {
+    pick.min = -1;
+    pick.max = -1;
+    updatePicks();
+}
+
+function updatePicks() {
+    var count = 0;
+    document.querySelectorAll(".tl-row").forEach(function (row, i) {
+        var box = row.querySelector(".tl-pick input");
+        if (!box) { return; } // commit rows have no checkbox
+        var inRange = pick.min !== -1 && i >= pick.min && i <= pick.max;
+        box.checked = inRange;
+        if (inRange) { count += 1; }
+    });
+    document.getElementById("selectbar").classList.toggle("visible", count > 0);
+    document.getElementById("selectbar-count").textContent = count + " steps picked";
+}
+
+document.getElementById("selectbar-clear").addEventListener("click", clearPicks);
+
+function updateToggleLabel() {
+    var anyCollapsed = document.querySelectorAll(".tl-row:not(.expanded)").length > 0;
+    document.getElementById("toggle-all").textContent = anyCollapsed ? "Expand All" : "Collapse All";
+}
+
+function selectRow(i) {
+    var isCommit = MESSAGES[i].role === "commit";
+    state.selectedRow = i;
+    state.detailsMode = isCommit ? "commit" : "message";
+    state.sidebarFile = null;
+    var contrib = isCommit ? findContributingRows(i) : [];
+    var rows = document.querySelectorAll(".tl-row");
+    rows.forEach(function (row, idx) {
+        row.classList.toggle("selected", idx === i);
+        row.classList.toggle("contrib", contrib.indexOf(idx) !== -1);
+    });
+    markSidebarSelection();
+    if (isCommit) {
+        renderDetailsCommitMode();
+    } else {
+        renderDetailsMessageMode();
+    }
+}
+
+// nodes after the previous commit whose touched files intersect this commit's changed files
+function findContributingRows(commitIdx) {
+    var commitPaths = MESSAGES[commitIdx].files.map(function (f) { return f.path; });
+    var contrib = [];
+    for (var i = commitIdx - 1; i >= 0 && MESSAGES[i].role !== "commit"; i -= 1) {
+        var touches = MESSAGES[i].files.some(function (f) {
+            return commitPaths.indexOf(f.path) !== -1;
+        });
+        if (touches) { contrib.push(i); }
+    }
+    return contrib;
+}
+
+/* ============================ details: message mode ============================ */
+
+function renderDetailsMessageMode() {
+    var msg = MESSAGES[state.selectedRow];
+    document.getElementById("details-header").textContent =
+        "Message " + (state.selectedRow + 1) + " of " + MESSAGES.length +
+        " — " + msg.role + " — " + msg.ts;
+
+    var left = document.getElementById("details-left");
+    left.innerHTML = "";
+    left.appendChild(el("div", "pane-title", "Files touched"));
+
+    if (msg.files.length === 0) {
+        left.appendChild(el("div", "dempty", "No files touched"));
+    } else {
+        appendFileList(left, msg.files);
+    }
+
+    showJsonView();
+}
+
+function appendFileList(left, files) {
+    files.forEach(function (fileRef) {
+        var item = el("div", "dfile", fileRef.path);
+        item.addEventListener("click", function () {
+            left.querySelectorAll(".dfile").forEach(function (d) { d.classList.remove("selected"); });
+            item.classList.add("selected");
+            showDiffView(fileRef.path, DIFFS[fileRef.diff]);
+        });
+        left.appendChild(item);
+    });
+}
+
+/* ============================ details: commit mode ============================ */
+
+function renderDetailsCommitMode() {
+    var commit = MESSAGES[state.selectedRow];
+    document.getElementById("details-header").textContent =
+        "git commit " + commit.hash + " — " + commit.text + " — " + commit.ts;
+
+    var left = document.getElementById("details-left");
+    left.innerHTML = "";
+    left.appendChild(el("div", "pane-title", "Changed files"));
+    appendFileList(left, commit.files);
+
+    left.querySelector(".dfile").click(); // first changed file's diff by default
+}
+
+function showJsonView() {
+    var msg = MESSAGES[state.selectedRow];
+    state.rightView = "json";
+    state.currentDiff = null;
+    document.getElementById("details-right-label").textContent = "JSON";
+    document.getElementById("diff-mode-toggle").hidden = true;
+
+    var record;
+    if (msg.role === "script") {
+        record = {
+            type: "script-run",
+            uuid: msg.uuid,
+            sessionId: msg.session,
+            timestamp: msg.ts,
+            scenario: firstLine(msg.text).split(" — ")[0],
+            exitCode: 0,
+            output: msg.text
+        };
+    } else {
+        record = {
+            type: msg.role === "user" ? "user" : "assistant",
+            uuid: msg.uuid,
+            sessionId: msg.session,
+            timestamp: msg.ts,
+            message: {
+                role: msg.role === "tool" ? "assistant" : msg.role,
+                content: msg.role === "tool"
+                    ? [buildToolUse(firstLine(msg.text))]
+                    : [{ type: "text", text: msg.text }]
+            },
+            isMeta: false,
+            version: 3
+        };
+    }
+
+    var body = document.getElementById("details-right-body");
+    body.innerHTML = "";
+    var pre = el("pre", "json");
+    pre.innerHTML = tintJson(JSON.stringify(record, null, 2));
+    body.appendChild(pre);
+}
+
+// "Bash(npx tsc --noEmit)" -> { type: "tool_use", name: "Bash", input: { command: "npx tsc --noEmit" } }
+function buildToolUse(callLine) {
+    var name = callLine.split("(")[0];
+    var arg = callLine.slice(name.length + 1).replace(/\)$/, "");
+    var input;
+    if (name === "Bash") {
+        input = { command: arg };
+    } else if (name === "ctx_execute") {
+        input = { query: arg };
+    } else {
+        input = { file_path: arg };
+    }
+    return { type: "tool_use", name: name, input: input };
+}
+
+function tintJson(text) {
+    // ponytail: regex tokenizer; fine for trusted, JSON.stringify-produced input
+    return escapeHtml(text).replace(
+        /("(?:[^"\\]|\\.)*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?)/g,
+        function (match, str, colon, bool, num) {
+            if (str !== undefined) {
+                return colon
+                    ? '<span class="j-key">' + str + "</span>" + colon
+                    : '<span class="j-str">' + str + "</span>";
+            }
+            if (bool !== undefined) { return '<span class="j-bool">' + bool + "</span>"; }
+            return '<span class="j-num">' + num + "</span>";
+        }
+    );
+}
+
+/* ============================ diff view ============================ */
+
+function parseHunkHeader(raw) {
+    var m = raw.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    return m ? { oldLn: parseInt(m[1], 10), newLn: parseInt(m[2], 10) } : null;
+}
+
+function showDiffView(label, diffLines) {
+    state.rightView = label;
+    state.currentDiff = { label: label, lines: diffLines };
+    document.getElementById("details-right-label").textContent = label;
+    var toggle = document.getElementById("diff-mode-toggle");
+    toggle.hidden = false;
+    document.getElementById("dm-columns").classList.toggle("active", state.diffMode === "columns");
+    document.getElementById("dm-inline").classList.toggle("active", state.diffMode === "inline");
+
+    var body = document.getElementById("details-right-body");
+    body.innerHTML = "";
+    if (state.diffMode === "columns") {
+        renderDiffColumns(body, diffLines);
+    } else {
+        renderDiffInline(body, diffLines);
+    }
+}
+
+function renderDiffInline(body, diffLines) {
+    var diff = el("div", "diff");
+    var oldLn = 0;
+    var newLn = 0;
+    diffLines.forEach(function (raw) {
+        var line = el("div", "diff-line");
+        var ln = el("span", "diff-ln");
+        var content = el("span", "diff-body");
+        if (raw.indexOf("@@") === 0) {
+            var hunk = parseHunkHeader(raw);
+            if (hunk) {
+                oldLn = hunk.oldLn;
+                newLn = hunk.newLn;
+            }
+            line.classList.add("hunk");
+            ln.textContent = "⋯";
+            content.textContent = raw;
+        } else if (raw.charAt(0) === "+") {
+            line.classList.add("add");
+            ln.textContent = String(newLn);
+            newLn += 1;
+            content.textContent = raw;
+        } else if (raw.charAt(0) === "-") {
+            line.classList.add("del");
+            ln.textContent = String(oldLn);
+            oldLn += 1;
+            content.textContent = raw;
+        } else {
+            ln.textContent = String(newLn);
+            oldLn += 1;
+            newLn += 1;
+            content.textContent = raw;
+        }
+        line.appendChild(ln);
+        line.appendChild(content);
+        diff.appendChild(line);
+    });
+    body.appendChild(diff);
+}
+
+function renderDiffColumns(body, diffLines) {
+    var grid = el("div", "diff-cols");
+    var oldLn = 0;
+    var newLn = 0;
+
+    function emitRow(leftCls, leftLn, leftText, rightCls, rightLn, rightText) {
+        grid.appendChild(el("span", "dc-ln " + leftCls, leftLn));
+        grid.appendChild(el("span", "dc-body " + leftCls, leftText));
+        grid.appendChild(el("span", "dc-ln dc-right " + rightCls, rightLn));
+        grid.appendChild(el("span", "dc-body " + rightCls, rightText));
+    }
+
+    var i = 0;
+    while (i < diffLines.length) {
+        var raw = diffLines[i];
+        if (raw.indexOf("@@") === 0) {
+            var hunk = parseHunkHeader(raw);
+            if (hunk) {
+                oldLn = hunk.oldLn;
+                newLn = hunk.newLn;
+            }
+            grid.appendChild(el("span", "dc-hunk", raw));
+            i += 1;
+        } else if (raw.charAt(0) === "-" || raw.charAt(0) === "+") {
+            var dels = [];
+            while (i < diffLines.length && diffLines[i].charAt(0) === "-") {
+                dels.push(diffLines[i].slice(1));
+                i += 1;
+            }
+            var adds = [];
+            while (i < diffLines.length && diffLines[i].charAt(0) === "+") {
+                adds.push(diffLines[i].slice(1));
+                i += 1;
+            }
+            var pairCount = Math.max(dels.length, adds.length);
+            for (var k = 0; k < pairCount; k += 1) {
+                var hasDel = k < dels.length;
+                var hasAdd = k < adds.length;
+                emitRow(
+                    hasDel ? "dc-del" : "", hasDel ? String(oldLn++) : "", hasDel ? dels[k] : "",
+                    hasAdd ? "dc-add" : "", hasAdd ? String(newLn++) : "", hasAdd ? adds[k] : ""
+                );
+            }
+        } else {
+            var text = raw.slice(1); // drop the leading context space
+            emitRow("", String(oldLn++), text, "", String(newLn++), text);
+            i += 1;
+        }
+    }
+    body.appendChild(grid);
+}
+
+function setDiffMode(mode) {
+    state.diffMode = mode;
+    localStorage.setItem("diffDisplayMode", mode);
+    if (state.currentDiff) {
+        showDiffView(state.currentDiff.label, state.currentDiff.lines);
+    }
+}
+
+document.getElementById("dm-columns").addEventListener("click", function () { setDiffMode("columns"); });
+document.getElementById("dm-inline").addEventListener("click", function () { setDiffMode("inline"); });
+
+/* ============================ details: file revisions mode ============================ */
+
+function enterFileMode(path) {
+    state.detailsMode = "file";
+    state.sidebarFile = path;
+    state.selectedRev = 0;
+    state.selectedRow = -1;
+    document.querySelectorAll(".tl-row").forEach(function (row) {
+        row.classList.remove("selected");
+        row.classList.remove("contrib");
+    });
+    markSidebarSelection();
+    renderDetailsFileMode();
+}
+
+function renderDetailsFileMode() {
+    var file = SIDEBAR_FILES.find(function (f) { return f.path === state.sidebarFile; });
+    document.getElementById("details-header").textContent =
+        "File Revisions — " + file.path;
+
+    var left = document.getElementById("details-left");
+    left.innerHTML = "";
+    left.appendChild(el("div", "pane-title", "Revisions"));
+
+    file.revisions.forEach(function (rev, i) {
+        var card = el("div", "rev-card");
+        if (i === state.selectedRev) { card.classList.add("selected"); }
+
+        var head = el("div", "rev-head");
+        head.appendChild(el("span", "", "#" + (i + 1)));
+        head.appendChild(el("span", "op-badge op-" + rev.op, rev.op));
+        head.appendChild(el("span", "rev-ts", rev.ts));
+        card.appendChild(head);
+
+        var actions = el("div", "rev-actions");
+        ["Show content", "Export this version", "Copy patch", "Export .patch", "Jump to timeline step"]
+            .forEach(function (label) {
+                actions.appendChild(el("button", "", label));
+            });
+        card.appendChild(actions);
+
+        card.addEventListener("click", function () {
+            state.selectedRev = i;
+            renderDetailsFileMode();
+        });
+        left.appendChild(card);
+    });
+
+    var rev = file.revisions[state.selectedRev];
+    showDiffView(file.path + " — revision #" + (state.selectedRev + 1), DIFFS[rev.diff]);
+}
+
+/* ============================ console ============================ */
+
+function collapseConsole() {
+    document.getElementById("rightcol").classList.add("console-collapsed");
+    var lines = document.getElementById("console-lines").children;
+    var last = lines.length ? lines[lines.length - 1].textContent : "";
+    document.getElementById("console-last").textContent = last;
+}
+
+function expandConsole() {
+    document.getElementById("rightcol").classList.remove("console-collapsed");
+}
+
+function simulateLoading() {
+    var container = document.getElementById("console-lines");
+    var i = 0;
+    var timer = setInterval(function () {
+        container.appendChild(el("div", "", CONSOLE_LINES[i]));
+        container.scrollTop = container.scrollHeight;
+        i += 1;
+        if (i === CONSOLE_LINES.length) {
+            clearInterval(timer);
+            setTimeout(collapseConsole, 400);
+        }
+    }, 160);
+}
+
+document.getElementById("console-hide").addEventListener("click", collapseConsole);
+document.getElementById("console-show").addEventListener("click", expandConsole);
+
+/* ============================ toolbar ============================ */
+
+var FAKE_PROJECTS = [
+    "s86-concurrent-overlap-rewind-code",
+    "jfred-webapp-redesign",
+    "pfmcpp-project12-part9"
+];
+
+function hideToolbarPopovers() {
+    document.getElementById("projects-menu").hidden = true;
+    document.getElementById("paths-popover").hidden = true;
+}
+
+function initToolbar() {
+    var menu = document.getElementById("projects-menu");
+    FAKE_PROJECTS.forEach(function (name) {
+        var item = el("div", "menu-item", name);
+        item.addEventListener("click", function () {
+            var title = document.getElementById("toolbar-title");
+            title.textContent = "JFRED — project: ";
+            title.appendChild(el("b", "", name));
+            hideToolbarPopovers();
+        });
+        menu.appendChild(item);
+    });
+
+    document.getElementById("projects-btn").addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        var wasHidden = menu.hidden;
+        hideToolbarPopovers();
+        menu.hidden = !wasHidden;
+    });
+    document.getElementById("paths-btn").addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        var popover = document.getElementById("paths-popover");
+        var wasHidden = popover.hidden;
+        hideToolbarPopovers();
+        popover.hidden = !wasHidden;
+    });
+    document.getElementById("paths-apply").addEventListener("click", hideToolbarPopovers);
+    document.getElementById("paths-popover").addEventListener("click", function (ev) {
+        if (ev.target.id !== "paths-apply") { ev.stopPropagation(); }
+    });
+    document.addEventListener("click", hideToolbarPopovers);
+}
+
+/* ============================ splitters ============================ */
+
+function makeSplitter(splitterId, paneId, axis, invert, minPx) {
+    var splitter = document.getElementById(splitterId);
+    var pane = document.getElementById(paneId);
+    var startPos = 0;
+    var startSize = 0;
+
+    splitter.addEventListener("pointerdown", function (ev) {
+        startPos = axis === "y" ? ev.clientY : ev.clientX;
+        var rect = pane.getBoundingClientRect();
+        startSize = axis === "y" ? rect.height : rect.width;
+        splitter.setPointerCapture(ev.pointerId);
+        ev.preventDefault();
+    });
+    splitter.addEventListener("pointermove", function (ev) {
+        if (!splitter.hasPointerCapture(ev.pointerId)) { return; }
+        var pos = axis === "y" ? ev.clientY : ev.clientX;
+        var delta = pos - startPos;
+        if (invert) { delta = -delta; }
+        var size = Math.max(minPx, startSize + delta);
+        pane.style.flexGrow = "0";
+        pane.style.flexShrink = "0";
+        pane.style.flexBasis = size + "px";
+    });
+    splitter.addEventListener("pointerup", function (ev) {
+        splitter.releasePointerCapture(ev.pointerId);
+    });
+}
+
+makeSplitter("split-td", "timeline", "y", false, 80);
+makeSplitter("split-lr", "details-left", "x", false, 140);
+makeSplitter("split-dc", "console-row", "y", true, 60);
+
+/* ============================ boot ============================ */
+
+initToolbar();
+renderSessions();
+renderSidebar();
+renderTimeline();
+updateToggleLabel();
+simulateLoading();
+</script>
+</body>
+</html>

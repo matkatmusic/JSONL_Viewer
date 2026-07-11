@@ -162,6 +162,24 @@ export const gitCommitCommand = new RegExp(
         oneOrMoreWhitespace + "commit" + negativeLookahead(wordChar),
 );
 
+// git commit's summary line in the command's printed output: an open bracket, the branch name (any
+// run of chars with no bracket/newline, lazily), a space, an optional `(root-commit) ` marker, then
+// group 1 = the 7-to-40-char lowercase-hex commit hash, then the closing bracket. e.g.
+// `[master 4fa08d2] fix: x` -> group 1 = "4fa08d2"; `[master (root-commit) ab12cd3] init` -> group
+// 1 = "ab12cd3". Equivalent to the literal /\[[^\[\]\n]+? (?:\(root-commit\) )?([0-9a-f]{7,40})\]/.
+export const gitCommitResultHashLine = new RegExp(
+    "\\[" + noneOf("\\[\\]\\n") + oneOrMore + lazy + " " + optionalGroup("\\(root-commit\\) ") +
+        capture(oneOf("0-9a-f") + repeatBetween(7, 40)) + "\\]",
+);
+
+// Fallback for commit results whose `[branch hash]` summary was piped away and replaced by a
+// custom line that still contains the hash (s84/s85 scenario captures print `ok 928eaa9`): a
+// WHOLE-WORD run of 7-to-40 lowercase-hex chars — the boundaries reject hex-looking substrings
+// of longer words. group 1 = the hash. Equivalent to the literal /(?<!\w)([0-9a-f]{7,40})(?!\w)/.
+export const bareCommitHashToken = new RegExp(
+    negativeLookbehind(wordChar) + capture(oneOf("0-9a-f") + repeatBetween(7, 40)) + negativeLookahead(wordChar),
+);
+
 // A command that IS a git invocation: the word `git` at the very start, followed by whitespace.
 // e.g. matches "git init" and "git -C /tmp/repo add a.py"; does NOT match "github-cli sync" (no
 // space after "git") or "echo git" (not at the start). Equivalent to the literal /^git\s/.

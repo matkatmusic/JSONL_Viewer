@@ -20,7 +20,7 @@ import {
 import { Path, Uuid } from "./structures/domain.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { getContentBlocks } from "./structures/content-blocks.ts";
-import { gitCommandStart, gitCommitCommand, shellCommandToken } from "./regex_expressions.ts";
+import { bareCommitHashToken, gitCommandStart, gitCommitCommand, gitCommitResultHashLine, shellCommandToken } from "./regex_expressions.ts";
 import { splitLines } from "./reconstruction_replay_edit.ts";
 import { noteStage } from "./reconstruction_provenance.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
@@ -73,6 +73,10 @@ export type GitOperation = {
     timestamp: Date;
     sessionId: Uuid | undefined;
     uuid: Uuid | undefined;
+    // The short commit hash from the commit's own tool_result text (`[master 4fa08d2] …`), only on
+    // kind commit and only when the output carried git's summary line — the viewer's commit pill.
+    // A git hash abbreviation is free-form text, so it stays a primitive (coding-requirements 1).
+    resultHash?: string;
 };
 
 // Global git flags that consume the NEXT token as their argument (`git -C <dir> …`,
@@ -168,10 +172,38 @@ function parseGitOperation(
     };
 }
 
+// The short hash in a commit's tool_result text — git's `[branch hash] message` summary line
+// (`[master 4fa08d2] fix: x`, `[master (root-commit) ab12cd3] init`) — falling back to a
+// whole-word hex token when the summary was piped away but the hash still got printed
+// (scenario captures echo `ok 928eaa9`); undefined when neither form is present.
+export function extractCommitHashFromResultText(resultText: string): string | undefined {
+    const summaryMatch = resultText.match(gitCommitResultHashLine);
+    if (summaryMatch !== null) return summaryMatch[1];
+    const bareTokenMatch = resultText.match(bareCommitHashToken);
+    if (bareTokenMatch === null) return undefined;
+    return bareTokenMatch[1];
+}
+
+// Every tool_result's text, keyed by its tool_use id — the lookup a commit operation resolves its
+// own printed output through (same hydrated-block pattern as reconstruction_extract's result walk).
+function indexToolResultTextByToolUseId(records: TranscriptRecord[]): Map<string, string> {
+    const textById = new Map<string, string>();
+    for (const record of records) {
+        for (const block of getContentBlocks(record)) {
+            if (block.type !== BlockType.tool_result) continue;
+            if (typeof block.content !== "string") continue;
+            textById.set(block.tool_use_id.toString(), block.content);
+        }
+    }
+    return textById;
+}
+
 // Every git Bash command in the transcript, in record order, parsed for the timeline's
 // `* git <kind> <detail> *` rows. Reads the transcript records directly — the consent scan's
-// ScriptRun list serves script consent, not git history.
+// ScriptRun list serves script consent, not git history. Commit operations additionally carry
+// the short hash printed in their own tool_result (item 66: the viewer's `GIT COMMIT [hash]` pill).
 export function findGitOperations(records: TranscriptRecord[]): GitOperation[] {
+    const resultTextById = indexToolResultTextByToolUseId(records);
     const operations: GitOperation[] = [];
     for (const record of records) {
         const timestamp = record.timestamp;
@@ -183,7 +215,14 @@ export function findGitOperations(records: TranscriptRecord[]): GitOperation[] {
             if (command === undefined) continue;
             const trimmed = command.trim();
             if (trimmed.match(gitCommandStart) === null) continue;
-            operations.push(parseGitOperation(trimmed, timestamp, record.sessionId, record.uuid));
+            const operation = parseGitOperation(trimmed, timestamp, record.sessionId, record.uuid);
+            if (operation.kind === GitOperationKind.commit) {
+                const resultText = resultTextById.get(block.id.toString());
+                if (resultText !== undefined) {
+                    operation.resultHash = extractCommitHashFromResultText(resultText);
+                }
+            }
+            operations.push(operation);
         }
     }
     return operations;

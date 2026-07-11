@@ -713,3 +713,56 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   bare clone only after item 59 makes the suite scenario-submodule-optional. Add
   `npm run build:webapp` to catch webapp tsconfig breakage. Nothing else (no matrix, no
   release automation) until the repo has users.
+
+## New items (2026-07-10, Fork-style GUI redesign)
+
+- [x] **65. Fork-style GUI mockup for the webapp timeline** — standalone HTML mockup
+  ([`fork-style-mockup.html`](fork-style-mockup.html), self-contained, zero deps, open via
+  `file://`) replicating the Fork git GUI layout ahead of a real `webapp/` redesign:
+  one-line timeline rows `[▸ | truncated text | timestamp | L:n (of N) | 8-char session
+  uuid]` with inline bubble expansion + Expand/Collapse All toggle; Timeline / Details /
+  Console stacked beside the Files+Sessions sidebar with THREE drag-adjustable splitters;
+  Details pane in two modes (message: touched files + JSON-default/diff right; File
+  Revisions: revision cards + selected revision diff); diff Columns/Inline toggle
+  (localStorage `diffDisplayMode`); console auto-collapse to status bar after load;
+  `[{ }]` always visible, selects + forces JSON view; contiguous-pick gutter with
+  "N steps picked — Export .patch" bar; inverted Fork-style branch graph (rewind fork,
+  dimmed orphan lane); repo git-commit rows ("GIT COMMIT [hash]", no JSONL/`{ }`,
+  Fork-style files+diff details) with contributing-node highlight on select; script-run
+  rows; Bash()/ctx_execute() tool rows; toolbar Projects dropdown + Paths popover.
+  Built 2026-07-10 across 6 feedback rounds, verified headlessly (74/74 DOM assertions).
+  Plan: `~/.claude/plans/i-want-to-update-replicated-music.md`; notes:
+  `plans/implementation-notes-fork-style-mockup.md`.
+  **Closed 2026-07-10 (user-approved):** the design is dialed in — mockup complete after
+  6 feedback rounds, headlessly verified (74/74 DOM assertions), no blocking open
+  questions in the implementation notes. The item existed only to hold the design open;
+  approval closes it. Porting the approved design into `webapp/` is item 66.
+
+- [x] **66. Port the approved Fork-style design into `webapp/`** — implement the
+  item-65 mockup (`fork-style-mockup.html`) as the real timeline redesign: one-line
+  rows with inline expansion, three-splitter layout, dual-mode Details pane,
+  Columns/Inline diff toggle, pick gutter + patch export, branch graph, commit /
+  script-run / tool-call rows, Projects dropdown + Paths popover. Real data replaces
+  the mockup's canned dataset; splitter min-sizes (80px panes, 60px console, 140px
+  details-left) were eyeballed and may want tuning (notes, Open questions).
+  **Closed 2026-07-10 (implemented; suite NOT run — user runs it):** full port shipped
+  per `plans/item66-fork-style-webapp-port.md` — fork shell (`index.html`/`styles.css`
+  rewrite, toolbar popovers, 3 splitters, console auto-collapse to status bar),
+  one-line `.tl-row` timeline with CSS graph gutter / pick gutter / role-colored text /
+  `L:n (of N)` / session uuid / `{ }`, tri-expansion bubbles keeping the item-55 chips,
+  Details pane (new `webapp/views/details.ts`: message / commit / file-revisions modes,
+  Columns+Inline diff via the diff-vs-base row builders, existing transcript inspector
+  as the JSON view), Sessions+Files sidebar (`webapp/views/sidebar.ts`), and engine
+  `GitOperation.resultHash` (git `[branch hash]` summary line + bare-hex-token fallback
+  for the scenarios' piped `ok <hash>` outputs) so commit rows render `GIT COMMIT
+  [hash]`. User-approved scope: full inspector reused in Details; sub-routes stay
+  working (render into the Details pane); session ends stay as muted rows. Pre-port
+  `timeline.ts`/`styles.css` archived in `webapp/archive/` (tsconfig-excluded).
+  30 new tests across 4 files (written and run individually green: 7 git-operations,
+  73 timeline-viewmodels incl. 17 new, 5 details-viewmodels, 16 inspector unchanged);
+  typecheck + `build:webapp` clean; verified headlessly on s39 + s84 (rows, commit
+  mode + contrib highlight, file mode, picks + hard-stop flash, `/at/49` anchor,
+  sub-route compat, console collapse — details in
+  `plans/implementation-notes-item66-fork-style-port.md`, incl. 3 open questions:
+  first-commit "No files changed" edge, rev-card letter badges, s39's missing commit
+  op).

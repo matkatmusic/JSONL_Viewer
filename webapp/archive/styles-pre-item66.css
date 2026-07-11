@@ -1,0 +1,425 @@
+/* JSONL Viewer — greenfield styles. Follows the OS light/dark setting via
+   prefers-color-scheme; every color routes through the :root variables below.
+   The dark palette is the retired JFReD viewers' visual family (navy, cyan accent). */
+
+:root {
+    color-scheme: light dark;
+    /* light palette (default) */
+    --bg: #f5f6f8;
+    --panel: #eceef3;
+    --control: #e2e5ec;
+    --control-hover: #d5d9e2;
+    --border: #c9cdd6;
+    --border-strong: #b3b8c4;
+    --text: #1c1e26;
+    --muted: #666c78;
+    --accent: #0a66c2;
+    --green: #1a7f37;
+    --red: #c62828;
+    --orange: #b45309;
+    --code-bg: #ffffff;
+    --badge-accent-bg: rgba(10, 102, 194, 0.12);
+    --error-bg: rgba(198, 40, 40, 0.08);
+    --anchor: #e65100;
+    /* timeline session-lane extras (accent/green/orange are lanes 1-3) */
+    --lane-violet: #6d3ab8;
+    --lane-teal: #0e7490;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #1a1a2e;
+        --panel: #16213e;
+        --control: #2a2a4e;
+        --control-hover: #3a3a5e;
+        --border: #333;
+        --border-strong: #444;
+        --text: #e0e0e0;
+        --muted: #888;
+        --accent: #7ecfff;
+        --green: #7ee787;
+        --red: #ff7b72;
+        --orange: #ffb74d;
+        --code-bg: #10101f;
+        --badge-accent-bg: rgba(126, 207, 255, 0.2);
+        --error-bg: rgba(244, 67, 54, 0.12);
+        --anchor: #ff6d00;
+        --lane-violet: #b39ddb;
+        --lane-teal: #4dd0e1;
+    }
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+body {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 13px;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ─── Toolbar ─────────────────────────────────────────────────── */
+.toolbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    flex-shrink: 0;
+}
+.toolbar h1 { font-size: 14px; }
+.toolbar h1 a { color: var(--accent); }
+.breadcrumb { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toolbar-spacer { flex: 1; }
+.dir-label { color: var(--muted); font-size: 11px; }
+.dir-input {
+    background: var(--control); color: var(--text); border: 1px solid var(--border-strong);
+    border-radius: 4px; padding: 3px 8px; font-family: inherit; font-size: 12px;
+    width: 320px;
+}
+.toolbar-btn, .row-btn {
+    background: var(--control); color: var(--accent); border: 1px solid var(--border-strong);
+    border-radius: 4px; padding: 3px 10px; font-family: inherit;
+    font-size: 12px; cursor: pointer;
+}
+.toolbar-btn:hover, .row-btn:hover { background: var(--control-hover); border-color: var(--accent); }
+.row-btn { font-size: 11px; padding: 1px 7px; }
+
+/* ─── Layout ──────────────────────────────────────────────────── */
+.layout { flex: 1; display: flex; overflow: hidden; min-height: 0; position: relative; --drawer-width: 260px; }
+.layout:has(.drawer.collapsed) { --drawer-width: 24px; }
+.drawer {
+    flex: 0 0 260px; min-width: 180px; overflow-y: auto;
+    border-right: 1px solid var(--border); background: var(--panel); padding: 8px;
+    transition: flex-basis 0.18s ease, min-width 0.18s ease;
+}
+.drawer.collapsed { flex-basis: 24px; min-width: 24px; padding: 8px 2px; overflow: hidden; }
+.drawer.collapsed > :not(.drawer-toggle) { display: none; }
+/* The chevron rides the drawer's right edge, vertically centered. Positioned against .layout
+   (the drawer is unpositioned), so it neither scrolls with the drawer's content nor gets
+   clipped by its overflow; `left` animates in step with the drawer's flex-basis. */
+.drawer-toggle {
+    position: absolute; left: calc(var(--drawer-width) - 22px); top: 50%;
+    transform: translateY(-50%); z-index: 5; width: 20px; padding: 1px 0;
+    transition: left 0.18s ease;
+}
+.drawer-section-title { color: var(--muted); font-size: 11px; margin: 10px 0 2px; text-transform: uppercase; }
+.drawer-item {
+    display: block; padding: 1px 6px; border-left: 3px solid transparent;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text);
+}
+.drawer-item:hover { background: var(--control); text-decoration: none; }
+.drawer-item.active { background: var(--control); border-left-color: var(--accent); color: var(--accent); }
+.drawer-file { padding-left: 16px; }
+.view-pane { flex: 1; overflow-y: auto; padding: 12px 16px; min-width: 0; }
+.inspector-pane {
+    flex: 0 0 38%; min-width: 260px;
+    display: flex; align-items: stretch; gap: 6px;
+    border-left: 1px solid var(--border); background: var(--panel); padding: 8px 4px 8px 6px;
+}
+.inspector-content { flex: 1; min-width: 0; overflow-y: auto; padding-right: 8px; }
+/* Timeline route: the details drawer and the timeline are the layout's 2 flex columns, splitting
+   the space BESIDE the Files column 50/50 (item 10c: was 60/40 — cramped for conversation
+   reading; --drawer-width tracks the Files column's open/collapsed state); hidden (display:none
+   via the global .hidden) the timeline takes the full width. */
+.layout.timeline-route .inspector-pane {
+    /* flex: 0 0 calc((100% - var(--drawer-width)) * 0.5); */
+    flex: 0 0 calc((100% - var(--drawer-width)) * 0.45);
+}
+/* Item 10a: collapsed inspector keeps a 24px rail holding the focusable « expand button,
+   mirroring the Files drawer's collapsed state (display:none left no reopen affordance).
+   The selector list out-specifies the timeline-route width rule above. */
+.inspector-pane.collapsed, .layout.timeline-route .inspector-pane.collapsed {
+    flex: 0 0 24px; min-width: 24px; padding: 8px 2px;
+}
+.inspector-pane.collapsed .inspector-content { display: none; }
+/* Drawer content wraps instead of scrolling horizontally. */
+.inspector-pane.file-preview-drawer .timeline-preview {
+    white-space: pre-wrap; overflow-wrap: anywhere; max-height: none;
+}
+/* item 39: base .diff-text now wraps — override retired. */
+/* .inspector-pane.file-preview-drawer .diff-text {
+    white-space: pre-wrap; overflow-wrap: anywhere;
+} */
+/* Snapshot drawer (TASKS item 23): the Details pane splits in half — JSON above, the raised
+   blob content below, each scrolling on its own. Item 10g: the split needs the content column
+   to BE a flex column — max-height on two block children doesn't halve a plain block. */
+/* .inspector-pane.snapshot-drawer .inspector-json { max-height: 50%; } */
+/* .snapshot-pane { border-top: 1px solid var(--border); max-height: 50%; overflow-y: auto; } */
+.inspector-pane.snapshot-drawer .inspector-content { display: flex; flex-direction: column; }
+.inspector-pane.snapshot-drawer .inspector-json { max-height: 50%; overflow-y: auto; flex: 0 1 auto; }
+.snapshot-pane { border-top: 1px solid var(--border); overflow-y: auto; flex: 1 1 0; min-height: 0; }
+.snapshot-pane .snapshot-pane-header { display: flex; gap: 8px; align-items: center; }
+.hidden { display: none; }
+
+.pane-title { color: var(--accent); font-size: 13px; margin: 10px 0 6px; }
+.muted { color: var(--muted); font-size: 11px; }
+.error-box {
+    background: var(--error-bg); border: 1px solid var(--red); border-radius: 4px;
+    padding: 8px 12px; margin: 12px 0; white-space: pre-wrap;
+}
+
+/* ─── Projects list ───────────────────────────────────────────── */
+.project-row {
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 4px 8px; border-left: 3px solid transparent; cursor: pointer;
+}
+.project-row:hover { background: var(--control); border-left-color: var(--accent); }
+.project-count { color: var(--muted); font-size: 11px; }
+
+/* ─── Project view: two panes ─────────────────────────────────── */
+.two-pane { display: flex; gap: 16px; align-items: flex-start; }
+.two-pane > div { flex: 1; min-width: 0; }
+.tree-dir { color: var(--muted); font-size: 11px; margin-top: 8px; word-break: break-all; }
+.tree-file { padding: 1px 0 1px 16px; cursor: pointer; word-break: break-all; }
+.tree-file:hover { background: var(--control); }
+.jsonl-row { display: flex; gap: 10px; align-items: baseline; padding: 2px 8px; cursor: pointer; }
+.jsonl-row:hover { background: var(--control); }
+
+/* ─── Consent dialog ──────────────────────────────────────────── */
+.consent-box { border: 1px solid var(--orange); border-radius: 6px; padding: 12px 16px; margin: 12px 0; }
+.consent-box h2 { color: var(--orange); font-size: 13px; margin-bottom: 8px; }
+.consent-script { margin: 8px 0; }
+.consent-script pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px;
+    padding: 8px; overflow-x: auto; font-size: 12px; max-height: 200px; overflow-y: auto;
+}
+.consent-actions { display: flex; gap: 10px; margin-top: 10px; }
+.consent-run { border-color: var(--orange); color: var(--orange); }
+
+/* ─── Conversation view ───────────────────────────────────────── */
+.branch-strip { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+.branch-chip {
+    font-size: 11px; padding: 1px 8px; border-radius: 10px;
+    border: 1px solid var(--border-strong); color: var(--muted);
+}
+.branch-chip.surviving { border-color: var(--green); color: var(--green); }
+.branch-chip.rewound { opacity: 0.45; text-decoration: line-through; }
+.bubble {
+    max-width: 72%; margin: 6px 0; padding: 6px 12px; border-radius: 8px;
+    white-space: pre-wrap; word-break: break-word; cursor: pointer;
+}
+.bubble.user { background: var(--control); border: 1px solid var(--border-strong); margin-left: auto; }
+.bubble.assistant { background: var(--panel); border: 1px solid var(--border); }
+.bubble-meta { color: var(--muted); font-size: 10px; margin-bottom: 2px; }
+.conversation { display: flex; flex-direction: column; }
+.stub-row {
+    color: var(--muted); font-size: 11px; padding: 0 8px; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stub-row:hover { background: var(--control); color: var(--text); }
+.edit-marker { color: var(--orange); font-size: 11px; padding: 0 8px; }
+/* item 38: outline-offset -2px draws the ring inside the element's own box — a plain outline
+   paints outside it and gets its left edge clipped by scroll containers with no left padding
+   (.inspector-content). */
+.anchored { outline: 2px solid var(--anchor); outline-offset: -2px; }
+
+/* ─── File history view ───────────────────────────────────────── */
+.revision-row { border: 1px solid var(--border); border-radius: 6px; margin: 8px 0; padding: 8px 12px; }
+.revision-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.revision-kind {
+    font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: bold;
+    background: var(--badge-accent-bg); color: var(--accent);
+}
+.revision-content {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px;
+    padding: 8px; overflow-x: auto; font-size: 12px; max-height: 300px; overflow-y: auto;
+    /* (item 48) old: white-space: pre; — long lines forced horizontal scrollbars */
+    white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 6px;
+}
+/* (item 49) the vendored highlight.js themes ship their own background; the panes'
+   var(--code-bg) stays the single background authority */
+.hljs { background: transparent; }
+
+/* ─── Raw lines / diff views ──────────────────────────────────── */
+.filter-bar { display: flex; gap: 10px; align-items: center; margin: 8px 0; }
+.filter-bar select, .filter-bar input {
+    background: var(--control); color: var(--text); border: 1px solid var(--border-strong);
+    border-radius: 4px; padding: 2px 8px; font-family: inherit; font-size: 12px;
+}
+.raw-line { display: flex; gap: 8px; cursor: pointer; white-space: nowrap; }
+.raw-line:hover { background: var(--control); }
+.raw-line-num { color: var(--muted); min-width: 44px; text-align: right; flex-shrink: 0; }
+.raw-line-verdict { color: var(--muted); font-size: 10px; min-width: 110px; flex-shrink: 0; }
+.raw-line-text { overflow: hidden; text-overflow: ellipsis; }
+/* item 39: pre-wrap + overflow-wrap keep long diff lines inside the pane instead of setting
+   its scroll width (matches .diff-split > div). */
+.diff-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.diff-line-add { color: var(--green); }
+.diff-line-del { color: var(--red); }
+/* Item 36c (user-decided): hunk headers show their "@@ -a,b +c,d @@" text, muted, spanning
+   the full row in both views — replaces item 10e's dashed separator. */
+/* .diff-line-hunk { color: var(--accent); } */
+/* .diff-line-hunk { font-size: 0; height: 9px; border-bottom: 1px dashed var(--border); margin: 2px 0 4px; } */
+.diff-line-hunk { color: var(--muted); margin: 4px 0 2px; }
+/* Side-by-side diff: old-number | old-text | new-number | new-text grid; full rows (hunk
+   headers, preamble) span all columns. */
+.diff-split { display: grid; grid-template-columns: max-content 1fr max-content 1fr; column-gap: 8px; font-size: 12px; }
+.diff-split > div { white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-split .diff-full { grid-column: 1 / -1; }
+.diff-split .diff-line-num { color: var(--muted); text-align: right; user-select: none; }
+/* Inline view grid: old number | new number | raw line (items 39/40); hunk headers span all
+   columns like the split view (item 36c). */
+.diff-inline { display: grid; grid-template-columns: max-content max-content 1fr; column-gap: 8px; font-size: 12px; }
+.diff-inline .diff-full { grid-column: 1 / -1; }
+.diff-inline > div { white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-inline .diff-line-num { color: var(--muted); text-align: right; user-select: none; }
+.diff-view-toggle { margin-bottom: 4px; }
+
+/* ─── Inspector ───────────────────────────────────────────────── */
+.inspector-pane h2 { color: var(--accent); font-size: 12px; margin-bottom: 6px; }
+.inspector-nav { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.jump-link { text-decoration: underline dotted; cursor: pointer; }
+/* Item 10h: the history jump button sits inside the JSON <pre>; give it button typography. */
+.snapshot-history-btn { display: block; margin: 8px 0 4px; font-family: system-ui, sans-serif; }
+.inspector-json { white-space: pre-wrap; word-break: break-word; overflow-x: auto; font-size: 12px; line-height: 1.5; }
+.inspector-text { white-space: pre-wrap; word-break: break-word; overflow-x: auto; font-size: 12px; line-height: 1.5; }
+/* Long string values collapse to their first 7 wrapped lines behind a […] toggle. */
+.json-collapsed {
+    display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 7; line-clamp: 7; overflow: hidden;
+}
+.json-expand { font-size: 10px; padding: 0 5px; vertical-align: top; }
+.json-key { color: var(--accent); }
+.json-string { color: var(--green); }
+.json-number { color: var(--orange); }
+.json-null, .json-bool { color: var(--red); }
+.inspector-close { align-self: center; }
+
+/* ─── Revision timeline view ──────────────────────────────────── */
+.timeline-body { position: relative; }
+.timeline-rail { position: absolute; top: 0; left: 0; pointer-events: none; }
+.timeline-session {
+    height: 40px; padding-left: 96px; display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--muted);
+}
+.timeline-session .swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.timeline-session .line { flex: 1; border-top: 1px solid var(--border); }
+/* ponytail: unattributed lane header hidden (kept in the DOM — the rail loop
+   still uses it as a spine break); its steps keep muted rail dots */
+.timeline-session[data-session="(unattributed)"] { display: none; }
+.timeline-row {
+    padding: 8px 12px 8px 96px; display: flex; flex-direction: column; gap: 4px;
+    border-radius: 6px; position: relative;
+}
+.timeline-row:hover { background: var(--control); }
+.timeline-row.picked { background: var(--badge-accent-bg); }
+.timeline-row.selected { box-shadow: inset 0 0 0 1.5px var(--accent); background: var(--control); }
+.timeline-row.orphan { opacity: 0.55; }
+.timeline-row.orphan .timeline-chip { border-style: dashed; }
+.timeline-pick {
+    position: absolute; left: 20px; top: 10px; width: 15px; height: 15px;
+    accent-color: var(--accent); cursor: pointer;
+}
+.timeline-pick:disabled { opacity: 0.3; cursor: not-allowed; }
+.timeline-row-top { display: flex; align-items: baseline; gap: 10px; min-width: 0; cursor: pointer; }
+.timeline-step-label { font-weight: 650; white-space: nowrap; }
+.timeline-prompt { color: var(--muted); white-space: normal; overflow-wrap: anywhere; flex: 1; }
+.timeline-session-end { font-style: italic; }
+/* SMS-style turn bubbles: agent replies attach left, user prompts attach right; system rows
+   (harness-generated command/reminder turns) stay full-width and dimmer than either. */
+.timeline-row[data-node-kind="agent-turn"]:not(.system),
+.timeline-row[data-node-kind="user-turn"]:not(.system) {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 12px; margin-top: 3px; margin-bottom: 3px; padding-left: 14px;
+}
+.timeline-row[data-node-kind="agent-turn"]:not(.system) {
+    margin-left: 96px; margin-right: 20%; border-bottom-left-radius: 4px;
+}
+.timeline-row[data-node-kind="user-turn"]:not(.system) {
+    margin-left: calc(96px + 20%); border-bottom-right-radius: 4px;
+    background: var(--badge-accent-bg);
+}
+.timeline-row[data-node-kind="agent-turn"]:not(.system) .timeline-prompt,
+.timeline-row[data-node-kind="user-turn"]:not(.system) .timeline-prompt { color: var(--text); }
+/* the pick checkbox lives in the rail gutter, LEFT of the rail line at x=32 so it never
+   occludes the row's node dot */
+.timeline-row[data-node-kind="agent-turn"]:not(.system) .timeline-pick { left: -92px; }
+/* (item 52) tool-activity steps (tool calls/results, no reply text) read as a third
+   category next to agent replies (code-bg) and user prompts (accent tint): violet border
+   + tint, plus their "tool call"/"tool result" tag */
+.timeline-row.tool-activity[data-node-kind="agent-turn"]:not(.system) {
+    border-color: var(--lane-violet);
+    background: rgba(109, 58, 184, 0.07);
+}
+.timeline-tag.tool-activity-tag { color: var(--lane-violet); border: 1px solid var(--lane-violet); }
+/* the chip whose file the preview drawer is showing */
+.timeline-chip.active {
+    border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent);
+    background: var(--badge-accent-bg);
+}
+.timeline-row.system { opacity: 0.55; }
+/* (item 55) tool-call rows: un-bubbled one-liners (`* cmd * [{ }] <TS> L:n`) between the turn
+   bubbles — compact vertical padding, no bubble chrome (bubble rules key on agent/user kinds) */
+.timeline-row[data-node-kind="tool-call"] { padding-top: 2px; padding-bottom: 2px; }
+.timeline-row[data-node-kind="tool-call"] .timeline-row-top { gap: 8px; align-items: center; }
+.timeline-time { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.timeline-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.timeline-gitops { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-bottom: 6px; }
+.timeline-gitop { color: var(--muted); font-family: ui-monospace, monospace; font-size: 11px; }
+.timeline-chips { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.timeline-chip-row { display: flex; gap: 6px; align-items: center; }
+.timeline-chip-action { padding: 2px 8px; font-family: ui-monospace, monospace; }
+.timeline-chip {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 5px;
+    padding: 2px 8px 2px 3px; cursor: pointer;
+}
+.op-badge {
+    width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10.5px; font-weight: 700; color: var(--code-bg);
+}
+.op-badge.op-a { background: var(--green); }
+.op-badge.op-m { background: var(--accent); }
+.op-badge.op-r { background: var(--lane-violet); }
+.op-badge.op-d { background: var(--red); }
+.op-badge.op-u { background: var(--orange); }
+.op-badge.op-s { background: var(--lane-teal); }
+.timeline-tag {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--muted); border: 1px dashed var(--muted); border-radius: 4px; padding: 0 6px;
+}
+.timeline-tag.commit { color: var(--accent); border: 1px solid var(--accent); }
+.timeline-divider {
+    height: 36px; display: flex; align-items: center; gap: 10px;
+    padding-left: 96px; color: var(--muted); font-size: 12px;
+}
+.timeline-divider .line { flex: 1; border-top: 1px dashed var(--border); }
+.timeline-selectbar {
+    position: sticky; bottom: 0; display: flex; align-items: center; gap: 10px;
+    background: var(--panel); border: 1px solid var(--accent); border-radius: 8px;
+    padding: 8px 14px; margin-top: 8px; font-size: 12px;
+}
+.timeline-selectbar .spacer { flex: 1; }
+.timeline-rule { color: var(--red); font-size: 12px; opacity: 0; transition: opacity 0.25s; }
+.timeline-rule.show { opacity: 1; }
+.timeline-preview {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px;
+    padding: 8px; overflow: auto; font-size: 12px; max-height: 300px; white-space: pre;
+    margin-top: 6px;
+}
+.timeline-preview-head {
+    display: flex; gap: 8px; align-items: center; margin-top: 6px;
+    color: var(--muted); font-size: 11px;
+}
+
+/* Persistent loading console docked at the bottom, full width. Height is auto: the terminal is
+   pinned to 10 text rows (see ensureProgressTerminal), so the strip is exactly 10 lines tall. */
+.progress-console {
+    position: relative;
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    background: var(--code-bg);
+    padding: 4px 8px;
+}
+.progress-copy {
+    position: absolute;
+    top: 6px;
+    right: 12px;
+    z-index: 1;
+}

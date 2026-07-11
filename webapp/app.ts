@@ -2,7 +2,9 @@
 // dispatch. Views build their own DOM through the tiny el() helper; this file owns navigation.
 
 import { renderProjectsView } from "./views/projects.ts";
-import { renderProjectDrawer } from "./views/project.ts";
+// item 66: the fork sidebar (views/sidebar.ts, rendered by renderTimelineView) replaces the
+// old project drawer:
+// import { renderProjectDrawer } from "./views/project.ts";
 import { openInspectorPane } from "./inspector.ts";
 import { renderConversationView } from "./views/conversation.ts";
 import { renderFileHistoryView } from "./views/file-history.ts";
@@ -160,6 +162,33 @@ function fitProgressColumns(): void {
     if (dimensions?.cols) progressTerminal!.resize(dimensions.cols, 10);
 }
 
+// ─── console collapse (item 66): row ⇄ one-line status bar ──────────────────
+
+// The last non-empty line of the xterm scrollback — the status the collapsed bar shows.
+function findLastNonEmptyConsoleLine(): string {
+    const buffer = progressTerminal!.buffer.active;
+    for (let i = buffer.length - 1; i >= 0; i -= 1) {
+        const lineText = buffer.getLine(i)?.translateToString(true).trim() ?? "";
+        if (lineText.length > 0) {
+            return lineText;
+        }
+    }
+    return "";
+}
+
+// Swap the console row for the #console-bar status strip (#rightcol.console-collapsed CSS).
+function collapseProgressConsole(): void {
+    document.getElementById("rightcol")!.classList.add("console-collapsed");
+    document.getElementById("console-last")!.textContent =
+        progressTerminal === null ? "" : findLastNonEmptyConsoleLine();
+}
+
+function expandProgressConsole(): void {
+    document.getElementById("rightcol")!.classList.remove("console-collapsed");
+    // The row was display:none while collapsed — re-fit the column count to its width.
+    fitProgressColumns();
+}
+
 // Local wall-clock HH:MM:SS.mmm — ms precision because most loading work is sub-second.
 function formatConsoleTime(): string {
     const now = new Date();
@@ -309,6 +338,9 @@ export async function fetchDocument<DocumentType = WireDocument>(project: string
     if (finalPayload.kind === "error") throw new Error(finalPayload.label);
     if (finalPayload.kind === "consent-required") return { consentRequired: finalPayload.scripts };
     documentCache.set(cacheKey, finalPayload);
+    // item 66: this load actually streamed (cache miss) and completed — auto-collapse the
+    // console shortly after so the timeline gets the vertical space back.
+    setTimeout(collapseProgressConsole, 400);
     return { document: finalPayload as DocumentType };
 }
 
@@ -399,19 +431,33 @@ async function renderSubRouteDrawer(project: string, segments: string[]): Promis
         return;
     }
     let renderContent: ((content: HTMLElement) => unknown) | undefined;
+    // item 66: the Details pane header names the sub-route the drawer shows.
+    let headerText: string | undefined;
     if (segments[2] === "jsonl") {
         const jsonl = segments[3]!;
-        if (segments[4] === "lines") renderContent = (content: HTMLElement) => renderRawLinesView(content, project, jsonl);
-        else renderContent = (content: HTMLElement) => renderConversationView(content, project, jsonl, segments[4] === "at" ? segments[5] : undefined);
+        if (segments[4] === "lines") {
+            headerText = `Raw lines — ${jsonl}`;
+            renderContent = (content: HTMLElement) => renderRawLinesView(content, project, jsonl);
+        } else {
+            headerText = `Conversation — ${jsonl}`;
+            renderContent = (content: HTMLElement) => renderConversationView(content, project, jsonl, segments[4] === "at" ? segments[5] : undefined);
+        }
     } else if (segments[2] === "file") {
         const target = segments[3]!;
-        if (segments[4] === "vsbase") renderContent = (content: HTMLElement) => renderDiffVsBaseView(content, project, target, segments[5]);
-        else renderContent = (content: HTMLElement) => renderFileHistoryView(content, project, target, segments[4] === "rev" ? segments[5] : undefined);
+        if (segments[4] === "vsbase") {
+            headerText = `Diff vs base — ${target}`;
+            renderContent = (content: HTMLElement) => renderDiffVsBaseView(content, project, target, segments[5]);
+        } else {
+            headerText = `File history — ${target}`;
+            renderContent = (content: HTMLElement) => renderFileHistoryView(content, project, target, segments[4] === "rev" ? segments[5] : undefined);
+        }
     }
     if (renderContent === undefined) {
         return;
     }
-    await renderContent(openInspectorPane());
+    const content = openInspectorPane();
+    document.getElementById("details-header")!.textContent = headerText!;
+    await renderContent(content);
 }
 
 // The project whose load output currently fills the progress console; undefined before any
@@ -428,14 +474,30 @@ export function checkNavigationStartsNewProjectLoad(previousProject: string | un
     return nextProject !== previousProject;
 }
 
+// item 66: the details pane (#inspector) is now a STATIC skeleton (index.html) — a route
+// change hides it and clears only its content columns instead of wiping it wholesale.
+// Null-safe on the inner ids because the pre-phase-5 openInspectorPane still rebuilds the
+// pane's children wholesale in the interim.
+function resetDetailsPane(): void {
+    document.getElementById("inspector")!.classList.add("hidden");
+    document.getElementById("details-left")?.replaceChildren();
+    document.getElementById("details-right-body")?.replaceChildren();
+    const header = document.getElementById("details-header");
+    if (header !== null) {
+        header.textContent = "No selection";
+    }
+}
+
 async function renderRoute(): Promise<void> {
     const view = document.getElementById("view")!;
     view.replaceChildren();
     view.onclick = null;
-    const inspector = document.getElementById("inspector")!;
-    inspector.classList.add("hidden");
-    // A route change invalidates the inspected line; an empty closed pane renders no reopen rail.
-    inspector.replaceChildren();
+    // item 66: was — emptied the whole inspector pane on every route change:
+    // const inspector = document.getElementById("inspector")!;
+    // inspector.classList.add("hidden");
+    // // A route change invalidates the inspected line; an empty closed pane renders no reopen rail.
+    // inspector.replaceChildren();
+    resetDetailsPane();
     const drawer = document.getElementById("drawer")!;
     const segments = parseRouteSegments();
     const nextProject = segments[0] === "project" ? segments[1] : undefined;
@@ -444,6 +506,8 @@ async function renderRoute(): Promise<void> {
         // project, so clear before the first line of this load lands (TASKS item 22).
         ensureProgressTerminal();
         progressTerminal!.clear();
+        // item 66: a fresh load re-opens a collapsed console so its progress is visible.
+        expandProgressConsole();
     }
     if (nextProject !== undefined) {
         lastLoadedProject = nextProject;
@@ -457,25 +521,31 @@ async function renderRoute(): Promise<void> {
             segments.push("timeline");
         }
     }
-    document.querySelector(".layout")!.classList.toggle("timeline-route", checkRouteIsTimeline(segments));
-    const refreshDrawer = () => renderProjectDrawer(drawer, segments[1]!, {
-        activeJsonl: segments[2] === "jsonl" ? segments[3]
-            : segments[2] === "timeline" && segments[3] === "session" ? segments[4] : undefined,
-        activeTarget: segments[2] === "file" ? segments[3] : undefined,
-    });
+    // item 66: the fork layout keys off #rightcol.project-route (absent on #/, the timeline
+    // chrome + details pane hide so #view and the console fill the column):
+    // document.querySelector(".layout")!.classList.toggle("timeline-route", checkRouteIsTimeline(segments));
+    document.getElementById("rightcol")!.classList.toggle("project-route", checkRouteIsTimeline(segments));
+    // item 66: the fork sidebar (webapp/views/sidebar.ts) is rendered by renderTimelineView
+    // itself — the old per-route project drawer is retired:
+    // const refreshDrawer = () => renderProjectDrawer(drawer, segments[1]!, {
+    //     activeJsonl: segments[2] === "jsonl" ? segments[3]
+    //         : segments[2] === "timeline" && segments[3] === "session" ? segments[4] : undefined,
+    //     activeTarget: segments[2] === "file" ? segments[3] : undefined,
+    // });
     try {
         if (segments[0] === "project") {
             drawer.classList.remove("hidden");
-            await refreshDrawer();
+            // item 66: was — await refreshDrawer();
         } else {
             drawer.classList.add("hidden");
+            drawer.replaceChildren();   // item 66: the projects-list route leaves the drawer empty
         }
         if (segments.length === 0) {
-            setBreadcrumb("");
+            setToolbarTitle(undefined);   // item 66: was setBreadcrumb("")
             await renderProjectsView(view);
         } else if (segments[0] === "project") {
             const project = segments[1]!;
-            setBreadcrumb(project);
+            setToolbarTitle(project);   // item 66: was setBreadcrumb(project)
             // The timeline is ALWAYS a loaded project's base view (user decision 2026-07-06):
             // jsonl and file sub-routes keep their URLs but render as a drawer over it.
             const anchorJsonl = segments[2] === "timeline" && segments[3] === "session" ? segments[4]
@@ -489,23 +559,88 @@ async function renderRoute(): Promise<void> {
     } catch (error) {
         view.append(el("div", { class: "error-box", text: String(error) }));
     }
-    // The view render may have just built and cached the unified document — refresh the
-    // drawer so its "Files touched" section appears without another navigation.
-    if (segments[0] === "project") {
-        await refreshDrawer();
-    }
+    // item 66: was — a post-render refreshDrawer() so the old drawer's "Files touched" section
+    // appeared without another navigation; renderTimelineView now builds the fork sidebar from
+    // the freshly cached document in the same pass:
+    // if (segments[0] === "project") {
+    //     await refreshDrawer();
+    // }
 }
 
+// The breadcrumb span now only carries the config-switch error (item 66); the current
+// project shows in the toolbar title instead.
 function setBreadcrumb(text: string): void {
     document.getElementById("breadcrumb")!.textContent = text;
 }
 
-// ─── header: the runtime-switchable projects + file-history folders (plan 3.1, item 46) ──────
+// item 66: mockup toolbar title — "JFRED — project: <b>name</b>" on project routes, plain
+// "JFRED" (still a home link) otherwise. Replaces the per-route breadcrumb, so any stale
+// config-error text clears with it.
+function setToolbarTitle(project: string | undefined): void {
+    const title = document.getElementById("toolbar-title")!;
+    title.replaceChildren(el("a", { href: "#/", text: "JFRED", title: "JSONL File Reverse Engineer Debugger" }));
+    if (project !== undefined) {
+        title.append(" — project: ", el("b", { text: project }));
+    }
+    setBreadcrumb("");
+}
+
+// ─── header: toolbar popovers (item 66) + the runtime-switchable folders (item 46) ──────
 
 // The /api/config payload (wire shape: paths as plain strings).
 type WireConfig = { projectsDir: string; fileHistoryDir: string };
 
+// The /api/projects payload rows, as far as the Projects menu reads them.
+type WireProjectListing = { name: string };
+
+// Both toolbar popovers close together — opening one, picking a project, applying a folder
+// change, or any document-level click funnels through here (the mockup's pattern).
+function hideToolbarPopovers(): void {
+    document.getElementById("projects-menu")!.hidden = true;
+    document.getElementById("paths-popover")!.hidden = true;
+}
+
+// Fill the Projects dropdown with one navigating row per project in the active folder.
+async function populateProjectsMenu(menu: HTMLElement): Promise<void> {
+    const projects = await fetchJson<WireProjectListing[]>("/api/projects");
+    menu.replaceChildren(...projects.map((project) => el("div", {
+        class: "menu-item",
+        text: project.name,
+        onclick: () => {
+            hideToolbarPopovers();
+            location.hash = routeToProject(project.name);
+        },
+    })));
+}
+
 async function initializeHeader(): Promise<void> {
+    // item 66: popover model — the two toolbar buttons toggle their popovers; a document-level
+    // click closes both (in-popover clicks stopPropagation to stay open).
+    const projectsMenu = document.getElementById("projects-menu")!;
+    const pathsPopover = document.getElementById("paths-popover")!;
+    document.getElementById("projects-btn")!.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const wasHidden = projectsMenu.hidden;
+        hideToolbarPopovers();
+        projectsMenu.hidden = !wasHidden;
+        if (!projectsMenu.hidden) {
+            void populateProjectsMenu(projectsMenu);
+        }
+    });
+    document.getElementById("paths-btn")!.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const wasHidden = pathsPopover.hidden;
+        hideToolbarPopovers();
+        pathsPopover.hidden = !wasHidden;
+    });
+    // Clicks inside the paths popover (typing in the inputs) must not reach the document-level
+    // closer — EXCEPT the apply button, whose click closes the popover on its way up.
+    pathsPopover.addEventListener("click", (event) => {
+        if ((event.target as HTMLElement).id !== "projects-dir-change") {
+            event.stopPropagation();
+        }
+    });
+    document.addEventListener("click", hideToolbarPopovers);
     const input = document.getElementById("projects-dir-input") as HTMLInputElement;
     const fileHistoryInput = document.getElementById("file-history-dir-input") as HTMLInputElement;
     // The last server-reported effective file-history dir. An UNEDITED field posts "" so the
@@ -542,6 +677,41 @@ async function initializeHeader(): Promise<void> {
     });
 }
 
+// ─── splitters (item 66, ported from the mockup) ─────────────────────────────
+
+// Dragging the splitter pins the pane's flex-basis to its pointer-tracked pixel size
+// (invert=true for a pane sitting AFTER its splitter, e.g. the console row).
+function makeSplitter(splitterId: string, paneId: string, axis: "x" | "y", invert: boolean, minPx: number): void {
+    const splitter = document.getElementById(splitterId)!;
+    const pane = document.getElementById(paneId)!;
+    let startPos = 0;
+    let startSize = 0;
+    splitter.addEventListener("pointerdown", (event) => {
+        startPos = axis === "y" ? event.clientY : event.clientX;
+        const rect = pane.getBoundingClientRect();
+        startSize = axis === "y" ? rect.height : rect.width;
+        splitter.setPointerCapture(event.pointerId);
+        event.preventDefault();
+    });
+    splitter.addEventListener("pointermove", (event) => {
+        if (!splitter.hasPointerCapture(event.pointerId)) {
+            return;
+        }
+        const pos = axis === "y" ? event.clientY : event.clientX;
+        let delta = pos - startPos;
+        if (invert) {
+            delta = -delta;
+        }
+        const size = Math.max(minPx, startSize + delta);
+        pane.style.flexGrow = "0";
+        pane.style.flexShrink = "0";
+        pane.style.flexBasis = `${size}px`;
+    });
+    splitter.addEventListener("pointerup", (event) => {
+        splitter.releasePointerCapture(event.pointerId);
+    });
+}
+
 // Bootstrap only in a real browser: the node test suite imports the view modules (for their
 // DOM-free view-model functions), which transitively loads this module without a window.
 if (typeof window !== "undefined") {
@@ -549,5 +719,11 @@ if (typeof window !== "undefined") {
     window.addEventListener("hashchange", renderRoute);
     // Item 10a: rail-click reopen retired with handleInspectorRailClick above.
     // document.getElementById("inspector").addEventListener("click", handleInspectorRailClick);
+    // item 66: fork-layout chrome — the three splitters + the console hide/show pair.
+    makeSplitter("split-td", "timeline-pane", "y", false, 80);
+    makeSplitter("split-lr", "details-left", "x", false, 140);
+    makeSplitter("split-dc", "console-row", "y", true, 60);
+    document.getElementById("console-hide")!.addEventListener("click", collapseProgressConsole);
+    document.getElementById("console-show")!.addEventListener("click", expandProgressConsole);
     initializeHeader().then(renderRoute);
 }

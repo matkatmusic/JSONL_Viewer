@@ -325,32 +325,43 @@ export function extractReadableText(value: WireValue): string | undefined {
 // diff-vs-base's diffDisplayMode). ponytail: session-only; localStorage if ever wanted.
 let inspectorShowsFormattedText = false;
 
-// Item 10a: collapse shrinks the pane to a 24px rail (mirroring the Files drawer) instead of
-// display:none, so the SAME focusable button expands it again — glyph and label flip per state.
-function toggleInspectorCollapsed(pane: HTMLElement, button: HTMLElement) {
-    const collapsed = pane.classList.toggle("collapsed");
-    button.textContent = collapsed ? "«" : "»";
-    button.title = collapsed ? "Expand inspector" : "Collapse inspector";
+// item 66: the collapse-rail is retired — the fork layout's #split-td splitter resizes the
+// Details pane instead of a 24px rail toggle.
+// // Item 10a: collapse shrinks the pane to a 24px rail (mirroring the Files drawer) instead of
+// // display:none, so the SAME focusable button expands it again — glyph and label flip per state.
+// function toggleInspectorCollapsed(pane: HTMLElement, button: HTMLElement) {
+//     const collapsed = pane.classList.toggle("collapsed");
+//     button.textContent = collapsed ? "«" : "»";
+//     button.title = collapsed ? "Expand inspector" : "Collapse inspector";
+// }
+
+// Show the Details pane without touching its contents — the diff/file modes (views/details.ts)
+// reveal first, then paint their own columns.
+export function revealDetailsPane(): void {
+    document.getElementById("inspector")!.classList.remove("hidden");
 }
 
-// The inspector pane's drawer chrome — collapse chevron + a fresh scrollable content column —
-// shown; returns the content column for the caller to fill.
+// The Details pane's right column, revealed and cleared for a JSON inspector render: label
+// flips to "JSON", the diff toggle hides (it belongs to diff renders only), and the returned
+// #details-right-body is the column every inspector/sub-route view fills.
+// item 66: was — rebuilt the pane's children wholesale (collapse chevron + .inspector-content):
+//     pane.classList.remove("collapsed");
+//     const content = el("div", { class: "inspector-content" });
+//     const collapseButton = el("button", { class: "row-btn inspector-close", text: "»", title: "Collapse inspector" });
+//     collapseButton.onclick = () => toggleInspectorCollapsed(pane, collapseButton);
+//     pane.replaceChildren(collapseButton, content);
 export function openInspectorPane(): HTMLElement {
     const pane = document.getElementById("inspector")!;
     // The 50%-width file-preview modifier is opt-in per open; callers wanting it re-add it.
     pane.classList.remove("file-preview-drawer");
     // Same for the snapshot-drawer split: a fresh open starts without the bottom drawer.
     pane.classList.remove("snapshot-drawer");
-    // A fresh open always starts expanded, whatever state the last collapse left behind.
-    pane.classList.remove("collapsed");
-    const content = el("div", { class: "inspector-content" });
-    // Item 10a: was `onclick: () => pane.classList.add("hidden")` — display:none left no reopen
-    // affordance at all (and no keyboard path back).
-    const collapseButton = el("button", { class: "row-btn inspector-close", text: "»", title: "Collapse inspector" });
-    collapseButton.onclick = () => toggleInspectorCollapsed(pane, collapseButton);
-    pane.replaceChildren(collapseButton, content);
-    pane.classList.remove("hidden");
-    return content;
+    revealDetailsPane();
+    document.getElementById("details-right-label")!.textContent = "JSON";
+    document.getElementById("diff-mode-toggle")!.hidden = true;
+    const body = document.getElementById("details-right-body")!;
+    body.replaceChildren();
+    return body;
 }
 
 // The project of the current #/project/* hash, or undefined on other routes.
@@ -498,7 +509,9 @@ export function openTranscriptInspector({ jsonlName, rawLines, line, onJumpToLin
     const openSnapshotDrawer = async (blobName: string, entry: WireTrackedBackup) => {
         const result = await fetchJson(computeBlobRequestUrl(sessionId, blobName)) as WireBlobResponse;
         const pane = document.getElementById("inspector")!;
-        const content = pane.querySelector(".inspector-content");
+        // item 66: was `pane.querySelector(".inspector-content")` — the content column is now
+        // the static #details-right-body skeleton element.
+        const content = document.getElementById("details-right-body");
         if (content === null) {
             return;
         }

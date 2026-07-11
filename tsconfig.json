@@ -15,5 +15,5 @@
         "noEmit": true
     },
     "include": ["src", "tests", "scripts", "webapp"],
-    "exclude": ["tests/archive", "webapp/vendor", "webapp/dist"]
+    "exclude": ["tests/archive", "webapp/vendor", "webapp/dist", "webapp/archive"]
 }

@@ -230,8 +230,26 @@ export type CommitMarker = {
     sessionId: Uuid | undefined;
 };
 
+// Every session's user-given name, keyed by session id — from the `custom-title` records
+// users create when naming sessions ({type:"custom-title", customTitle, sessionId}). The
+// timeline's session-start markers read "Session <title> started: <id>" from this; sessions
+// never named simply have no entry. Plain string-keyed Record on the wire (the StepSnapshot
+// `files` precedent).
+export function findSessionTitles(records: TranscriptRecord[]): Record<string, string> {
+    const titlesBySessionId: Record<string, string> = {};
+    for (const record of records) {
+        if (record.type !== RecordType.customTitle) continue;
+        if (record.sessionId === undefined) continue;
+        const title = record["customTitle"];
+        if (typeof title !== "string") continue;
+        titlesBySessionId[String(record.sessionId)] = title;
+    }
+    return titlesBySessionId;
+}
+
 export type ReconstructionDocument = {
     sessionId: Uuid | undefined;
+    sessionTitles: Record<string, string>;
     messages: ConversationMessage[];
     branches: BranchSummary[];
     filesTouched: FileHistory[];
@@ -278,6 +296,7 @@ export function buildReconstructionDocument(
     const toolCalls = findToolCalls(records);
     return {
         sessionId: findSessionId(records),
+        sessionTitles: findSessionTitles(records),
         messages,
         branches,
         filesTouched,
