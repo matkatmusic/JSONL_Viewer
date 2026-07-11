@@ -32,12 +32,14 @@ export enum RecordType {
 
 export const KNOWN_RECORD_TYPES: RecordType[] = Object.values(RecordType);
 
-// The 4 `message.content` block types that occur in s1 (recon/07, recon/08).
+// The 4 `message.content` block types that occur in s1 (recon/07, recon/08),
+// plus `image` (a pasted image in a real user turn).
 export enum BlockType {
     text = "text",
     thinking = "thinking",
     tool_use = "tool_use",
     tool_result = "tool_result",
+    image = "image",
 }
 
 export const KNOWN_CONTENT_BLOCK_TYPES: BlockType[] = Object.values(BlockType);

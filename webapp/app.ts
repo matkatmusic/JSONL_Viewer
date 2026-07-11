@@ -64,16 +64,17 @@ const rawLinesCache = new Map<string, string[]>();
 
 let progressTerminal: XtermTerminal | null = null;
 let progressFitAddon: XtermFitAddon | null = null;
+const CONSOLE_ROWS = 15;
 
 // The loading console is a persistent, full-width strip docked at the bottom of the window
-// (#progress-console in index.html), exactly 10 text rows tall. It is created once and reused for
+// (#progress-console in index.html), exactly CONSOLE_ROWS text rows tall. It is created once and reused for
 // every load, so it survives route re-renders (which wipe #view) — progress lines accumulate and
 // the last load's output stays visible until the next. The theme reads the app's live CSS vars.
 function ensureProgressTerminal(): void {
     if (progressTerminal !== null) return;
     const rootStyles = getComputedStyle(document.documentElement);
     progressTerminal = new Terminal({
-        rows: 10,
+        rows: CONSOLE_ROWS,
         disableStdin: true,
         convertEol: true,
         scrollback: 10000,
@@ -156,10 +157,10 @@ function copyConsoleText(): void {
     }).catch(() => {});
 }
 
-// Fit the column count to the window width, holding the height fixed at 10 rows.
+// Fit the column count to the window width, holding the height fixed at CONSOLE_ROWS rows.
 function fitProgressColumns(): void {
     const dimensions = progressFitAddon?.proposeDimensions();
-    if (dimensions?.cols) progressTerminal!.resize(dimensions.cols, 10);
+    if (dimensions?.cols) progressTerminal!.resize(dimensions.cols, CONSOLE_ROWS);
 }
 
 // ─── console collapse (item 66): row ⇄ one-line status bar ──────────────────
@@ -296,6 +297,14 @@ export function peekCachedDocument<DocumentType = WireDocument>(project: string)
     return documentCache.get(`${project}|*`) as DocumentType | undefined;
 }
 
+// The one in-flight document load. renderRoute aborts it on every navigation (previously two
+// hashchanges raced duplicate stream reads); the console Cancel button aborts it on demand.
+let inflightLoadController: AbortController | undefined;
+
+function setCancelButtonVisible(visible: boolean): void {
+    (document.getElementById("console-cancel") as HTMLButtonElement).hidden = !visible;
+}
+
 // DocumentType lets each view name the wire fields it reads (its own Wire* type); the cache and
 // stream handling below stay shape-agnostic.
 export async function fetchDocument<DocumentType = WireDocument>(project: string, jsonl?: string): Promise<{ document?: DocumentType; consentRequired?: WireConsentScript[] }> {
@@ -306,42 +315,55 @@ export async function fetchDocument<DocumentType = WireDocument>(project: string
     const choice = sessionStorage.getItem(computeConsentKey(project));
     params.set("allowScripts", choice === "1" ? "1" : "0");
     if (choice === "0") params.set("declined", "1");
-    // The server does its consent-decision parse (and, for a project view, a full projects scan)
-    // BEFORE it writes headers — that work is silent until the stream opens. Time to first byte
-    // exposes it, so a gap before the first "loading …" line is attributable to the server.
-    logProgress(`GET /api/document jsonl=${jsonl ?? "(all)"}`);
-    const requestStartMs = Date.now();
-    const response = await fetch(`/api/document?${params}`);
-    if (!response.ok) throw new Error(`document ${response.status}: ${await response.text()}`);
-    logProgress(`  ↳ /api/document responding (${Date.now() - requestStartMs}ms to first byte)`);
-    // NDJSON stream: each progress line lands in the console; the last non-progress line is the
-    // terminal payload — a document, a consent decision, or a build error.
-    const reader = response.body!.getReader();
-    const decoder = new TextDecoder();
-    let remainder = "";
-    let finalPayload!: WireDocumentStreamLine;
-    for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        let lines: string[];
-        ({ remainder, lines } = splitNdjsonChunk(remainder, decoder.decode(value, { stream: true })));
-        for (const line of lines) {
-            const parsed = JSON.parse(line) as WireDocumentStreamLine;
-            if (parsed.kind === "progress") {
-                logProgress(parsed.current !== undefined ? `${parsed.current}/${parsed.total} ${parsed.label}` : parsed.label!);
-            } else {
-                finalPayload = parsed;
+    const controller = new AbortController();
+    inflightLoadController = controller;
+    setCancelButtonVisible(true);
+    try {
+        // The server does its consent-decision parse (and, for a project view, a full projects scan)
+        // BEFORE it writes headers — that work is silent until the stream opens. Time to first byte
+        // exposes it, so a gap before the first "loading …" line is attributable to the server.
+        logProgress(`GET /api/document jsonl=${jsonl ?? "(all)"}`);
+        const requestStartMs = Date.now();
+        const response = await fetch(`/api/document?${params}`, { signal: controller.signal });
+        if (!response.ok) throw new Error(`document ${response.status}: ${await response.text()}`);
+        logProgress(`  ↳ /api/document responding (${Date.now() - requestStartMs}ms to first byte)`);
+        // NDJSON stream: each progress line lands in the console; the last non-progress line is the
+        // terminal payload — a document, a consent decision, or a build error.
+        const reader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        let remainder = "";
+        let finalPayload!: WireDocumentStreamLine;
+        for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            let lines: string[];
+            ({ remainder, lines } = splitNdjsonChunk(remainder, decoder.decode(value, { stream: true })));
+            for (const line of lines) {
+                const parsed = JSON.parse(line) as WireDocumentStreamLine;
+                if (parsed.kind === "progress") {
+                    logProgress(parsed.current !== undefined ? `${parsed.current}/${parsed.total} ${parsed.label}` : parsed.label!);
+                } else {
+                    finalPayload = parsed;
+                }
             }
         }
+        // A real document has no `kind` field; consent/error ride the kind discriminant.
+        if (finalPayload.kind === "error") throw new Error(finalPayload.label);
+        if (finalPayload.kind === "consent-required") return { consentRequired: finalPayload.scripts };
+        documentCache.set(cacheKey, finalPayload);
+        // item 66: this load actually streamed (cache miss) and completed — auto-collapse the
+        // console shortly after so the timeline gets the vertical space back.
+        setTimeout(collapseProgressConsole, 400);
+        return { document: finalPayload as DocumentType };
+    } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") logProgress("load cancelled");
+        throw error;
+    } finally {
+        if (inflightLoadController === controller) {
+            inflightLoadController = undefined;
+            setCancelButtonVisible(false);
+        }
     }
-    // A real document has no `kind` field; consent/error ride the kind discriminant.
-    if (finalPayload.kind === "error") throw new Error(finalPayload.label);
-    if (finalPayload.kind === "consent-required") return { consentRequired: finalPayload.scripts };
-    documentCache.set(cacheKey, finalPayload);
-    // item 66: this load actually streamed (cache miss) and completed — auto-collapse the
-    // console shortly after so the timeline gets the vertical space back.
-    setTimeout(collapseProgressConsole, 400);
-    return { document: finalPayload as DocumentType };
 }
 
 // The consent dialog (plan 3.2): every script's code shown verbatim; running is opt-in;
@@ -489,6 +511,7 @@ function resetDetailsPane(): void {
 }
 
 async function renderRoute(): Promise<void> {
+    inflightLoadController?.abort();   // navigation tears down any in-flight load
     const view = document.getElementById("view")!;
     view.replaceChildren();
     view.onclick = null;
@@ -557,6 +580,7 @@ async function renderRoute(): Promise<void> {
             view.append(el("div", { class: "error-box", text: `unknown route: ${location.hash}` }));
         }
     } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;   // cancelled — console already logged it
         view.append(el("div", { class: "error-box", text: String(error) }));
     }
     // item 66: was — a post-render refreshDrawer() so the old drawer's "Files touched" section
@@ -725,5 +749,6 @@ if (typeof window !== "undefined") {
     makeSplitter("split-dc", "console-row", "y", true, 60);
     document.getElementById("console-hide")!.addEventListener("click", collapseProgressConsole);
     document.getElementById("console-show")!.addEventListener("click", expandProgressConsole);
+    document.getElementById("console-cancel")!.addEventListener("click", () => inflightLoadController?.abort());
     initializeHeader().then(renderRoute);
 }

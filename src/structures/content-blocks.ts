@@ -30,11 +30,20 @@ export type ToolResultBlock = {
     is_error: boolean;
 };
 
+// A pasted image in a user turn. Payload kept as observed on the wire; no
+// consumer reads it — every getContentBlocks caller filters to a specific
+// BlockType member, so image blocks only need to parse, not be handled.
+export type ImageBlock = {
+    type: BlockType.image;
+    source: { type: string; data: string; media_type: string };
+};
+
 export type ContentBlock =
     | TextBlock
     | ThinkingBlock
     | ToolUseBlock
-    | ToolResultBlock;
+    | ToolResultBlock
+    | ImageBlock;
 
 // Thrown when a content block carries a `type` outside the s1 vocabulary, so an
 // unmodeled block shape cannot pass silently (fog-of-war guard).

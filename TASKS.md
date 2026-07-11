@@ -154,7 +154,7 @@ notes' "suite intentionally not run" remainder lands in the standing post-sessio
   now takes an optional preserved-repo dir, and `placeGitCommitEvidence` derives it from the
   transcript's own directory (`getRecordSource`) when a `.git` sits next to the transcript —
   scenario captures preserve a clone there; live `~/.claude/projects` transcripts don't, so the
-  viewer path is untouched. Scenario coverage back to 85/85.
+viewer path is untouched. Scenario coverage back to 85/85.
 - [ ] **17. GitHub Pages demo tier** — canned ReconstructionDocument JSON + `webapp/` with a
   static-data shim replacing `/api/*`. Deliberately deferred "Phase 4, planned separately when
   reached" (handoffs 20260702-1434/1639, 20260703-1010/2144); needs its own plan when reached.
@@ -766,3 +766,11 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   `plans/implementation-notes-item66-fork-style-port.md`, incl. 3 open questions:
   first-commit "No files changed" edge, rev-card letter badges, s39's missing commit
   op).
+
+- [ ] **67. Script-run details: script + before/after diff panels** — for script
+  runs that modify files, the bottom (Details) pane shows two panels: left is the
+  script itself, right is a side-by-side diff of the affected file(s) before vs
+  after the run. BLOCKED on a prerequisite that doesn't exist yet: detection of
+  which script runs modify files (the engine has script-run rows but no
+  "this run changed files X, Y" linkage to drive the diff panel). Logged
+  2026-07-11; do not build until the detection piece is designed.

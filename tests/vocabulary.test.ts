@@ -38,8 +38,10 @@ test("test_record_type_enum_holds_the_s1_wire_strings", () => {
 });
 
 test("test_block_type_enum_holds_the_s1_wire_strings", () => {
-    // Scenario: BlockType's member values are the 4 content-block wire strings.
+    // Scenario: BlockType's member values are the 4 content-block wire strings
+    // from s1, plus `image` (a pasted image in a real user turn).
     assert.deepEqual(Object.values(BlockType).sort(), [
+        "image",
         "text",
         "thinking",
         "tool_result",

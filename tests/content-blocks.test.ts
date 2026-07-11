@@ -51,7 +51,7 @@ test("test_getContentBlocks_throws_on_unknown_block_type", () => {
     // build a fake assistant record carrying an unmodeled block type.
     const line = JSON.stringify({
         type: "assistant",
-        message: { content: [{ type: "image", source: {} }] },
+        message: { content: [{ type: "mystery-block", source: {} }] },
     });
     const record = parseRecord(line);
     // extracting its blocks throws.
@@ -59,4 +59,27 @@ test("test_getContentBlocks_throws_on_unknown_block_type", () => {
         () => getContentBlocks(record),
         UnknownContentBlockTypeError,
     );
+});
+
+test("test_getContentBlocks_accepts_image_block", () => {
+    // Scenario: a real transcript user turn carrying a pasted image parses
+    // without throwing, and the block comes back typed BlockType.image.
+    // Steps:
+    // build a user record with an image block as observed on the wire.
+    const line = JSON.stringify({
+        type: "user",
+        message: {
+            content: [
+                {
+                    type: "image",
+                    source: { type: "base64", data: "aGk=", media_type: "image/png" },
+                },
+            ],
+        },
+    });
+    const record = parseRecord(line);
+    // extracting its blocks succeeds and returns the image block.
+    const blocks = getContentBlocks(record);
+    assert.equal(blocks.length, 1);
+    assert.equal(blocks[0]?.type, BlockType.image);
 });

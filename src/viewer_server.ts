@@ -142,6 +142,14 @@ function handleDocumentRequest(response: ServerResponse, query: URLSearchParams)
     response.writeHead(200, { "Content-Type": "application/x-ndjson; charset=utf-8" });
     response.socket?.setNoDelay(true);   // sync build between writes — do not let Nagle batch the lines
     const writeNdjsonLine = (value: unknown): void => {
+        // The synchronous build never yields to the event loop, so a client-abort 'close' event is
+        // never delivered mid-build. Detection works anyway: the first write after the client's RST
+        // fails synchronously inside net.Socket (uv_try_write EPIPE), which flips socket.writable to
+        // false without needing the loop — `destroyed` stays false until the loop turns, so it is
+        // the writable check that fires; the NEXT call here sees it and aborts the build.
+        if (response.destroyed || response.socket === null || response.socket.destroyed || !response.socket.writable) {
+            throw new Error("client disconnected — build cancelled");
+        }
         response.write(JSON.stringify(value) + "\n");
         // res.write corks the socket and uncorks on nextTick — which never runs during the
         // synchronous build, so every line would sit buffered until the build ends. Uncork NOW
