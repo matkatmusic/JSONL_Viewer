@@ -19,6 +19,7 @@ import {
     formatRunSource,
     getPreExecutionState,
     runScriptAgainstState,
+    scriptCodeMayWriteFiles,
     type LineageContentBefore,
     type ScriptExecutionEvent,
     type ScriptRun,
@@ -66,6 +67,10 @@ function selectRunsWithinReplayWindow(runs: ScriptRun[]): ScriptRun[] {
     return runs.filter((run) => run.timestamp.getTime() < cutoffMs);
 }
 
+// Progress label announced instead of a sandbox execution when the static gate proves a run
+// read-only (TASKS.md item 68). Exported for the spawn-count tests.
+export const PROGRESS_LABEL_READ_ONLY_SKIP_PREFIX = "skipping read-only script run";
+
 export function executeRunOnce(
     run: ScriptRun,
     records: TranscriptRecord[],
@@ -82,6 +87,17 @@ export function executeRunOnce(
     const key = `${run.timestamp.getTime()}|${run.code}`;
     const cached = byRun.get(key);
     if (cached !== undefined) return cached;
+    // Item 68: a script with no statically detectable write primitive cannot change or
+    // create files, so its pre-state build and sandbox run are provably no-ops for evidence.
+    // The empty pre is safe: every caller checks `post === undefined` before touching `pre`.
+    if (!scriptCodeMayWriteFiles(run.code)) {
+        reportReconstructionProgress(
+            `${PROGRESS_LABEL_READ_ONLY_SKIP_PREFIX} @ ${run.timestamp.toISOString()}${formatRunSource(run)}`,
+        );
+        const skipped: RunExecution = { pre: new Map(), post: undefined };
+        byRun.set(key, skipped);
+        return skipped;
+    }
     reportReconstructionProgress(`executing script run @ ${run.timestamp.toISOString()}${formatRunSource(run)}`);
     const pre = getPreExecutionState(run, records, reader, seedContent);
     const post = pre.size === 0 ? undefined : runScriptAgainstState(run.code, pre, formatRunSource(run));
@@ -261,6 +277,9 @@ function runOutcomeForTarget(
     seedContent: LineageContentBefore | undefined,
     rolling: RollingTargetState | undefined,
 ): RollingTargetState | undefined {
+    // Item 68: a read-only run can never produce an outcome; bail before any sandbox work
+    // (the rolling branch below would otherwise spawn a sandbox per chained run).
+    if (!scriptCodeMayWriteFiles(run.code)) return undefined;
     if (rolling === undefined) {
         const basename = target.toString().split("/").pop() ?? "";
         if (!run.code.includes(basename) && !runTouchesTarget(run, target, records, reader, seedContent)) {

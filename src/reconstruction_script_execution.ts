@@ -12,11 +12,21 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync, mkdirSync, existsSync } from "node:fs";
 import { join, dirname, relative } from "node:path";
 import { tmpdir } from "node:os";
-import { quotedFilename, singleWhitespace } from "./regex_expressions.ts";
+import {
+    fromImportStatementLine,
+    importStatementLine,
+    openCallToken,
+    pythonWritePrimitive,
+    quotedFilename,
+    readOnlyOpenArgument,
+    singleWhitespace,
+    writingImportedName,
+} from "./regex_expressions.ts";
 import { extractFileEvents } from "./reconstruction_extract.ts";
 import { buildRenameChain, resolveFinalPath } from "./reconstruction_lineage.ts";
 import { reportReconstructionProgress } from "./reconstruction_progress.ts";
 import { getCachedValueRefreshingRecency, evictLeastRecentlyUsedEntries } from "./cache_lru.ts";
+import { getCorpusState } from "./reconstruction_corpus.ts";
 import { formatRecordSourceToken, getRecordSource, type RecordSource } from "./parse/loadTranscript.ts";
 
 // The proven post-execution state of a script run for one target file: the forward transform already
@@ -110,16 +120,30 @@ function runsInRecord(record: TranscriptRecord): ScriptRun[] {
     return runs;
 }
 
-// The authored body of the Write whose file basename matches `basename`, or undefined.
-function writtenContentByBasename(records: TranscriptRecord[], basename: string): string | undefined {
+// The authored Write body for every file basename, first Write wins (same first-match
+// semantics as the retired per-basename scan, including a matching Write with an absent
+// content). One pass over the records — previously every resolved run re-scanned them all.
+function indexWrittenContentByBasename(records: TranscriptRecord[]): Map<string, string | undefined> {
+    const writtenBodyByBasename = new Map<string, string | undefined>();
     for (const record of records) {
         for (const block of getContentBlocks(record)) {
-            if (block.type !== BlockType.tool_use || block.name !== ToolName.Write) continue;
+            if (block.type !== BlockType.tool_use) {
+                continue;
+            }
+            if (block.name !== ToolName.Write) {
+                continue;
+            }
             const input = block.input as { file_path?: string; content?: string };
-            if (input.file_path !== undefined && pathBasename(input.file_path) === basename) return input.content;
+            if (input.file_path === undefined) {
+                continue;
+            }
+            const basename = pathBasename(input.file_path);
+            if (!writtenBodyByBasename.has(basename)) {
+                writtenBodyByBasename.set(basename, input.content);
+            }
         }
     }
-    return undefined;
+    return writtenBodyByBasename;
 }
 
 // Resolve script-file indirection: when a run merely invokes a written script file, replace
@@ -175,25 +199,106 @@ function parseExecOpenIndirection(code: string): string | undefined {
     return isScriptFile(filename) ? filename : undefined;
 }
 
-function resolveScriptIndirection(run: ScriptRun, records: TranscriptRecord[]): ScriptRun {
+function resolveScriptIndirection(run: ScriptRun, writtenBodyByBasename: Map<string, string | undefined>): ScriptRun {
     const filename = parseDirectInvocation(run.code) ?? parseExecOpenIndirection(run.code);
     if (filename === undefined) {
         return run;
     }
-    const body = writtenContentByBasename(records, pathBasename(filename));
+    const body = writtenBodyByBasename.get(pathBasename(filename));
     return body === undefined ? run : { ...run, code: body };
 }
 
 // Every script-execution run in the transcript, in record order, each with its source and timestamp.
 // A run that invokes a written script file is resolved to that file's body (resolveScriptIndirection).
+// Memoized per records identity in the corpus (pure group): the result depends on the records alone,
+// and the per-file repair chain calls this once per reconstructed file.
 export function findScriptExecutionRuns(records: TranscriptRecord[]): ScriptRun[] {
-    return records.flatMap(runsInRecord).map((run) => resolveScriptIndirection(run, records));
+    const state = getCorpusState(records);
+    if (state.scriptRuns !== undefined) {
+        return state.scriptRuns;
+    }
+    const writtenBodyByBasename = indexWrittenContentByBasename(records);
+    state.scriptRuns = records.flatMap(runsInRecord).map((run) => resolveScriptIndirection(run, writtenBodyByBasename));
+    return state.scriptRuns;
 }
 
 // The final path segment of a "/"-separated path string.
 function pathBasename(value: string): string {
     const slash = value.lastIndexOf("/");
     return slash >= 0 ? value.slice(slash + 1) : value;
+}
+
+// --- static read-only detection (TASKS.md item 68) --------------------------------------------------
+
+// Python stdlib roots a read-only analysis script may import without becoming a writer. Any
+// other import marks the script may-write: a seeded local module can run write code at import
+// time (the s34 script-indirection family), and shutil/subprocess/sqlite3 write outright.
+// A missing safe module only costs sandbox savings, never correctness — extend freely.
+const READ_ONLY_SAFE_IMPORT_ROOTS = new Set([
+    "os", "sys", "re", "json", "csv", "glob", "pathlib", "collections", "itertools",
+    "functools", "math", "statistics", "textwrap", "difflib", "datetime", "time", "string",
+    "typing", "dataclasses", "enum", "pprint", "fnmatch", "bisect", "heapq", "operator",
+    "hashlib", "unicodedata", "copy", "ast", "tokenize", "keyword", "inspect", "traceback",
+    "argparse", "random", "io", "base64", "struct", "uuid",
+]);
+
+// Whether every import statement in `code` names only read-only-safe stdlib roots, and no
+// from-import smuggles a writing name (`from os import remove`) out of a safe root.
+function allImportsAreReadOnlySafe(code: string): boolean {
+    for (const match of code.matchAll(importStatementLine)) {
+        for (const item of match[1]!.split(",")) {
+            const root = item.trim().split(singleWhitespace)[0]?.split(".")[0] ?? "";
+            if (!READ_ONLY_SAFE_IMPORT_ROOTS.has(root)) return false;
+        }
+    }
+    for (const match of code.matchAll(fromImportStatementLine)) {
+        const root = match[1]!.split(".")[0] ?? "";
+        if (!READ_ONLY_SAFE_IMPORT_ROOTS.has(root)) return false;
+        if (writingImportedName.test(match[2]!)) return false;
+    }
+    return true;
+}
+
+// Whether every open( call in `code` is provably a read: builtin open with one argument or a
+// read-mode/keyword second argument; a dot-call (Path.open, io.open) must show a read mode or
+// keyword-only args as its FIRST argument (Path.open's first parameter IS the mode). Anything
+// the cheap first-")" parse cannot prove (nested calls, variable modes) counts as may-write.
+function allOpenCallsAreReads(code: string): boolean {
+    for (const match of code.matchAll(openCallToken)) {
+        const argsStart = match.index! + match[0].length;
+        const argsEnd = code.indexOf(")", argsStart);
+        if (argsEnd < 0) return false;
+        const args = code.slice(argsStart, argsEnd);
+        // A nested call defeats the first-")" slice (an f-string's embedded call can even
+        // hide a write mode past it) — bail to may-write.
+        if (args.includes("(")) return false;
+        const parts = args.split(",");
+        const isDotCall = match.index! > 0 && code[match.index! - 1] === ".";
+        if (isDotCall) {
+            // Path.open(): no arguments defaults to mode "r".
+            if (args.trim() === "") continue;
+            if (!readOnlyOpenArgument.test(parts[0]!)) return false;
+            continue;
+        }
+        // builtin open(file): a single argument defaults to mode "r".
+        if (parts.length === 1) continue;
+        if (!readOnlyOpenArgument.test(parts[1]!)) return false;
+    }
+    return true;
+}
+
+// Whether the script could write, delete, rename, or create files when run under the python3
+// sandbox. Conservative by construction: any unparseable construct answers true (may-write),
+// which merely executes the run as before the gate; only a provably-read-only script answers
+// false. Shell/JS-only tokens are irrelevant to correctness — a non-python script crashes in
+// the sandbox and yields post:undefined with or without the gate.
+// ponytail: raw-text scan — aliased builtins (`o = open`) and getattr tricks evade it; no
+// recorded transcript uses them, and task 67's executed-outcome check is the exact answer.
+export function scriptCodeMayWriteFiles(code: string): boolean {
+    if (pythonWritePrimitive.test(code)) return true;
+    if (!allImportsAreReadOnlySafe(code)) return true;
+    if (!allOpenCallsAreReads(code)) return true;
+    return false;
 }
 
 // The absolute path of the tracked file whose basename matches `basename`, from any tool_use block.
@@ -306,7 +411,11 @@ export const PROGRESS_LABEL_SANDBOX_MEMO_PREFIX = "reusing sandbox result";
 // ponytail: outcomes are returned by reference — every caller treats post-states as read-only.
 type SandboxOutcome = { post: Map<string, string> | undefined };
 const sandboxOutcomesByInput = new Map<string, SandboxOutcome>();
-const SANDBOX_MEMO_CAPACITY = 256;
+// Sized above the largest observed corpus run count (the 33-session RevEng project holds 1000+
+// distinct runs): a capacity below the corpus size evicts outcomes before persistSandboxMemoToDisk
+// snapshots the map, so every cold process re-spawned nearly every run instead of reading the disk
+// memo. ponytail: flat constant, not corpus-derived — revisit if a project exceeds it.
+const SANDBOX_MEMO_CAPACITY = 4096;
 
 // Item 11: opt-in disk persistence for the sandbox memo. Only the viewer server configures a
 // path (engine CLI + tests stay memory-only, keeping spawn-count tests deterministic). The

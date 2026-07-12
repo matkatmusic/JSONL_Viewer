@@ -213,7 +213,8 @@ function tintSourceToken(text: string): string {
 
 export function logProgress(text: string): void {
     ensureProgressTerminal();
-    progressTerminal!.writeln(`${formatConsoleTime()} ${tintSourceToken(text)}`);
+    // writeln is async; scroll in its completion callback so the buffer reflects the new line
+    progressTerminal!.writeln(`${formatConsoleTime()} ${tintSourceToken(text)}`, () => progressTerminal!.scrollToBottom());
 }
 
 // Split buffered NDJSON text into complete lines plus the trailing partial line.
@@ -302,7 +303,9 @@ export function peekCachedDocument<DocumentType = WireDocument>(project: string)
 let inflightLoadController: AbortController | undefined;
 
 function setCancelButtonVisible(visible: boolean): void {
-    (document.getElementById("console-cancel") as HTMLButtonElement).hidden = !visible;
+    const button = document.getElementById("console-cancel") as HTMLButtonElement;
+    button.hidden = !visible;
+    button.disabled = false; // any visibility change ends a pending cancel
 }
 
 // DocumentType lets each view name the wire fields it reads (its own Wire* type); the cache and
@@ -699,6 +702,22 @@ async function initializeHeader(): Promise<void> {
         location.hash = "#/";
         renderRoute();
     });
+    // Native macOS folder picker — fills the input; "Change folder…" still applies it.
+    // Empty path = user cancelled; leave the field alone.
+    const pickFolderInto = async (target: HTMLInputElement): Promise<void> => {
+        const response = await fetch(`/api/pick-folder?current=${encodeURIComponent(target.value)}`);
+        if (!response.ok) {
+            // No alert(): native dialogs block headless automation. The breadcrumb carries the error.
+            setBreadcrumb(`folder picker failed: ${await response.text()}`);
+            return;
+        }
+        const { path } = await response.json() as { path: string };
+        if (path !== "") {
+            target.value = path;
+        }
+    };
+    document.getElementById("projects-dir-open")!.addEventListener("click", () => void pickFolderInto(input));
+    document.getElementById("file-history-dir-open")!.addEventListener("click", () => void pickFolderInto(fileHistoryInput));
 }
 
 // ─── splitters (item 66, ported from the mockup) ─────────────────────────────
@@ -749,6 +768,9 @@ if (typeof window !== "undefined") {
     makeSplitter("split-dc", "console-row", "y", true, 60);
     document.getElementById("console-hide")!.addEventListener("click", collapseProgressConsole);
     document.getElementById("console-show")!.addEventListener("click", expandProgressConsole);
-    document.getElementById("console-cancel")!.addEventListener("click", () => inflightLoadController?.abort());
+    document.getElementById("console-cancel")!.addEventListener("click", () => {
+        (document.getElementById("console-cancel") as HTMLButtonElement).disabled = true; // re-enabled by setCancelButtonVisible when the cancel lands
+        inflightLoadController?.abort();
+    });
     initializeHeader().then(renderRoute);
 }

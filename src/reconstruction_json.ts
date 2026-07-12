@@ -8,7 +8,7 @@ import { RecordType, BlockType, Verdict } from "./structures/vocabulary.ts";
 import { getContentBlocks, type TextBlock } from "./structures/content-blocks.ts";
 import { isGenuineUserPrompt } from "./reconstruction_tree.ts";
 import { recordVerdict } from "./reconstruction_parse_lines.ts";
-import { findConversationBranches } from "./reconstruction_branch.ts";
+import { collectOrphanedUuids, findConversationBranches } from "./reconstruction_branch.ts";
 import { findGitCommitEvents, findGitOperations, type GitOperation } from "./reconstruction_git_evidence.ts";
 import { findToolCalls, type ToolCall } from "./reconstruction_tool_calls.ts";
 import {
@@ -33,6 +33,9 @@ export type ConversationMessage = {
     timestamp: Date | undefined;
     text: string;
     sessionId: Uuid | undefined;
+    // True when the record sits on a rewound (abandoned) conversation branch — the timeline dims
+    // the whole exchange, user prompts included (collectOrphanedUuids).
+    isOrphaned: boolean;
 };
 
 // The displayed text of a user prompt or assistant reply: a plain-string content is the text itself;
@@ -49,7 +52,7 @@ function extractMessageText(record: TranscriptRecord): string {
 }
 
 // Build one ConversationMessage from a record (caller has already decided it qualifies).
-function buildConversationMessage(record: TranscriptRecord): ConversationMessage {
+function buildConversationMessage(record: TranscriptRecord, orphanedUuids: Set<string>): ConversationMessage {
     return {
         uuid: record.uuid,
         parentUuid: record.parentUuid ?? undefined,
@@ -57,6 +60,7 @@ function buildConversationMessage(record: TranscriptRecord): ConversationMessage
         timestamp: record.timestamp,
         text: extractMessageText(record),
         sessionId: record.sessionId,
+        isOrphaned: record.uuid !== undefined && orphanedUuids.has(record.uuid.toString()),
     };
 }
 
@@ -64,14 +68,15 @@ function buildConversationMessage(record: TranscriptRecord): ConversationMessage
 // which rejects tool-result / isMeta / `/exit` user records) plus assistant replies that have displayed
 // text (pure tool_use turns carry no text and are skipped).
 export function extractConversationMessages(records: TranscriptRecord[]): ConversationMessage[] {
+    const orphanedUuids = collectOrphanedUuids(records);
     const messages: ConversationMessage[] = [];
     for (const record of records) {
         if (isGenuineUserPrompt(record)) {
-            messages.push(buildConversationMessage(record));
+            messages.push(buildConversationMessage(record, orphanedUuids));
             continue;
         }
         if (record.type === RecordType.assistant && extractMessageText(record) !== "") {
-            messages.push(buildConversationMessage(record));
+            messages.push(buildConversationMessage(record, orphanedUuids));
         }
     }
     return messages;

@@ -2,8 +2,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { reconstructAll } from "../src/reconstruction_engine.ts";
 import { linesTextOf } from "../src/reconstruction_branches.ts";
-import { discoverScriptCreatedPaths, injectScriptExecutions, runForTarget } from "../src/reconstruction_script_stage.ts";
-import { findScriptExecutionRuns } from "../src/reconstruction_script_execution.ts";
+import {
+    discoverScriptCreatedPaths,
+    executeRunOnce,
+    injectScriptExecutions,
+    runForTarget,
+    PROGRESS_LABEL_READ_ONLY_SKIP_PREFIX,
+} from "../src/reconstruction_script_stage.ts";
+import { findScriptExecutionRuns, PROGRESS_LABEL_SANDBOX_SPAWN_PREFIX } from "../src/reconstruction_script_execution.ts";
+import { setReconstructionProgressSink } from "../src/reconstruction_progress.ts";
 import type { BackupReader } from "../src/reconstruction_sidecar.ts";
 import { BlockType, EventKind, RecordType, ToolName } from "../src/structures/vocabulary.ts";
 import type { TranscriptRecord } from "../src/structures/envelope.ts";
@@ -158,4 +165,32 @@ test("test_injectScriptExecutions_stamps_the_same_changeId_across_replays", () =
     assert.equal(firstReplayEvents[0]!.kind, EventKind.scriptExecution);
     // assert the changeIds are identical across the two replays.
     assert.equal(firstReplayEvents[0]!.changeId.toString(), secondReplayEvents[0]!.changeId.toString());
+});
+
+test("test_executeRunOnce_skips_the_sandbox_for_a_read_only_script", () => {
+    // Scenario: a recorded analysis run with no write primitive must not spawn a sandbox —
+    // its execution memoizes as { pre: empty, post: undefined } (TASKS.md item 68).
+    // Steps:
+    // record a Write plus a read-only counting script over it.
+    const records = [
+        buildToolRecord(ToolName.Write, { file_path: "/proj/ledger.py", content: "def add(): pass\n" }, "2026-01-01T00:00:01Z"),
+        buildToolRecord(ToolName.CtxExecute, { cwd: "/proj", code: 'print(len(open("ledger.py").read()))\n' }, "2026-01-01T00:00:02Z"),
+    ];
+    const run = findScriptExecutionRuns(records)[0]!;
+    // execute the run while counting sandbox-spawn and read-only-skip announcements.
+    const spawnLabels: string[] = [];
+    const skipLabels: string[] = [];
+    setReconstructionProgressSink((event) => {
+        if (event.label.startsWith(PROGRESS_LABEL_SANDBOX_SPAWN_PREFIX)) spawnLabels.push(event.label);
+        if (event.label.startsWith(PROGRESS_LABEL_READ_ONLY_SKIP_PREFIX)) skipLabels.push(event.label);
+    });
+    try {
+        const execution = executeRunOnce(run, records, emptyReader);
+        // assert the sandbox never spawned, the skip announced itself, and post is undefined.
+        assert.equal(execution.post, undefined);
+        assert.equal(spawnLabels.length, 0);
+        assert.equal(skipLabels.length, 1);
+    } finally {
+        setReconstructionProgressSink(undefined);
+    }
 });

@@ -40,7 +40,9 @@ const COMMIT_OPERATION_KIND = "commit";
 type WireRename = { from: string; to: string };
 type WireRevision = { kind: string; changeId: string; timestamp: string; rename?: WireRename };
 export type WireFileHistory = { target: string; revisions: WireRevision[] };
-type WireMessage = { role: string; timestamp: string; sessionId?: string; uuid: string; text: string };
+// isOrphaned is the engine's per-record branch-membership stamp (true = rewound/abandoned
+// branch); optional because an older cached document lacks the field (gitOperations convention).
+type WireMessage = { role: string; timestamp: string; sessionId?: string; uuid: string; text: string; isOrphaned?: boolean };
 type WireStepSnapshot = {
     index: number;
     when: string;
@@ -71,6 +73,8 @@ type WireToolCall = {
     sessionId?: string;
     uuid: string;
     toolUseId: string;
+    // Engine-stamped branch membership (optional: older cached documents lack it).
+    isOrphaned?: boolean;
 };
 export type WireTimelineDocument = {
     filesTouched: WireFileHistory[];
@@ -115,8 +119,9 @@ type SnapshotInstant = { sessionId?: string; when: string };
 type TranscriptLocation = { jsonlName: string; rawLines: string[]; line: number };
 
 // One conversation turn (user prompt or agent reply); synthetic trailing agent turns carry no uuid.
-// stepNumber / fileChanges / isOrphaned are stamped on after sorting (assignStepNumbers,
-// deriveNodeFileChanges), hence optional.
+// stepNumber / fileChanges are stamped on after sorting (assignStepNumbers, deriveNodeFileChanges),
+// hence optional. isOrphaned is copied from the engine's per-record wire stamp at node
+// construction (message.isOrphaned); synthetic turns carry none.
 type TurnNode = {
     kind: typeof USER_TURN_NODE_KIND | typeof AGENT_TURN_NODE_KIND;
     when: string;
@@ -187,13 +192,14 @@ type ToolCallNode = {
     toolName: string;
     summary: string;
     toolUseId: string;
+    // Copied from the engine's per-record wire stamp — a tool row on a rewound branch dims too.
+    isOrphaned?: boolean;
     text?: undefined;
     isSystem?: undefined;
     snapshots?: undefined;
     gitOperations?: undefined;
     stepNumber?: undefined;
     fileChanges?: undefined;
-    isOrphaned?: undefined;
     detail?: undefined;
     resultHash?: undefined;
 };
@@ -278,22 +284,25 @@ export function computeSnapshotJumpRoute(project: string, filesTouched: WireFile
     return `${routeToFileHistory(project, revisionLink.target)}/rev/${revisionLink.revisionNumber}`;
 }
 
-// A step is orphaned when at least one of its changeIds matches a rewound-branch revision and
-// none matches a surviving one — those are the dimmed, unpickable rows.
-export function checkStepIsOrphaned(step: WireStepSnapshot, revisionIndex: RevisionIndex): boolean {
-    let matchesRewound = false;
-    for (const changeId of step.changeIds) {
-        const revision = revisionIndex.get(changeId);
-        if (revision === undefined) {
-            continue;
-        }
-        if (!revision.isRewound) {
-            return false;
-        }
-        matchesRewound = true;
-    }
-    return matchesRewound;
-}
+// old (pre engine-stamped isOrphaned): the per-step snapshot proxy — a step counted orphaned
+// when its changeIds resolved only to rewound-branch revisions. Retired: the engine now stamps
+// branch membership per record on the wire (message.isOrphaned / toolCall.isOrphaned).
+// // A step is orphaned when at least one of its changeIds matches a rewound-branch revision and
+// // none matches a surviving one — those are the dimmed, unpickable rows.
+// export function checkStepIsOrphaned(step: WireStepSnapshot, revisionIndex: RevisionIndex): boolean {
+//     let matchesRewound = false;
+//     for (const changeId of step.changeIds) {
+//         const revision = revisionIndex.get(changeId);
+//         if (revision === undefined) {
+//             continue;
+//         }
+//         if (!revision.isRewound) {
+//             return false;
+//         }
+//         matchesRewound = true;
+//     }
+//     return matchesRewound;
+// }
 
 // Tie-break rank for nodes sharing a timestamp: turns first (a commit records the state the turn
 // built up), then tool rows (they ran after the reply they follow, item 55), then commits, then
@@ -558,14 +567,16 @@ function deriveMergedFileChanges(snapshots: WireStepSnapshot[], revisionIndex: R
     return changes;
 }
 
-// Orphaned when the turn owns snapshots and EVERY one sits on a rewound branch; a turn with any
-// surviving snapshot — or none at all — stays on the spine.
-function checkTurnIsOrphaned(snapshots: WireStepSnapshot[], revisionIndex: RevisionIndex): boolean {
-    if (snapshots.length === 0) {
-        return false;
-    }
-    return snapshots.every((snapshot) => checkStepIsOrphaned(snapshot, revisionIndex));
-}
+// old (pre engine-stamped isOrphaned): the snapshot-proxy orphan check — retired alongside
+// checkStepIsOrphaned; node.isOrphaned now copies the engine's per-record wire stamp.
+// // Orphaned when the turn owns snapshots and EVERY one sits on a rewound branch; a turn with any
+// // surviving snapshot — or none at all — stays on the spine.
+// function checkTurnIsOrphaned(snapshots: WireStepSnapshot[], revisionIndex: RevisionIndex): boolean {
+//     if (snapshots.length === 0) {
+//         return false;
+//     }
+//     return snapshots.every((snapshot) => checkStepIsOrphaned(snapshot, revisionIndex));
+// }
 
 // fileChanges + isOrphaned on every turn/session-end node (user turns and session ends own no
 // snapshots, so they resolve to no chips and never orphaned); commit and tool-call nodes carry
@@ -579,7 +590,10 @@ function deriveNodeFileChanges(nodes: TimelineNode[], revisionIndex: RevisionInd
             continue;
         }
         node.fileChanges = deriveMergedFileChanges(node.snapshots, revisionIndex);
-        node.isOrphaned = checkTurnIsOrphaned(node.snapshots, revisionIndex);
+        // old: isOrphaned was a snapshot proxy (all snapshots on a rewound branch) — it could
+        // never flag user/tool rows. The engine now stamps per-record branch membership on the
+        // wire (message.isOrphaned / toolCall.isOrphaned), copied at node construction.
+        // node.isOrphaned = checkTurnIsOrphaned(node.snapshots, revisionIndex);
     }
 }
 
@@ -610,6 +624,7 @@ export function buildTurnTimelineViewModel(document: WireTimelineDocument): { no
         uuid: message.uuid,
         text: message.text,
         isSystem: checkMessageTextIsSystem(message.text),
+        isOrphaned: message.isOrphaned === true,
         snapshots: [],
         gitOperations: [],
     }));
@@ -637,6 +652,7 @@ function deriveToolCallNodes(document: WireTimelineDocument): ToolCallNode[] {
         toolName: call.toolName,
         summary: call.summary,
         toolUseId: call.toolUseId,
+        isOrphaned: call.isOrphaned === true,
     }));
 }
 

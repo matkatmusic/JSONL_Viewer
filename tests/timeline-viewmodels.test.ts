@@ -26,7 +26,9 @@ import {
     computeUnattributedStepTag,
     checkPickIsLegal,
     checkSelectionBlocksBackgroundClose,
-    checkStepIsOrphaned,
+    // old (pre engine-stamped isOrphaned): checkStepIsOrphaned — the snapshot-proxy helper is
+    // commented out in timeline.ts alongside the retired test above.
+    // checkStepIsOrphaned,
     computeRangeSummary,
     findTimelineNodeIndexForRawLine,
     indexRevisionsByChangeId,
@@ -638,30 +640,54 @@ test("test_session_end_node_closes_every_session", () => {
     }
 });
 
-test("test_orphaned_snapshots_dim_their_agent_turn", () => {
-    // Scenario: an agent turn whose snapshots ALL sit on a rewound branch is orphaned (dimmed,
-    // unpickable); a turn owning at least one surviving snapshot — or none at all — is not.
+// old (pre engine-stamped isOrphaned): the snapshot-proxy test below pinned the RETIRED rule —
+// a turn dimmed only when EVERY owned snapshot resolved to a rewound-branch revision, so user
+// prompts and tool rows on the abandoned branch could never dim. The engine now stamps
+// per-record branch membership on the wire; the replacement test follows.
+// test("test_orphaned_snapshots_dim_their_agent_turn", () => {
+//     // Scenario: an agent turn whose snapshots ALL sit on a rewound branch is orphaned (dimmed,
+//     // unpickable); a turn owning at least one surviving snapshot — or none at all — is not.
+//     // Steps:
+//     // build s45's turn timeline (s45 has a genuinely rewound step).
+//     const { nodes } = buildTurnTimelineViewModel(s45Document);
+//     const revisionIndex = indexRevisionsByChangeId(s45Document);
+//     let orphanedCount = 0;
+//     for (const node of nodes.filter((entry: { kind: string }) => entry.kind === AGENT_TURN_NODE_KIND)) {
+//         // a snapshot-less agent turn is never orphaned.
+//         if (node.snapshots!.length === 0) {
+//             assert.equal(node.isOrphaned, false);
+//             continue;
+//         }
+//         // otherwise orphaned exactly when EVERY owned snapshot is on the rewound branch.
+//         const expected = node.snapshots!.every((snapshot) =>
+//             checkStepIsOrphaned(snapshot, revisionIndex));
+//         assert.equal(node.isOrphaned, expected);
+//         if (expected) {
+//             orphanedCount += 1;
+//         }
+//     }
+//     // s45 has a rewound step, so the check is not vacuous.
+//     assert.ok(orphanedCount >= 1);
+// });
+
+test("test_abandoned_branch_rows_dim_as_one_block", () => {
+    // Scenario: EVERY row of a rewound (abandoned) conversation branch dims — the user prompt
+    // that started it, the tool rows that ran on it, and the agent replies — as one contiguous
+    // lane-2 block, driven by the engine's per-record isOrphaned stamp on the wire.
     // Steps:
-    // build s45's turn timeline (s45 has a genuinely rewound step).
+    // build s45's turn timeline (s45 has a genuinely rewound exchange).
     const { nodes } = buildTurnTimelineViewModel(s45Document);
-    const revisionIndex = indexRevisionsByChangeId(s45Document);
-    let orphanedCount = 0;
-    for (const node of nodes.filter((entry: { kind: string }) => entry.kind === AGENT_TURN_NODE_KIND)) {
-        // a snapshot-less agent turn is never orphaned.
-        if (node.snapshots!.length === 0) {
-            assert.equal(node.isOrphaned, false);
-            continue;
-        }
-        // otherwise orphaned exactly when EVERY owned snapshot is on the rewound branch.
-        const expected = node.snapshots!.every((snapshot) =>
-            checkStepIsOrphaned(snapshot, revisionIndex));
-        assert.equal(node.isOrphaned, expected);
-        if (expected) {
-            orphanedCount += 1;
-        }
-    }
-    // s45 has a rewound step, so the check is not vacuous.
-    assert.ok(orphanedCount >= 1);
+    // the orphaned rows span all three dimmable kinds — not just file-mutating agent turns.
+    const orphanedKinds = new Set(
+        nodes.filter((node: { isOrphaned?: boolean }) => node.isOrphaned === true)
+            .map((node: { kind: string }) => node.kind),
+    );
+    assert.deepEqual(
+        [...orphanedKinds].sort(),
+        [AGENT_TURN_NODE_KIND, TOOL_CALL_NODE_KIND, USER_TURN_NODE_KIND].sort(),
+    );
+    // the abandoned exchange is chronologically contiguous — exactly one fork-gutter lane run.
+    assert.equal(computeGraphLaneRuns(nodes).length, 1);
 });
 
 test("test_findTimelineNodeIndexForRawLine_returns_minus_one_when_no_step_matches", () => {
@@ -1178,12 +1204,15 @@ const commitWalkDocument = {
         sessionId: "session-a",
         timestamp: "2026-01-01T00:00:30.000Z",
         text: "wrote gamma (later rewound)",
+        // The engine stamps abandoned-branch membership on the wire; the view copies it.
+        isOrphaned: true,
     }, {
         uuid: "reply-o2",
         role: RecordType.assistant,
         sessionId: "session-a",
         timestamp: "2026-01-01T00:00:32.000Z",
         text: "wrote delta (later rewound)",
+        isOrphaned: true,
     }, {
         uuid: "reply-d",
         role: RecordType.assistant,

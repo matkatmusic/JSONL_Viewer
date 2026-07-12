@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { buildProjectDocument } from "../src/viewer_api.ts";
 import { findSessionTitles } from "../src/reconstruction_json.ts";
 import { Path, Uuid } from "../src/structures/domain.ts";
+import { RecordType } from "../src/structures/vocabulary.ts";
 import { S45_JSONL, S84_JSONL_PATHS, S85_JSONL_PATHS } from "./fixtures.ts";
 
 // Built once — the s84 unified document is expensive (three transcripts) and read-only here.
@@ -62,6 +63,28 @@ test("test_document_exposes_rewound_file_histories", () => {
     }
     assert.ok(s45Document.filesTouched.length >= 1);
     assert.ok(Array.isArray(s84Document.rewoundFilesTouched));
+});
+
+test("test_messages_and_tool_calls_carry_is_orphaned", () => {
+    // Scenario: the engine stamps per-record branch membership on the wire — every message and
+    // toolCall on a rewound (abandoned) conversation branch carries isOrphaned:true, so the
+    // timeline can dim the WHOLE abandoned exchange (user prompts and tool rows included), not
+    // just the file-mutating agent turns the old snapshot proxy caught.
+    // Steps:
+    // build the document for s45 (the purpose-built rewind-abandoned-branch scenario).
+    const s45Document = buildProjectDocument([new Path(S45_JSONL)], undefined);
+    // s45's abandoned branch carries 4 messages: at least one user prompt and one assistant reply.
+    const orphanedMessages = s45Document.messages.filter((message) => message.isOrphaned);
+    assert.equal(orphanedMessages.length, 4);
+    assert.ok(orphanedMessages.some((message) => message.role === RecordType.user));
+    assert.ok(orphanedMessages.some((message) => message.role === RecordType.assistant));
+    // exactly one tool call ran on the abandoned branch; surviving calls stay unflagged.
+    const orphanedCalls = s45Document.toolCalls.filter((call) => call.isOrphaned);
+    assert.equal(orphanedCalls.length, 1);
+    assert.ok(s45Document.toolCalls.some((call) => !call.isOrphaned));
+    // s84 (three interleaved sessions, zero rewinds) flags nothing.
+    assert.equal(s84Document.messages.filter((message) => message.isOrphaned).length, 0);
+    assert.equal(s84Document.toolCalls.filter((call) => call.isOrphaned).length, 0);
 });
 
 test("test_document_lists_commit_markers_for_s85", () => {

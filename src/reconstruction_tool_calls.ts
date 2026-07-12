@@ -9,6 +9,7 @@ import { Uuid } from "./structures/domain.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { getContentBlocks } from "./structures/content-blocks.ts";
 import { getAttachmentEntry } from "./structures/session-meta.ts";
+import { collectOrphanedUuids } from "./reconstruction_branch.ts";
 
 // One tool call, parsed for the timeline: the tool's name, a one-line summary of what it did
 // (command / file path / pattern), when and which session ran it (for chronological placement),
@@ -22,6 +23,9 @@ export type ToolCall = {
     sessionId: Uuid | undefined;
     uuid: Uuid;
     toolUseId: Uuid;
+    // True when the call's record sits on a rewound (abandoned) conversation branch — the
+    // timeline dims its row alongside the branch's turns (collectOrphanedUuids).
+    isOrphaned: boolean;
 };
 
 // The tools whose calls render as file chips (with { } / +/- buttons), never as tool rows.
@@ -82,6 +86,7 @@ function parseHookToolName(hookName: unknown): string {
 // and indexes every block's summary by toolUseId; pass 2 emits one extra row per PreToolUse
 // command rewrite whose command differs from the tool_use's own.
 export function findToolCalls(records: TranscriptRecord[]): ToolCall[] {
+    const orphanedUuids = collectOrphanedUuids(records);
     const calls: ToolCall[] = [];
     const summaryByToolUseId = new Map<string, string>();
     for (const record of records) {
@@ -102,6 +107,7 @@ export function findToolCalls(records: TranscriptRecord[]): ToolCall[] {
                 sessionId: record.sessionId,
                 uuid: recordUuid,
                 toolUseId: block.id,
+                isOrphaned: orphanedUuids.has(recordUuid.toString()),
             });
         }
     }
@@ -125,6 +131,7 @@ export function findToolCalls(records: TranscriptRecord[]): ToolCall[] {
             sessionId: entry.sessionId,
             uuid: entry.uuid,
             toolUseId: new Uuid(toolUseId),
+            isOrphaned: orphanedUuids.has(entry.uuid.toString()),
         });
     }
     return calls;

@@ -774,3 +774,29 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   which script runs modify files (the engine has script-run rows but no
   "this run changed files X, Y" linkage to drive the diff panel). Logged
   2026-07-11; do not build until the detection piece is designed.
+
+- [x] **68. Filter out read-only scripts in the script-execution phase** — the
+  2026-07-11 profiling session found the dominant cold-load cost is sandbox
+  execution of EVERY recorded script run (`discoverScriptCreatedPaths` executes
+  all of them eagerly — 1000+ runs on the 33-session RevEng project, each
+  seeding ~192 files into a temp dir), yet most recorded runs are read-only
+  analysis scripts (ctx_execute grep/count/print) whose outcomes change no
+  files. Add a static write-detection gate before `executeRunOnce`
+  (reconstruction_script_stage.ts): skip the sandbox for a script whose code
+  contains no write primitive (`open(..,"w"/"a")`, `shutil.*`, `os.rename`/
+  `os.remove`, `pathlib .write_text/.write_bytes`, `writeFileSync`, shell
+  redirects, `mkdir`, `mv`/`cp`/`rm`, ...). Validate the heuristic against the
+  full scenario coverage harness (a false "read-only" verdict silently loses
+  file evidence — the harness must stay green). Note the overlap with task
+  #67's blocked prerequisite: the same classification ("does this run modify
+  files") drives both; a static gate is its cheap approximation, an executed
+  outcome (`execution.post` vs `pre`) its exact answer. Logged 2026-07-11
+  during the JSONL-loading performance investigation (fixes 1-6: five corpus
+  memos + sandbox memo capacity 256→4096 already landed that session).
+  DONE 2026-07-11 — static gate `scriptCodeMayWriteFiles` (python-write-primitive
+  tokens + stdlib-import allowlist + open-mode analysis) skips the pre-state build
+  and sandbox in `executeRunOnce` and bails `runOutcomeForTarget` early; anything
+  unparseable stays may-write (a false may-write only costs a sandbox run, never
+  evidence; shell/JS scripts crash under python3 either way, so bare `>` shell
+  tokens are deliberately omitted). Plan: plans/item68-readonly-script-gate.md.
+  tsc clean; suite + scenario harness not run (user runs).

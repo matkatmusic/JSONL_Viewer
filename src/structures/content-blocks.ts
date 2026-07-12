@@ -92,13 +92,33 @@ function toContentBlock(raw: unknown): ContentBlock {
     return hydrateBlockIds(block);
 }
 
-// Return the typed content blocks of a record's message, or [] when the record
-// carries no message.content array (e.g. session-meta records). Throws on any
-// block whose type is outside the s1 vocabulary.
-export function getContentBlocks(record: TranscriptRecord): ContentBlock[] {
+// Hydrated blocks per record identity (the loadTranscript.ts recordSources precedent):
+// hydration never mutates the raw record and every caller only reads the result, so one
+// hydration per record serves all callers. Re-hydrating on every call was the single
+// largest CPU cost of a document build (~58% of samples on a 33-session project).
+const hydratedBlocksByRecord = new WeakMap<TranscriptRecord, ContentBlock[]>();
+
+function hydrateContentBlocks(record: TranscriptRecord): ContentBlock[] {
     const message = record.message as { content?: unknown } | undefined;
-    if (!message || !Array.isArray(message.content)) {
+    if (!message) {
+        return [];
+    }
+    if (!Array.isArray(message.content)) {
         return [];
     }
     return message.content.map(toContentBlock);
+}
+
+// Return the typed content blocks of a record's message, or [] when the record
+// carries no message.content array (e.g. session-meta records). Throws on any
+// block whose type is outside the s1 vocabulary. The result is hydrated once per
+// record and shared — callers must treat it as read-only.
+export function getContentBlocks(record: TranscriptRecord): ContentBlock[] {
+    const cached = hydratedBlocksByRecord.get(record);
+    if (cached !== undefined) {
+        return cached;
+    }
+    const blocks = hydrateContentBlocks(record);
+    hydratedBlocksByRecord.set(record, blocks);
+    return blocks;
 }

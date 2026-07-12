@@ -3,7 +3,8 @@
 // in viewer_api.ts; this file only parses requests, dispatches, and serializes responses.
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFileSync, realpathSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { extname, join, resolve, sep } from "node:path";
 import {
     scanProjects,
@@ -26,6 +27,7 @@ import {
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { configureSandboxMemoPersistence } from "./reconstruction_script_execution.ts";
 import { DocumentResponseKind } from "./structures/vocabulary.ts";
+import type { ProgressSink } from "./parse/loadTranscript.ts";
 import { Path, Uuid } from "./structures/domain.ts";
 
 const DEFAULT_PORT = 7343;
@@ -102,6 +104,16 @@ function resolveJsonlPaths(projectName: string, jsonlName: string | null): Path[
     );
 }
 
+// Build-stage progress mirrored to the server console: after the transcripts load, the synchronous
+// build is otherwise silent on stdout, so tailing the server log shows one live line per unit of
+// engine work (stage labels, per-file reconstruction counts, script sandbox runs). The sink wired
+// through buildDocumentWithConsent never carries the per-record parse walk, so the volume stays
+// one line per stage/file/run, not per record.
+const logBuildProgressToConsole: ProgressSink = (event) => {
+    const counter = event.current === undefined ? "" : ` (${event.current}/${event.total})`;
+    console.log(`   ${event.label}${counter}`);
+};
+
 // GET /api/document — the built document, or a consent-required decision when scripts need a
 // yes. With progress=1 the same result streams as NDJSON: one progress line per unit of work, the
 // normal response object as the final line. The progress path opens the stream up front and then
@@ -131,7 +143,7 @@ function handleDocumentRequest(response: ServerResponse, query: URLSearchParams)
             sendJson(response, 200, decision);
             return;
         }
-        sendJson(response, 200, buildDocumentWithConsent(jsonlPaths, target, allowScripts));
+        sendJson(response, 200, buildDocumentWithConsent(jsonlPaths, target, allowScripts, logBuildProgressToConsole));
         return;
     }
 
@@ -175,7 +187,10 @@ function handleDocumentRequest(response: ServerResponse, query: URLSearchParams)
             response.end(JSON.stringify(decision) + "\n");
             return;
         }
-        const document = buildDocumentWithConsent(jsonlPaths, target, allowScripts, writeNdjsonLine);
+        const document = buildDocumentWithConsent(jsonlPaths, target, allowScripts, (event) => {
+            writeNdjsonLine(event);
+            logBuildProgressToConsole(event);
+        });
         response.end(JSON.stringify(document) + "\n");
     } catch (error) {
         response.end(JSON.stringify({ kind: DocumentResponseKind.error, label: String(error) }) + "\n");
@@ -193,7 +208,7 @@ function handleDiffRequest(response: ServerResponse, query: URLSearchParams): vo
     // Untargeted on purpose: both diff views send no jsonl param, so this reuses the very
     // project-wide artifact the views already built (equality certified by
     // test_revision_diff_from_untargeted_document_matches_targeted_build).
-    const document = buildDocumentWithConsent(jsonlPaths, undefined, allowScripts);
+    const document = buildDocumentWithConsent(jsonlPaths, undefined, allowScripts, logBuildProgressToConsole);
     if (query.get("mode") === "vsbase") {
         sendText(response, 200, renderDiffVsBase(document, filePath, Number(query.get("rev") ?? "0")));
         return;
@@ -218,7 +233,7 @@ function handleRangePatchRequest(response: ServerResponse, query: URLSearchParam
         sendJson(response, 200, decision);
         return;
     }
-    const document = buildDocumentWithConsent(jsonlPaths, undefined, allowScripts);
+    const document = buildDocumentWithConsent(jsonlPaths, undefined, allowScripts, logBuildProgressToConsole);
     sendText(response, 200, renderRangePatch(document, fromStep, toStep));
 }
 
@@ -249,6 +264,27 @@ function handleConfigUpdate(request: IncomingMessage, response: ServerResponse):
     });
 }
 
+// GET /api/pick-folder — open a NATIVE macOS folder chooser (osascript) and return the choice.
+// Cancel (or any osascript failure) is { path: "" } — the client no-ops on empty. The optional
+// `current` param seeds the dialog's starting folder, but only when it exists on disk: a bad
+// seed makes `default location` throw instead of showing the dialog.
+// ponytail: spawnSync blocks the single-threaded server while the dialog is open — fine for a
+// single-user localhost tool; switch to spawn+promise if a second concurrent user ever exists.
+function handleFolderPickRequest(response: ServerResponse, query: URLSearchParams): void {
+    const current = query.get("current");
+    const seed = current !== null && existsSync(current)
+        ? ` default location (POSIX file ${JSON.stringify(current)})`
+        : "";
+    const result = spawnSync("osascript", [
+        // The server is a background process — without activate the dialog opens behind the browser.
+        "-e", 'tell application "System Events" to activate',
+        "-e", `POSIX path of (choose folder with prompt "Select folder"${seed})`,
+    ], { encoding: "utf8" });
+    // Non-zero = user cancelled (-128) or osascript failed; both are "no pick" to the client.
+    const picked = result.status === 0 ? result.stdout.trim().replace(/\/$/, "") : "";
+    sendJson(response, 200, { path: picked });
+}
+
 function requireParam(query: URLSearchParams, name: string): string {
     const value = query.get(name);
     if (value === null) {
@@ -265,6 +301,8 @@ function handleRequest(request: IncomingMessage, response: ServerResponse): void
         } else if (url.pathname === "/api/config") {
             // item 46: sendJson(response, 200, { projectsDir: getProjectsDir() });
             sendJson(response, 200, { projectsDir: getProjectsDir(), fileHistoryDir: getEffectiveFileHistoryDir() });
+        } else if (url.pathname === "/api/pick-folder") {
+            handleFolderPickRequest(response, url.searchParams);
         } else if (url.pathname === "/api/projects") {
             sendJson(response, 200, scanProjects(getProjectsDir()));
         } else if (url.pathname === "/api/document") {

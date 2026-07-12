@@ -9,6 +9,7 @@ import {
     isScriptExecutionRun,
     parseScriptFileRefs,
     runScriptAgainstState,
+    scriptCodeMayWriteFiles,
     PROGRESS_LABEL_SANDBOX_SPAWN_PREFIX,
     type ScriptRun,
 } from "../src/reconstruction_script_execution.ts";
@@ -433,4 +434,54 @@ test("test_findScriptExecutionRuns_carries_the_tool_use_id", () => {
     // assert the run carries the block's id.
     assert.equal(runs.length, 1);
     assert.equal(runs[0]!.toolUseId?.toString(), "toolu_x");
+});
+
+test("test_scriptCodeMayWriteFiles_accepts_a_read_only_analysis_script", () => {
+    // Scenario: the dominant recorded shape — a grep/count/print analysis script that only
+    // reads files — must classify read-only so the sandbox is skipped (TASKS.md item 68).
+    const script = 'import os\nimport re\nimport json\n'
+        + 'text = open("ledger.py").read()\n'
+        + 'hits = [line for line in text.splitlines() if re.search(r"def ", line)]\n'
+        + 'print(json.dumps(len(hits)))\n';
+    assert.equal(scriptCodeMayWriteFiles(script), false);
+});
+
+test("test_scriptCodeMayWriteFiles_flags_write_mode_opens", () => {
+    // Scenario: literal "w"/"a" open modes are the classic write channel.
+    assert.equal(scriptCodeMayWriteFiles('open("out.txt", "w").write("x")\n'), true);
+    assert.equal(scriptCodeMayWriteFiles('open("log.txt", "a").write("x")\n'), true);
+});
+
+test("test_scriptCodeMayWriteFiles_flags_an_unprovable_open_mode", () => {
+    // Scenario: a variable mode or nested-call arguments cannot be parsed cheaply — the
+    // verdict must fall to may-write (a false may-write is harmless; the reverse is not).
+    assert.equal(scriptCodeMayWriteFiles("open(p, mode)\n"), true);
+    assert.equal(scriptCodeMayWriteFiles("open(os.path.join(a, b))\n"), true);
+});
+
+test("test_scriptCodeMayWriteFiles_accepts_read_mode_opens", () => {
+    // Scenario: single-argument opens and literal read modes (incl. keyword-only forms)
+    // stay read-only.
+    assert.equal(scriptCodeMayWriteFiles('open("f.py", "r").read()\n'), false);
+    assert.equal(scriptCodeMayWriteFiles('open("f.py", "rb").read()\n'), false);
+    assert.equal(scriptCodeMayWriteFiles('open("f.py", encoding="utf-8").read()\n'), false);
+});
+
+test("test_scriptCodeMayWriteFiles_flags_pathlib_and_os_write_methods", () => {
+    // Scenario: pathlib write methods, Path.open (whose FIRST argument is the mode), and
+    // os rename/remove are write channels.
+    assert.equal(scriptCodeMayWriteFiles('from pathlib import Path\nPath("f").write_text("x")\n'), true);
+    assert.equal(scriptCodeMayWriteFiles('from pathlib import Path\nPath("f").open("w")\n'), true);
+    assert.equal(scriptCodeMayWriteFiles('import os\nos.rename("a", "b")\n'), true);
+    assert.equal(scriptCodeMayWriteFiles('import os\nos.remove("a")\n'), true);
+});
+
+test("test_scriptCodeMayWriteFiles_flags_unknown_and_escaping_imports", () => {
+    // Scenario: a non-allowlisted import may be a seeded local module whose top level
+    // writes (the s34 script-indirection family); shutil writes outright; a from-import
+    // can smuggle a writing name out of a safe root; exec escapes static analysis.
+    assert.equal(scriptCodeMayWriteFiles('import shutil\nshutil.move("a", "b")\n'), true);
+    assert.equal(scriptCodeMayWriteFiles("import apply_renames\n"), true);
+    assert.equal(scriptCodeMayWriteFiles('from os import remove\nremove("a")\n'), true);
+    assert.equal(scriptCodeMayWriteFiles("exec(compiled)\n"), true);
 });
