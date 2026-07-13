@@ -880,3 +880,15 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   via exported `findDefaultConsentSelectionIndex`; Jump to top scrolls #view to 0.
   Pure helpers unit-tested in tests/viewer-viewmodels.test.ts. Plan:
   plans/item73-consent-header.md.
+- [x] 74. BUG: File Revision Panel's Diff View's "Columns" mode doesn't constrain its width to the window's width.   The '<div id="details-right">' element needs its width constrained to the right edge of the browser window and the content needs to be wrapped.
+  **Closed 2026-07-13:** root cause was in the fork details-pane diff surface (`webapp/styles.css`
+  `.diff-cols`), never converted when the sibling `diff-vs-base.ts` surface got the same fix in
+  items 39/48. `.diff-cols` carried `min-width: max-content` (forcing the grid to its longest
+  line) with `minmax(160px, 1fr)` text columns, and `.dc-body`/`.dc-hunk` used `white-space: pre`
+  (no wrap) — so long diff lines overflowed `#details-right` and scrolled the pane. Fix (CSS-only):
+  dropped `min-width: max-content`, switched text columns to `minmax(0, 1fr)`, and set the body +
+  hunk cells to `white-space: pre-wrap; overflow-wrap: anywhere` — the exact item-39/48 pattern.
+  Verified served live on 7343; visual/suite check is the user's standing pass. NOTE: the sibling
+  Inline view on this same pane (`.diff` / `.diff-line`, also `min-width: max-content` + `pre`)
+  shares the root cause and likely overflows too — left untouched as out of this task's scope.
+- [ ] 75: add a 'show full contents' in the diff view of the File Revision Panel. If in columns mode, both columns should show full content.  

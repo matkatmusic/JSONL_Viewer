@@ -573,11 +573,13 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
 
 .diff-cols {
     display: grid;
-    grid-template-columns: 40px minmax(160px, 1fr) 40px minmax(160px, 1fr);
+    /* item 74: minmax(0,1fr) (was minmax(160px,1fr)) + no min-width:max-content so the grid
+       stays inside #details-right instead of forcing horizontal scroll on long lines. */
+    grid-template-columns: 40px minmax(0, 1fr) 40px minmax(0, 1fr);
     font-family: var(--mono);
     font-size: 11px;
     padding: 4px 0;
-    min-width: max-content;
+    /* min-width: max-content; */
 }
 .dc-ln {
     text-align: right;
@@ -585,7 +587,8 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
     color: var(--muted);
     user-select: none;
 }
-.dc-body { padding-left: 8px; white-space: pre; }
+/* item 74: wrap long lines instead of overflowing the pane (was white-space: pre). */
+.dc-body { padding-left: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .dc-ln.dc-right { border-left: 1px solid var(--border); }
 .dc-del { background: var(--del-bg); }
 .dc-body.dc-del { color: var(--red); }
@@ -596,7 +599,9 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
     background: var(--hunk-bg);
     color: var(--accent);
     padding-left: 8px;
-    white-space: pre;
+    /* item 74: wrap long hunk headers too (was white-space: pre). */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 
 /* ─── Console row + collapse bar ──────────────────────────────── */
