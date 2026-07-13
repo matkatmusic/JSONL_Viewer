@@ -38,18 +38,22 @@ const COMMIT_OPERATION_KIND = "commit";
 // these declare only the fields this view reads.
 
 type WireRename = { from: string; to: string };
-type WireRevision = { kind: string; changeId: string; timestamp: string; rename?: WireRename };
+// A revision's per-line model (the engine's LineEntry); carried on the wire so the file-history view can
+// render each revision's text from its own lines (no per-step file snapshot needed).
+type WireLineEntry = { values: { line: string }[] };
+type WireRevision = { kind: string; changeId: string; timestamp: string; rename?: WireRename; lines?: WireLineEntry[] };
 export type WireFileHistory = { target: string; revisions: WireRevision[] };
 // isOrphaned is the engine's per-record branch-membership stamp (true = rewound/abandoned
 // branch); optional because an older cached document lacks the field (gitOperations convention).
 type WireMessage = { role: string; timestamp: string; sessionId?: string; uuid: string; text: string; isOrphaned?: boolean };
+// A skeleton step snapshot: no `files` map (the >512 MB wire-size fix) — a step's file text is fetched
+// on demand from /api/step-files when a chip is clicked.
 type WireStepSnapshot = {
     index: number;
     when: string;
     sessionId?: string;
     changeIds: string[];
     changedPaths: string[];
-    files: Record<string, string>;
 };
 type WireGitOperation = {
     kind: string;
@@ -1180,6 +1184,14 @@ export async function renderTimelineView(container: HTMLElement, project: string
         return cachedPatch.text;
     };
 
+    // One step's { path: content } map, fetched on demand (skeleton steps carry no files). Mirrors
+    // fetchRangePatch's consent params; one step's map is one repo snapshot — bounded.
+    const fetchStepFiles = async (stepNumber: number): Promise<Record<string, string>> => {
+        const params = buildConsentParams();
+        params.set("step", String(stepNumber));
+        return fetchJson<Record<string, string>>(`/api/step-files?${params}`);
+    };
+
     const flashRule = () => {
         ruleHint.classList.add("show");
         setTimeout(() => ruleHint.classList.remove("show"), 1600);
@@ -1355,9 +1367,10 @@ export async function renderTimelineView(container: HTMLElement, project: string
             );
             return;
         }
-        // The turn's final state of the file: the LAST owned snapshot that carries it.
-        const carrier = [...node.snapshots].reverse().find((snapshot) => snapshot.files[change.path] !== undefined);
-        const content = carrier?.files[change.path];
+        // The turn's state of the file at its representative step, fetched on demand (skeleton steps
+        // carry no files). undefined when no file lives at that path at this step.
+        const filesAtStep = await fetchStepFiles(node.stepNumber!);
+        const content = filesAtStep[change.path];
         // (item 49) old: el("div", { class: "timeline-preview", text: content ?? "(no snapshot carries this file at this step)" })
         const contentPane = el("div", { class: "timeline-preview" });
         if (content === undefined) {

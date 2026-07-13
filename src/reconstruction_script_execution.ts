@@ -418,9 +418,14 @@ const sandboxOutcomesByInput = new Map<string, SandboxOutcome>();
 const SANDBOX_MEMO_CAPACITY = 4096;
 
 // Item 11: opt-in disk persistence for the sandbox memo. Only the viewer server configures a
-// path (engine CLI + tests stay memory-only, keeping spawn-count tests deterministic). The
-// whole memo is rewritten after each new spawn — a spawn costs ~100ms, the write is trivial.
+// path (engine CLI + tests stay memory-only, keeping spawn-count tests deterministic).
+// The persist rewrites the WHOLE memo, so doing it after every spawn is O(N²) over a cold load
+// (write #k serializes k growing outcomes). Instead we persist once per batch of new spawns and
+// flush at end of build. ponytail: fixed batch size; a crash loses at most one unflushed batch,
+// which the next cold load simply re-spawns.
 let sandboxMemoFilePath: Path | undefined;
+const SANDBOX_MEMO_PERSIST_BATCH_SIZE = 64;
+let sandboxSpawnsSinceLastPersist = 0;
 
 // Wire shape of one memo entry on disk: `post: null` records a memoized failure.
 type PersistedSandboxOutcome = { post: Record<string, string> | null };
@@ -428,10 +433,25 @@ type PersistedSandboxOutcome = { post: Record<string, string> | null };
 export function configureSandboxMemoPersistence(filePath: Path | undefined): void {
     sandboxMemoFilePath = filePath;
     sandboxOutcomesByInput.clear();
+    sandboxSpawnsSinceLastPersist = 0;
     if (filePath === undefined) {
         return;
     }
     loadSandboxMemoFromDisk(filePath);
+}
+
+// Persist the memo unconditionally and reset the batch counter — call once when a reconstruction
+// completes so the final (sub-batch) tail of new spawns is never lost. No-op without a configured path.
+export function flushSandboxMemoToDisk(): void {
+    persistSandboxMemoToDisk();
+    sandboxSpawnsSinceLastPersist = 0;
+}
+
+// Delete the persisted sandbox memo so the next run starts with an empty cache (force = no error if
+// absent). The server calls this before configureSandboxMemoPersistence when launched with
+// --resetSandboxMemo, to watch a full cold load reconstruct everything from scratch.
+export function resetSandboxMemoOnDisk(filePath: Path): void {
+    rmSync(filePath.toString(), { force: true });
 }
 
 // Seed the (just-cleared) memo from a previously persisted file; absent file = start empty.
@@ -507,7 +527,13 @@ export function runScriptAgainstState(
     const post = spawnSandboxRun(script, preState);
     sandboxOutcomesByInput.set(inputKey, { post });
     evictLeastRecentlyUsedEntries(sandboxOutcomesByInput, SANDBOX_MEMO_CAPACITY);
-    persistSandboxMemoToDisk();
+    // Persist per batch, not per spawn: the whole-memo rewrite is O(N²) if done every time.
+    // flushSandboxMemoToDisk() at end of build catches the final sub-batch tail.
+    sandboxSpawnsSinceLastPersist += 1;
+    if (sandboxSpawnsSinceLastPersist >= SANDBOX_MEMO_PERSIST_BATCH_SIZE) {
+        persistSandboxMemoToDisk();
+        sandboxSpawnsSinceLastPersist = 0;
+    }
     return post;
 }
 

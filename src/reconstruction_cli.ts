@@ -39,6 +39,7 @@ import { renderGraphs } from "./reconstruction_graph_render.ts";
 import {
     countStepsInTranscript,
     reconstructStepStates,
+    resolveFilesAtStep,
     renderRepoSnapshot,
 } from "./reconstruction_steps.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
@@ -285,11 +286,13 @@ function renderJson(
         return JSON.stringify(enriched, null, 2);
     }
     if (options.stepNumber !== undefined) {
-        const steps = buildStepSnapshots(records, reader, options.target);
+        // The step's files are resolved on demand from the compact histories (skeleton steps carry no
+        // file map anymore) — the same { path: content } object as before.
+        const { steps, stepFileHistories } = buildStepSnapshots(records, reader);
         if (options.stepNumber < 1 || options.stepNumber > steps.length) {
             throw new Error(`${USAGE}\nstep must be in 1..${steps.length}`);
         }
-        return JSON.stringify(steps[options.stepNumber - 1]!.files, null, 2);
+        return JSON.stringify(resolveFilesAtStep(stepFileHistories, steps[options.stepNumber - 1]!.when), null, 2);
     }
     const branched = reconstructBranches(records, reader);
     if (options.branch !== undefined) {
@@ -302,7 +305,7 @@ function renderJson(
     if (options.listBranches) {
         return JSON.stringify(summarizeBranches(records), null, 2);
     }
-    return JSON.stringify(buildReconstructionDocument(records, branched, reader, options.target), null, 2);
+    return JSON.stringify(buildReconstructionDocument(records, branched, reader, options.target).document, null, 2);
 }
 
 // Load the transcript and render the chosen view. The bare default (no flags) prints both DAGs; the

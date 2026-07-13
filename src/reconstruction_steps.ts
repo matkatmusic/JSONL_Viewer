@@ -62,7 +62,7 @@ function pathAtTime(history: FileHistory, when: Date): Path {
 // The repo's disk state at an instant: each file's latest revision at or before `when`, rendered to text
 // and keyed by the name the file held AT `when` (not its final path), so a step before a rename shows the
 // old name. Files with no revision yet at `when` are omitted (they do not exist on disk at that instant).
-function produceRepoStateAtTime(histories: FileHistory[], when: Date): RepoSnapshot {
+export function produceRepoStateAtTime(histories: FileHistory[], when: Date): RepoSnapshot {
     const snapshot = new Map<Path, string>();
     for (const history of histories) {
         const revision = lastRevisionAtOrBefore(history.revisions, when);
@@ -73,10 +73,22 @@ function produceRepoStateAtTime(histories: FileHistory[], when: Date): RepoSnaps
     return snapshot;
 }
 
-// Both per-step projections — the repo state at each change instant AND the changeIds that landed
-// there — derived from ONE reconstruction pass. They were separate functions each re-running
-// reconstructFilesOver over the same records for projections of the same histories.
-export type StepTimeline = { states: RepoSnapshot[]; changes: StepChange[] };
+// The rendered text of every file present at instant `when`, keyed by its wire-string path at that
+// instant — the plain-object form the wire, git-diff, and CLI readers consume (a RepoSnapshot Map
+// stringifies to `{}`). Resolves one step's files ON DEMAND from the compact histories, so no per-step
+// snapshot is ever materialized for the whole timeline (the wire-size fix). Bounded: one repo state.
+export function resolveFilesAtStep(histories: FileHistory[], when: Date): Record<string, string> {
+    const files: Record<string, string> = {};
+    for (const [path, text] of produceRepoStateAtTime(histories, when)) {
+        files[path.toString()] = text;
+    }
+    return files;
+}
+
+// The compact per-file histories the steps derive from AND the changeIds that landed at each change
+// instant — both from ONE reconstruction pass. The per-step repo states are NOT materialized here;
+// a reader resolves any one step's files on demand via produceRepoStateAtTime / resolveFilesAtStep.
+export type StepTimeline = { histories: FileHistory[]; changes: StepChange[] };
 
 export function reconstructStepTimeline(
     records: TranscriptRecord[],
@@ -86,27 +98,30 @@ export function reconstructStepTimeline(
     const histories = reconstructFilesOver(records, reader);
     const changeTimes = collectChangeTimes(histories);
     return {
-        states: changeTimes.map((when) => produceRepoStateAtTime(histories, when)),
+        histories,
         changes: changeTimes.map((when) => ({ when, changeIds: changeIdsAt(histories, when) })),
     };
 }
 
 // The repo's disk state after each code-change step, in chronological order. Reconstructs over EXACTLY
 // the given records (no surviving-branch filter) so the timeline is literal disk, then snapshots the repo
-// at each change instant.
+// at each change instant — materializing every step (used by the CLI text/step views and ground-truth
+// tests, NOT the document/wire path, which resolves single steps on demand).
 export function reconstructStepStates(
     records: TranscriptRecord[],
     reader?: BackupReader,
 ): RepoSnapshot[] {
-    return reconstructStepTimeline(records, reader).states;
+    const { histories, changes } = reconstructStepTimeline(records, reader);
+    return changes.map((change) => produceRepoStateAtTime(histories, change.when));
 }
 
-// The number of code-change steps in the transcript (one per chronological disk mutation).
+// The number of code-change steps in the transcript (one per chronological disk mutation) — counted from
+// the change instants without materializing any repo state.
 export function countStepsInTranscript(
     records: TranscriptRecord[],
     reader?: BackupReader,
 ): number {
-    return reconstructStepStates(records, reader).length;
+    return reconstructStepTimeline(records, reader).changes.length;
 }
 
 // --- Comparison helpers (the single home for per-step ground-truth diffing) ------------------------

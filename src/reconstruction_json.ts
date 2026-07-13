@@ -11,10 +11,7 @@ import { recordVerdict } from "./reconstruction_parse_lines.ts";
 import { collectOrphanedUuids, findConversationBranches } from "./reconstruction_branch.ts";
 import { findGitCommitEvents, findGitOperations, type GitOperation } from "./reconstruction_git_evidence.ts";
 import { findToolCalls, type ToolCall } from "./reconstruction_tool_calls.ts";
-import {
-    reconstructStepTimeline,
-    type RepoSnapshot,
-} from "./reconstruction_steps.ts";
+import { reconstructStepTimeline } from "./reconstruction_steps.ts";
 import {
     reconstructAll,
     type FileHistory,
@@ -98,27 +95,16 @@ export function summarizeBranches(records: TranscriptRecord[]): BranchSummary[] 
     }));
 }
 
+// A step snapshot is a SKELETON: index/when/changeIds/changedPaths only, no file contents. A step's
+// file text is resolved on demand from the separately-returned stepFileHistories (resolveFilesAtStep),
+// so the document stays small enough to JSON.stringify (the >512 MB RangeError fix).
 export type StepSnapshot = {
     index: number;
     when: Date;
     changeIds: Uuid[];
     changedPaths: string[];
-    files: Record<string, string>;
     sessionId: Uuid | undefined;
 };
-
-// Flatten a RepoSnapshot (Map<Path,string>, which JSON.stringify renders as `{}`) into a plain object
-// keyed by each path's wire string. When `target` is given, keep only that file.
-function convertSnapshotToFileMap(snapshot: RepoSnapshot, target: Path | undefined): Record<string, string> {
-    const files: Record<string, string> = {};
-    for (const [path, text] of snapshot) {
-        if (target !== undefined && !path.equals(target)) {
-            continue;
-        }
-        files[path.toString()] = text;
-    }
-    return files;
-}
 
 // A changeId(string) -> source sessionId index. Two id namespaces resolve here, so a step's changeIds
 // can be attributed to the session that evidenced them: every tool_use block's id, and every record's
@@ -171,20 +157,21 @@ function indexChangeIdsToPaths(histories: FileHistory[]): Map<string, string> {
     return byChangeId;
 }
 
-// `surviving` lets a caller that already reconstructed the surviving branch (the document
-// builder's BranchedReconstruction) share it; absent, it is derived here (the CLI path).
+// The skeleton step snapshots AND the compact branch-agnostic histories they derive from, returned
+// together so a reader can resolve any one step's file text on demand (resolveFilesAtStep) without the
+// document ever carrying per-step file contents. `surviving` lets a caller that already reconstructed
+// the surviving branch (the document builder's BranchedReconstruction) share it; absent, it is derived.
 export function buildStepSnapshots(
     records: TranscriptRecord[],
     reader: BackupReader | undefined,
-    target: Path | undefined,
     surviving?: FileHistory[],
-): StepSnapshot[] {
-    const { states, changes } = reconstructStepTimeline(records, reader);
+): { steps: StepSnapshot[]; stepFileHistories: FileHistory[] } {
+    const { histories, changes } = reconstructStepTimeline(records, reader);
     reportReconstructionProgress("indexing change ids across surviving files");
     const pathOf = indexChangeIdsToPaths(surviving ?? reconstructAll(records, reader));
     const sessionOf = indexChangeIdsToSessionIds(records);
-    return states.map((snapshot, index) => {
-        const changeIds = changes[index]!.changeIds;
+    const steps = changes.map((change, index) => {
+        const changeIds = change.changeIds;
         // ponytail: best-effort — a step's triggering changeId is not always a surviving revision's
         // changeId (the engine re-stamps revisions during beacon/reseed completion), so off-branch or
         // re-stamped steps resolve to []. changeIds is the reliable pointer; changedPaths is the hint.
@@ -195,15 +182,15 @@ export function buildStepSnapshots(
         ];
         return {
             index: index + 1,
-            when: changes[index]!.when,
+            when: change.when,
             changeIds,
             changedPaths,
-            files: convertSnapshotToFileMap(snapshot, target),
             sessionId: changeIds
                 .map((id) => sessionOf.get(resolveSyntheticChangeIdToSourceId(id.toString())))
                 .find((sessionId) => sessionId !== undefined),
         };
     });
+    return { steps, stepFileHistories: histories };
 }
 
 export type LineVerdict = {
@@ -266,12 +253,17 @@ export type ReconstructionDocument = {
     toolCalls: ToolCall[];
 };
 
+// The wire document AND the compact step-file histories, returned as SEPARATE values: the histories are
+// never a document field, so JSON.stringify(document) stays small (the >512 MB RangeError fix). A server
+// caches both; the histories resolve any one step's file text on demand (resolveFilesAtStep).
+export type BuiltReconstruction = { document: ReconstructionDocument; stepFileHistories: FileHistory[] };
+
 export function buildReconstructionDocument(
     records: TranscriptRecord[],
     branched: BranchedReconstruction,
     reader: BackupReader | undefined,
     target: Path | undefined,
-): ReconstructionDocument {
+): BuiltReconstruction {
     const filesTouched =
         target === undefined
             ? branched.surviving
@@ -290,7 +282,7 @@ export function buildReconstructionDocument(
     reportReconstructionProgress("summarizing branches");
     const branches = summarizeBranches(records);
     reportReconstructionProgress("building step snapshots");
-    const steps = buildStepSnapshots(records, reader, target, branched.surviving);
+    const { steps, stepFileHistories } = buildStepSnapshots(records, reader, branched.surviving);
     reportReconstructionProgress("building line verdicts");
     const lineVerdicts = buildLineVerdicts(records);
     const commitMarkers = findGitCommitEvents(records).map((event) => ({
@@ -299,7 +291,7 @@ export function buildReconstructionDocument(
     }));
     const gitOperations = findGitOperations(records);
     const toolCalls = findToolCalls(records);
-    return {
+    const document: ReconstructionDocument = {
         sessionId: findSessionId(records),
         sessionTitles: findSessionTitles(records),
         messages,
@@ -312,4 +304,5 @@ export function buildReconstructionDocument(
         gitOperations,
         toolCalls,
     };
+    return { document, stepFileHistories };
 }

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
     computeScriptExecutionChangeId,
     configureSandboxMemoPersistence,
+    flushSandboxMemoToDisk,
+    resetSandboxMemoOnDisk,
     findScriptExecutionRuns,
     resolveScriptRunChangeIdToSourceId,
     getPreExecutionState,
@@ -13,7 +15,7 @@ import {
     PROGRESS_LABEL_SANDBOX_SPAWN_PREFIX,
     type ScriptRun,
 } from "../src/reconstruction_script_execution.ts";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { setReconstructionProgressSink } from "../src/reconstruction_progress.ts";
@@ -214,6 +216,35 @@ test("test_runScriptAgainstState_memoizes_identical_input", () => {
     assert.equal(firstResult?.get("data.txt"), "after\n");
 });
 
+test("test_sandboxMemoDiskWrite_is_batched_and_flushed_at_end", () => {
+    // Scenario: N distinct spawns below the batch size cause FEWER than N disk writes (the
+    // O(N²)-write amplification fix), and the end-of-build flush persists every outcome.
+    // Steps:
+    // point memo persistence at a temp file (clears the in-memory memo).
+    // drive 10 DISTINCT spawns (each a unique script -> no memo hit, one real spawn each).
+    // read the on-disk memo BEFORE flushing: batching means it holds fewer than 10 outcomes.
+    // flush, then re-read: the file now holds all 10.
+    const memoFile = new Path(join(mkdtempSync(join(tmpdir(), "memo-batch-")), "memo.json"));
+    configureSandboxMemoPersistence(memoFile);
+    try {
+        for (let index = 0; index < 10; index += 1) {
+            // distinct script text -> distinct input key -> a real spawn (not a memo hit).
+            runScriptAgainstState(`open("out.txt", "w").write("run-${index}")\n`, new Map());
+        }
+        const persistedBeforeFlush = existsSync(memoFile.toString())
+            ? Object.keys(JSON.parse(readFileSync(memoFile.toString(), "utf8"))).length
+            : 0;
+        // Batched (batch size 64): 10 spawns trigger NO mid-run persist, so the file lags behind memory.
+        assert.ok(persistedBeforeFlush < 10, `expected <10 persisted before flush, got ${persistedBeforeFlush}`);
+        flushSandboxMemoToDisk();
+        const persistedAfterFlush = Object.keys(JSON.parse(readFileSync(memoFile.toString(), "utf8"))).length;
+        assert.equal(persistedAfterFlush, 10);
+    } finally {
+        // Restore memory-only mode so sibling tests keep their deterministic spawn counts.
+        configureSandboxMemoPersistence(undefined);
+    }
+});
+
 test("test_runScriptAgainstState_distinguishes_seeded_content", () => {
     // Scenario: same script, different seeded CONTENT — the memo must key on content, never on
     // path names or file counts.
@@ -266,6 +297,8 @@ test("test_configureSandboxMemoPersistence_writes_new_outcomes_to_disk", () => {
         });
         // exactly one sandbox spawn happened.
         assert.equal(spawnLabels.length, 1);
+        // persistence is batched now — flush so the single sub-batch outcome reaches disk.
+        flushSandboxMemoToDisk();
         // the JSON file now exists, parses, and holds exactly one outcome whose post
         // carries the script-created file's path and content.
         const persisted = JSON.parse(readFileSync(memoFile, "utf8")) as Record<string, PersistedOutcome>;
@@ -294,6 +327,8 @@ test("test_configureSandboxMemoPersistence_seeds_memo_from_disk", () => {
             firstResult = runScriptAgainstState(script, preState);
         });
         assert.equal(firstSpawns.length, 1);
+        // flush the batched outcome to file A before switching away (else A stays empty on disk).
+        flushSandboxMemoToDisk();
         // configure at a different, absent file B → memo replaced with empty; the same
         // run must spawn again.
         configureSandboxMemoPersistence(new Path(fileB));
@@ -333,6 +368,8 @@ test("test_persisted_failure_outcomes_round_trip", () => {
         });
         assert.equal(firstSpawns.length, 1);
         assert.equal(firstResult, undefined);
+        // batched persistence — flush so the single failure outcome reaches disk.
+        flushSandboxMemoToDisk();
         // the file's single persisted outcome records the failure as post: null.
         const persisted = JSON.parse(readFileSync(memoFile, "utf8")) as Record<string, PersistedOutcome>;
         const outcomes = Object.values(persisted);
@@ -352,6 +389,27 @@ test("test_persisted_failure_outcomes_round_trip", () => {
     } finally {
         configureSandboxMemoPersistence(undefined);
     }
+});
+
+test("test_resetSandboxMemoOnDisk_deletes_an_existing_memo_file", () => {
+    // Scenario: resetSandboxMemoOnDisk removes a present memo file so the next load starts empty.
+    const dir = mkdtempSync(join(tmpdir(), "memo-reset-"));
+    const memoFile = join(dir, "memo.json");
+    writeFileSync(memoFile, "{}");
+    assert.ok(existsSync(memoFile));
+    // Verify: after the reset the file is gone.
+    resetSandboxMemoOnDisk(new Path(memoFile));
+    assert.ok(!existsSync(memoFile));
+});
+
+test("test_resetSandboxMemoOnDisk_is_a_noop_when_the_memo_file_is_absent", () => {
+    // Scenario: resetSandboxMemoOnDisk on a missing file does not throw (force delete).
+    const dir = mkdtempSync(join(tmpdir(), "memo-reset-"));
+    const memoFile = join(dir, "absent.json");
+    assert.ok(!existsSync(memoFile));
+    // Verify: no throw, and the file still does not exist.
+    assert.doesNotThrow(() => resetSandboxMemoOnDisk(new Path(memoFile)));
+    assert.ok(!existsSync(memoFile));
 });
 
 // --- item 34: deterministic synthetic changeIds -----------------------------------------------------

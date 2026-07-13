@@ -9,12 +9,15 @@ import { extname, join, resolve, sep } from "node:path";
 import {
     scanProjects,
     buildDocumentWithConsent,
+    buildReconstructionWithConsent,
     decideDocumentResponse,
     loadProjectRecords,
     renderRevisionDiff,
     renderDiffVsBase,
     renderRangePatch,
     parseRangePatchQuery,
+    parseStepFilesQuery,
+    resolveStepFiles,
     readBlobSnapshot,
     resolveProjectFile,
     resolveStaticFilePath,
@@ -25,7 +28,7 @@ import {
     applyProjectOverrides,
 } from "./viewer_api.ts";
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
-import { configureSandboxMemoPersistence } from "./reconstruction_script_execution.ts";
+import { configureSandboxMemoPersistence, resetSandboxMemoOnDisk } from "./reconstruction_script_execution.ts";
 import { DocumentResponseKind } from "./structures/vocabulary.ts";
 import type { ProgressSink } from "./parse/loadTranscript.ts";
 import { Path, Uuid } from "./structures/domain.ts";
@@ -43,25 +46,29 @@ const CONTENT_TYPES: Record<string, string> = {
     ".png": "image/png",
 };
 
-// Parse `--port <n>`, `--projects-dir <path>`, and `--file-history-dir <path>` from argv
-// (defaults: 7343, ~/.claude/projects, the item-46 derivation chain).
-function parseServerArgs(argv: string[]): { port: number } {
-    const portIndex = argv.indexOf("--port");
+// item 46: throw new Error("usage: tsx src/viewer_server.ts [--port <n>] [--projects-dir <path>]");
+const USAGE = "usage: tsx src/viewer_server.ts --projects-dir <path> [--port <n>] [--file-history-dir <path>] [--resetSandboxMemo]";
+
+// Parse `--projects-dir <path>` (MANDATORY — there is no default scan root), `--port <n>`
+// (default 7343), `--file-history-dir <path>` (default: the item-46 derivation chain), and
+// `--resetSandboxMemo` (delete the disk memo before load, for a forced cold reconstruction).
+function parseServerArgs(argv: string[]): { port: number; resetSandboxMemo: boolean } {
     const dirIndex = argv.indexOf("--projects-dir");
-    if (dirIndex >= 0 && argv[dirIndex + 1] !== undefined) {
-        setProjectsDir(argv[dirIndex + 1]!);
+    if (dirIndex < 0 || argv[dirIndex + 1] === undefined) {
+        throw new Error(USAGE);
     }
+    setProjectsDir(argv[dirIndex + 1]!);
     // item 46: after --projects-dir, so an explicit dir survives the folder switch's reset.
     const fileHistoryIndex = argv.indexOf("--file-history-dir");
     if (fileHistoryIndex >= 0 && argv[fileHistoryIndex + 1] !== undefined) {
         setFileHistoryDir(argv[fileHistoryIndex + 1]!);
     }
+    const portIndex = argv.indexOf("--port");
     const port = portIndex >= 0 ? Number(argv[portIndex + 1]) : DEFAULT_PORT;
     if (!Number.isInteger(port)) {
-        // item 46: throw new Error("usage: tsx src/viewer_server.ts [--port <n>] [--projects-dir <path>]");
-        throw new Error("usage: tsx src/viewer_server.ts [--port <n>] [--projects-dir <path>] [--file-history-dir <path>]");
+        throw new Error(USAGE);
     }
-    return { port };
+    return { port, resetSandboxMemo: argv.includes("--resetSandboxMemo") };
 }
 
 function sendJson(response: ServerResponse, status: number, value: unknown): void {
@@ -233,8 +240,28 @@ function handleRangePatchRequest(response: ServerResponse, query: URLSearchParam
         sendJson(response, 200, decision);
         return;
     }
-    const document = buildDocumentWithConsent(jsonlPaths, undefined, allowScripts, logBuildProgressToConsole);
-    sendText(response, 200, renderRangePatch(document, fromStep, toStep));
+    const { document, stepFileHistories } = buildReconstructionWithConsent(jsonlPaths, undefined, allowScripts, logBuildProgressToConsole);
+    sendText(response, 200, renderRangePatch(stepFileHistories, document.steps, fromStep, toStep));
+}
+
+// GET /api/step-files — the { path: content } map of every file present at one 1-based step, resolved
+// on demand from the compact histories (skeleton steps carry no file map). One step's map is one repo
+// snapshot — bounded, not multiplied. Consent mirrors /api/range-patch's non-progress contract.
+function handleStepFilesRequest(response: ServerResponse, query: URLSearchParams): void {
+    const projectName = requireParam(query, "project");
+    applyProjectOverrides(projectName);   // item 46
+    const { step } = parseStepFilesQuery(query);
+    const allowScripts = query.get("allowScripts") === "1";
+    const declined = query.get("declined") === "1";
+    const jsonlPaths = resolveJsonlPaths(projectName, null);
+    const records = loadProjectRecords(jsonlPaths);
+    const decision = decideDocumentResponse(records, allowScripts);
+    if (decision.kind === DocumentResponseKind.consentRequired && !declined) {
+        sendJson(response, 200, decision);
+        return;
+    }
+    const { document, stepFileHistories } = buildReconstructionWithConsent(jsonlPaths, undefined, allowScripts, logBuildProgressToConsole);
+    sendJson(response, 200, resolveStepFiles(stepFileHistories, document.steps, step));
 }
 
 // POST /api/config — switch the scan root and/or the file-history root at runtime. Existence
@@ -321,6 +348,8 @@ function handleRequest(request: IncomingMessage, response: ServerResponse): void
             handleDiffRequest(response, url.searchParams);
         } else if (url.pathname === "/api/range-patch") {
             handleRangePatchRequest(response, url.searchParams);
+        } else if (url.pathname === "/api/step-files") {
+            handleStepFilesRequest(response, url.searchParams);
         } else if (url.pathname === "/" || url.pathname.startsWith("/app/")) {
             serveStaticFile(response, url.pathname);
         } else {
@@ -331,12 +360,23 @@ function handleRequest(request: IncomingMessage, response: ServerResponse): void
     }
 }
 
-const { port } = parseServerArgs(process.argv.slice(2));
+const { port, resetSandboxMemo } = parseServerArgs(process.argv.slice(2));
 // App posture: impure stages OFF until a consented build turns them on for its own duration.
 setImpureExecutionAllowed(false);
 // Item 11: only the viewer app opts in to the disk-backed sandbox memo — restarts stop
 // re-paying a spawn per distinct python run (CLI + tests stay memory-only).
-configureSandboxMemoPersistence(new Path(join(import.meta.dirname, "..", ".cache", "sandbox-memo.json")));
-createServer(handleRequest).listen(port, "127.0.0.1", () => {
+const sandboxMemoPath = new Path(join(import.meta.dirname, "..", ".cache", "sandbox-memo.json"));
+// --resetSandboxMemo: delete the memo BEFORE configuring persistence (which loads it), so this run
+// starts empty and reconstructs everything from scratch — a forced cold load for measurement.
+if (resetSandboxMemo) {
+    resetSandboxMemoOnDisk(sandboxMemoPath);
+}
+configureSandboxMemoPersistence(sandboxMemoPath);
+const server = createServer(handleRequest);
+// A cold non-streaming /api/document build can exceed Node's default ~300s request timeout,
+// which closes the socket mid-build; the eventual sendJson then throws ERR_HTTP_HEADERS_SENT
+// uncaught and kills the process. Localhost-only single-user server — no slow-client risk.
+server.requestTimeout = 0;
+server.listen(port, "127.0.0.1", () => {
     console.log(`viewer listening on http://127.0.0.1:${port} (projects: ${getProjectsDir()})`);
 });

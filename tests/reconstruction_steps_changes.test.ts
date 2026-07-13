@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
     reconstructStepStates,
     reconstructStepChanges,
+    reconstructStepTimeline,
     snapshotFileText,
     stripTrailingNewline,
     someStepReproduces,
@@ -92,6 +93,25 @@ test("test_reconstructStepChanges_changeId_resolves_to_a_real_record_uuid_in_s19
         change.changeIds.some((changeId) => recordUuids.has(changeId.toString())),
     );
     assert.ok(resolves);
+});
+
+test("test_reconstructStepTimeline_returns_histories_and_change_metadata_without_per_step_states", () => {
+    // Behavior: reconstructStepTimeline exposes the compact per-file histories the steps derive from and
+    // one change entry per distinct change instant, WITHOUT materializing a repo snapshot for every step
+    // (the O(steps × live-bytes) blow-up the wire-size fix removes). S19 touches two files, one revised
+    // more than once, so histories has ≥2 entries and changes has ≥3 instants.
+    const records = loadRecords(S19_JSONL);
+    const timeline = reconstructStepTimeline(records, realReader(records));
+    // Verify: histories are the compact FileHistory form...
+    assert.ok(timeline.histories.length >= 2);
+    assert.ok(timeline.histories.every((history) => Array.isArray(history.revisions)));
+    // ...one change entry per instant, each triggered by ≥1 changeId...
+    assert.ok(timeline.changes.length >= 3);
+    for (const change of timeline.changes) {
+        assert.ok(change.changeIds.length >= 1);
+    }
+    // ...and no expanded per-step file-snapshot array rides along (compile-time: the type has no `states`).
+    assert.equal((timeline as Record<string, unknown>)["states"], undefined);
 });
 
 // stripTrailingNewline is exercised indirectly above; assert its contract directly too.

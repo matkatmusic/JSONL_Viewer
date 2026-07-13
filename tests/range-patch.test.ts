@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { tmpdir } from "node:os";
-import { buildProjectDocument, renderRangePatch, computePatchRoot, parseRangePatchQuery } from "../src/viewer_api.ts";
+import { buildProjectReconstruction, renderRangePatch, computePatchRoot, parseRangePatchQuery, resolveStepFiles, parseStepFilesQuery } from "../src/viewer_api.ts";
+import { resolveFilesAtStep } from "../src/reconstruction_steps.ts";
 import { S85_JSONL_PATHS } from "./fixtures.ts";
 import {
     materializeSnapshotIntoDirectory,
@@ -16,8 +17,15 @@ import {
     listRepositoryFiles,
 } from "./utilities.ts";
 
-// Built once — every test here reads the same s85 document (one session, real git commits, moves).
-const s85Document = buildProjectDocument(S85_JSONL_PATHS, undefined);
+// Built once — every test here reads the same s85 reconstruction (one session, real git commits,
+// moves). Step snapshots are skeletons now; a step's files are resolved on demand from the histories.
+const { document: s85Document, stepFileHistories: s85Histories } = buildProjectReconstruction(S85_JSONL_PATHS, undefined);
+
+// The { path: content } map for a 1-based step, resolved from the compact histories (the on-demand
+// replacement for the removed per-step `files` map).
+function filesAtStep(stepNumber: number): Record<string, string> {
+    return resolveFilesAtStep(s85Histories, s85Document.steps[stepNumber - 1]!.when);
+}
 
 // The last step index before s85's first commit marker (steps and markers are both chronological).
 function findLastStepBeforeFirstCommit(): number {
@@ -39,9 +47,9 @@ test("test_range_patch_applies_cleanly_and_reproduces_after_state", () => {
     const fromStep = 1;
     const toStep = findLastStepBeforeFirstCommit();
     assert.ok(toStep >= 1);
-    const beforeFiles = fromStep >= 2 ? s85Document.steps[fromStep - 2]!.files : {};
-    const afterFiles = s85Document.steps[toStep - 1]!.files;
-    const root = computePatchRoot(s85Document);
+    const beforeFiles = fromStep >= 2 ? filesAtStep(fromStep - 1) : {};
+    const afterFiles = filesAtStep(toStep);
+    const root = computePatchRoot(s85Histories);
 
     const workDir = mkdtempSync(join(tmpdir(), "range-patch-"));
     const repoDir = join(workDir, "repo");
@@ -50,7 +58,7 @@ test("test_range_patch_applies_cleanly_and_reproduces_after_state", () => {
     git_initRepositoryWithCommit(repoDir);
 
     const patchFile = join(workDir, "range.patch");
-    writeFileSync(patchFile, renderRangePatch(s85Document, fromStep, toStep));
+    writeFileSync(patchFile, renderRangePatch(s85Histories, s85Document.steps, fromStep, toStep));
     assert.equal(git_applyPatch(repoDir, patchFile), 0);
 
     for (const [absolutePath, content] of Object.entries(afterFiles)) {
@@ -67,9 +75,9 @@ test("test_range_patch_rejects_indices_out_of_range", () => {
     // assert it throws on toStep > steps.length.
     // assert it throws on fromStep > toStep.
     const stepCount = s85Document.steps.length;
-    assert.throws(() => renderRangePatch(s85Document, 0, 1));
-    assert.throws(() => renderRangePatch(s85Document, 1, stepCount + 1));
-    assert.throws(() => renderRangePatch(s85Document, 3, 2));
+    assert.throws(() => renderRangePatch(s85Histories, s85Document.steps, 0, 1));
+    assert.throws(() => renderRangePatch(s85Histories, s85Document.steps, 1, stepCount + 1));
+    assert.throws(() => renderRangePatch(s85Histories, s85Document.steps, 3, 2));
 });
 
 test("test_range_patch_covers_renamed_files_in_s85", () => {
@@ -82,14 +90,37 @@ test("test_range_patch_covers_renamed_files_in_s85", () => {
     // assert the patch creates each core_* destination.
     // assert unchanged originals get no diff block.
     const moveStep = s85Document.steps.find((step) =>
-        Object.keys(step.files).some((path) => path.includes("core_one.py")),
+        Object.keys(filesAtStep(step.index)).some((path) => path.includes("core_one.py")),
     );
     assert.ok(moveStep !== undefined);
-    const patch = renderRangePatch(s85Document, moveStep.index, s85Document.steps.length);
+    const patch = renderRangePatch(s85Histories, s85Document.steps, moveStep.index, s85Document.steps.length);
     for (const destination of ["core_one.py", "core_two.py", "core_three.py"]) {
         assert.ok(patch.includes(`+++ b/${destination}`));
     }
     assert.ok(!patch.includes("diff --git a/one.py"));
+});
+
+test("test_resolveStepFiles_returns_the_repo_map_at_a_step_and_rejects_out_of_range", () => {
+    // Scenario: /api/step-files' core — the repo file map at a 1-based step, resolved on demand from the
+    // histories, equal to the same step's files; out-of-range steps throw (the server maps throws to 400).
+    // Steps:
+    // resolve the last step's files via resolveStepFiles; assert it equals filesAtStep and is non-empty.
+    // assert step 0 and step (count+1) each throw.
+    const stepCount = s85Document.steps.length;
+    const filesAtLast = resolveStepFiles(s85Histories, s85Document.steps, stepCount);
+    assert.deepEqual(filesAtLast, filesAtStep(stepCount));
+    assert.ok(Object.keys(filesAtLast).length > 0);
+    assert.throws(() => resolveStepFiles(s85Histories, s85Document.steps, 0));
+    assert.throws(() => resolveStepFiles(s85Histories, s85Document.steps, stepCount + 1));
+});
+
+test("test_step_files_endpoint_parses_positive_step", () => {
+    // Scenario: /api/step-files' trust boundary — `step` is a required 1-based positive integer, the
+    // server maps every other value to a 400 via a loud throw.
+    assert.deepEqual(parseStepFilesQuery(new URLSearchParams("step=3")), { step: 3 });
+    assert.throws(() => parseStepFilesQuery(new URLSearchParams("")));
+    assert.throws(() => parseStepFilesQuery(new URLSearchParams("step=0")));
+    assert.throws(() => parseStepFilesQuery(new URLSearchParams("step=1.5")));
 });
 
 test("test_range_patch_endpoint_returns_patch_text", () => {

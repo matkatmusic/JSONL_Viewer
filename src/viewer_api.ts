@@ -8,7 +8,10 @@ import { formatRecordSourceToken, getRecordSource, loadTranscript, type Progress
 import {
     buildReconstructionDocument,
     type ReconstructionDocument,
+    type BuiltReconstruction,
+    type StepSnapshot,
 } from "./reconstruction_json.ts";
+import { resolveFilesAtStep } from "./reconstruction_steps.ts";
 import { reconstructBranches, type FileHistory } from "./reconstruction_engine.ts";
 import {
     buildSidecarReader,
@@ -21,7 +24,7 @@ import {
     serializePathOverrides,
     setPathOverrides,
 } from "./reconstruction_overrides.ts";
-import { findScriptExecutionRuns, scriptCodeMayWriteFiles, type ScriptRun } from "./reconstruction_script_execution.ts";
+import { findScriptExecutionRuns, scriptCodeMayWriteFiles, flushSandboxMemoToDisk, type ScriptRun } from "./reconstruction_script_execution.ts";
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { setReconstructionProgressSink } from "./reconstruction_progress.ts";
 import { getCachedValueRefreshingRecency, evictLeastRecentlyUsedEntries } from "./cache_lru.ts";
@@ -238,9 +241,10 @@ export function scanProjects(projectsDir: Path): ProjectListing[] {
     return listings;
 }
 
-// One-or-many JSONLs -> one ReconstructionDocument. Exactly the CLI --json composition,
-// generalized to a merged multi-JSONL record stream (the coverage checker's proven pattern).
-export function buildProjectDocument(jsonlPaths: Path[], target: Path | undefined, onProgress?: ProgressSink): ReconstructionDocument {
+// One-or-many JSONLs -> the wire document AND its compact step-file histories (returned separately;
+// the histories never ride the wire). Exactly the CLI --json composition, generalized to a merged
+// multi-JSONL record stream (the coverage checker's proven pattern).
+export function buildProjectReconstruction(jsonlPaths: Path[], target: Path | undefined, onProgress?: ProgressSink): BuiltReconstruction {
     // The per-record walk belongs to the caller's own loadProjectRecords call (the /api/document
     // route always pre-walks); the build emits stages and deep-engine progress only.
     const records = loadProjectRecords(jsonlPaths);
@@ -250,6 +254,12 @@ export function buildProjectDocument(jsonlPaths: Path[], target: Path | undefine
     const branched = reconstructBranches(records, reader);
     reportStage(onProgress, PROGRESS_LABEL_BUILDING_DOCUMENT);
     return buildReconstructionDocument(records, branched, reader, target);
+}
+
+// The wire document alone — the back-compat surface every non-range-patch caller uses (the histories
+// are an implementation detail only the range-patch / step-files routes need).
+export function buildProjectDocument(jsonlPaths: Path[], target: Path | undefined, onProgress?: ProgressSink): ReconstructionDocument {
+    return buildProjectReconstruction(jsonlPaths, target, onProgress).document;
 }
 
 // One recorded script run plus the consent dialog's read-only verdict: the same conservative
@@ -279,41 +289,57 @@ export const PROGRESS_LABEL_ARTIFACT_CACHE_HIT = "reusing cached document artifa
 // because consented and degraded builds yield different documents and must never share an
 // entry. target is in the key only to keep the /api/document?target= contract intact — the
 // webapp never sends it, so in practice this holds one entry per (project, consent).
-const builtDocumentCache = new Map<string, ReconstructionDocument>();
+const builtDocumentCache = new Map<string, BuiltReconstruction>();
 
 // Build a document under the consent decision: the exec gate is on only for a consented build's
 // own (synchronous) duration, and always off afterwards — the server's resting posture. A declined
 // build still yields a document, just degraded (no script-derived revisions). A cache hit returns
 // before the gate/sink lifecycle: nothing impure runs when no build runs.
-export function buildDocumentWithConsent(
+// Build (or reuse) the document AND its step-file histories under the consent decision. The cached
+// value carries both, so range-patch / step-files requests reuse the compact histories instead of
+// re-reconstructing (the histories are never serialized onto the wire).
+export function buildReconstructionWithConsent(
     jsonlPaths: Path[],
     target: Path | undefined,
     allowScripts: boolean,
     onProgress?: ProgressSink,
-): ReconstructionDocument {
+): BuiltReconstruction {
     const targetKey = target === undefined ? "" : target.toString();
     // item 46: const cacheKey = `${computeTranscriptSetStamp(jsonlPaths)}|${allowScripts}|${targetKey}`;
     // The stamp reads the ACTIVE overrides — callers applyProjectOverrides first; a config-file
     // edit between requests changes the stamp and misses the cache, which is the point.
     const cacheKey = `${computeTranscriptSetStamp(jsonlPaths)}|${allowScripts}|${targetKey}|${serializePathOverrides()}`;
-    const cachedDocument = getCachedValueRefreshingRecency(builtDocumentCache, cacheKey);
-    if (cachedDocument !== undefined) {
+    const cachedBuild = getCachedValueRefreshingRecency(builtDocumentCache, cacheKey);
+    if (cachedBuild !== undefined) {
         reportStage(onProgress, PROGRESS_LABEL_ARTIFACT_CACHE_HIT);
-        return cachedDocument;
+        return cachedBuild;
     }
     setImpureExecutionAllowed(allowScripts);
     // The deep engine stages (script sandbox runs, per-file reconstruction) announce through the
     // build-scoped module sink — same lifecycle as the exec gate: on for the build, off after.
     setReconstructionProgressSink(onProgress);
     try {
-        const document = buildProjectDocument(jsonlPaths, target, onProgress);
-        builtDocumentCache.set(cacheKey, document);
+        const built = buildProjectReconstruction(jsonlPaths, target, onProgress);
+        // The build's new sandbox spawns were persisted per batch; flush the final tail so nothing is
+        // lost before the response (batched persist is the O(N²)-write fix — item Step 6).
+        flushSandboxMemoToDisk();
+        builtDocumentCache.set(cacheKey, built);
         evictLeastRecentlyUsedEntries(builtDocumentCache, ARTIFACT_CACHE_CAPACITY);
-        return document;
+        return built;
     } finally {
         setImpureExecutionAllowed(false);
         setReconstructionProgressSink(undefined);
     }
+}
+
+// The wire document alone — the back-compat surface every non-range-patch caller uses.
+export function buildDocumentWithConsent(
+    jsonlPaths: Path[],
+    target: Path | undefined,
+    allowScripts: boolean,
+    onProgress?: ProgressSink,
+): ReconstructionDocument {
+    return buildReconstructionWithConsent(jsonlPaths, target, allowScripts, onProgress).document;
 }
 
 // The on-disk file for a static request: the compiled webapp/dist copy when the build emitted
@@ -393,15 +419,13 @@ export function renderDiffVsBase(document: ReconstructionDocument, filePath: Pat
 }
 
 // The directory every range-patch path is relativized against: the longest common directory
-// prefix across every file the document's steps ever tracked — in practice the session's cwd,
-// since every tracked file lives under it. Stable for a given document regardless of the range.
+// prefix across every file the reconstruction ever tracked — in practice the session's cwd,
+// since every tracked file lives under it. Stable for a given reconstruction regardless of the range.
 // ponytail: prefix heuristic — carry the records' cwd on the document if multi-root projects appear.
-export function computePatchRoot(document: ReconstructionDocument): string {
+export function computePatchRoot(stepFileHistories: FileHistory[]): string {
     const trackedPaths = new Set<string>();
-    for (const step of document.steps) {
-        for (const key of Object.keys(step.files)) {
-            trackedPaths.add(key);
-        }
+    for (const history of stepFileHistories) {
+        trackedPaths.add(history.target.toString());
     }
     const directorySegmentLists = [...trackedPaths].map((path) => path.split(sep).slice(0, -1));
     if (directorySegmentLists.length === 0) {
@@ -447,22 +471,39 @@ export function parseRangePatchQuery(query: URLSearchParams): { fromStep: number
     };
 }
 
+// Trust-boundary parsing for GET /api/step-files: `step` is a required 1-based positive integer.
+export function parseStepFilesQuery(query: URLSearchParams): { step: number } {
+    return { step: parsePositiveIntegerParam(query, "step") };
+}
+
+// The { path: content } map of every file present at a 1-based step, resolved ON DEMAND from the
+// compact histories (skeleton steps carry no file map). One step's map is one repo snapshot — bounded,
+// not multiplied. Loud throw (server -> 400) when the step is out of range.
+export function resolveStepFiles(stepFileHistories: FileHistory[], steps: StepSnapshot[], stepNumber: number): Record<string, string> {
+    if (stepNumber < 1 || stepNumber > steps.length) {
+        throw new Error(`step ${stepNumber} out of range 1..${steps.length}`);
+    }
+    return resolveFilesAtStep(stepFileHistories, steps[stepNumber - 1]!.when);
+}
+
 // One git-apply-able unified diff covering every file whose content differs between the snapshot
 // BEFORE `fromStep` and the snapshot AT `toStep` (1-based step indexes; the snapshot before step 1
 // is empty). A path present only in `after` is a creation; only in `before`, a deletion.
-export function renderRangePatch(document: ReconstructionDocument, fromStep: number, toStep: number): string {
+export function renderRangePatch(stepFileHistories: FileHistory[], steps: StepSnapshot[], fromStep: number, toStep: number): string {
     if (fromStep < 1) {
-        throw new Error(`fromStep ${fromStep} out of range 1..${document.steps.length}`);
+        throw new Error(`fromStep ${fromStep} out of range 1..${steps.length}`);
     }
-    if (toStep > document.steps.length) {
-        throw new Error(`toStep ${toStep} out of range 1..${document.steps.length}`);
+    if (toStep > steps.length) {
+        throw new Error(`toStep ${toStep} out of range 1..${steps.length}`);
     }
     if (fromStep > toStep) {
         throw new Error(`fromStep ${fromStep} exceeds toStep ${toStep}`);
     }
-    const before: Record<string, string> = fromStep >= 2 ? document.steps[fromStep - 2]!.files : {};
-    const after = document.steps[toStep - 1]!.files;
-    const root = computePatchRoot(document);
+    // The snapshot BEFORE step 1 is empty; otherwise resolve each endpoint's files on demand from the
+    // compact histories (no per-step file map exists on the document anymore).
+    const before: Record<string, string> = fromStep >= 2 ? resolveFilesAtStep(stepFileHistories, steps[fromStep - 2]!.when) : {};
+    const after = resolveFilesAtStep(stepFileHistories, steps[toStep - 1]!.when);
+    const root = computePatchRoot(stepFileHistories);
     const changedPaths = [...new Set([...Object.keys(before), ...Object.keys(after)])]
         .filter((path) => before[path] !== after[path])
         .sort();

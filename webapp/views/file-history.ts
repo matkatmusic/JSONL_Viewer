@@ -25,31 +25,24 @@ const el = elUntyped as (
 
 // Wire shapes (JSON off the server: ids/paths/dates are plain strings), minimal to this file's use.
 type WireRename = { from: string; to: string };
-type WireRevision = { kind: string; changeId: string; timestamp: string; rename?: WireRename };
+// A revision carries its own per-line model (the engine's LineEntry.values); the last value of each
+// line is that line's believed text at this revision (mirrors the server's linesTextOf).
+type WireLineEntry = { values: { line: string }[] };
+type WireRevision = { kind: string; changeId: string; timestamp: string; rename?: WireRename; lines?: WireLineEntry[] };
 type WireFileHistory = { target: string; revisions: WireRevision[] };
 // The minimal shape the changeId lookup helpers read — callers (inspector.ts, tests) pass
 // structurally smaller histories than the full view model; WireFileHistory satisfies it.
 export type WireRevisionRef = { changeId: string; timestamp?: string };
 export type WireFileHistoryRef = { target: string; revisions: WireRevisionRef[] };
-type WireStep = { when: string; files: Record<string, string> };
-export type WireDocument = { steps: WireStep[]; filesTouched: WireFileHistory[] };
+export type WireDocument = { filesTouched: WireFileHistory[] };
 type WireJsonlFile = { fileName: string };
 type WireProjectListing = { name: string; jsonlFiles: WireJsonlFile[] };
 
-// The last step-snapshot content of `path` at or before `timestamp`. Timestamps are the JSON
-// document's ISO strings, which compare correctly as strings. undefined while no step carries
-// the file yet (a revision older than the first snapshot that knows the path).
-function computeContentAtTime(steps: WireStep[], path: string, timestamp: string): string | undefined {
-    let content: string | undefined = undefined;
-    for (const step of steps) {
-        if (step.when > timestamp) {
-            break;
-        }
-        if (Object.prototype.hasOwnProperty.call(step.files, path)) {
-            content = step.files[path];
-        }
-    }
-    return content;
+// A revision's believed text: the last value of each line, newline-joined — the same rendering the
+// server's renderRevisionText/linesTextOf produce. Derived from the revision's OWN lines (already on
+// the wire), so no per-step file snapshot is needed (the >512 MB wire-size fix).
+function renderRevisionText(revision: WireRevision): string {
+    return (revision.lines ?? []).map((entry) => entry.values[entry.values.length - 1]!.line).join("\n");
 }
 
 // Build the view model: { path, revisions: [{ kind, changeId, timestamp, content, rename }] },
@@ -63,7 +56,7 @@ export function buildFileHistoryViewModel(document: WireDocument, path: string) 
         kind: revision.kind,
         changeId: revision.changeId,
         timestamp: revision.timestamp,
-        content: computeContentAtTime(document.steps, path, revision.timestamp),
+        content: renderRevisionText(revision),
         rename: revision.rename,
     }));
     return { path, revisions };

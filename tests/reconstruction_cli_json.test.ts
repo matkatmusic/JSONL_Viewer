@@ -24,14 +24,13 @@ test("test_cli_json_branch_tip_is_a_string", () => {
     assert.equal(typeof document.branches[0].tip, "string");
 });
 
-test("test_cli_json_step_files_are_a_plain_object_of_strings", () => {
-    // Behavior: the Map<Path,string> snapshot flattens to a string->string object (not `{}`).
+test("test_cli_json_document_steps_carry_no_file_contents", () => {
+    // Behavior: the full --json document's step snapshots are SKELETONS — no inlined per-step file map
+    // (the >512 MB wire-size fix). File text is resolved per step via --step / the step-files API.
     const document = JSON.parse(runCli([S19_JSONL, "--json"]));
-    const files = document.steps[0].files;
-    // Verify.
-    for (const value of Object.values(files)) {
-        assert.equal(typeof value, "string");
-    }
+    // Verify: steps exist but carry no `files`.
+    assert.ok(document.steps.length > 0);
+    assert.equal(document.steps[0].files, undefined);
 });
 
 test("test_cli_json_step_includes_change_ids", () => {

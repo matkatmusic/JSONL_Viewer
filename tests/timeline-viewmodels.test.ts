@@ -41,7 +41,7 @@ import {
     TOOL_CALL_NODE_KIND,
 } from "../webapp/views/timeline.ts";
 import { routeToFileHistory } from "../webapp/app.ts";
-import { buildProjectDocument, renderRangePatch } from "../src/viewer_api.ts";
+import { buildProjectDocument, buildProjectReconstruction, renderRangePatch } from "../src/viewer_api.ts";
 import { Path } from "../src/structures/domain.ts";
 import { RecordType, EventKind, GitOperationKind } from "../src/structures/vocabulary.ts";
 import { readFileSync } from "node:fs";
@@ -313,8 +313,8 @@ test("test_split_patch_by_file_returns_one_block_per_file", () => {
     // Steps:
     // render a real multi-file patch for s85's first three steps.
     // split it; assert one block per `diff --git` header, keys unique, and re-joining loses nothing.
-    const rawS85Document = buildProjectDocument(S85_JSONL_PATHS, undefined);
-    const patch = renderRangePatch(rawS85Document, 1, 3);
+    const { document: rawS85Document, stepFileHistories: rawS85Histories } = buildProjectReconstruction(S85_JSONL_PATHS, undefined);
+    const patch = renderRangePatch(rawS85Histories, rawS85Document.steps, 1, 3);
     const blocks = splitPatchByFile(patch);
     const headerCount = patch.split("\n").filter((line) => line.startsWith("diff --git ")).length;
     assert.ok(headerCount >= 2);
