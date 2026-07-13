@@ -800,3 +800,36 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   evidence; shell/JS scripts crash under python3 either way, so bare `>` shell
   tokens are deliberately omitted). Plan: plans/item68-readonly-script-gate.md.
   tsc clean; suite + scenario harness not run (user runs).
+
+- [x] **69. Indicate which scripts in Script Execution Consent view are read-only vs
+  Modifying**. Repro: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-authv5-workspace/timeline
+  — the consent view says "356 recorded script executions" but most are read-only
+  analysis scripts and nothing marks them. Changes:
+  1. **Server tags each script**: reuse the item-68 gate — tag every script in the
+     `consentRequired` payload (`viewer_api.ts`) with
+     `readOnly: !scriptCodeMayWriteFiles(run.code)`. Same conservative semantics as
+     execution: uncertain counts as Modifying. No new detection logic.
+  2. **Headline splits the count**: "356 recorded script executions — 42 modifying,
+     314 read-only" (real numbers computed from the tags).
+  3. **Read-only scripts collapse by default**: each maximal run of consecutive
+     read-only scripts (chronological order preserved) renders as one summary line
+     with an expansion triangle: `[>] ----- <timestamp> N readonly scripts ------`,
+     timestamp = first script in the run. Clicking the triangle expands that block
+     inline to the individual read-only script rows, in recorded order; clicking
+     again collapses it. Modifying scripts always render as full rows.
+  4. **One global button** `[Show/hide Read-only scripts]` = expand-all / collapse-all
+     of the summary blocks. It drives the same per-block expanded state as the
+     triangles — one state per block, no separate render mode. No persistence of the
+     toggle across page loads.
+  Consent semantics are unchanged: approving still covers all scripts (read-only runs
+  are already skipped at execution by the item-68 gate).
+  DONE 2026-07-13: `decideDocumentResponse` tags each consent script with
+  `readOnly: !scriptCodeMayWriteFiles(run.code)` (new `ConsentScript` type in
+  `viewer_api.ts` — single choke point, all 3 wire sites serialize the decision);
+  `renderConsentDialog` splits the headline count, collapses contiguous read-only
+  runs into native `<details>` blocks (`groupConsentScriptsIntoBlocks`, exported),
+  and the Show/hide button opens/closes all blocks. Tests added:
+  `test_decideDocumentResponse_tags_each_script_with_read_only_flag`
+  (viewer-api.test.ts) + 3 grouping tests (viewer-viewmodels.test.ts). Both
+  typechecks clean (`tsc --noEmit`, `tsc -p tsconfig.webapp.json --noEmit`); suite
+  not run (user runs). Plan: `~/.claude/plans/item69-consent-readonly-ui.md`.

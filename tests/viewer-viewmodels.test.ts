@@ -16,6 +16,7 @@ import { findBackupTimeForBlob, findToolNavigationTargets } from "../webapp/insp
 import { buildConversationViewModel } from "../webapp/views/conversation.ts";
 import { buildProjectViewModel } from "../webapp/views/project.ts";
 import { filterProjectsByName } from "../webapp/views/projects.ts";
+import { ConsentBlockKind, groupConsentScriptsIntoBlocks } from "../webapp/app.ts";
 import { Path } from "../src/structures/domain.ts";
 import { jsonlPathsForScenario, readNonEmptyLines } from "./utilities.ts";
 import { S19_JSONL } from "./fixtures.ts";
@@ -591,4 +592,37 @@ test("test_resolveInitialDiffDisplayMode_defaults_to_split", () => {
     assert.equal(resolveInitialDiffDisplayMode(null), DiffDisplayMode.split);
     // assert an unrecognized value resolves to DiffDisplayMode.split.
     assert.equal(resolveInitialDiffDisplayMode("weird"), DiffDisplayMode.split);
+});
+
+// -------------------- consent dialog display blocks (item 69) --------------------
+
+// A minimal wire consent script for grouping tests; index makes each row distinguishable.
+function makeConsentScript(index: number, readOnly: boolean): { timestamp: string; code: string; readOnly?: boolean } {
+    return { timestamp: `2026-01-01T00:00:0${index}Z`, code: `print(${index})`, readOnly };
+}
+
+test("test_groupConsentScriptsIntoBlocks_collapses_contiguous_read_only_runs", () => {
+    // Scenario: [ro, ro, mod, ro] yields [read-only run of 2, modifying, read-only run of 1],
+    // preserving chronological order.
+    const scripts = [makeConsentScript(1, true), makeConsentScript(2, true), makeConsentScript(3, false), makeConsentScript(4, true)];
+    const blocks = groupConsentScriptsIntoBlocks(scripts);
+    assert.equal(blocks.length, 3);
+    assert.equal(blocks[0]!.kind, ConsentBlockKind.readOnlyRun);
+    assert.equal(blocks[0]!.kind === ConsentBlockKind.readOnlyRun ? blocks[0]!.scripts.length : 0, 2);
+    assert.equal(blocks[1]!.kind, ConsentBlockKind.modifying);
+    assert.equal(blocks[2]!.kind, ConsentBlockKind.readOnlyRun);
+});
+
+test("test_groupConsentScriptsIntoBlocks_treats_missing_flag_as_modifying", () => {
+    // Scenario: a script with no readOnly field (older server) renders as a full modifying
+    // row — the dialog degrades to today's behavior, never hides anything untagged.
+    const scripts = [{ timestamp: "2026-01-01T00:00:01Z", code: "x" }];
+    const blocks = groupConsentScriptsIntoBlocks(scripts);
+    assert.equal(blocks.length, 1);
+    assert.equal(blocks[0]!.kind, ConsentBlockKind.modifying);
+});
+
+test("test_groupConsentScriptsIntoBlocks_returns_no_blocks_for_no_scripts", () => {
+    // Scenario: an empty script list yields an empty block list (no phantom summary line).
+    assert.equal(groupConsentScriptsIntoBlocks([]).length, 0);
 });

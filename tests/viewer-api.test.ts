@@ -29,6 +29,7 @@ import {
     PROJECT_PATHS_CONFIG_NAME,
 } from "../src/reconstruction_overrides.ts";
 import { isImpureExecutionAllowed, setImpureExecutionAllowed } from "../src/reconstruction_exec_gate.ts";
+import { scriptCodeMayWriteFiles } from "../src/reconstruction_script_execution.ts";
 import { getDefaultFileHistoryRoot } from "../src/reconstruction_sidecar_reader.ts";
 import { runCli } from "../src/reconstruction_cli.ts";
 import { BlockType, DocumentResponseKind, EventKind, RecordType, ToolName } from "../src/structures/vocabulary.ts";
@@ -148,6 +149,19 @@ test("test_decideDocumentResponse_requires_consent_when_scripts_present", () => 
     }
 });
 
+test("test_decideDocumentResponse_tags_each_script_with_read_only_flag", () => {
+    // Scenario: the consent-required decision tags every script with readOnly, and the
+    // tag agrees with the execution gate's classifier (item 68) for that script's code.
+    const records = loadRecords(S37_JSONL);
+    const decision = decideDocumentResponse(records, false);
+    assert.equal(decision.kind, DocumentResponseKind.consentRequired);
+    for (const script of decision.kind === DocumentResponseKind.consentRequired ? decision.scripts : []) {
+        // Test verification: the flag exists and matches the gate for this exact code.
+        assert.equal(typeof script.readOnly, "boolean");
+        assert.equal(script.readOnly, !scriptCodeMayWriteFiles(script.code));
+    }
+});
+
 test("test_decideDocumentResponse_builds_when_consented", () => {
     // Scenario: the same script-bearing records WITH consent decide to build.
     const records = loadRecords(S37_JSONL);
@@ -221,18 +235,29 @@ test("test_buildDocumentWithConsent_restores_gate_after_build", () => {
 
 // -------------------- 3.1 runtime-switchable projects dir --------------------
 
+test("test_getProjectsDir_throws_before_any_setProjectsDir", () => {
+    // Scenario: there is no default scan root — the server refuses to start without
+    // --projects-dir, so reading the dir while unset is a loud error.
+    // NOTE: module state — this must stay the FIRST test that touches the projects dir.
+    assert.throws(() => getProjectsDir(), /--projects-dir/);
+});
+
 test("test_setProjectsDir_rejects_missing_directory", () => {
     // Scenario: pointing the app at a nonexistent path is a loud error (the server maps it
     // to 400), and the active dir is left unchanged.
-    const before = getProjectsDir();
-    assert.throws(() => setProjectsDir("/nonexistent/definitely/not/a/dir"));
-    assert.equal(getProjectsDir().toString(), before.toString());
+    const knownDir = mkdtempSync(join(tmpdir(), "reveng-known-"));
+    try {
+        const before = setProjectsDir(knownDir);
+        assert.throws(() => setProjectsDir("/nonexistent/definitely/not/a/dir"));
+        assert.equal(getProjectsDir().toString(), before.toString());
+    } finally {
+        rmSync(knownDir, { recursive: true, force: true });
+    }
 });
 
 test("test_setProjectsDir_switches_scan_root", () => {
     // Scenario: switching the active dir at runtime makes the scan reflect the new root.
     const projectsDir = mkdtempSync(join(tmpdir(), "reveng-switch-"));
-    const before = getProjectsDir();
     try {
         // Steps: put one fake project in a temp root and switch to it.
         mkdirSync(join(projectsDir, "gamma"));
@@ -243,7 +268,6 @@ test("test_setProjectsDir_switches_scan_root", () => {
         assert.deepEqual(listings.map((listing) => listing.name), ["gamma"]);
         assert.equal(getProjectsDir().toString(), switched.toString());
     } finally {
-        setProjectsDir(before.toString());
         rmSync(projectsDir, { recursive: true, force: true });
     }
 });
@@ -392,7 +416,6 @@ test("test_effective_file_history_dir_derives_sibling_of_projects_dir", () => {
     // Scenario: a copied claude-data tree has file-history/ sitting next to projects/; with
     // no explicit override the viewer serves that sibling.
     const treeRoot = mkdtempSync(join(tmpdir(), "reveng-fhs-derive-"));
-    const before = getProjectsDir();
     try {
         // Steps: build <X>/projects and <X>/file-history, switch the scan root to <X>/projects.
         mkdirSync(join(treeRoot, "projects"));
@@ -401,7 +424,6 @@ test("test_effective_file_history_dir_derives_sibling_of_projects_dir", () => {
         // assert the effective file-history dir is the derived sibling.
         assert.equal(getEffectiveFileHistoryDir().toString(), join(treeRoot, "file-history"));
     } finally {
-        setProjectsDir(before.toString());
         rmSync(treeRoot, { recursive: true, force: true });
     }
 });
@@ -410,7 +432,6 @@ test("test_set_file_history_dir_override_wins_then_clears_on_projects_switch", (
     // Scenario: an explicit file-history dir beats the sibling derivation; "" clears it; and
     // switching the projects folder clears it too (the webapp prepopulate behavior).
     const treeRoot = mkdtempSync(join(tmpdir(), "reveng-fhs-override-"));
-    const before = getProjectsDir();
     try {
         mkdirSync(join(treeRoot, "projects"));
         mkdirSync(join(treeRoot, "file-history"));
@@ -430,7 +451,6 @@ test("test_set_file_history_dir_override_wins_then_clears_on_projects_switch", (
         setProjectsDir(join(treeRoot, "projects"));
         assert.equal(getEffectiveFileHistoryDir().toString(), join(treeRoot, "file-history"));
     } finally {
-        setProjectsDir(before.toString());
         rmSync(treeRoot, { recursive: true, force: true });
     }
 });
@@ -439,7 +459,6 @@ test("test_apply_project_overrides_reads_config_entry_and_effective_fhs_root", (
     // Scenario: each project-scoped request applies its reveng-paths.json entry plus the
     // effective file-history root; a project without an entry keeps only the root.
     const treeRoot = mkdtempSync(join(tmpdir(), "reveng-apply-"));
-    const before = getProjectsDir();
     try {
         // Steps: a projects dir with a config entry for project "p" and a file-history sibling.
         mkdirSync(join(treeRoot, "projects"));
@@ -460,7 +479,6 @@ test("test_apply_project_overrides_reads_config_entry_and_effective_fhs_root", (
         assert.equal(getPathOverrides().baseCommit, undefined);
         assert.equal(getPathOverrides().fileHistoryRoot?.toString(), join(treeRoot, "file-history"));
     } finally {
-        setProjectsDir(before.toString());
         rmSync(treeRoot, { recursive: true, force: true });
     }
 });

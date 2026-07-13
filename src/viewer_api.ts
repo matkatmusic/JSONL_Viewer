@@ -3,7 +3,6 @@
 // views. Pure functions over the existing engine — the HTTP wiring lives in viewer_server.ts.
 
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { homedir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import { formatRecordSourceToken, getRecordSource, loadTranscript, type ProgressSink } from "./parse/loadTranscript.ts";
 import {
@@ -22,7 +21,7 @@ import {
     serializePathOverrides,
     setPathOverrides,
 } from "./reconstruction_overrides.ts";
-import { findScriptExecutionRuns, type ScriptRun } from "./reconstruction_script_execution.ts";
+import { findScriptExecutionRuns, scriptCodeMayWriteFiles, type ScriptRun } from "./reconstruction_script_execution.ts";
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { setReconstructionProgressSink } from "./reconstruction_progress.ts";
 import { getCachedValueRefreshingRecency, evictLeastRecentlyUsedEntries } from "./cache_lru.ts";
@@ -57,10 +56,15 @@ function reportStage(onProgress: ProgressSink | undefined, label: string): void 
     onProgress?.({ kind: DocumentResponseKind.progress, label });
 }
 
-// The app's runtime-switchable scan root (POST /api/config swaps it; Claude Code's default first).
-let activeProjectsDir = new Path(join(homedir(), ".claude", "projects"));
+// The app's runtime-switchable scan root (POST /api/config swaps it). There is NO default:
+// the server refuses to start without --projects-dir, so reading it while unset is a bug.
+// item 46: let activeProjectsDir = new Path(join(homedir(), ".claude", "projects"));
+let activeProjectsDir: Path | undefined;
 
 export function getProjectsDir(): Path {
+    if (activeProjectsDir === undefined) {
+        throw new Error("projects dir not set: start the server with --projects-dir <path>");
+    }
     return activeProjectsDir;
 }
 
@@ -101,7 +105,7 @@ export function setFileHistoryDir(requested: string): Path {
 // sibling of the projects folder → the ~/.claude default (item 46's resolution chain).
 export function getEffectiveFileHistoryDir(): Path {
     return activeFileHistoryDir
-        ?? deriveSiblingFileHistoryRoot(activeProjectsDir)
+        ?? (activeProjectsDir === undefined ? undefined : deriveSiblingFileHistoryRoot(activeProjectsDir))
         ?? getDefaultFileHistoryRoot();
 }
 
@@ -110,7 +114,7 @@ export function getEffectiveFileHistoryDir(): Path {
 // this BEFORE any build work; overrides are process-wide module state, so each request
 // overwrites the previous request's (builds are synchronous and the server serializes them).
 export function applyProjectOverrides(projectName: string): void {
-    const entry = readProjectPathsConfig(activeProjectsDir)[projectName];
+    const entry = readProjectPathsConfig(getProjectsDir())[projectName];
     const overrides = entry === undefined ? {} : hydrateProjectPaths(entry);
     overrides.fileHistoryRoot = getEffectiveFileHistoryDir();
     setPathOverrides(overrides);
@@ -248,8 +252,12 @@ export function buildProjectDocument(jsonlPaths: Path[], target: Path | undefine
     return buildReconstructionDocument(records, branched, reader, target);
 }
 
+// One recorded script run plus the consent dialog's read-only verdict: the same conservative
+// classifier execution uses (item 68) — uncertain code counts as may-write, i.e. Modifying.
+export type ConsentScript = ScriptRun & { readOnly: boolean };
+
 export type DocumentDecision =
-    | { kind: DocumentResponseKind.consentRequired; scripts: ScriptRun[] }
+    | { kind: DocumentResponseKind.consentRequired; scripts: ConsentScript[] }
     | { kind: DocumentResponseKind.document };
 
 // Decide whether a document build must first ask the user to consent to running the transcript's
@@ -258,7 +266,9 @@ export type DocumentDecision =
 export function decideDocumentResponse(records: TranscriptRecord[], allowScripts: boolean): DocumentDecision {
     const scripts = findScriptExecutionRuns(records);
     if (scripts.length > 0 && !allowScripts) {
-        return { kind: DocumentResponseKind.consentRequired, scripts };
+        // The dialog marks read-only scripts; the flag rides the wire with each script (item 69).
+        const taggedScripts = scripts.map((run) => ({ ...run, readOnly: !scriptCodeMayWriteFiles(run.code) }));
+        return { kind: DocumentResponseKind.consentRequired, scripts: taggedScripts };
     }
     return { kind: DocumentResponseKind.document };
 }

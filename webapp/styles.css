@@ -682,6 +682,7 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
     background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px;
     padding: 8px; overflow-x: auto; font-size: 12px; max-height: 200px; overflow-y: auto;
 }
+.consent-readonly-block summary { cursor: pointer; margin: 8px 0; }
 .consent-actions { display: flex; gap: 10px; margin-top: 10px; }
 .consent-run { border-color: var(--orange); color: var(--orange); }
 

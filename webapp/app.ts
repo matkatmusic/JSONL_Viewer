@@ -43,8 +43,9 @@ export function el(tag: string, attrs: ElAttrs = {}, children: (Node | string)[]
 
 // ─── shared fetch + caches ───────────────────────────────────────────────────
 
-// One recorded script execution awaiting consent (wire shape: timestamp is an ISO string).
-type WireConsentScript = { timestamp: string; cwd?: string; code: string };
+// One recorded script execution awaiting consent (wire shape: timestamp is an ISO string;
+// readOnly is the server's item-68 verdict — absent means treat as modifying).
+type WireConsentScript = { timestamp: string; cwd?: string; code: string; readOnly?: boolean };
 // The unified document payload is carried opaquely here; views type their own slices.
 type WireDocument = Record<string, unknown>;
 // One NDJSON line of the /api/document stream: progress lines, the error/consent terminals,
@@ -369,19 +370,76 @@ export async function fetchDocument<DocumentType = WireDocument>(project: string
     }
 }
 
+// How one stretch of the consent list renders: a full modifying row, or a collapsed
+// run of consecutive read-only scripts behind one expandable summary line (item 69).
+export enum ConsentBlockKind {
+    modifying = "modifying",
+    readOnlyRun = "read-only-run",
+}
+export type ConsentDisplayBlock =
+    | { kind: ConsentBlockKind.modifying; script: WireConsentScript }
+    | { kind: ConsentBlockKind.readOnlyRun; scripts: WireConsentScript[] };
+
+// Group the chronological script list into display blocks: each maximal run of consecutive
+// read-only scripts becomes one collapsed block; every other script is its own row.
+export function groupConsentScriptsIntoBlocks(scripts: WireConsentScript[]): ConsentDisplayBlock[] {
+    const blocks: ConsentDisplayBlock[] = [];
+    for (const script of scripts) {
+        const lastBlock = blocks[blocks.length - 1];
+        if (script.readOnly !== true) {
+            blocks.push({ kind: ConsentBlockKind.modifying, script });
+        } else if (lastBlock !== undefined && lastBlock.kind === ConsentBlockKind.readOnlyRun) {
+            lastBlock.scripts.push(script);
+        } else {
+            blocks.push({ kind: ConsentBlockKind.readOnlyRun, scripts: [script] });
+        }
+    }
+    return blocks;
+}
+
+// One script's row in the consent dialog: local timestamp (+ cwd when recorded) over its code.
+function buildConsentScriptRow(script: WireConsentScript): HTMLElement {
+    return el("div", { class: "consent-script" }, [
+        el("div", { class: "muted", text: new Date(script.timestamp).toLocaleString() + (script.cwd ? `  ·  cwd ${script.cwd}` : "") }),
+        el("pre", { text: script.code }),
+    ]);
+}
+
 // The consent dialog (plan 3.2): every script's code shown verbatim; running is opt-in;
 // declining still yields a (degraded) document. The choice is remembered per project for
-// this browser session only.
+// this browser session only. Read-only scripts (item 69) collapse into per-run <details>
+// blocks; the Show/hide button opens/closes all of them at once.
 export function renderConsentDialog(container: HTMLElement, project: string, scripts: WireConsentScript[]): void {
+    const readOnlyCount = scripts.filter((script) => script.readOnly === true).length;
+    const modifyingCount = scripts.length - readOnlyCount;
+    const countSplit = readOnlyCount > 0 ? ` — ${modifyingCount} modifying, ${readOnlyCount} read-only` : "";
     const box = el("div", { class: "consent-box" }, [
-        el("h2", { text: `This reconstruction contains ${scripts.length} recorded script execution(s)` }),
+        el("h2", { text: `This reconstruction contains ${scripts.length} recorded script execution(s)${countSplit}` }),
         el("div", { class: "muted", text: "Re-running them reproduces script-made file states. Nothing runs without your say-so." }),
     ]);
-    for (const script of scripts) {
-        box.append(el("div", { class: "consent-script" }, [
-            el("div", { class: "muted", text: new Date(script.timestamp).toLocaleString() + (script.cwd ? `  ·  cwd ${script.cwd}` : "") }),
-            el("pre", { text: script.code }),
-        ]));
+    if (readOnlyCount > 0) {
+        // Expand-all/collapse-all over the SAME per-block <details> state the triangles use:
+        // if any block is closed the click opens all, otherwise it closes all.
+        box.append(el("button", {
+            class: "toolbar-btn",
+            text: "Show/hide Read-only scripts",
+            onclick: () => {
+                const detailsBlocks = [...box.querySelectorAll<HTMLDetailsElement>("details.consent-readonly-block")];
+                const shouldOpen = detailsBlocks.some((block) => !block.open);
+                for (const block of detailsBlocks) block.open = shouldOpen;
+            },
+        }));
+    }
+    for (const block of groupConsentScriptsIntoBlocks(scripts)) {
+        if (block.kind === ConsentBlockKind.modifying) {
+            box.append(buildConsentScriptRow(block.script));
+        } else {
+            const firstTimestamp = new Date(block.scripts[0]!.timestamp).toLocaleString();
+            box.append(el("details", { class: "consent-readonly-block" }, [
+                el("summary", { class: "muted", text: `----- ${firstTimestamp} ${block.scripts.length} readonly script(s) -----` }),
+                ...block.scripts.map(buildConsentScriptRow),
+            ]));
+        }
     }
     const decide = (choice: string) => {
         storeConsentChoice(project, choice);
