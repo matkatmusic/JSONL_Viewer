@@ -16,7 +16,7 @@ import { findBackupTimeForBlob, findToolNavigationTargets } from "../webapp/insp
 import { buildConversationViewModel } from "../webapp/views/conversation.ts";
 import { buildProjectViewModel } from "../webapp/views/project.ts";
 import { filterProjectsByName } from "../webapp/views/projects.ts";
-import { ConsentBlockKind, groupConsentScriptsIntoBlocks } from "../webapp/app.ts";
+import { checkConsentScriptOverflowsPreview, ConsentBlockKind, groupConsentScriptsIntoBlocks } from "../webapp/app.ts";
 import { Path } from "../src/structures/domain.ts";
 import { jsonlPathsForScenario, readNonEmptyLines } from "./utilities.ts";
 import { S19_JSONL } from "./fixtures.ts";
@@ -625,4 +625,22 @@ test("test_groupConsentScriptsIntoBlocks_treats_missing_flag_as_modifying", () =
 test("test_groupConsentScriptsIntoBlocks_returns_no_blocks_for_no_scripts", () => {
     // Scenario: an empty script list yields an empty block list (no phantom summary line).
     assert.equal(groupConsentScriptsIntoBlocks([]).length, 0);
+});
+
+test("test_checkConsentScriptOverflowsPreview_returns_false_for_short_script", () => {
+    // Scenario: a script that fits inside the 200px preview needs no Expand button.
+    // Steps:
+    // build a script whose line count is exactly the preview capacity (12 lines).
+    const code = Array.from({ length: 12 }, (_, index) => `line ${index}`).join("\n");
+    // the overflow check must say the preview does NOT overflow.
+    assert.equal(checkConsentScriptOverflowsPreview(code), false);
+});
+
+test("test_checkConsentScriptOverflowsPreview_returns_true_for_script_longer_than_preview", () => {
+    // Scenario: a script one line taller than the preview capacity gets an Expand button.
+    // Steps:
+    // build a script whose line count is one over the preview capacity (13 lines).
+    const code = Array.from({ length: 13 }, (_, index) => `line ${index}`).join("\n");
+    // the overflow check must say the preview DOES overflow.
+    assert.equal(checkConsentScriptOverflowsPreview(code), true);
 });

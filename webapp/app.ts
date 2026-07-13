@@ -11,6 +11,7 @@ import { renderFileHistoryView } from "./views/file-history.ts";
 import { renderRawLinesView } from "./views/raw-lines.ts";
 import { renderDiffVsBaseView } from "./views/diff-vs-base.ts";
 import { renderTimelineView } from "./views/timeline.ts";
+import { renderCodeInto } from "./highlight.ts";
 import type { Terminal as XtermTerminal } from "@xterm/xterm";
 import type { FitAddon as XtermFitAddon } from "@xterm/addon-fit";
 
@@ -397,12 +398,40 @@ export function groupConsentScriptsIntoBlocks(scripts: WireConsentScript[]): Con
     return blocks;
 }
 
-// One script's row in the consent dialog: local timestamp (+ cwd when recorded) over its code.
+// Preview capacity of a consent-script <pre> in code lines. styles.css clips the pre at
+// max-height 200px; at 12px font / ~1.4 line-height plus 8px paddings that is ~12 lines.
+// ponytail: line-count heuristic, not a scrollHeight measurement — switch to measuring the
+// rendered element if wrapped/oversized lines ever make this misjudge real previews.
+const CONSENT_PREVIEW_MAX_LINES = 12;
+
+// True when a consent script's code has more lines than the clipped preview can show,
+// i.e. the row needs an Expand button (item 70).
+export function checkConsentScriptOverflowsPreview(code: string): boolean {
+    return code.split("\n").length > CONSENT_PREVIEW_MAX_LINES;
+}
+
+// Pseudo-path handed to renderCodeInto so consent code highlights as Python — every
+// recorded run executes as `python3 __script__.py` (reconstruction_script_execution.ts).
+const CONSENT_SCRIPT_LANGUAGE_PATH = "__script__.py";
+
+// One script's row in the consent dialog: local timestamp (+ cwd when recorded) over its
+// python-highlighted code; scripts taller than the preview clip get an Expand toggle (item 70).
 function buildConsentScriptRow(script: WireConsentScript): HTMLElement {
-    return el("div", { class: "consent-script" }, [
+    const pre = el("pre");
+    renderCodeInto(pre, script.code, CONSENT_SCRIPT_LANGUAGE_PATH);
+    const row = el("div", { class: "consent-script" }, [
         el("div", { class: "muted", text: new Date(script.timestamp).toLocaleString() + (script.cwd ? `  ·  cwd ${script.cwd}` : "") }),
-        el("pre", { text: script.code }),
+        pre,
     ]);
+    if (checkConsentScriptOverflowsPreview(script.code)) {
+        const expandButton = el("button", { class: "toolbar-btn", text: "Expand" });
+        expandButton.onclick = () => {
+            const nowExpanded = pre.classList.toggle("expanded");
+            expandButton.textContent = nowExpanded ? "Collapse" : "Expand";
+        };
+        row.append(expandButton);
+    }
+    return row;
 }
 
 // The consent dialog (plan 3.2): every script's code shown verbatim; running is opt-in;
@@ -449,6 +478,45 @@ export function renderConsentDialog(container: HTMLElement, project: string, scr
         el("button", { class: "toolbar-btn consent-run", text: "Run scripts for this reconstruction", onclick: () => decide("1") }),
         el("button", { class: "toolbar-btn", text: "Continue without running", onclick: () => decide("0") }),
     ]));
+    // item 72: the static #toggle-all skeleton button (index.html) is otherwise dead on the
+    // consent screen — renderTimelineView returns early before wiring it. Here it expands or
+    // collapses every script preview and read-only <details> block at once. onclick property
+    // assignment (not addEventListener) so re-renders never stack handlers. Re-query the DOM
+    // on every click — the per-row Expand buttons and the read-only Show/hide button mutate
+    // the same expanded state between clicks.
+    const toggleAllButton = document.getElementById("toggle-all") as HTMLButtonElement;
+    const collectExpandables = () => ({
+        previews: [...box.querySelectorAll<HTMLPreElement>(".consent-script pre")]
+            .filter((pre) => checkConsentScriptOverflowsPreview(pre.textContent ?? "")),
+        readOnlyBlocks: [...box.querySelectorAll<HTMLDetailsElement>("details.consent-readonly-block")],
+    });
+    const updateToggleAllLabel = () => {
+        const { previews, readOnlyBlocks } = collectExpandables();
+        const anyCollapsed = previews.some((pre) => !pre.classList.contains("expanded"))
+            || readOnlyBlocks.some((block) => !block.open);
+        const nothingExpandable = previews.length === 0 && readOnlyBlocks.length === 0;
+        // With nothing expandable the button is inert; "Expand All" is the least-misleading label.
+        toggleAllButton.textContent = anyCollapsed || nothingExpandable ? "Expand All" : "Collapse All";
+    };
+    toggleAllButton.onclick = () => {
+        const { previews, readOnlyBlocks } = collectExpandables();
+        const shouldExpand = previews.some((pre) => !pre.classList.contains("expanded"))
+            || readOnlyBlocks.some((block) => !block.open);
+        for (const pre of previews) pre.classList.toggle("expanded", shouldExpand);
+        for (const block of readOnlyBlocks) block.open = shouldExpand;
+        for (const pre of previews) {
+            // Keep each row's own Expand/Collapse button label in step with the global toggle.
+            const row = pre.parentElement;
+            if (row !== null) {
+                const rowButton = row.querySelector("button");
+                if (rowButton !== null) {
+                    rowButton.textContent = shouldExpand ? "Collapse" : "Expand";
+                }
+            }
+        }
+        updateToggleAllLabel();
+    };
+    updateToggleAllLabel();
     container.append(box);
 }
 

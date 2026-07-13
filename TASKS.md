@@ -833,3 +833,23 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   (viewer-api.test.ts) + 3 grouping tests (viewer-viewmodels.test.ts). Both
   typechecks clean (`tsc --noEmit`, `tsc -p tsconfig.webapp.json --noEmit`); suite
   not run (user runs). Plan: `~/.claude/plans/item69-consent-readonly-ui.md`.
+
+- [x] **70. Add Expand Button to Script Preview** Feature: in the Script Execution Consent page: script previews need an 'expand' button to show the full script, when the script is longer than the current preview max height (seems line ~10 lines but exact value needs verification).
+  DONE 2026-07-13: preview clip is `max-height: 200px` (styles.css) ≈ 12 code lines;
+  `buildConsentScriptRow` (app.ts) appends an Expand/Collapse toggle when
+  `checkConsentScriptOverflowsPreview` (exported, line-count > 12) says the code
+  overflows; toggle flips `pre.expanded` (`max-height: none`). 2 tests added in
+  viewer-viewmodels.test.ts; suite not run (user runs).
+- [x] **71. Add syntax highlighting to Script Execution Consent page** Feature: Scripts displayed in the Script Execution Consent page should also have syntax highlighting if the script's language is a known supported language. 
+  DONE 2026-07-13: consent script code is always Python (engine executes every run as
+  `python3 __script__.py`, reconstruction_script_execution.ts:525), so
+  `buildConsentScriptRow` reuses the item-49 highlighter `renderCodeInto`
+  (webapp/highlight.ts) with pseudo-path `__script__.py`; plain-text fallback when
+  hljs is absent is built into that helper.
+- [x] **72. JFRED post-load screen has non-functional 'Expand All' button** Bug: in the Script Execution Consent page: the `[Expand all]` button doesn't do anything when clicked.  Either hide the button if it is not meant to interact with Script previews, or make it expand each displayed script preview to show the entire script. 
+  DONE 2026-07-13: root cause — `#toggle-all` is a static skeleton button that only
+  `renderTimelineView` wired, and the consent path returns early before that wiring.
+  Took the "make it work" option: `renderConsentDialog` (app.ts) now assigns
+  `toggleAllButton.onclick` to expand/collapse every overflowing script preview AND
+  open/close every read-only `<details>` block, keeping per-row button labels and the
+  Expand All/Collapse All label in step.
