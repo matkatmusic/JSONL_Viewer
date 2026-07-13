@@ -434,6 +434,20 @@ function buildConsentScriptRow(script: WireConsentScript): HTMLElement {
     return row;
 }
 
+// Default consent-header selection (item 73): the first modifying script, matching the
+// missing-flag rule used by groupConsentScriptsIntoBlocks. undefined when every script is
+// read-only — read-only rows start hidden inside closed <details>, so nothing is selectable.
+export function findDefaultConsentSelectionIndex(scripts: WireConsentScript[]): number | undefined {
+    const firstModifyingIndex = scripts.findIndex((script) => script.readOnly !== true);
+    return firstModifyingIndex === -1 ? undefined : firstModifyingIndex;
+}
+
+// Prev/Next stepping over the currently visible consent rows (item 73): clamps at both ends
+// instead of wrapping; a currentIndex of -1 (no selection yet) enters the list at row 0.
+export function clampConsentSelectionStep(currentIndex: number, delta: number, visibleRowCount: number): number {
+    return Math.min(visibleRowCount - 1, Math.max(0, currentIndex + delta));
+}
+
 // The consent dialog (plan 3.2): every script's code shown verbatim; running is opt-in;
 // declining still yields a (degraded) document. The choice is remembered per project for
 // this browser session only. Read-only scripts (item 69) collapse into per-run <details>
@@ -442,8 +456,32 @@ export function renderConsentDialog(container: HTMLElement, project: string, scr
     const readOnlyCount = scripts.filter((script) => script.readOnly === true).length;
     const modifyingCount = scripts.length - readOnlyCount;
     const countSplit = readOnlyCount > 0 ? ` — ${modifyingCount} modifying, ${readOnlyCount} read-only` : "";
-    const box = el("div", { class: "consent-box" }, [
+    // item 73: decide moved above the header build — the decision buttons now live in the
+    // sticky header instead of a bottom .consent-actions row.
+    const decide = (choice: string) => {
+        storeConsentChoice(project, choice);
+        renderRoute();
+    };
+    const runButton = el("button", { class: "toolbar-btn consent-run", text: "Run scripts for this reconstruction", onclick: () => decide("1") }) as HTMLButtonElement;
+    const continueButton = el("button", { class: "toolbar-btn", text: "Continue without running", onclick: () => decide("0") }) as HTMLButtonElement;
+    const jumpToTopButton = el("button", { class: "toolbar-btn consent-jump-top", text: "Jump to top", onclick: () => container.scrollTo({ top: 0, behavior: "smooth" }) }) as HTMLButtonElement;
+    const prevButton = el("button", { class: "toolbar-btn", text: "< Prev" }) as HTMLButtonElement;
+    const nextButton = el("button", { class: "toolbar-btn", text: "Next >" }) as HTMLButtonElement;
+    const navCounter = el("span", { class: "muted consent-nav-counter" });
+    const expandAllButton = el("button", { class: "toolbar-btn", text: "Expand All" }) as HTMLButtonElement;
+    // item 73: sticky header — the message, decision buttons, and script navigation stay
+    // visible while the previews scroll (styles.css .consent-header).
+    const header = el("div", { class: "consent-header" }, [
         el("h2", { text: `This reconstruction contains ${scripts.length} recorded script execution(s)${countSplit}` }),
+        el("div", { class: "consent-header-row" }, [
+            runButton, continueButton, jumpToTopButton, prevButton, nextButton, navCounter, expandAllButton,
+        ]),
+    ]);
+    const box = el("div", { class: "consent-box" }, [
+        header,
+        // item 73: was — the message rendered as a plain first child and scrolled away with
+        // the previews; it now lives in the sticky header above:
+        // el("h2", { text: `This reconstruction contains ${scripts.length} recorded script execution(s)${countSplit}` }),
         el("div", { class: "muted", text: "Re-running them reproduces script-made file states. Nothing runs without your say-so." }),
     ]);
     if (readOnlyCount > 0) {
@@ -470,21 +508,70 @@ export function renderConsentDialog(container: HTMLElement, project: string, scr
             ]));
         }
     }
-    const decide = (choice: string) => {
-        storeConsentChoice(project, choice);
-        renderRoute();
+    // item 73: was — decide + the decision buttons rendered at the BOTTOM of the script list
+    // and scrolled out of reach; both buttons now live in the sticky header above:
+    // const decide = (choice: string) => {
+    //     storeConsentChoice(project, choice);
+    //     renderRoute();
+    // };
+    // box.append(el("div", { class: "consent-actions" }, [
+    //     el("button", { class: "toolbar-btn consent-run", text: "Run scripts for this reconstruction", onclick: () => decide("1") }),
+    //     el("button", { class: "toolbar-btn", text: "Continue without running", onclick: () => decide("0") }),
+    // ]));
+    // item 73: Prev/Next walk the VISIBLE script rows — modifying rows always, read-only rows
+    // only while their <details> block is open. Rows sit in scripts[] order (grouping is
+    // contiguous and order-preserving), so allConsentRows()[i] corresponds to scripts[i].
+    const allConsentRows = () => [...box.querySelectorAll<HTMLElement>(".consent-script")];
+    const collectVisibleConsentRows = () => allConsentRows()
+        .filter((row) => row.closest("details:not([open])") === null);
+    const defaultIndex = findDefaultConsentSelectionIndex(scripts);
+    let selectedRow: HTMLElement | undefined = defaultIndex === undefined ? undefined : allConsentRows()[defaultIndex];
+    const updateScriptNavState = () => {
+        const visibleRows = collectVisibleConsentRows();
+        if (selectedRow === undefined || !visibleRows.includes(selectedRow)) {
+            // The selected row's block closed (or nothing was selectable yet): fall back to
+            // the first visible row so the rectangle never sits on a hidden script.
+            selectedRow = visibleRows[0];
+        }
+        for (const row of allConsentRows()) {
+            row.classList.toggle("consent-selected", row === selectedRow);
+        }
+        const nothingNavigable = visibleRows.length === 0;
+        prevButton.hidden = nothingNavigable;
+        nextButton.hidden = nothingNavigable;
+        navCounter.hidden = nothingNavigable;
+        if (selectedRow !== undefined) {
+            const selectedIndex = visibleRows.indexOf(selectedRow);
+            prevButton.disabled = selectedIndex <= 0;
+            nextButton.disabled = selectedIndex >= visibleRows.length - 1;
+            navCounter.textContent = `Script ${selectedIndex + 1} of ${visibleRows.length}`;
+        }
     };
-    box.append(el("div", { class: "consent-actions" }, [
-        el("button", { class: "toolbar-btn consent-run", text: "Run scripts for this reconstruction", onclick: () => decide("1") }),
-        el("button", { class: "toolbar-btn", text: "Continue without running", onclick: () => decide("0") }),
-    ]));
-    // item 72: the static #toggle-all skeleton button (index.html) is otherwise dead on the
-    // consent screen — renderTimelineView returns early before wiring it. Here it expands or
-    // collapses every script preview and read-only <details> block at once. onclick property
+    const navigateConsentScript = (delta: number) => {
+        const visibleRows = collectVisibleConsentRows();
+        if (visibleRows.length === 0) {
+            return;
+        }
+        const currentIndex = selectedRow === undefined ? -1 : visibleRows.indexOf(selectedRow);
+        selectedRow = visibleRows[clampConsentSelectionStep(currentIndex, delta, visibleRows.length)];
+        updateScriptNavState();
+        selectedRow?.scrollIntoView({ block: "center", behavior: "smooth" });
+    };
+    prevButton.onclick = () => navigateConsentScript(-1);
+    nextButton.onclick = () => navigateConsentScript(1);
+    // <details> toggle events don't bubble but ARE observable in the capture phase, and they
+    // fire for programmatic open changes too — one listener covers the per-block triangles,
+    // the Show/hide button, and Expand All.
+    box.addEventListener("toggle", () => updateScriptNavState(), true);
+    updateScriptNavState();
+    // item 72/73: Expand All expands or collapses every script preview and read-only <details>
+    // block at once. item 73 moved the button into the sticky consent header (the static
+    // #toggle-all skeleton is hidden while consent shows — see below). onclick property
     // assignment (not addEventListener) so re-renders never stack handlers. Re-query the DOM
     // on every click — the per-row Expand buttons and the read-only Show/hide button mutate
     // the same expanded state between clicks.
-    const toggleAllButton = document.getElementById("toggle-all") as HTMLButtonElement;
+    // const toggleAllButton = document.getElementById("toggle-all") as HTMLButtonElement;
+    const toggleAllButton = expandAllButton;
     const collectExpandables = () => ({
         previews: [...box.querySelectorAll<HTMLPreElement>(".consent-script pre")]
             .filter((pre) => checkConsentScriptOverflowsPreview(pre.textContent ?? "")),
@@ -517,6 +604,9 @@ export function renderConsentDialog(container: HTMLElement, project: string, scr
         updateToggleAllLabel();
     };
     updateToggleAllLabel();
+    // item 73: the header row owns Expand All during consent; hide the skeleton button so two
+    // Expand All buttons never show at once. renderRoute un-hides it on every navigation.
+    (document.getElementById("toggle-all") as HTMLButtonElement).hidden = true;
     container.append(box);
 }
 
@@ -644,6 +734,9 @@ async function renderRoute(): Promise<void> {
     const view = document.getElementById("view")!;
     view.replaceChildren();
     view.onclick = null;
+    // item 73: the consent dialog hides #toggle-all while its header owns Expand All; every
+    // navigation restores the skeleton button before the next view wires or ignores it.
+    (document.getElementById("toggle-all") as HTMLButtonElement).hidden = false;
     // item 66: was — emptied the whole inspector pane on every route change:
     // const inspector = document.getElementById("inspector")!;
     // inspector.classList.add("hidden");

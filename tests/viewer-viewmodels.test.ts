@@ -16,7 +16,7 @@ import { findBackupTimeForBlob, findToolNavigationTargets } from "../webapp/insp
 import { buildConversationViewModel } from "../webapp/views/conversation.ts";
 import { buildProjectViewModel } from "../webapp/views/project.ts";
 import { filterProjectsByName } from "../webapp/views/projects.ts";
-import { checkConsentScriptOverflowsPreview, ConsentBlockKind, groupConsentScriptsIntoBlocks } from "../webapp/app.ts";
+import { checkConsentScriptOverflowsPreview, clampConsentSelectionStep, ConsentBlockKind, findDefaultConsentSelectionIndex, groupConsentScriptsIntoBlocks } from "../webapp/app.ts";
 import { Path } from "../src/structures/domain.ts";
 import { jsonlPathsForScenario, readNonEmptyLines } from "./utilities.ts";
 import { S19_JSONL } from "./fixtures.ts";
@@ -643,4 +643,56 @@ test("test_checkConsentScriptOverflowsPreview_returns_true_for_script_longer_tha
     const code = Array.from({ length: 13 }, (_, index) => `line ${index}`).join("\n");
     // the overflow check must say the preview DOES overflow.
     assert.equal(checkConsentScriptOverflowsPreview(code), true);
+});
+
+// -------------------- consent header script navigation (item 73) --------------------
+
+test("test_findDefaultConsentSelectionIndex_picks_first_modifying_script", () => {
+    // Scenario: the consent header's default selection is the first modifying script.
+    // Steps:
+    // a script list holds two read-only scripts followed by a modifying one.
+    const scripts = [makeConsentScript(1, true), makeConsentScript(2, true), makeConsentScript(3, false)];
+    // the default selection index is the modifying script's position in the full list.
+    assert.equal(findDefaultConsentSelectionIndex(scripts), 2);
+});
+
+test("test_findDefaultConsentSelectionIndex_treats_missing_flag_as_modifying", () => {
+    // Scenario: a script without a readOnly flag counts as modifying (same rule as
+    // groupConsentScriptsIntoBlocks).
+    // Steps:
+    // a script list holds one read-only script followed by one with no flag at all.
+    const scripts = [makeConsentScript(1, true), { timestamp: "2026-01-01T00:00:02Z", code: "print(2)" }];
+    // the unflagged script is the default selection.
+    assert.equal(findDefaultConsentSelectionIndex(scripts), 1);
+});
+
+test("test_findDefaultConsentSelectionIndex_returns_undefined_when_all_read_only", () => {
+    // Scenario: with no modifying script there is no default selection — every row starts
+    // hidden inside a closed read-only <details> block, so nothing is selectable on load.
+    // Steps:
+    // a script list holds only read-only scripts.
+    const scripts = [makeConsentScript(1, true), makeConsentScript(2, true)];
+    // no index is returned.
+    assert.equal(findDefaultConsentSelectionIndex(scripts), undefined);
+});
+
+test("test_clampConsentSelectionStep_advances_within_bounds", () => {
+    // Scenario: stepping forward from the middle of three visible scripts selects the next one.
+    assert.equal(clampConsentSelectionStep(1, 1, 3), 2);
+});
+
+test("test_clampConsentSelectionStep_clamps_at_last_script", () => {
+    // Scenario: stepping forward from the last visible script stays on the last script (no wrap).
+    assert.equal(clampConsentSelectionStep(2, 1, 3), 2);
+});
+
+test("test_clampConsentSelectionStep_clamps_at_first_script", () => {
+    // Scenario: stepping backward from the first visible script stays on the first script (no wrap).
+    assert.equal(clampConsentSelectionStep(0, -1, 3), 0);
+});
+
+test("test_clampConsentSelectionStep_enters_list_from_no_selection", () => {
+    // Scenario: with no current selection (index -1, e.g. every row was hidden until a
+    // read-only block opened), stepping forward lands on the first visible script.
+    assert.equal(clampConsentSelectionStep(-1, 1, 3), 0);
 });

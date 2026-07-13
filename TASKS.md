@@ -853,3 +853,30 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   `toggleAllButton.onclick` to expand/collapse every overflowing script preview AND
   open/close every read-only `<details>` block, keeping per-row button labels and the
   Expand All/Collapse All label in step.
+
+- [x] **73. Script Execution Consent Header**
+  - move "This reconstruction contains N recorded script execution(s)" to header row above Consent Pane's script previews, so scrolling the script previews doesn't hide that message. The header's only row currently shows "Timeline  <gap> [Expand all]"
+  - Add `[< Prev] [Next >] Script n of N`  buttons and text to Script Consent Header, to the left of `[Expand all]`
+  - - The enablement and visibility of these Script navigation buttons is directly dependent on the visibility of any script preview panels
+  - - Clicking the navigation button should scroll the consent window and bring the selected script to the center of the Consent view.
+  - - when buttons are active, show a selection rectangle around the script preview element that has been navigated to.
+  - - Default selection choice when consent window loads should be the first Modifying script. 
+  - add 'Script n of N' when script navigation buttons are displayed, between script navigation buttons and `[expand All]` button.
+  - add a `[Jump to top]` button to jump to the top of the Script Previews pane.
+
+  Header design: 
+  ---
+  This reconstruction contains N recorded script execution(s)...
+  `[run scripts for this reconstruction]` `[continue without running]` <gap>  `[Jump to top]`[< prev]``[next >]` Script n of N `[Expand All]`
+  ---
+
+  DONE 2026-07-13: sticky `.consent-header` inside the consent box (CSS position: sticky —
+  message + button row never scroll away); decision buttons moved up from the old bottom
+  `.consent-actions` row; header owns Expand All (item-72 wiring re-targeted, static
+  `#toggle-all` hidden during consent and restored by renderRoute); Prev/Next step over
+  VISIBLE rows only (modifying always, read-only while their `<details>` is open — one
+  capture-phase toggle listener refreshes state), clamped stepping, scrollIntoView
+  block:center, `.consent-selected` outline; default selection = first Modifying script
+  via exported `findDefaultConsentSelectionIndex`; Jump to top scrolls #view to 0.
+  Pure helpers unit-tested in tests/viewer-viewmodels.test.ts. Plan:
+  plans/item73-consent-header.md.

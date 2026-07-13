@@ -685,8 +685,26 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
 .consent-script pre.expanded { max-height: none; }
 .consent-script button { margin-top: 4px; }
 .consent-readonly-block summary { cursor: pointer; margin: 8px 0; }
-.consent-actions { display: flex; gap: 10px; margin-top: 10px; }
+/* item 73: was — the decision buttons rendered in a bottom row; they moved into the header:
+.consent-actions { display: flex; gap: 10px; margin-top: 10px; } */
 .consent-run { border-color: var(--orange); color: var(--orange); }
+/* item 73: sticky consent header — the message, decision buttons, and script navigation stay
+   visible while the previews scroll. Negative margins span the box's 12px/16px padding. */
+.consent-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--panel);
+    margin: -12px -16px 8px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+}
+.consent-header-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+/* The gap in the item-73 header design: decision buttons left, navigation cluster right. */
+.consent-jump-top { margin-left: auto; }
+.consent-nav-counter { font-size: 11px; }
+/* item 73: selection rectangle on the script row Prev/Next navigated to. */
+.consent-script.consent-selected { outline: 2px solid var(--orange); outline-offset: 2px; }
 
 /* ─── Conversation view (details-pane sub-route) ──────────────── */
 .branch-strip { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
