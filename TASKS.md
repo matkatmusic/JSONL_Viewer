@@ -994,4 +994,21 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   hardcoded 15 — one line. FitAddon was already computing rows and the code was discarding them.
   Visual confirmation at the repro is the user's standing pass (same category as the other
   console DOM helpers — no unit test). 
-- [ ] 82: progress indicator is not helpful in showing the work that is being done by the server before the timeline is shown. a complete overhaul of how notifying the viewer of the page of what the server is doing while loading a project is needed so the progress indicator conveys meaningful information.   one task to get this progress indicator more useful to the end user: tell the user the best way to relay back to the agent what actually happens when loading a project and where the progress indicator should be showing something but is not. 
+- [x] 82: progress indicator overhaul — done (plan `plans/item82-loading-progress-overhaul.md`,
+  notes `plans/implementation-notes-item82-loading-progress-overhaul.md`). A real capture of
+  `/api/document?progress=1` for `-Users-matkatmusicllc-Programming-jot-backup` (mockup:
+  `mockups/loading-progress.html`) proved the "frozen 5s+" is NOT the build stages — it's the
+  **67.1 MB document**: 20,418 per-record parse lines flood in ~2.6s, then the console freezes on
+  "reusing cached document artifact" for ~4s warm / 33s cold while the server `JSON.stringify`s
+  67 MB and the browser `JSON.parse`s it — both outside any progress line. Fix, reusing the
+  existing NDJSON stream / `showLoadingProgress` (no new transport): (a) server brackets the two
+  silent blocking steps with honest lines `serializing document` + `sending document (N MB)`
+  (`viewer_server.ts`, `viewer_api.ts`); (b) the cache-hit per-record replay is throttled from one
+  line/record to ≤50 counted, still token-bearing lines (`computeRecordProgressStride` in
+  `viewer_api.ts`); (c) the client indicator is now always-visible with a ticking elapsed clock, a
+  phase-N-of-6 header + bar (`classifyLoadPhase`), a determinate stage bar when counted and an
+  animated shimmer when not, and a `parsing document — N MB` label + paint-yield before the
+  terminal `JSON.parse` (`webapp/app.ts`, `webapp/styles.css`). The 67 MB payload itself and the
+  cold per-record parse flood are deliberately left as separate follow-ups. Client behaviour is the
+  user's standing visual-verify (console/overlay convention); pure helpers covered by
+  `tests/loading-progress.test.ts`. 

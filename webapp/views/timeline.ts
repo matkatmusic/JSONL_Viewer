@@ -1149,6 +1149,13 @@ export async function renderTimelineView(container: HTMLElement, project: string
     }
     // app.ts ships the streamed document as an opaque Record; this view reads the timeline fields.
     const reconstructionDocument = result.document as WireTimelineDocument;
+    // fetchDocument hid its indicator on resolve, but the synchronous view-model build below runs over
+    // the whole (large) document — that is the unresponsive, blank gap the user sees between
+    // "transferring document" and "Building timeline". Put an indeterminate indicator back up and yield
+    // one frame so the browser paints it first; the shimmer is transform-based, so it keeps animating on
+    // the compositor even while this thread is blocked building the view-model. (item 82)
+    showLoadingProgress("preparing timeline…", Number.NaN);
+    await waitForNextAnimationFrame();
     const { nodes } = buildTurnTimelineViewModel(reconstructionDocument);
     const listing = (await fetchJson<WireProjectListing[]>("/api/projects")).find((entry) => entry.name === project);
     // (item 66) old local closure, lifted into the exported view-model helper findJsonlForSession:

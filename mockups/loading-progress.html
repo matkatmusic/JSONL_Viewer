@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loading-progress overhaul — mockup (real capture)</title>
+<style>
+  /* Theme vars lifted from webapp/styles.css so the mockup reads like the real app. */
+  :root {
+    --mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    --ui: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    --bg: #f5f6f8; --panel: #eceef3; --border: #c9cdd6;
+    --text: #1c1e26; --muted: #666c78; --accent: #0a66c2; --code-bg: #ffffff; --warn: #b26a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a2e; --panel: #16213e; --border: #333;
+      --text: #e0e0e0; --muted: #888; --accent: #7ecfff; --code-bg: #10101f; --warn: #ffcf70;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px var(--ui); background: var(--bg); color: var(--text); }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 26px 20px 60px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 6px; font-size: 13px; line-height: 1.55; }
+  .real { font-size: 12.5px; color: var(--muted); background: var(--panel); border: 1px solid var(--border);
+          border-radius: 8px; padding: 10px 13px; margin: 12px 0 18px; line-height: 1.6; }
+  .real b { color: var(--text); } .real .hot { color: var(--warn); font-weight: 600; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; }
+  button { font: 13px var(--ui); padding: 7px 14px; border-radius: 6px; cursor: pointer;
+           border: 1px solid var(--border); background: var(--panel); color: var(--text); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  @media (prefers-color-scheme: dark) { button.primary { color: #0a1220; } }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; }
+  .seg button.on { background: var(--accent); color: #fff; }
+  @media (prefers-color-scheme: dark) { .seg button.on { color: #0a1220; } }
+  label.chk { font-size: 13px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .stage-area { position: relative; min-height: 150px; }
+  .overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+             background: color-mix(in srgb, var(--bg) 70%, transparent);
+             border: 1px dashed var(--border); border-radius: 10px; }
+  .box { display: flex; flex-direction: column; gap: 10px; min-width: 360px; max-width: 92%;
+         padding: 20px 24px; border: 1px solid var(--border); border-radius: 8px;
+         background: var(--panel); color: var(--text); font: 13px var(--ui); }
+  .box-head { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); }
+  .phase-name { color: var(--text); font-weight: 600; }
+  .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px var(--mono); min-height: 16px; }
+  .track { height: 6px; border-radius: 3px; background: var(--code-bg); overflow: hidden; position: relative; }
+  .fill { height: 100%; width: 0; background: var(--accent); transition: width 0.1s linear; }
+  .track.indeterminate .fill { width: 100% !important; opacity: .16; }
+  .track.indeterminate::after { content: ""; position: absolute; inset: 0; width: 38%;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: slide 1.05s ease-in-out infinite; }
+  @keyframes slide { 0% { transform: translateX(-110%);} 100% { transform: translateX(330%);} }
+  .stage-track { height: 4px; }
+  .console { margin-top: 20px; background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+             padding: 10px 12px; height: 210px; overflow: auto; font: 12px var(--mono); line-height: 1.5; }
+  .console .t { color: var(--muted); } .console .src { color: var(--accent); } .console .hot { color: var(--warn); }
+  .note { margin-top: 18px; font-size: 12.5px; color: var(--muted); line-height: 1.65; }
+  .note b { color: var(--text); } .note code { background: var(--panel); padding: 1px 4px; border-radius: 3px; }
+  .done-badge { color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Project-loading progress — overhaul mockup</h1>
+  <p class="sub">Task 82. Driven by a <b>real capture</b> of <code>/api/document?progress=1</code> for
+    <code>-Users-matkatmusicllc-Programming-jot-backup</code>. Toggle <b>Old</b> vs <b>New</b>, hit Replay,
+    and watch the <span style="color:var(--warn)">document-serialize stall</span> — that's the frozen stretch you reported.</p>
+
+  <div class="real">
+    <b>What the capture measured (warm cache):</b> 16 transcripts · <b>20,418</b> per-record parse lines flood in ~2.6s ·
+    document is a cache hit but <span class="hot">67.1 MB</span> · then a
+    <span class="hot">silent stall</span> = server <code>JSON.stringify</code> (~4s warm, <b>33s</b> on the cold first run)
+    + browser <code>JSON.parse</code> of 67 MB — all <b>outside any progress line</b>, so the console freezes on
+    "reusing cached document artifact".
+  </div>
+
+  <div class="controls">
+    <button id="replay" class="primary">▶ Replay load</button>
+    <div class="seg" role="tablist">
+      <button id="mode-old">Old behavior</button>
+      <button id="mode-new" class="on">New behavior</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="cold"> simulate cold first-run (33s stall)</label>
+  </div>
+  <p class="sub" id="mode-caption" style="margin-top:-6px;"></p>
+
+  <div class="stage-area">
+    <div class="overlay" id="overlay" style="display:none;">
+      <div class="box">
+        <div class="box-head">
+          <span><span class="phase-name" id="phaseName">—</span> <span id="phaseCount"></span></span>
+          <span id="elapsed"></span>
+        </div>
+        <div class="track"><div class="fill" id="phaseFill"></div></div>
+        <div class="label" id="stageLabel">starting…</div>
+        <div class="track stage-track" id="stageTrack"><div class="fill" id="stageFill"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="console" id="console"></div>
+  <p class="note" id="note"></p>
+</div>
+
+<script>
+// Phases mirror the real stream order. M = 6.
+const PHASES = ["Resolving transcripts","Parsing records","Checking script consent","Fetching document","Parsing document","Rendering timeline"];
+// Real record-type labels seen in the capture — cycled to reproduce the 20k-line parse flood.
+const RECORD_TYPES = ["custom-title","agent-name","last-prompt","permission-mode","bridge-session","system",
+  "attachment","attachment","user","assistant","queue-operation","file-history-snapshot","assistant","ai-title"];
+const JSONL = "4dfc1259-…-jsonl", TOTAL_RECORDS = 20418;
+
+const $ = (id) => document.getElementById(id);
+let mode = "new", running = false, cancel = 0, startMs = 0, timer = 0;
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+const CAPTIONS = {
+  new: "Never static: elapsed clock ticks, phase bar advances 1→6, and the serialize/transfer/parse stall is bracketed by honest labels + a live shimmer.",
+  old: "Bar moves only on counted parse lines, then FREEZES on 'reusing cached document artifact' for the whole 67 MB serialize+parse — no elapsed, nothing moves.",
+};
+function setMode(m){ mode=m; $("mode-new").classList.toggle("on",m==="new"); $("mode-old").classList.toggle("on",m==="old"); $("mode-caption").textContent = CAPTIONS[m]; }
+
+function log(label, cls){
+  const now = ((performance.now()-startMs)/1000).toFixed(1).padStart(5," ");
+  const div = document.createElement("div");
+  const srcMatch = /(\S+\.jsonl:\d+|\d+\.\d+ MB|67 MB)/.exec(label);
+  let html = `<span class="t">${now}s</span> `;
+  html += cls ? `<span class="${cls}">${label}</span>` : (srcMatch ? label.replace(srcMatch[1], `<span class="src">${srcMatch[1]}</span>`) : label);
+  const c = $("console"); c.appendChild(div); div.innerHTML = html; c.scrollTop = c.scrollHeight;
+}
+function tickElapsed(){ $("elapsed").textContent = mode==="new" ? `${((performance.now()-startMs)/1000).toFixed(1)}s` : ""; }
+function phaseBar(f){ if (mode==="new") $("phaseFill").style.width = `${f*100}%`; }
+function setLabel(t){ $("stageLabel").textContent = t; }
+function stageDeterminate(frac){ $("stageTrack").classList.remove("indeterminate"); $("stageFill").style.width = `${frac*100}%`; }
+function stageShimmer(){ if (mode==="new") $("stageTrack").classList.add("indeterminate"); else { $("stageTrack").classList.remove("indeterminate"); } }
+
+// A silent, blocking step (serialize / transfer / parse). OLD: frozen, label stuck on prev line.
+// NEW: honest label + shimmer + the elapsed clock keeps ticking, so the screen visibly moves.
+async function silentStep(phaseIdx, label, ms, frozenLabel){
+  $("phaseName").textContent = PHASES[phaseIdx];
+  $("phaseCount").textContent = mode==="new" ? `· phase ${phaseIdx+1} of 6` : "";
+  if (mode==="new"){ setLabel(label); stageShimmer(); log(label); phaseBar((phaseIdx+1)/6); }
+  else { setLabel(frozenLabel); stageDeterminate($("stageFill").style.width ? parseFloat($("stageFill").style.width)/100 : 1); }
+  await sleep(ms);
+}
+
+async function run(){
+  if (running){ cancel++; await sleep(60); }
+  running = true; cancel++; const me = cancel;
+  const isCold = $("cold").checked;
+  $("console").innerHTML = ""; $("overlay").style.display = "flex";
+  $("phaseFill").style.width = "0%"; $("stageFill").style.width = "0%"; $("stageTrack").classList.remove("indeterminate");
+  startMs = performance.now(); clearInterval(timer); timer = setInterval(tickElapsed, 100);
+
+  // Phase 1 — resolve
+  $("phaseName").textContent = PHASES[0]; $("phaseCount").textContent = mode==="new"?"· phase 1 of 6":"";
+  setLabel("resolving transcript files for jot-backup"); log("resolving transcript files for jot-backup"); phaseBar(1/6); await sleep(250);
+  if (cancel!==me) return;
+  setLabel("resolved 16 transcript file(s)"); log("resolved 16 transcript file(s)"); await sleep(150);
+  log("reusing cached transcript records");
+
+  // Phase 2 — the 20,418-line parse flood (real: ~2.6s). Counted bar zips; console samples the flood.
+  $("phaseName").textContent = PHASES[1]; $("phaseCount").textContent = mode==="new"?"· phase 2 of 6":"";
+  const FLOOD_MS = 2400, ticks = 60;
+  for (let i=1;i<=ticks;i++){
+    if (cancel!==me) return;
+    const rec = Math.round((i/ticks)*TOTAL_RECORDS);
+    const type = RECORD_TYPES[i % RECORD_TYPES.length];
+    setLabel(mode==="new" ? `parsing records (${rec.toLocaleString()}/${TOTAL_RECORDS.toLocaleString()})` : `${type} [${JSONL}:${rec}]`);
+    stageDeterminate(i/ticks); phaseBar((1 + i/ticks)/6);
+    if (i%5===0) log(`${type} [${JSONL}:${rec}]`);
+    await sleep(FLOOD_MS/ticks);
+  }
+  if (cancel!==me) return;
+
+  // Phase 3 — consent scan (instant, real)
+  $("phaseName").textContent = PHASES[2]; $("phaseCount").textContent = mode==="new"?"· phase 3 of 6":"";
+  setLabel("scanning parsed records for recorded script executions"); log("scanning parsed records for recorded script executions"); phaseBar(3/6); await sleep(250);
+  log("no script-execution consent needed");
+  log("reusing cached document artifact");
+  if (cancel!==me) return;
+
+  // ── THE STALL — the frozen stretch. Real: server stringify(67MB) ~4s warm / 33s cold, then transfer, then client parse. ──
+  const stringifyMs = isCold ? 12000 : 4000;   // cold real=33s; compressed here so it stays watchable, labelled as such
+  const parseMs     = isCold ? 6000  : 3000;
+  await silentStep(3, isCold ? "serializing document — 67 MB (server, ~33s cold)" : "serializing document — 67 MB (server)",
+                   stringifyMs, "reusing cached document artifact");
+  if (cancel!==me) return;
+  await silentStep(3, "receiving 67 MB over localhost", 500, "reusing cached document artifact");
+  if (cancel!==me) return;
+  await silentStep(4, "parsing document — 67 MB (browser)", parseMs, "reusing cached document artifact");
+  if (cancel!==me) return;
+
+  // Phase 6 — timeline render (item 78 already has its own bar in the real app)
+  $("phaseName").textContent = PHASES[5]; $("phaseCount").textContent = mode==="new"?"· phase 6 of 6":"";
+  if (mode==="new"){ setLabel("rendering timeline rows (1,200 / 1,200)"); stageDeterminate(1); log("rendering timeline rows"); }
+  phaseBar(1); await sleep(600);
+  if (cancel!==me) return;
+  $("phaseName").textContent = "Ready"; $("phaseCount").textContent = "";
+  $("phaseFill").style.width="100%"; $("stageFill").style.width="100%"; $("stageTrack").classList.remove("indeterminate");
+  $("stageLabel").innerHTML = '<span class="done-badge">✓ timeline ready</span>';
+  clearInterval(timer);
+  running = false;
+}
+
+$("replay").onclick = run;
+$("mode-old").onclick = () => setMode("old");
+$("mode-new").onclick = () => setMode("new");
+setMode("new");
+$("note").innerHTML =
+  "<b>The fix the overhaul implies.</b> The 67 MB serialize (<code>response.end(JSON.stringify(document))</code>) and the browser's " +
+  "<code>JSON.parse</code> are each a single synchronous blocking step — you can't emit progress <i>during</i> them, but you " +
+  "<b>can</b> emit an honest label right <b>before</b> each (\"serializing document — 67 MB\", \"parsing document\") and keep the " +
+  "client indicator <b>animated with an elapsed clock</b> so the screen never sits still. Two deeper wins the capture also exposed: " +
+  "(1) the <b>20,418-line parse flood</b> is re-emitted even on a records-cache hit — collapse it to one counted line; " +
+  "(2) a 67 MB document is the real cost — trimming/streaming it is the big lever, but that's a separate task.";
+</script>
+</body>
+</html>

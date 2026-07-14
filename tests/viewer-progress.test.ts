@@ -17,6 +17,7 @@ import {
     PROGRESS_LABEL_READING_SIDECAR,
     PROGRESS_LABEL_CONSTRUCTING_BRANCHES,
     PROGRESS_LABEL_BUILDING_DOCUMENT,
+    RECORD_PROGRESS_MAX_LINES,
 } from "../src/viewer_api.ts";
 import { reportReconstructionProgress } from "../src/reconstruction_progress.ts";
 import { Path } from "../src/structures/domain.ts";
@@ -97,9 +98,14 @@ test("test_document_request_sequence_walks_records_once_when_cached", () => {
     const sink = (event: ProgressEvent) => requestEvents.push(event);
     loadProjectRecords([jsonlPath], sink);
     buildDocumentWithConsent([jsonlPath], undefined, false, sink);
-    // exactly one replayed event per record across the whole request.
-    const perRecordCount = requestEvents.filter((event) => event.total === recordCount).length;
-    assert.equal(perRecordCount, recordCount);
+    // Throttled cache-hit replay (item 82): bounded and strictly monotonic, reaching 100% once. A
+    // second replay from the cached build would reset `current` and break the monotonic check.
+    const perRecordEvents = requestEvents.filter((event) => event.total === recordCount);
+    assert.ok(perRecordEvents.length >= 1 && perRecordEvents.length <= RECORD_PROGRESS_MAX_LINES);
+    for (let i = 1; i < perRecordEvents.length; i++) {
+        assert.ok(perRecordEvents[i]!.current! > perRecordEvents[i - 1]!.current!, "walked once → strictly increasing");
+    }
+    assert.equal(perRecordEvents.at(-1)!.current, recordCount);
 });
 
 test("test_per_record_progress_labels_carry_source_tokens_cold_and_cached", () => {

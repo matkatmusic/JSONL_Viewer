@@ -233,38 +233,119 @@ export function logProgress(text: string): void {
 // One reusable centered bar shown during the two long phases of opening a project: the server-side
 // reconstruction stream (driven by fetchDocument's determinate progress lines) and the client-side
 // timeline row build (item 78, driven from views/timeline.ts). Created once, appended on demand.
-let loadingProgressElements: { overlay: HTMLElement; label: HTMLElement; fill: HTMLElement } | null = null;
+let loadingProgressElements: {
+    overlay: HTMLElement;
+    phaseLabel: HTMLElement;
+    elapsed: HTMLElement;
+    phaseFill: HTMLElement;
+    label: HTMLElement;
+    stageTrack: HTMLElement;
+    fill: HTMLElement;
+    timerId: number;
+} | null = null;
+let loadingProgressStartMs = 0;
+let loadingProgressCurrentPhase = 0;
 
-// Show or update the overlay. `fraction` is the bar fill (0..1, clamped); a non-finite fraction
-// (e.g. a zero total) fills the bar completely.
-export function showLoadingProgress(text: string, fraction: number): void {
-    if (loadingProgressElements === null) {
-        const label = el("div", { class: "timeline-progress-label" });
-        const fill = el("div", { class: "timeline-progress-fill" });
-        const track = el("div", { class: "timeline-progress-track" }, [fill]);
-        const box = el("div", { class: "timeline-progress-box" }, [label, track]);
-        const overlay = el("div", { class: "timeline-progress-overlay" }, [box]);
-        loadingProgressElements = { overlay, label, fill };
+// The ordered phases the loading indicator advances through. Labels are matched by substring
+// against the real server/client progress vocabulary (item 82). An unmatched label returns
+// undefined so the caller keeps the last known phase rather than regressing the bar.
+export const LOAD_PHASES = [
+    "Resolving transcripts",
+    "Parsing records",
+    "Checking script consent",
+    "Building document",
+    "Transferring document",
+    "Rendering timeline",
+] as const;
+export const LOAD_PHASE_COUNT = LOAD_PHASES.length;
+
+const LOAD_PHASE_MATCHERS: string[][] = [
+    ["resolving transcript", "resolved "],
+    ["reusing cached transcript records", ".jsonl:", "parsing records"],
+    ["scanning parsed records", "consent", "no script-execution"],
+    ["reusing cached document artifact", "reading sidecar", "constructing branches",
+        "replaying lineage", "reconstructing ", "script stage", "executing script run",
+        "building pre-execution", "indexing change ids", "extracting conversation",
+        "summarizing branches", "building step snapshots", "building line verdicts",
+        "building document"],
+    ["serializing document", "sending document", "parsing document"],
+    ["rendering timeline", "building timeline", "preparing timeline"],
+];
+
+// The 1-based phase for a progress label, or undefined when no family matches.
+export function classifyLoadPhase(label: string): number | undefined {
+    const lowered = label.toLowerCase();
+    for (let phaseIndex = 0; phaseIndex < LOAD_PHASE_MATCHERS.length; phaseIndex++) {
+        if (LOAD_PHASE_MATCHERS[phaseIndex]!.some((needle) => lowered.includes(needle))) {
+            return phaseIndex + 1;
+        }
     }
-    loadingProgressElements.label.textContent = text;
-    const safeFraction = Number.isFinite(fraction) ? Math.max(0, Math.min(1, fraction)) : 1;
-    loadingProgressElements.fill.style.width = `${safeFraction * 100}%`;
-    if (!loadingProgressElements.overlay.isConnected) {
-        document.body.append(loadingProgressElements.overlay);
+    return undefined;
+}
+
+// Show or update the always-visible loading indicator: a phase header (name · phase N of M) with a
+// ticking elapsed clock, a phase bar, the current stage label, and a stage bar. A finite `fraction`
+// fills the stage bar determinately; a non-finite one (a countless/blocking stage) shimmers instead,
+// so even a silent multi-second step (67 MB stringify/parse) never reads as frozen (item 82).
+export function showLoadingProgress(label: string, fraction: number): void {
+    if (loadingProgressElements === null) {
+        const phaseLabel = el("div", { class: "timeline-progress-phase" });
+        const elapsed = el("div", { class: "timeline-progress-elapsed" });
+        const header = el("div", { class: "timeline-progress-header" }, [phaseLabel, elapsed]);
+        const phaseFill = el("div", { class: "timeline-progress-fill" });
+        const phaseTrack = el("div", { class: "timeline-progress-track" }, [phaseFill]);
+        const stageLabel = el("div", { class: "timeline-progress-label" });
+        const fill = el("div", { class: "timeline-progress-fill" });
+        const stageTrack = el("div", { class: "timeline-progress-track" }, [fill]);
+        const box = el("div", { class: "timeline-progress-box" }, [header, phaseTrack, stageLabel, stageTrack]);
+        const overlay = el("div", { class: "timeline-progress-overlay" }, [box]);
+        loadingProgressStartMs = Date.now();
+        loadingProgressCurrentPhase = 0;
+        const timerId = window.setInterval(() => {
+            if (loadingProgressElements !== null) {
+                loadingProgressElements.elapsed.textContent = `${((Date.now() - loadingProgressStartMs) / 1000).toFixed(1)}s`;
+            }
+        }, 100);
+        loadingProgressElements = { overlay, phaseLabel, elapsed, phaseFill, label: stageLabel, stageTrack, fill, timerId };
+    }
+    const elements = loadingProgressElements;
+    elements.label.textContent = label;
+    const phase = classifyLoadPhase(label);
+    if (phase !== undefined) {
+        loadingProgressCurrentPhase = phase;
+    }
+    if (loadingProgressCurrentPhase > 0) {
+        elements.phaseLabel.textContent = `${LOAD_PHASES[loadingProgressCurrentPhase - 1]} · phase ${loadingProgressCurrentPhase} of ${LOAD_PHASE_COUNT}`;
+        elements.phaseFill.style.width = `${(loadingProgressCurrentPhase / LOAD_PHASE_COUNT) * 100}%`;
+    }
+    if (Number.isFinite(fraction)) {
+        elements.stageTrack.classList.remove("indeterminate");
+        elements.fill.style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
+    } else {
+        elements.stageTrack.classList.add("indeterminate");
+    }
+    if (!elements.overlay.isConnected) {
+        document.body.append(elements.overlay);
     }
 }
 
 export function hideLoadingProgress(): void {
-    loadingProgressElements?.overlay.remove();
+    if (loadingProgressElements !== null) {
+        window.clearInterval(loadingProgressElements.timerId);
+        loadingProgressElements.overlay.remove();
+        loadingProgressElements = null;
+    }
 }
 
-// One streamed progress line: always echoed to the console, and — when it carries a determinate
-// current/total (chiefly the "reconstructing <file>" branch pass) — also driving the centered bar.
+// One streamed progress line: always echoed to the console AND driving the always-visible indicator
+// — determinate when the line carries a current/total, an indeterminate shimmer otherwise, so a
+// countless stage keeps the screen moving instead of freezing on the last counted line (item 82).
 function reportStreamProgress(parsed: WireDocumentStreamLine): void {
     logProgress(parsed.current !== undefined ? `${parsed.current}/${parsed.total} ${parsed.label}` : parsed.label!);
-    if (parsed.current !== undefined && parsed.total !== undefined && parsed.total > 0) {
-        showLoadingProgress(`${parsed.label} — ${parsed.current} / ${parsed.total}`, parsed.current / parsed.total);
-    }
+    const hasCount = parsed.current !== undefined && parsed.total !== undefined && parsed.total > 0;
+    const fraction = hasCount ? parsed.current! / parsed.total! : Number.NaN;
+    const detail = hasCount ? `${parsed.label} — ${parsed.current} / ${parsed.total}` : parsed.label!;
+    showLoadingProgress(detail, fraction);
 }
 
 // Split buffered NDJSON text into complete lines plus the trailing partial line.
@@ -327,8 +408,10 @@ export async function fetchRawRecords(project: string, jsonl: string): Promise<s
 
 // ─── script-execution consent (per-browser-SESSION memory only, by design) ──
 
+const CONSENT_KEY_PREFIX = "consent:";
+
 function computeConsentKey(project: string): string {
-    return `consent:${project}`;
+    return `${CONSENT_KEY_PREFIX}${project}`;
 }
 
 export function storeConsentChoice(project: string, choice: string): void {
@@ -338,6 +421,27 @@ export function storeConsentChoice(project: string, choice: string): void {
 // "1" (run), "0" (declined), or null (not asked yet this session).
 export function getConsentChoice(project: string): string | null {
     return sessionStorage.getItem(computeConsentKey(project));
+}
+
+// The server stamps each process launch with a boot id (GET /api/config). Consent choices live in
+// sessionStorage, which survives both a page reload AND a server restart — so after relaunching the
+// server (e.g. to drop the sandbox memo) a reloaded page would silently reuse the old "Run"/"declined"
+// choice and never re-prompt. When the boot id changes we know the server was relaunched and clear
+// every remembered consent choice so the next load re-prompts. The boot id shares sessionStorage's
+// per-tab lifetime, so a brand-new tab (empty storage) simply stores the current id with nothing to clear.
+const SERVER_BOOT_ID_KEY = "serverBootId";
+
+export function reconcileServerBootId(bootId: string): void {
+    if (sessionStorage.getItem(SERVER_BOOT_ID_KEY) === bootId) {
+        return;
+    }
+    for (let index = sessionStorage.length - 1; index >= 0; index--) {
+        const key = sessionStorage.key(index);
+        if (key !== null && key.startsWith(CONSENT_KEY_PREFIX)) {
+            sessionStorage.removeItem(key);
+        }
+    }
+    sessionStorage.setItem(SERVER_BOOT_ID_KEY, bootId);
 }
 
 // Fetch a document under the consent protocol. Resolves to { document } or
@@ -356,6 +460,16 @@ function setCancelButtonVisible(visible: boolean): void {
     const button = document.getElementById("console-cancel") as HTMLButtonElement;
     button.hidden = !visible;
     button.disabled = false; // any visibility change ends a pending cancel
+}
+
+// Only the terminal document payload is ever this large; progress lines are tiny. Gating on size
+// lets the tiny lines parse inline while the one huge line gets a visible "parsing document" label
+// and a paint-yield first, so the browser's synchronous JSON.parse of ~67 MB no longer freezes the
+// tab with a stale indicator (item 82).
+const LARGE_PAYLOAD_BYTES = 200_000;
+
+export function formatMegabytes(byteLength: number): string {
+    return `${(byteLength / 1_000_000).toFixed(1)} MB`;
 }
 
 // DocumentType lets each view name the wire fields it reads (its own Wire* type); the cache and
@@ -392,6 +506,12 @@ export async function fetchDocument<DocumentType = WireDocument>(project: string
             let lines: string[];
             ({ remainder, lines } = splitNdjsonChunk(remainder, decoder.decode(value, { stream: true })));
             for (const line of lines) {
+                if (line.length > LARGE_PAYLOAD_BYTES) {
+                    // The terminal document line; its JSON.parse blocks the tab for seconds. Show a
+                    // label and yield so the browser paints it (and the shimmer) before parsing. (item 82)
+                    showLoadingProgress(`parsing document — ${formatMegabytes(line.length)}`, Number.NaN);
+                    await new Promise((resolve) => setTimeout(resolve, 0));
+                }
                 const parsed = JSON.parse(line) as WireDocumentStreamLine;
                 if (parsed.kind === "progress") {
                     reportStreamProgress(parsed);
@@ -884,8 +1004,9 @@ function setToolbarTitle(project: string | undefined): void {
 
 // ─── header: toolbar popovers (item 66) + the runtime-switchable folders (item 46) ──────
 
-// The /api/config payload (wire shape: paths as plain strings).
-type WireConfig = { projectsDir: string; fileHistoryDir: string };
+// The /api/config payload (wire shape: paths as plain strings). bootId stamps the server launch —
+// see reconcileServerBootId (item 82: re-prompt for consent after a server relaunch).
+type WireConfig = { projectsDir: string; fileHistoryDir: string; bootId: string };
 
 // The /api/projects payload rows, as far as the Projects menu reads them.
 type WireProjectListing = { name: string };
@@ -949,7 +1070,11 @@ async function initializeHeader(): Promise<void> {
         fileHistoryInput.value = config.fileHistoryDir;
         reportedFileHistoryDir = config.fileHistoryDir;
     };
-    applyConfig(await fetchJson<WireConfig>("/api/config"));
+    const config = await fetchJson<WireConfig>("/api/config");
+    // Runs inside initializeHeader, before the bootstrap's renderRoute — so a relaunched server drops
+    // stale consent choices before the first document load can read them (item 82).
+    reconcileServerBootId(config.bootId);
+    applyConfig(config);
     document.getElementById("projects-dir-change")!.addEventListener("click", async () => {
         const fileHistoryDir = fileHistoryInput.value === reportedFileHistoryDir ? "" : fileHistoryInput.value;
         const response = await fetch("/api/config", {

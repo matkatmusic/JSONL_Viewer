@@ -55,6 +55,18 @@ export const PROGRESS_LABEL_READING_SIDECAR = "reading sidecar backups";
 export const PROGRESS_LABEL_CONSTRUCTING_BRANCHES = "constructing branches";
 export const PROGRESS_LABEL_BUILDING_DOCUMENT = "building document";
 
+// Emitted right BEFORE the two synchronous blocking steps the build's progress sink can't see
+// into: JSON.stringify of the whole document (server) and its transfer. A single
+// stringify/transfer can't be subdivided, so an honest label before each is what keeps the
+// client from freezing on the previous line (item 82 — the 67 MB document is seconds of
+// silent stringify + a browser-side parse of the same size).
+export const PROGRESS_LABEL_SERIALIZING_DOCUMENT = "serializing document";
+
+// byteLength is a genuine numeric measure, not a domain value, so it stays primitive (coding-req §1).
+export function formatSendingDocumentLabel(byteLength: number): string {
+    return `sending document (${(byteLength / 1_000_000).toFixed(1)} MB)`;
+}
+
 // Announce one build stage (a no-op when no sink is listening).
 function reportStage(onProgress: ProgressSink | undefined, label: string): void {
     onProgress?.({ kind: DocumentResponseKind.progress, label });
@@ -148,14 +160,28 @@ export const ARTIFACT_CACHE_CAPACITY = 8;
 // changes the stamp, so a stale entry is simply never keyed again and ages out via LRU.
 const parsedRecordsCache = new Map<string, TranscriptRecord[]>();
 
-// Replay one counted per-record event per cached record — a cache hit must never silence the
-// console's per-line processing output, and each replayed line keeps its clickable
+// A cache hit must still show counted per-record progress (never silence the console), but one
+// line per record floods the stream with 20k+ lines for a large project (item 82 — the captured
+// jot-backup load emitted 20,418). Emit at a stride so at most RECORD_PROGRESS_MAX_LINES lines go
+// out, always including the final record so the bar reaches 100%. Sampled lines keep the clickable
 // "[<jsonl>:<line>]" source token.
+export const RECORD_PROGRESS_MAX_LINES = 50;
+
+export function computeRecordProgressStride(total: number): number {
+    return Math.max(1, Math.ceil(total / RECORD_PROGRESS_MAX_LINES));
+}
+
 function replayRecordProgress(records: TranscriptRecord[], onProgress: ProgressSink | undefined): void {
     if (onProgress === undefined) {
         return;
     }
+    const stride = computeRecordProgressStride(records.length);
     records.forEach((record, index) => {
+        const isSampled = (index + 1) % stride === 0;
+        const isLast = index === records.length - 1;
+        if (!isSampled && !isLast) {
+            return;
+        }
         onProgress({
             kind: DocumentResponseKind.progress,
             label: `${record.type}${formatRecordSourceToken(getRecordSource(record))}`,

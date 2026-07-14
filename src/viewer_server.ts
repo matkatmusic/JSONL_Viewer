@@ -3,6 +3,7 @@
 // in viewer_api.ts; this file only parses requests, dispatches, and serializes responses.
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { extname, join, resolve, sep } from "node:path";
@@ -26,6 +27,8 @@ import {
     setFileHistoryDir,
     getEffectiveFileHistoryDir,
     applyProjectOverrides,
+    PROGRESS_LABEL_SERIALIZING_DOCUMENT,
+    formatSendingDocumentLabel,
 } from "./viewer_api.ts";
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { configureSandboxMemoPersistence, resetSandboxMemoOnDisk } from "./reconstruction_script_execution.ts";
@@ -35,6 +38,12 @@ import type { ProgressSink } from "./parse/loadTranscript.ts";
 import { Path, Uuid } from "./structures/domain.ts";
 
 const DEFAULT_PORT = 7343;
+
+// A fresh stamp per process launch, handed to the client via GET /api/config. When it changes the
+// client knows the server was relaunched and drops its remembered script-consent choices so a
+// reloaded page re-prompts (consent lives in the browser's per-tab sessionStorage, which survives
+// both a reload and a server restart). A launch nonce, not a domain identifier — plain string.
+const SERVER_BOOT_ID = randomUUID();
 const WEBAPP_DIR = resolve(import.meta.dirname, "..", "webapp");
 const WEBAPP_DIST_DIR = resolve(import.meta.dirname, "..", "webapp", "dist");
 
@@ -204,7 +213,14 @@ function handleDocumentRequest(response: ServerResponse, query: URLSearchParams)
             writeNdjsonLine(event);
             logBuildProgressToConsole(event);
         });
-        response.end(JSON.stringify(document) + "\n");
+        // The stringify below blocks the event loop for the whole document (seconds for a large
+        // project); announce it FIRST so the client shows "serializing document" instead of
+        // freezing on the last build line. The byte size is only known AFTER stringify, so the
+        // transfer label follows it. (item 82)
+        reportStage(PROGRESS_LABEL_SERIALIZING_DOCUMENT);
+        const serialized = JSON.stringify(document);
+        reportStage(formatSendingDocumentLabel(Buffer.byteLength(serialized)));
+        response.end(serialized + "\n");
     } catch (error) {
         response.end(JSON.stringify({ kind: DocumentResponseKind.error, label: String(error) }) + "\n");
     }
@@ -293,7 +309,7 @@ function handleConfigUpdate(request: IncomingMessage, response: ServerResponse):
             if (requested.fileHistoryDir !== undefined) {
                 setFileHistoryDir(requested.fileHistoryDir);
             }
-            sendJson(response, 200, { projectsDir: getProjectsDir(), fileHistoryDir: getEffectiveFileHistoryDir() });
+            sendJson(response, 200, { projectsDir: getProjectsDir(), fileHistoryDir: getEffectiveFileHistoryDir(), bootId: SERVER_BOOT_ID });
         } catch (error) {
             sendJson(response, 400, { error: String(error) });
         }
@@ -336,7 +352,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse): void
             handleConfigUpdate(request, response);
         } else if (url.pathname === "/api/config") {
             // item 46: sendJson(response, 200, { projectsDir: getProjectsDir() });
-            sendJson(response, 200, { projectsDir: getProjectsDir(), fileHistoryDir: getEffectiveFileHistoryDir() });
+            sendJson(response, 200, { projectsDir: getProjectsDir(), fileHistoryDir: getEffectiveFileHistoryDir(), bootId: SERVER_BOOT_ID });
         } else if (url.pathname === "/api/pick-folder") {
             handleFolderPickRequest(response, url.searchParams);
         } else if (url.pathname === "/api/projects") {
