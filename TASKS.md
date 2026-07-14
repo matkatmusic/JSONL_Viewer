@@ -983,4 +983,15 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   listener stays as a safety net. No CSS change. Pure browser wiring (no unit test — same
   category as the existing console DOM helpers); typecheck + `build:webapp` clean; visual
   confirmation at the repro is the user's standing pass. Plan: `plans/item80-console-word-wrap.md`. 
-- [ ] 81: last line of console is not always shown at the bottom.  sometimes console[numLines - 2] is the last line shown, and the last line needs to be scrolled to, to be viewed. 
+- [x] 81: last line of console is not always shown at the bottom.  sometimes console[numLines - 2] is the last line shown, and the last line needs to be scrolled to, to be viewed.
+  **DONE 2026-07-13:** `scrollToBottom()` already fired on every write, but the last line was
+  *physically clipped*: `fitProgressColumns` (`webapp/app.ts`) forced `CONSOLE_ROWS` (15) rows
+  regardless of the box's real height, while `#console-row` is a fixed `255px` budget
+  (`styles.css:608`) that — after the header, `4px+4px` padding, and xterm's actual per-row
+  height — can't fit 15 rows. xterm rendered row 15 anyway and `.progress-console
+  { overflow: hidden }` clipped it below the fold, so scrollToBottom couldn't help. Fix: resize
+  to `dimensions.rows` from `proposeDimensions()` (the rows that actually fit) instead of the
+  hardcoded 15 — one line. FitAddon was already computing rows and the code was discarding them.
+  Visual confirmation at the repro is the user's standing pass (same category as the other
+  console DOM helpers — no unit test). 
+- [ ] 82: progress indicator is not helpful in showing the work that is being done by the server before the timeline is shown. a complete overhaul of how notifying the viewer of the page of what the server is doing while loading a project is needed so the progress indicator conveys meaningful information.   one task to get this progress indicator more useful to the end user: tell the user the best way to relay back to the agent what actually happens when loading a project and where the progress indicator should be showing something but is not. 

@@ -165,10 +165,14 @@ function copyConsoleText(): void {
     }).catch(() => {});
 }
 
-// Fit the column count to the window width, holding the height fixed at CONSOLE_ROWS rows.
+// Fit BOTH cols and rows to the console box. Forcing CONSOLE_ROWS (15) rows made xterm render
+// one more row than the fixed-height box (styles.css #console-row: 255px minus header + padding)
+// could show, so `overflow: hidden` clipped the last line below the fold and scrollToBottom
+// couldn't rescue it (item 81). proposeDimensions() reports the rows that actually fit — use them.
 function fitProgressColumns(): void {
     const dimensions = progressFitAddon?.proposeDimensions();
-    if (dimensions?.cols) progressTerminal!.resize(dimensions.cols, CONSOLE_ROWS);
+    // if (dimensions?.cols) progressTerminal!.resize(dimensions.cols, CONSOLE_ROWS);
+    if (dimensions?.cols && dimensions?.rows) progressTerminal!.resize(dimensions.cols, dimensions.rows);
 }
 
 // ─── console collapse (item 66): row ⇄ one-line status bar ──────────────────

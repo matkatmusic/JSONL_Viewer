@@ -606,7 +606,7 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
 
 /* ─── Console row + collapse bar ──────────────────────────────── */
 #console-row {
-    flex: 0 0 255px; /* 15 rows × 15px xterm default + ~28px header/padding */
+    flex: 0 0 261px; /* 15 rows × 15px xterm default + ~28px header/padding, +7px so the last row's descenders (p q j g y) aren't clipped */
     min-height: 60px;
     background: var(--code-bg);
     display: flex;
