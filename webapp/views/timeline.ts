@@ -1009,10 +1009,10 @@ const ORPHAN_LANE_COLOR = "var(--muted)";
 
 // A timeline this many rows or larger gets the build-progress overlay + chunked
 // rendering; smaller ones build synchronously (item 78).
-const LARGE_TIMELINE_ROW_COUNT = 500;
+const LARGE_TIMELINE_ROW_COUNT = 100;
 
 // Rows built per animation frame during a chunked (large-timeline) build.
-const TIMELINE_BUILD_BATCH_SIZE = 100;
+const TIMELINE_BUILD_BATCH_SIZE = 10;
 
 // True when a timeline is large enough to build in yielding batches behind a
 // progress overlay instead of one synchronous pass.
