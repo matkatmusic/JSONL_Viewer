@@ -852,6 +852,9 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
     position: fixed;
     inset: 0;
     z-index: 50;
+    /* Informational only (label + bar, nothing clickable), so let clicks pass THROUGH to the
+       controls underneath — chiefly the console's Cancel button, which the overlay covers. */
+    pointer-events: none;
     display: flex;
     align-items: center;
     justify-content: center;

@@ -28,6 +28,7 @@ import { findScriptExecutionRuns, scriptCodeMayWriteFiles, flushSandboxMemoToDis
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { setReconstructionProgressSink } from "./reconstruction_progress.ts";
 import { getCachedValueRefreshingRecency, evictLeastRecentlyUsedEntries } from "./cache_lru.ts";
+import { readDocumentFromDiskCache, writeDocumentToDiskCache } from "./reconstruction_document_cache.ts";
 import { renderDiffWithContext, renderGitFileDiff } from "./reconstruction_render.ts";
 import { DocumentResponseKind } from "./structures/vocabulary.ts";
 import { Path, Uuid } from "./structures/domain.ts";
@@ -314,6 +315,16 @@ export function buildReconstructionWithConsent(
         reportStage(onProgress, PROGRESS_LABEL_ARTIFACT_CACHE_HIT);
         return cachedBuild;
     }
+    // item 79: an in-memory miss may still hit the disk cache after a server respawn — hydrate it,
+    // repopulate the in-memory cache, and skip the multi-minute rebuild. No-op when the CLI/tests
+    // leave the disk cache unconfigured.
+    const diskBuild = readDocumentFromDiskCache(cacheKey);
+    if (diskBuild !== undefined) {
+        reportStage(onProgress, PROGRESS_LABEL_ARTIFACT_CACHE_HIT);
+        builtDocumentCache.set(cacheKey, diskBuild);
+        evictLeastRecentlyUsedEntries(builtDocumentCache, ARTIFACT_CACHE_CAPACITY);
+        return diskBuild;
+    }
     setImpureExecutionAllowed(allowScripts);
     // The deep engine stages (script sandbox runs, per-file reconstruction) announce through the
     // build-scoped module sink — same lifecycle as the exec gate: on for the build, off after.
@@ -325,6 +336,8 @@ export function buildReconstructionWithConsent(
         flushSandboxMemoToDisk();
         builtDocumentCache.set(cacheKey, built);
         evictLeastRecentlyUsedEntries(builtDocumentCache, ARTIFACT_CACHE_CAPACITY);
+        // item 79: persist to disk so a server respawn reads this back (hydrated) instead of rebuilding.
+        writeDocumentToDiskCache(cacheKey, built);
         return built;
     } finally {
         setImpureExecutionAllowed(false);

@@ -934,7 +934,22 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   singleton (`showLoadingProgress`/`hideLoadingProgress`) that `fetchDocument` drives from the
   determinate `reconstructing <file>` stream progress and the row build reuses; overlay is
   translucent so the loading console stays visible underneath during reconstruction.
-- [ ] 79:  make `builtDocumentCache` disk-backed so respawns skip reconstruction and finish faster during development.  Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
+- [x] 79:  make `builtDocumentCache` disk-backed so respawns skip reconstruction and finish faster during development.  Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
+  **DONE 2026-07-13:** new `src/reconstruction_document_cache.ts` persists each `BuiltReconstruction`
+  to `.cache/built-documents/<sha256(cacheKey)>.json`, opt-in like item 11's sandbox memo (only
+  `viewer_server.ts` configures it; CLI/tests stay memory-only). `buildReconstructionWithConsent`
+  reads disk on an in-memory miss (hydrate → repopulate memory → return) and writes disk after a
+  fresh build. `--resetDocumentCache` flag added. **Two deviations from the handoff, both leaner +
+  more robust (user-approved):** (1) serialize/hydrate is ONE type-driven tag replacer/reviver — the
+  replacer reaches past `toJSON` via the holder (`this[key]`) to `instanceof`-tag Path/Uuid/Date, so
+  3 branches cover the whole tree and it survives any document shape change — NOT ~13 hand-written
+  per-type hydrators. The handoff's "a generic replacer can't work" was true only of a value-only
+  replacer; the holder trick refutes it (proven empirically). (2) eviction is by on-disk mtime
+  (`DOCUMENT_CACHE_CAPACITY = 4`), not an in-memory LRU the filesystem already records. Audit
+  confirmed every persisted field bottoms out in Path/Uuid/Date + JSON primitives (no Maps/Sets/
+  cycles). Round-trip correctness test in `tests/reconstruction_document_cache.test.ts` asserts a
+  hydrated build drives `resolveFilesAtStep` byte-identically to a fresh build. Both typechecks
+  clean; suite left for the user. Plan: `plans/item79-disk-backed-document-cache.md`.
   **Measured 2026-07-13 (user asked to measure first):** on the large RevEng project (30,201
   records, 87.2 MB document), a cold respawn — cold in-memory caches, WARM disk sandbox memo
   (item 11) — spends parse 391 ms + reconstruction **468,094 ms (~7.8 min)**. Emphatically NOT

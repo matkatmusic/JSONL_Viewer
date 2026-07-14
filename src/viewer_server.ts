@@ -29,6 +29,7 @@ import {
 } from "./viewer_api.ts";
 import { setImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { configureSandboxMemoPersistence, resetSandboxMemoOnDisk } from "./reconstruction_script_execution.ts";
+import { configureDocumentCachePersistence, resetDocumentCacheOnDisk } from "./reconstruction_document_cache.ts";
 import { DocumentResponseKind } from "./structures/vocabulary.ts";
 import type { ProgressSink } from "./parse/loadTranscript.ts";
 import { Path, Uuid } from "./structures/domain.ts";
@@ -47,12 +48,13 @@ const CONTENT_TYPES: Record<string, string> = {
 };
 
 // item 46: throw new Error("usage: tsx src/viewer_server.ts [--port <n>] [--projects-dir <path>]");
-const USAGE = "usage: tsx src/viewer_server.ts --projects-dir <path> [--port <n>] [--file-history-dir <path>] [--resetSandboxMemo]";
+const USAGE = "usage: tsx src/viewer_server.ts --projects-dir <path> [--port <n>] [--file-history-dir <path>] [--resetSandboxMemo] [--resetDocumentCache]";
 
 // Parse `--projects-dir <path>` (MANDATORY — there is no default scan root), `--port <n>`
-// (default 7343), `--file-history-dir <path>` (default: the item-46 derivation chain), and
-// `--resetSandboxMemo` (delete the disk memo before load, for a forced cold reconstruction).
-function parseServerArgs(argv: string[]): { port: number; resetSandboxMemo: boolean } {
+// (default 7343), `--file-history-dir <path>` (default: the item-46 derivation chain),
+// `--resetSandboxMemo` (delete the disk memo before load, for a forced cold reconstruction), and
+// `--resetDocumentCache` (delete the disk document cache before load, item 79).
+function parseServerArgs(argv: string[]): { port: number; resetSandboxMemo: boolean; resetDocumentCache: boolean } {
     const dirIndex = argv.indexOf("--projects-dir");
     if (dirIndex < 0 || argv[dirIndex + 1] === undefined) {
         throw new Error(USAGE);
@@ -68,7 +70,11 @@ function parseServerArgs(argv: string[]): { port: number; resetSandboxMemo: bool
     if (!Number.isInteger(port)) {
         throw new Error(USAGE);
     }
-    return { port, resetSandboxMemo: argv.includes("--resetSandboxMemo") };
+    return {
+        port,
+        resetSandboxMemo: argv.includes("--resetSandboxMemo"),
+        resetDocumentCache: argv.includes("--resetDocumentCache"),
+    };
 }
 
 function sendJson(response: ServerResponse, status: number, value: unknown): void {
@@ -363,7 +369,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse): void
     }
 }
 
-const { port, resetSandboxMemo } = parseServerArgs(process.argv.slice(2));
+const { port, resetSandboxMemo, resetDocumentCache } = parseServerArgs(process.argv.slice(2));
 // App posture: impure stages OFF until a consented build turns them on for its own duration.
 setImpureExecutionAllowed(false);
 // Item 11: only the viewer app opts in to the disk-backed sandbox memo — restarts stop
@@ -375,6 +381,14 @@ if (resetSandboxMemo) {
     resetSandboxMemoOnDisk(sandboxMemoPath);
 }
 configureSandboxMemoPersistence(sandboxMemoPath);
+// Item 79: opt in to the disk-backed built-document cache so a respawn reads back the ~87 MB / 7.8 min
+// reconstruction instead of rebuilding it (CLI + tests stay memory-only).
+const documentCacheDir = new Path(join(import.meta.dirname, "..", ".cache", "built-documents"));
+// --resetDocumentCache: delete the cache dir BEFORE configuring, for a forced cold rebuild.
+if (resetDocumentCache) {
+    resetDocumentCacheOnDisk(documentCacheDir);
+}
+configureDocumentCachePersistence(documentCacheDir);
 const server = createServer(handleRequest);
 // A cold non-streaming /api/document build can exceed Node's default ~300s request timeout,
 // which closes the socket mid-build; the eventual sendJson then throws ERR_HTTP_HEADERS_SENT
