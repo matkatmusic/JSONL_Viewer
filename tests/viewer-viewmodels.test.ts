@@ -16,7 +16,7 @@ import { findBackupTimeForBlob, findToolNavigationTargets } from "../webapp/insp
 import { buildConversationViewModel } from "../webapp/views/conversation.ts";
 import { buildProjectViewModel } from "../webapp/views/project.ts";
 import { filterProjectsByName } from "../webapp/views/projects.ts";
-import { checkConsentScriptOverflowsPreview, clampConsentSelectionStep, ConsentBlockKind, findDefaultConsentSelectionIndex, groupConsentScriptsIntoBlocks, splitInlineInterpreterCode } from "../webapp/app.ts";
+import { checkConsentScriptOverflowsPreview, clampConsentSelectionStep, ConsentBlockKind, findDefaultConsentSelectionIndex, formatConsentSourceToken, groupConsentScriptsIntoBlocks, splitInlineInterpreterCode } from "../webapp/app.ts";
 import { Path } from "../src/structures/domain.ts";
 import { jsonlPathsForScenario, readNonEmptyLines } from "./utilities.ts";
 import { S19_JSONL } from "./fixtures.ts";
@@ -719,4 +719,28 @@ test("test_clampConsentSelectionStep_enters_list_from_no_selection", () => {
     // Scenario: with no current selection (index -1, e.g. every row was hidden until a
     // read-only block opened), stepping forward lands on the first visible script.
     assert.equal(clampConsentSelectionStep(-1, 1, 3), 0);
+});
+
+// -------------------- consent script source token (task 97) --------------------
+
+test("test_formatConsentSourceToken_formats_basename_and_line", () => {
+    // Scenario: a script extracted from a known JSONL file + line renders as the same
+    // " [file.jsonl:123]" token the server's formatRecordSourceToken emits for console labels.
+    // Steps:
+    // a source records the full transcript path and its 1-based line number.
+    const source = { filePath: "/Users/x/.claude/projects/p/session.jsonl", lineNumber: 42 };
+    // the token holds only the basename, with a leading space and brackets.
+    assert.equal(formatConsentSourceToken(source), " [session.jsonl:42]");
+});
+
+test("test_formatConsentSourceToken_returns_empty_string_without_source", () => {
+    // Scenario: a script whose record source was never captured contributes nothing to the
+    // muted header line — no empty brackets, no stray space.
+    assert.equal(formatConsentSourceToken(undefined), "");
+});
+
+test("test_formatConsentSourceToken_keeps_bare_filename_unchanged", () => {
+    // Scenario: a path with no directory separators is already a basename — extraction must
+    // pass it through untouched.
+    assert.equal(formatConsentSourceToken({ filePath: "session.jsonl", lineNumber: 7 }), " [session.jsonl:7]");
 });

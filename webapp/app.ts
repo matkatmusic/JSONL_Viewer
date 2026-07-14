@@ -46,7 +46,7 @@ export function el(tag: string, attrs: ElAttrs = {}, children: (Node | string)[]
 
 // One recorded script execution awaiting consent (wire shape: timestamp is an ISO string;
 // readOnly is the server's item-68 verdict — absent means treat as modifying).
-type WireConsentScript = { timestamp: string; cwd?: string; code: string; readOnly?: boolean };
+type WireConsentScript = { timestamp: string; cwd?: string; code: string; readOnly?: boolean; source?: { filePath: string; lineNumber: number } };
 // The unified document payload is carried opaquely here; views type their own slices.
 type WireDocument = Record<string, unknown>;
 // One NDJSON line of the /api/document stream: progress lines, the error/consent terminals,
@@ -606,11 +606,22 @@ export function splitInlineInterpreterCode(code: string): InlineInterpreterSegme
         return undefined;
     }
     return {
-        prefix: match[1],
-        body: match[3],
-        suffix: match[4],
+        // Groups 1/3/4 are non-optional in the pattern, so a successful match always fills them.
+        prefix: match[1]!,
+        body: match[3]!,
+        suffix: match[4]!,
         languagePath: match[2] === "node" ? "__script__.js" : CONSENT_SCRIPT_LANGUAGE_PATH,
     };
+}
+
+// Client mirror of the server's formatRecordSourceToken (loadTranscript.ts): " [file.jsonl:123]"
+// for a known source, "" otherwise — appended to the consent row's muted header (task 97).
+export function formatConsentSourceToken(source: { filePath: string; lineNumber: number } | undefined): string {
+    if (source === undefined) {
+        return "";
+    }
+    const fileName = source.filePath.split("/").pop()!;
+    return ` [${fileName}:${source.lineNumber}]`;
 }
 
 // One script's row in the consent dialog: local timestamp (+ cwd when recorded) over its
@@ -628,7 +639,7 @@ function buildConsentScriptRow(script: WireConsentScript): HTMLElement {
         pre.append(document.createTextNode(inline.prefix), bodySpan, document.createTextNode(inline.suffix));
     }
     const row = el("div", { class: "consent-script" }, [
-        el("div", { class: "muted", text: new Date(script.timestamp).toLocaleString() + (script.cwd ? `  ·  cwd ${script.cwd}` : "") }),
+        el("div", { class: "muted", text: new Date(script.timestamp).toLocaleString() + (script.cwd ? `  ·  cwd ${script.cwd}` : "") + formatConsentSourceToken(script.source) }),
         pre,
     ]);
     if (checkConsentScriptOverflowsPreview(script.code)) {
