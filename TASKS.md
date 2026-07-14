@@ -905,7 +905,14 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   reconstruction_render / details-viewmodels. Plan: plans/item75-show-full-contents.md; notes:
   plans/implementation-notes-item75-show-full-contents.md. Diff-vs-Base view left untouched
   (out of scope). Webapp rebuilt; typecheck + build clean. User runs the suite + visual pass.
-- [ ] 76: "/dev/null" is appearing as a file in the Files list.  Should it?  Is the cause of its appearance as a file a sign of a bigger bug?  Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
+- [x] **76: "/dev/null" appearing as a file in the Files list.**
+  **DONE 2026-07-13:** Root cause was `parseRedirect` in `src/reconstruction_extract.ts`: a
+  command like `python build.py > /dev/null` (or `... 2>/dev/null`) was parsed as an overwrite
+  of the file `/dev/null`, producing a real file event that surfaced in the Files list. Writing
+  to `/dev/null` discards output and is never a file, so `parseRedirect` now returns `undefined`
+  when the redirect target is the null device (new `NULL_DEVICE` guard, one check covering both
+  `>` and `>>`). Not a sign of a bigger bug — the sibling idiom `> /dev/null 2>&1` already parsed
+  to nothing. Added `test_parseRedirect_ignores_the_null_device` in tests/reconstruction_extract.test.ts.
 - [ ] 77: Give the Files column a true File tree view, instead of the current full-path list view.  The full paths are truncated anyway, so there's no real way to know what file is being loaded.  Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
 - [ ] 78: sessions with more than 500 steps take a long time after reconstructing to show the timeline.  Add some kind of visual indicator to the user that the application hasn't frozen and is just loading.   Ideally, some kind of progress bar when the timeline is being created showing the count of timeline rows the engine is generating for the render, in the middle of the screen before the timeline is shown.  Gotchas: files that are moved/renamed/deleted: how should they appear in the Tree view?   Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
 - [ ] 79:  make `builtDocumentCache` disk-backed so respawns skip reconstruction and finish faster during development.  Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline

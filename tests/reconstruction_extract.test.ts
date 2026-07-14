@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractFileEvents, extractScriptRenameEvents } from "../src/reconstruction_extract.ts";
+import { extractFileEvents, extractScriptRenameEvents, parseRedirect } from "../src/reconstruction_extract.ts";
 import { recordVerdict } from "../src/reconstruction_parse_lines.ts";
 import { BlockType, EventKind, RecordType, ToolName, Verdict } from "../src/structures/vocabulary.ts";
 import type { AppendEvent, OverwriteEvent } from "../src/reconstruction_engine.ts";
@@ -90,6 +90,14 @@ test("test_extract_maps_redirects_to_append_and_overwrite_events", () => {
     assert.equal((append as AppendEvent).content, "");
     assert.equal(overwrite.target.toString(), "/a/f.txt");
     assert.equal((overwrite as OverwriteEvent).content, "");
+});
+
+// task 76 — `> /dev/null` discards output; it must not parse as a file redirect.
+test("test_parseRedirect_ignores_the_null_device", () => {
+    assert.equal(parseRedirect("python build.py > /dev/null"), undefined);
+    assert.equal(parseRedirect("python build.py >> /dev/null"), undefined);
+    // A real target still parses.
+    assert.equal(parseRedirect("echo hi > /a/f.txt")!.target.toString(), "/a/f.txt");
 });
 
 // s1 — extraction finds the file events, time-ordered, with one delete.

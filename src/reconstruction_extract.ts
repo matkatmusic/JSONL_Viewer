@@ -74,6 +74,9 @@ export function parseCpPaths(command: string): CopyInfo | undefined {
     return { from: new Path(match[1]!), to: new Path(match[2]!) };
 }
 
+// The bash null device: `> /dev/null` discards output, so a redirect to it is not a write.
+const NULL_DEVICE = "/dev/null";
+
 // A parsed bash output redirection: the target file and whether it appends (`>>`)
 // rather than overwrites (`>`).
 type ParsedRedirect = {
@@ -86,13 +89,15 @@ type ParsedRedirect = {
 // parsed from the command — it is recovered from the file-history sidecar (locked decision 3).
 export function parseRedirect(command: string): ParsedRedirect | undefined {
     const appended = command.match(bashAppendRedirect);
-    if (appended) {
+    if (appended && appended[1] !== NULL_DEVICE) {
         return { target: new Path(appended[1]!), appends: true };
     }
     const overwritten = command.match(bashOverwriteRedirect);
-    if (overwritten) {
+    if (overwritten && overwritten[1] !== NULL_DEVICE) {
         return { target: new Path(overwritten[1]!), appends: false };
     }
+    // `> /dev/null` (and `>>`) discards output — it is not a real file, so it must
+    // never become a file event or show up in the Files list (task 76).
     return undefined;
 }
 
