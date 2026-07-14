@@ -1,0 +1,78 @@
+[
+  {
+    "taskNumber": 7,
+    "title": "jot repo: `terminal_windowSizeBlocks(s)` enum refactor",
+    "description": "7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** — DEFERRED UNTIL ALL other tasks are done.`/Users/matkatmusicllc/Programming/jot`\n  (separate repo); `grep -rn \"windowSizeBlocks\"`. Not a RevEng change."
+  },
+  {
+    "taskNumber": 17,
+    "title": "GitHub Pages demo tier",
+    "description": "17. GitHub Pages demo tier** — canned ReconstructionDocument JSON + `webapp/` with a\n  static-data shim replacing `/api/*`. Deliberately deferred \"Phase 4, planned separately when\n  reached\" (handoffs 20260702-1434/1639, 20260703-1010/2144); needs its own plan when reached.",
+    "handoffFilePaths": [
+      "plans/archived/handoff-develop-20260702-1434.md",
+      "plans/archived/handoff-develop-20260702-1639.md",
+      "plans/archived/handoff-develop-20260703-1010.md",
+      "plans/archived/handoff-develop-20260703-2144.md"
+    ]
+  },
+  {
+    "taskNumber": 56,
+    "title": "Pre-baseline reconstruction question UI (engine efficiency)",
+    "description": "56. Pre-baseline reconstruction question UI (engine efficiency)** — when a project has\n  a supplied base commit (item 46), the WebApp asks BEFORE rendering the timeline: \"Do you\n  want to reconstruct file states that precede the supplied baseline git commit?\" If the user\n  chooses No, the timeline's first shown step is the baseline commit (the engine may skip the\n  work the beacon supersedes); otherwise reconstruct as we currently do. User-specified\n  2026-07-09; deferred out of item 46's scope."
+  },
+  {
+    "taskNumber": 57,
+    "title": "Decide the public name/brand",
+    "description": "57. Decide the public name/brand** — blocks item 60's README title and the public\n  repo's name (item 58). `package.json` says `jsonl-viewer` (`\"private\": true`); root\n  `README.md` says \"JSONL_Viewer\"; JFReD (\"JSONL File Reconstruction Debugger\",\n  `jfred/jfred.html`) is technically a sub-tool — the static, browser-only debugger over the\n  frozen legacy `api/` engine — NOT the Engine-B product in `src/`. The user referred to the\n  whole project as \"JFRED\" when requesting publication, so JFReD may be the intended brand\n  for everything; if so, `package.json` name/description and the README must commit to it\n  consistently. Pure user decision, zero code."
+  },
+  {
+    "taskNumber": 58,
+    "title": "Assemble the curated public repo (privacy-clean copy)",
+    "description": "58. Assemble the curated public repo (privacy-clean copy)** — create a fresh repo\n  containing ONLY: `src/`, `webapp/`, `web-shared/`, `jfred/` + `api/` (JFReD's engine\n  scripts — note `api/` and `web-shared/` are currently UNTRACKED here), `tests/` +\n  `tests/fixtures/` (synthetic, already clean), `package.json`, `tsconfig.json`,\n  `tsconfig.webapp.json`, `LICENSE` (GPLv3, already fine), and `docs/engine-b-overview.md`\n  (the best explanatory doc — currently untracked!). MUST NOT copy (audit findings,\n  ranked): (1) `uncovered-real-jsonl-lines.md` — indexes 1,398 REAL transcripts from\n  `~/Programming/jot-recovery` with real session paths and query content; (2) `plans/`\n  — private dev journals, 273 files contain the OS username in absolute paths;\n  (3) the `scenarios` submodule (private repo, real executed JSONL) and `tmux_lib`\n  submodule; (4) `TASKS.md`, `CLAUDE.md`, `recon/`, `.claude/`, `.vscode*/`,\n  `monitor-handoff.sh`, `verify_gaps.ts`, `cli-json-notes.md`, `logs*.txt`,\n  `engine-pipeline-diagrams.html`, root mockup/scratch files. The two home-dir symlinks\n  (`projects`, `test-transcript.jsonl`) are untracked and must stay out; add both to the\n  public `.gitignore`. Verify with `git grep matkatmusicllc` = 0 hits in the new repo\n  before the first push. Depends on item 59 for the suite to pass without the submodule."
+  },
+  {
+    "taskNumber": 59,
+    "title": "Scrub hardcoded home paths + decouple tests from the scenarios submodule",
+    "description": "59. Scrub hardcoded home paths + decouple tests from the scenarios submodule** —\n  two code changes the public copy needs: (a) `tests/fixtures.ts:17-18` hardcodes\n  `/Users/matkatmusicllc/...` scenario roots — parameterize (env var or relative\n  `scenarios/executed` probe that skips gracefully when absent); `src/Impl_template.md`,\n  `src/Plan_template.md`, `src/Plan_Impl_template.md` also carry absolute worktree paths\n  (simplest: don't publish the templates — they're dev-process files). (b) exactly 4 test\n  files touch `scenarios/`: `tests/check_scenario_coverage.test.ts`, `tests/fixtures.ts`,\n  `tests/reconstruction_steps_name_at_time.test.ts` (commented-out ref), and\n  `tests/viewer-viewmodels.test.ts` — make those tests self-skip when `scenarios/executed`\n  is absent so the public suite (the other ~66 files run off committed `tests/fixtures/`)\n  is green on a bare clone. Do this in THIS repo so both repos share the code."
+  },
+  {
+    "taskNumber": 60,
+    "title": "Bundle a sanitized sample session (demo data)",
+    "description": "60. Bundle a sanitized sample session (demo data)** — the public repo needs one\n  committed, clean-room JSONL session (plus its file-history sidecar blobs) so\n  `npm run app` shows a populated timeline out-of-the-box and JFReD has a demo file. Cheapest\n  path: generate a fresh capture with the existing scenario runner (`/run-scenario`) against\n  a toy project in a temp dir, then verify zero personal paths inside (the transcript records\n  cwd — use a neutral temp cwd or post-process). This is also the data every screenshot in\n  item 61 uses."
+  },
+  {
+    "taskNumber": 61,
+    "title": "Write the public README (the actual pitch)",
+    "description": "61. Write the public README (the actual pitch)** — replace the 139-byte stub. Outline\n  agreed 2026-07-09: (1) hook — one sentence + hero screenshot: Claude Code's `/rewind`\n  does NOT track changes made outside Claude (link\n  https://code.claude.com/docs/en/checkpointing) — external edits, script runs, and git\n  operations are invisible to checkpoints; this tool reconstructs the COMPLETE file-change\n  history of a session from its JSONL transcript, file-history sidecar backups, and git\n  evidence. (2) screenshots per item 62. (3) \"How it works\" — 3–4 paragraphs distilled\n  from `docs/engine-b-overview.md` (per-line belief map, never-fabricate rule, evidence\n  tiers: transcript → sidecar blobs → git). (4) quick start (`npm install && npm run app`).\n  (5) honest scope notes: consent gate for script replay (impure execution off by default),\n  what reconstruction can/can't recover. Screenshots land via item 62."
+  },
+  {
+    "taskNumber": 62,
+    "title": "Capture README screenshots + timeline GIF",
+    "description": "62. Capture README screenshots + timeline GIF** — against the item-60 sample session\n  on a fresh `npm run app` build, capture with the headless browse daemon: (a) HERO: the\n  timeline view (`webapp/views/timeline.ts` — the flagship surface: numbered conversation\n  bubbles, un-bubbled tool rows, file chips, git rows); (b) Diff-vs-Base view (split mode\n  with line gutters); (c) the Details/inspector drawer with a snapshot open; (d) JFReD's\n  three-pane PREVIOUS/COMPUTED/NEXT stepper (`jfred/jfred.html`). Plus one animated GIF\n  scrubbing the timeline / stepping revisions — worth more than all stills; record via\n  screenshot sequence → `ffmpeg`/`gifski`. Light theme, consistent window size, no personal\n  paths visible in any frame (the sample session's temp cwd will show — item 60 must make\n  it neutral)."
+  },
+  {
+    "taskNumber": 63,
+    "title": "GitHub Pages demo tier",
+    "description": "63. GitHub Pages demo tier — publish JFReD static (cheap path)** — supersedes the\n  approach in item 17 for the FIRST public demo: `jfred/` + `api/` + `web-shared/` is\n  ALREADY a zero-server browser app (client-side JSONL load + legacy-engine reconstruction,\n  `jfred/jfred-load.js`), so Pages can host it as-is with the item-60 sample JSONL\n  preloaded. Label it honestly as the debugger demo running the frozen legacy `api/`\n  engine, not Engine B. Item 17 (canned ReconstructionDocument JSON + `webapp/` static-data\n  shim replacing `/api/*` — the full-fidelity Engine-B demo) stays open as the later,\n  bigger tier; do NOT build the shim for launch — the README GIF (item 62) covers what the\n  live webapp looks like."
+  },
+  {
+    "taskNumber": 64,
+    "title": "Public-repo CI workflow",
+    "description": "64. Public-repo CI workflow** — no `.github/` exists anywhere today. One workflow in\n  the public repo: `npm ci`, `tsc --noEmit` (`npm run typecheck`), `npm test` — viable on a\n  bare clone only after item 59 makes the suite scenario-submodule-optional. Add\n  `npm run build:webapp` to catch webapp tsconfig breakage. Nothing else (no matrix, no\n  release automation) until the repo has users."
+  },
+  {
+    "taskNumber": 67,
+    "title": "Script-run details: script + before/after diff panels",
+    "description": "67. Script-run details: script + before/after diff panels** — for script\n  runs that modify files, the bottom (Details) pane shows two panels: left is the\n  script itself, right is a side-by-side diff of the affected file(s) before vs\n  after the run. BLOCKED on a prerequisite that doesn't exist yet: detection of\n  which script runs modify files (the engine has script-run rows but no\n  \"this run changed files X, Y\" linkage to drive the diff panel). Logged\n  2026-07-11; do not build until the detection piece is designed."
+  },
+  {
+    "taskNumber": 83,
+    "title": "See if actual /jot folder can be reconstructed",
+    "description": "83. See if actual /jot folder can be reconstructed."
+  },
+  {
+    "taskNumber": 85,
+    "title": "timeline header needs Prev/Next buttons that navigate to messages where Files Touched events happened, to make it easy to jump to file-modifying events.  When a message is jumped to via these buttons, the message's expansion triangle should be clicked, showing the expanded message so that you can see the File chips for that message",
+    "description": "85: timeline header needs Prev/Next buttons that navigate to messages where Files Touched events happened, to make it easy to jump to file-modifying events.  When a message is jumped to via these buttons, the message's expansion triangle should be clicked, showing the expanded message so that you can see the File chips for that message."
+  }
+]
