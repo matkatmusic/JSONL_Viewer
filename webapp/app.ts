@@ -139,6 +139,12 @@ function ensureProgressTerminal(): void {
     document.getElementById("progress-copy")!.onclick = copyConsoleText;
     fitProgressColumns();
     window.addEventListener("resize", fitProgressColumns);
+    // The window-resize listener misses width changes with no resize event — chiefly
+    // dragging the sidebar↔rightcol splitter (#split-lr), which narrows the console.
+    // A ResizeObserver on the console element re-fits `cols` on ANY box change, so
+    // xterm always wraps at the visible width instead of overflowing (clipped) it (item 80).
+    const consoleResizeObserver = new ResizeObserver(() => fitProgressColumns());
+    consoleResizeObserver.observe(document.getElementById("progress-console")!);
 }
 
 // The console's full scrollback as plain text — what the copy button puts on the clipboard.

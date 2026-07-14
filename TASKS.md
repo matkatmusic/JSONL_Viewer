@@ -928,4 +928,16 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   view" line is a copy-paste artifact from task 77 (tree view), not part of this task. Plan:
   `plans/item78-timeline-build-progress.md`.
 - [ ] 79:  make `builtDocumentCache` disk-backed so respawns skip reconstruction and finish faster during development.  Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
-- [ ] 80: console should word-wrap lines that are longer than the console's width in the browser window. 
+- [x] 80: console should word-wrap lines that are longer than the console's width in the browser window.
+  **DONE 2026-07-13:** root cause was xterm `cols` drifting out of sync with the console's
+  real width — xterm autowraps at `cols`, but `fitProgressColumns` only re-fit on
+  `window.resize` + console-expand, so a width change with no resize event (dragging the
+  sidebar↔rightcol splitter `#split-lr`, or a zero-width initial fit leaving xterm at its
+  default 80 cols) left `cols` wider than the visible console and long lines overflowed
+  (clipped by `overflow: hidden`), looking un-wrapped. Fix: a `ResizeObserver` on
+  `#progress-console` re-fits `cols` on every box change (`webapp/app.ts`,
+  `ensureProgressTerminal`), so xterm always wraps at the visible width; the window-resize
+  listener stays as a safety net. No CSS change. Pure browser wiring (no unit test — same
+  category as the existing console DOM helpers); typecheck + `build:webapp` clean; visual
+  confirmation at the repro is the user's standing pass. Plan: `plans/item80-console-word-wrap.md`. 
+- [ ] 81: last line of console is not always shown at the bottom.  sometimes console[numLines - 2] is the last line shown, and the last line needs to be scrolled to, to be viewed. 
