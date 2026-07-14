@@ -3,7 +3,7 @@
 // headers, and no preamble/no-newline noise leaking into the webapp's row renderers.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runGitUnifiedDiff } from "../src/render_git_diff.ts";
+import { runGitUnifiedDiff, FULL_FILE_CONTEXT_LINES } from "../src/render_git_diff.ts";
 
 test("test_runGitUnifiedDiff_returns_empty_string_for_identical_sides", () => {
     // Scenario: both sides carry the same lines — no hunks, so the diff is the empty string.
@@ -38,6 +38,26 @@ test("test_runGitUnifiedDiff_carries_function_context_in_the_hunk_header", () =>
     const output = runGitUnifiedDiff(before, after);
     const firstLine = output.split("\n")[0]!;
     assert.match(firstLine, /^@@ -\d+(,\d+)? \+\d+(,\d+)? @@ .*def reorder/);
+});
+
+test("test_runGitUnifiedDiff_with_full_context_includes_lines_far_from_the_change", () => {
+    // Scenario: a file whose ONLY change is on the last line, with >3 unchanged lines
+    // above it. Default context (3) omits the top lines; full context includes ALL of
+    // them as context rows (" " prefix), so the whole file is present in the hunk.
+    const before = [
+        "line 1", "line 2", "line 3", "line 4", "line 5",
+        "line 6", "line 7", "line 8", "target",
+    ];
+    const after = [...before];
+    after[8] = "target changed";
+    // Default width omits the distant top line.
+    assert.ok(!runGitUnifiedDiff(before, after).includes(" line 1"));
+    // Full width carries every unchanged line as context.
+    const full = runGitUnifiedDiff(before, after, FULL_FILE_CONTEXT_LINES);
+    assert.ok(full.includes(" line 1"));
+    assert.ok(full.includes(" line 8"));
+    assert.ok(full.includes("-target"));
+    assert.ok(full.includes("+target changed"));
 });
 
 test("test_runGitUnifiedDiff_emits_no_preamble_and_no_newline_markers", () => {

@@ -5,7 +5,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildRevisionCards, computeDetailsHeaderText, mapStoredDiffModeToToggle } from "../webapp/views/details.ts";
+import { buildRevisionCards, computeDetailsHeaderText, mapStoredDiffModeToToggle, resolveInitialFullContentsChoice } from "../webapp/views/details.ts";
 import { AGENT_TURN_NODE_KIND, COMMIT_NODE_KIND, type TimelineNode } from "../webapp/views/timeline.ts";
 import { DiffDisplayMode } from "../webapp/views/diff-vs-base.ts";
 import { EventKind } from "../src/structures/vocabulary.ts";
@@ -85,4 +85,14 @@ test("test_mapStoredDiffModeToToggle_maps_split_to_columns", () => {
     assert.equal(mapStoredDiffModeToToggle(DiffDisplayMode.inline), "inline");
     // Step 2: nothing stored falls back to diff-vs-base's split default → Columns.
     assert.equal(mapStoredDiffModeToToggle(undefined), "columns");
+});
+
+test("test_resolveInitialFullContentsChoice_reads_the_stored_flag", () => {
+    // Step 1: "1" means the "Show full contents" toggle was left on.
+    assert.equal(resolveInitialFullContentsChoice("1"), true);
+    // Step 2: absent / "0" / anything else means off — full contents is opt-in, so an
+    // unset key reads as off (default is the ±3-line hunk view).
+    assert.equal(resolveInitialFullContentsChoice(undefined), false);
+    assert.equal(resolveInitialFullContentsChoice("0"), false);
+    assert.equal(resolveInitialFullContentsChoice("columns"), false);
 });

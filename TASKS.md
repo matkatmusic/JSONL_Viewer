@@ -891,4 +891,21 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   Verified served live on 7343; visual/suite check is the user's standing pass. NOTE: the sibling
   Inline view on this same pane (`.diff` / `.diff-line`, also `min-width: max-content` + `pre`)
   shares the root cause and likely overflows too — left untouched as out of this task's scope.
-- [ ] 75: add a 'show full contents' in the diff view of the File Revision Panel. If in columns mode, both columns should show full content.  
+- [x] 75: add a 'show full contents' button in the diff view of the File Revision Panel. If in "columns" mode, both columns should show full content.   Place the button next to the 'Columns | Inline' buttons, to the left of them.
+  **DONE 2026-07-13:** `#dm-full` "Show full contents" toggle added to the details-pane diff
+  header, LEFT of `Columns | Inline`. On → the revision diff widens git's context to the whole
+  file (`--unified=1000000` via new `FULL_FILE_CONTEXT_LINES`) so every line renders with
+  add/del/context coloring in BOTH Columns and Inline modes; off → the default ±3-line hunks.
+  Persists in localStorage (`reveng.diff.fullContents`) like the Columns/Inline toggle. Threads
+  button → `/api/diff?context=full` → `handleDiffRequest` → `renderRevisionDiff` →
+  `renderDiffWithContext(fullContext)` → `runGitUnifiedDiff(contextLines)`; reuses the existing
+  `computeSplitRows`/`computeInlineRows` renderers unchanged (no diff library). Each render path
+  carries a `reload` thunk so the toggle re-fetches at the current width; file-mode keeps a
+  per-width memo so switching cards never refetches. RED-first tests in render_git_diff /
+  reconstruction_render / details-viewmodels. Plan: plans/item75-show-full-contents.md; notes:
+  plans/implementation-notes-item75-show-full-contents.md. Diff-vs-Base view left untouched
+  (out of scope). Webapp rebuilt; typecheck + build clean. User runs the suite + visual pass.
+- [ ] 76: "/dev/null" is appearing as a file in the Files list.  Should it?  Is the cause of its appearance as a file a sign of a bigger bug?  Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
+- [ ] 77: Give the Files column a true File tree view, instead of the current full-path list view.  The full paths are truncated anyway, so there's no real way to know what file is being loaded.  Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
+- [ ] 78: sessions with more than 500 steps take a long time after reconstructing to show the timeline.  Add some kind of visual indicator to the user that the application hasn't frozen and is just loading.   Ideally, some kind of progress bar when the timeline is being created showing the count of timeline rows the engine is generating for the render, in the middle of the screen before the timeline is shown.  Gotchas: files that are moved/renamed/deleted: how should they appear in the Tree view?   Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
+- [ ] 79:  make `builtDocumentCache` disk-backed so respawns skip reconstruction and finish faster during development.  Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline

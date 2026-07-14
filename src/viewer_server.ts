@@ -212,6 +212,9 @@ function handleDiffRequest(response: ServerResponse, query: URLSearchParams): vo
     const jsonlPaths = resolveJsonlPaths(projectName, query.get("jsonl"));
     const filePath = new Path(requireParam(query, "file"));
     const allowScripts = query.get("allowScripts") === "1";
+    // item 75: "Show full contents" — the revision-diff branch below widens git's context
+    // to the whole file when the client asks for it.
+    const fullContext = query.get("context") === "full";
     // Untargeted on purpose: both diff views send no jsonl param, so this reuses the very
     // project-wide artifact the views already built (equality certified by
     // test_revision_diff_from_untargeted_document_matches_targeted_build).
@@ -220,7 +223,7 @@ function handleDiffRequest(response: ServerResponse, query: URLSearchParams): vo
         sendText(response, 200, renderDiffVsBase(document, filePath, Number(query.get("rev") ?? "0")));
         return;
     }
-    sendText(response, 200, renderRevisionDiff(document, filePath));
+    sendText(response, 200, renderRevisionDiff(document, filePath, fullContext));
 }
 
 // GET /api/range-patch — one git-apply-able unified diff for a picked contiguous step range over

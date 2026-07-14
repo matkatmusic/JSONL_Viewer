@@ -6,7 +6,7 @@ import type { FileRevision, LineEntry } from "./reconstruction_engine.ts";
 import { EventKind } from "./structures/vocabulary.ts";
 import { DOES_NOT_EXIST_YET } from "./structures/line-model.ts";
 import type { Path } from "./structures/domain.ts";
-import { runGitUnifiedDiff } from "./render_git_diff.ts";
+import { runGitUnifiedDiff, DEFAULT_DIFF_CONTEXT_LINES, FULL_FILE_CONTEXT_LINES } from "./render_git_diff.ts";
 
 // A line's believed content right now is the last value in its history.
 function currentText(entry: LineEntry): string {
@@ -236,7 +236,10 @@ function renderHunk(hunkLines: AlignedDiffLine[]): string {
 // standard unified hunks with context lines around every change — enough for the client to
 // render surrounding lines and line-number gutters. renderDiff (the CLI's human-oriented
 // changes-only view) is untouched.
-export function renderDiffWithContext(revisions: FileRevision[]): string {
+export function renderDiffWithContext(revisions: FileRevision[], fullContext: boolean = false): string {
+    // item 75: "Show full contents" widens git's context to the whole file so every
+    // unchanged line renders as context; default keeps the ±3-line hunk window.
+    const contextLines = fullContext ? FULL_FILE_CONTEXT_LINES : DEFAULT_DIFF_CONTEXT_LINES;
     const blocks: string[] = [];
     let previous: FileRevision | undefined;
     for (const revision of revisions) {
@@ -249,7 +252,7 @@ export function renderDiffWithContext(revisions: FileRevision[]): string {
             // }
             const beforeLines = previous === undefined ? [] : previous.lines.map(currentText);
             const afterLines = revision.lines.map(currentText);
-            const hunks = runGitUnifiedDiff(beforeLines, afterLines);
+            const hunks = runGitUnifiedDiff(beforeLines, afterLines, contextLines);
             if (hunks !== "") {
                 blockLines.push(hunks);
             }

@@ -273,6 +273,24 @@ test("test_context_diff_surrounds_a_middle_change_with_three_context_lines", () 
     assert.ok(!changedBlock.includes(" line 10"));
 });
 
+test("test_context_diff_full_context_shows_lines_the_default_omits", () => {
+    // Scenario: the same middle-of-a-10-line-file edit, rendered with fullContext=true.
+    // Full context widens the hunk to the whole file, so the head (line 1) and tail
+    // (line 10) the default ±3 window drops are now present as context body lines.
+    const defaultText = renderDiffWithContext(createLongFileThenEditMiddle());
+    const fullText = renderDiffWithContext(createLongFileThenEditMiddle(), true);
+    // The default block drops the distant head/tail.
+    const defaultChanged = defaultText.slice(defaultText.indexOf("@@ changed"));
+    assert.ok(!defaultChanged.includes("\n line 1\n"));
+    assert.ok(!defaultChanged.includes(" line 10"));
+    // Full context carries every unchanged line as a context body line.
+    const fullChanged = fullText.slice(fullText.indexOf("@@ changed"));
+    assert.ok(fullChanged.includes("\n line 1\n"));
+    assert.ok(fullChanged.includes(" line 10"));
+    // The change itself is still a colored deletion-before-addition pair.
+    assert.ok(fullChanged.indexOf("-line 5") < fullChanged.indexOf("+line 5 REPLACED"));
+});
+
 test("test_context_diff_renders_a_creation_as_one_all_addition_hunk", () => {
     // Scenario: a created file has no old side: hunk header -0,0 and every line a "+".
     const out = renderDiffWithContext(createThenAppendRevs());

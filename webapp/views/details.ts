@@ -123,8 +123,38 @@ function writeStoredDiffMode(label: DiffToggleLabel): void {
     localStorage.setItem(DIFF_MODE_STORAGE_KEY, label === "columns" ? DiffDisplayMode.split : DiffDisplayMode.inline);
 }
 
-// The diff the right pane currently shows, kept for toggle re-renders.
-let shownDiff: { label: string; diffText: string } | undefined;
+// item 75: "Show full contents" persists like the Columns/Inline toggle, under its own key.
+const FULL_CONTENTS_STORAGE_KEY = "reveng.diff.fullContents";
+
+// The stored full-contents flag: "1" is on; absent / anything else is off (opt-in — the
+// default view is the ±3-line hunk diff).
+export function resolveInitialFullContentsChoice(stored: string | undefined): boolean {
+    return stored === "1";
+}
+
+// localStorage is browser-only (same typeof-window guard as readStoredDiffMode).
+function readStoredFullContents(): string | undefined {
+    if (typeof window === "undefined") {
+        return undefined;
+    }
+    return localStorage.getItem(FULL_CONTENTS_STORAGE_KEY) ?? undefined;
+}
+
+function writeStoredFullContents(on: boolean): void {
+    if (typeof window === "undefined") {
+        return;
+    }
+    localStorage.setItem(FULL_CONTENTS_STORAGE_KEY, on ? "1" : "0");
+}
+
+function fullContentsIsOn(): boolean {
+    return resolveInitialFullContentsChoice(readStoredFullContents());
+}
+
+// The diff the right pane currently shows, kept for toggle re-renders. `reload` re-fetches
+// (a full-context diff is a DIFFERENT server response, so the full-contents toggle cannot
+// re-render from the current text — item 75).
+let shownDiff: { label: string; diffText: string; reload: () => void } | undefined;
 
 // Plain explanatory text in the right pane (rename-only revisions, missing blocks).
 function showTextInDetails(label: string, text: string): void {
@@ -218,21 +248,29 @@ function appendColumnsDiff(body: HTMLElement, diffText: string): void {
 
 // One diff in the right pane, in whichever layout the persisted toggle selects. #dm-columns /
 // #dm-inline re-render the SAME diff and persist through diff-vs-base's storage vocabulary.
-function showDiffInDetails(label: string, diffText: string): void {
-    shownDiff = { label, diffText };
+function showDiffInDetails(label: string, diffText: string, reload: () => void): void {
+    shownDiff = { label, diffText, reload };
     setRightPaneLabel(label);
     const mode = mapStoredDiffModeToToggle(readStoredDiffMode());
     const toggle = document.getElementById("diff-mode-toggle")!;
     toggle.hidden = false;
+    const fullButton = document.getElementById("dm-full")!;
     const columnsButton = document.getElementById("dm-columns")!;
     const inlineButton = document.getElementById("dm-inline")!;
+    fullButton.classList.toggle("active", fullContentsIsOn());
     columnsButton.classList.toggle("active", mode === "columns");
     inlineButton.classList.toggle("active", mode === "inline");
     const switchDiffMode = (label2: DiffToggleLabel) => {
         writeStoredDiffMode(label2);
         if (shownDiff !== undefined) {
-            showDiffInDetails(shownDiff.label, shownDiff.diffText);
+            showDiffInDetails(shownDiff.label, shownDiff.diffText, shownDiff.reload);
         }
+    };
+    // Full contents changes the fetched diff (wider git context), so it re-fetches via
+    // reload rather than re-rendering the current text.
+    fullButton.onclick = () => {
+        writeStoredFullContents(!fullContentsIsOn());
+        reload();
     };
     columnsButton.onclick = () => switchDiffMode("columns");
     inlineButton.onclick = () => switchDiffMode("inline");
@@ -246,10 +284,13 @@ function showDiffInDetails(label: string, diffText: string): void {
 
 // The revision-timeline diff blocks of one file, freshly fetched (same /api/diff request the
 // file-history view issues, consent flag included).
-async function fetchRevisionDiffBlocks(project: string, target: string): Promise<string[]> {
+async function fetchRevisionDiffBlocks(project: string, target: string, fullContents: boolean): Promise<string[]> {
     const params = new URLSearchParams({ project, file: target, mode: "revisions" });
     if (getConsentChoice(project) === "1") {
         params.set("allowScripts", "1");
+    }
+    if (fullContents) {
+        params.set("context", "full");
     }
     return splitDiffBlocks(await fetchText(`/api/diff?${params}`));
 }
@@ -257,7 +298,7 @@ async function fetchRevisionDiffBlocks(project: string, target: string): Promise
 // One file change's revision diff in the right pane: its changeId resolves to a 1-based
 // revision through the document's histories, that revision's block renders as a diff, and the
 // no-hunk cases (renames, missing blocks) render their fallback explanation instead.
-async function showRevisionDiffInDetails(change: FileChange, blocks: string[], filesTouched: WireFileHistory[]): Promise<void> {
+async function showRevisionDiffInDetails(change: FileChange, blocks: string[], filesTouched: WireFileHistory[], reload: () => void): Promise<void> {
     const link = change.changeId === undefined ? undefined : findRevisionForChangeId(filesTouched, change.changeId, undefined);
     const block = link?.revisionNumber === undefined ? undefined : blocks[link.revisionNumber - 1];
     const fallbackText = computeRevisionDiffFallbackText(block, change);
@@ -265,7 +306,7 @@ async function showRevisionDiffInDetails(change: FileChange, blocks: string[], f
         showTextInDetails(change.path, fallbackText);
         return;
     }
-    showDiffInDetails(change.path, block!);
+    showDiffInDetails(change.path, block!, reload);
 }
 
 // The left pane's clickable file list (message + commit modes): clicking a file marks it
@@ -273,11 +314,16 @@ async function showRevisionDiffInDetails(change: FileChange, blocks: string[], f
 function appendFileList(left: HTMLElement, changes: FileChange[], context: DetailsContext): HTMLElement[] {
     return changes.map((change) => {
         const item = el("div", { class: "dfile", text: change.path });
+        // Re-callable so the full-contents toggle can re-fetch this file's diff at the
+        // current stored context width (item 75).
+        const showThisFileDiff = async () => {
+            const blocks = await fetchRevisionDiffBlocks(context.project, change.path, fullContentsIsOn());
+            await showRevisionDiffInDetails(change, blocks, context.document.filesTouched, () => void showThisFileDiff());
+        };
         item.onclick = async () => {
             left.querySelectorAll(".dfile").forEach((other) => other.classList.remove("selected"));
             item.classList.add("selected");
-            const blocks = await fetchRevisionDiffBlocks(context.project, change.path);
-            await showRevisionDiffInDetails(change, blocks, context.document.filesTouched);
+            await showThisFileDiff();
         };
         left.append(item);
         return item;
@@ -338,14 +384,21 @@ export function renderDetailsFileMode(target: string, context: DetailsContext): 
     // revision's timestamp) — the same mechanism the file-history view's Show content uses.
     const revisionContents = buildFileHistoryViewModel(context.document, target).revisions;
     const baseName = target.slice(target.lastIndexOf("/") + 1);
-    // The revision-timeline diff, fetched once per file-mode entry, on first need.
-    let diffBlocksPromise: Promise<string[]> | undefined;
-    const getDiffBlocks = () => {
-        diffBlocksPromise ??= fetchRevisionDiffBlocks(context.project, target);
-        return diffBlocksPromise;
+    // The revision-timeline diff at each context width, fetched at most once each on first
+    // need: switching rev-cards never re-fetches, but toggling full contents fetches the
+    // wider diff separately (item 75).
+    let defaultBlocks: Promise<string[]> | undefined;
+    let fullBlocks: Promise<string[]> | undefined;
+    const getDiffBlocks = (full: boolean) => {
+        if (full) {
+            fullBlocks ??= fetchRevisionDiffBlocks(context.project, target, true);
+            return fullBlocks;
+        }
+        defaultBlocks ??= fetchRevisionDiffBlocks(context.project, target, false);
+        return defaultBlocks;
     };
     const showCardDiff = async (card: RevisionCard, index: number) => {
-        const block = (await getDiffBlocks())[index];
+        const block = (await getDiffBlocks(fullContentsIsOn()))[index];
         const change: FileChange = {
             path: target,
             eventKind: card.opLabel,
@@ -360,7 +413,7 @@ export function renderDetailsFileMode(target: string, context: DetailsContext): 
             showTextInDetails(label, fallbackText);
             return;
         }
-        showDiffInDetails(label, block!);
+        showDiffInDetails(label, block!, () => void showCardDiff(card, index));
     };
     const selectCard = (cardElement: HTMLElement) => {
         left.querySelectorAll(".rev-card").forEach((other) => other.classList.remove("selected"));
@@ -384,8 +437,8 @@ export function renderDetailsFileMode(target: string, context: DetailsContext): 
             el("div", { class: "rev-actions" }, [
                 buildActionButton("Show content", () => showContentInDetails(target, card.revisionNumber, revisionContents[index]?.content)),
                 buildActionButton("Export this version", () => downloadText(`${baseName}.rev${card.revisionNumber}`, revisionContents[index]?.content ?? "")),
-                buildActionButton("Copy patch", async () => navigator.clipboard.writeText((await getDiffBlocks())[index] ?? "")),
-                buildActionButton("Export .patch", async () => downloadText(`${baseName}.rev${card.revisionNumber}.patch`, (await getDiffBlocks())[index] ?? "")),
+                buildActionButton("Copy patch", async () => navigator.clipboard.writeText((await getDiffBlocks(fullContentsIsOn()))[index] ?? "")),
+                buildActionButton("Export .patch", async () => downloadText(`${baseName}.rev${card.revisionNumber}.patch`, (await getDiffBlocks(fullContentsIsOn()))[index] ?? "")),
                 buildActionButton("Jump to timeline step", () => {
                     const ownerIndex = context.nodes.findIndex(
                         (candidate) => (candidate.fileChanges ?? []).some((change) => change.changeId === card.changeId),

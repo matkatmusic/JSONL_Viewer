@@ -403,8 +403,8 @@ function findFileHistory(document: ReconstructionDocument, filePath: Path): File
 
 // The revision-timeline view's text: consecutive-revision diffs for one file, with unified
 // hunks + context so the client can render surrounding lines and line-number gutters.
-export function renderRevisionDiff(document: ReconstructionDocument, filePath: Path): string {
-    return renderDiffWithContext(findFileHistory(document, filePath).revisions);
+export function renderRevisionDiff(document: ReconstructionDocument, filePath: Path, fullContext: boolean = false): string {
+    return renderDiffWithContext(findFileHistory(document, filePath).revisions, fullContext);
 }
 
 // The Diff-vs-Base view's text: the file's first revision against the selected one (0-based).
