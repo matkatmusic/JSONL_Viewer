@@ -1007,6 +1007,60 @@ export function checkRowIsExpandable(node: TimelineNode): boolean {
 const SESSION_LANE_VARIABLES = ["--accent", "--green", "--orange", "--lane-violet", "--lane-teal"];
 const ORPHAN_LANE_COLOR = "var(--muted)";
 
+// A timeline this many rows or larger gets the build-progress overlay + chunked
+// rendering; smaller ones build synchronously (item 78).
+const LARGE_TIMELINE_ROW_COUNT = 500;
+
+// Rows built per animation frame during a chunked (large-timeline) build.
+const TIMELINE_BUILD_BATCH_SIZE = 100;
+
+// True when a timeline is large enough to build in yielding batches behind a
+// progress overlay instead of one synchronous pass.
+export function checkTimelineNeedsProgressOverlay(rowCount: number): boolean {
+    return rowCount >= LARGE_TIMELINE_ROW_COUNT;
+}
+
+// The overlay's text line, e.g. "Building timeline… 250 / 1200 rows".
+export function computeTimelineBuildProgressLabel(rowsBuilt: number, totalRows: number): string {
+    return `Building timeline… ${rowsBuilt} / ${totalRows} rows`;
+}
+
+// The progress bar's fill fraction (0..1). A zero total counts as fully built (1)
+// so an empty build never divides by zero.
+export function computeTimelineProgressFraction(rowsBuilt: number, totalRows: number): number {
+    if (totalRows === 0) {
+        return 1;
+    }
+    return rowsBuilt / totalRows;
+}
+
+// Resolve on the next animation frame so a just-applied DOM update paints before
+// the next batch of rows blocks the main thread again (item 78).
+function waitForNextAnimationFrame(): Promise<void> {
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+// The centered build-progress overlay: a label + a bar track/fill. Returned so the
+// caller can update the fill/label per batch and remove the whole overlay when done.
+interface TimelineBuildProgressOverlay {
+    element: HTMLElement;
+    update: (rowsBuilt: number, totalRows: number) => void;
+}
+
+function createTimelineBuildProgressOverlay(): TimelineBuildProgressOverlay {
+    const label = el("div", { class: "timeline-progress-label" });
+    const fill = el("div", { class: "timeline-progress-fill" });
+    const track = el("div", { class: "timeline-progress-track" }, [fill]);
+    const box = el("div", { class: "timeline-progress-box" }, [label, track]);
+    const element = el("div", { class: "timeline-progress-overlay" }, [box]);
+    const update = (rowsBuilt: number, totalRows: number) => {
+        label.textContent = computeTimelineBuildProgressLabel(rowsBuilt, totalRows);
+        fill.style.width = `${computeTimelineProgressFraction(rowsBuilt, totalRows) * 100}%`;
+    };
+    update(0, 1);   // start empty (0%) before the first paint
+    return { element, update };
+}
+
 // The letter half of a chip's letter+color badge (color alone never carries the meaning).
 function computeOpLetter(change: FileChange): string {
     if (change.eventKind === "rename") {
@@ -1648,7 +1702,19 @@ export async function renderTimelineView(container: HTMLElement, project: string
     const sessionStartsByIndex = new Map(
         findSessionStartIndexes(nodes).map((start) => [start.nodeIndex, start.sessionId]),
     );
-    nodes.forEach((node, index) => {
+    // Large timelines build in yielding batches behind a centered progress overlay so the
+    // multi-second synchronous DOM build (500+ rows) no longer looks frozen (item 78). Small
+    // timelines take neither overlay nor yield — the loop stays a straight synchronous pass.
+    const showBuildProgress = checkTimelineNeedsProgressOverlay(nodes.length);
+    let buildProgressOverlay: TimelineBuildProgressOverlay | null = null;
+    if (showBuildProgress) {
+        buildProgressOverlay = createTimelineBuildProgressOverlay();
+        document.body.append(buildProgressOverlay.element);
+        // Yield once so the overlay paints before the (blocking) first batch.
+        await waitForNextAnimationFrame();
+    }
+    try {
+    for (const [index, node] of nodes.entries()) {
         const sessionColor = node.sessionId === undefined
             ? ORPHAN_LANE_COLOR
             : sessionColors.get(node.sessionId) ?? ORPHAN_LANE_COLOR;
@@ -1750,7 +1816,14 @@ export async function renderTimelineView(container: HTMLElement, project: string
         row.append(main);
         container.append(row);
         nodeRows.set(index, row);
-    });
+        if (showBuildProgress && (index + 1) % TIMELINE_BUILD_BATCH_SIZE === 0) {
+            buildProgressOverlay!.update(index + 1, nodes.length);
+            await waitForNextAnimationFrame();
+        }
+    }
+    } finally {
+        buildProgressOverlay?.element.remove();
+    }
     // ── Expand All / Collapse All (mockup updateToggleLabel). #toggle-all is a static skeleton
     // element outside `container`; onclick property assignment (not addEventListener) so
     // re-renders never stack handlers. ──

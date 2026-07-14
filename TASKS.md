@@ -914,5 +914,18 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   `>` and `>>`). Not a sign of a bigger bug — the sibling idiom `> /dev/null 2>&1` already parsed
   to nothing. Added `test_parseRedirect_ignores_the_null_device` in tests/reconstruction_extract.test.ts.
 - [ ] 77: Give the Files column a true File tree view, instead of the current full-path list view.  The full paths are truncated anyway, so there's no real way to know what file is being loaded.  Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
-- [ ] 78: sessions with more than 500 steps take a long time after reconstructing to show the timeline.  Add some kind of visual indicator to the user that the application hasn't frozen and is just loading.   Ideally, some kind of progress bar when the timeline is being created showing the count of timeline rows the engine is generating for the render, in the middle of the screen before the timeline is shown.  Gotchas: files that are moved/renamed/deleted: how should they appear in the Tree view?   Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
+- [x] 78: sessions with more than 500 steps take a long time after reconstructing to show the timeline.  Add some kind of visual indicator to the user that the application hasn't frozen and is just loading.   Ideally, some kind of progress bar when the timeline is being created showing the count of timeline rows the engine is generating for the render, in the middle of the screen before the timeline is shown.  Gotchas: files that are moved/renamed/deleted: how should they appear in the Tree view?   Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
+  **DONE 2026-07-13:** `renderTimelineView` (`webapp/views/timeline.ts`) now builds large
+  timelines (`nodes.length >= LARGE_TIMELINE_ROW_COUNT` = 500) in yielding batches of 100 rows
+  behind a centered, fixed-position progress overlay that counts rows built
+  ("Building timeline… N / total rows") with a matching bar; the `forEach` row loop became a
+  `for…of` inside a `try`/`finally` so it can `await requestAnimationFrame` between batches and
+  the overlay is always removed. Small timelines take no overlay and no yield — behavior is
+  identical to before. 3 pure helpers (`checkTimelineNeedsProgressOverlay`,
+  `computeTimelineBuildProgressLabel`, `computeTimelineProgressFraction`) + 5 tests in
+  `tests/timeline-viewmodels.test.ts`; overlay CSS in `styles.css` reuses palette vars
+  (theme-aware). typecheck + `build:webapp` clean; suite not run (user runs). The "Gotchas: Tree
+  view" line is a copy-paste artifact from task 77 (tree view), not part of this task. Plan:
+  `plans/item78-timeline-build-progress.md`.
 - [ ] 79:  make `builtDocumentCache` disk-backed so respawns skip reconstruction and finish faster during development.  Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
+- [ ] 80: console should word-wrap lines that are longer than the console's width in the browser window. 
