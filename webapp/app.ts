@@ -585,11 +585,48 @@ export function checkConsentScriptOverflowsPreview(code: string): boolean {
 // recorded run executes as `python3 __script__.py` (reconstruction_script_execution.ts).
 const CONSENT_SCRIPT_LANGUAGE_PATH = "__script__.py";
 
+// The three segments of a shell line like `python3 -c "…" 2>&1`: the wrapper before the
+// quoted inline code, the inline code itself, and the wrapper after it, plus the pseudo-path
+// naming the body's real language for renderCodeInto.
+export type InlineInterpreterSegments = {
+    prefix: string;
+    body: string;
+    suffix: string;
+    languagePath: string;
+};
+
+// Splits a shell line like `python3 -c "…" 2>&1` into wrapper + inline code so the body can
+// be highlighted in its real language — highlighted whole, the quoted body tokenizes as one
+// giant string literal. undefined = not an inline-interpreter invocation.
+// ponytail: greedy-to-last-quote split, no shell parsing — revisit if runs ever put an
+// unescaped double quote after the body (e.g. a second quoted argument).
+export function splitInlineInterpreterCode(code: string): InlineInterpreterSegments | undefined {
+    const match = /^((python3?|node)[^\n]*?\s-[ce]\s+")([\s\S]*)("[^"]*)$/.exec(code);
+    if (match === null) {
+        return undefined;
+    }
+    return {
+        prefix: match[1],
+        body: match[3],
+        suffix: match[4],
+        languagePath: match[2] === "node" ? "__script__.js" : CONSENT_SCRIPT_LANGUAGE_PATH,
+    };
+}
+
 // One script's row in the consent dialog: local timestamp (+ cwd when recorded) over its
 // python-highlighted code; scripts taller than the preview clip get an Expand toggle (item 70).
+// Shell lines carrying inline code (`python3 -c "…"`) highlight just the quoted body, in the
+// interpreter's language, with the wrapper left as plain text.
 function buildConsentScriptRow(script: WireConsentScript): HTMLElement {
     const pre = el("pre");
-    renderCodeInto(pre, script.code, CONSENT_SCRIPT_LANGUAGE_PATH);
+    const inline = splitInlineInterpreterCode(script.code);
+    if (inline === undefined) {
+        renderCodeInto(pre, script.code, CONSENT_SCRIPT_LANGUAGE_PATH);
+    } else {
+        const bodySpan = el("span");
+        renderCodeInto(bodySpan, inline.body, inline.languagePath);
+        pre.append(document.createTextNode(inline.prefix), bodySpan, document.createTextNode(inline.suffix));
+    }
     const row = el("div", { class: "consent-script" }, [
         el("div", { class: "muted", text: new Date(script.timestamp).toLocaleString() + (script.cwd ? `  ·  cwd ${script.cwd}` : "") }),
         pre,

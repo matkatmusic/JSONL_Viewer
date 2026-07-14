@@ -16,7 +16,7 @@ import { findBackupTimeForBlob, findToolNavigationTargets } from "../webapp/insp
 import { buildConversationViewModel } from "../webapp/views/conversation.ts";
 import { buildProjectViewModel } from "../webapp/views/project.ts";
 import { filterProjectsByName } from "../webapp/views/projects.ts";
-import { checkConsentScriptOverflowsPreview, clampConsentSelectionStep, ConsentBlockKind, findDefaultConsentSelectionIndex, groupConsentScriptsIntoBlocks } from "../webapp/app.ts";
+import { checkConsentScriptOverflowsPreview, clampConsentSelectionStep, ConsentBlockKind, findDefaultConsentSelectionIndex, groupConsentScriptsIntoBlocks, splitInlineInterpreterCode } from "../webapp/app.ts";
 import { Path } from "../src/structures/domain.ts";
 import { jsonlPathsForScenario, readNonEmptyLines } from "./utilities.ts";
 import { S19_JSONL } from "./fixtures.ts";
@@ -643,6 +643,30 @@ test("test_checkConsentScriptOverflowsPreview_returns_true_for_script_longer_tha
     const code = Array.from({ length: 13 }, (_, index) => `line ${index}`).join("\n");
     // the overflow check must say the preview DOES overflow.
     assert.equal(checkConsentScriptOverflowsPreview(code), true);
+});
+
+test("test_splitInlineInterpreterCode_splits_python_dash_c_wrapper_from_inline_body", () => {
+    // Scenario: a recorded run stored as a full shell line (`python3 -c "…" 2>&1`) is split
+    // into wrapper + inline Python so the body can be highlighted in its real language.
+    // Steps:
+    // build a shell line whose quoted body is real Python (single quotes inside are fine).
+    const body = "\nimport json\npath = '/tmp/x.jsonl'\nprint(f'{path}')\n";
+    const code = `python3 -c "${body}" 2>&1`;
+    const split = splitInlineInterpreterCode(code);
+    // the splitter must recognize the wrapper and hand back all three segments.
+    assert.ok(split !== undefined);
+    assert.equal(split.prefix, 'python3 -c "');
+    assert.equal(split.body, body);
+    assert.equal(split.suffix, '" 2>&1');
+    // a python interpreter highlights the body as Python.
+    assert.equal(split.languagePath, "__script__.py");
+});
+
+test("test_splitInlineInterpreterCode_returns_undefined_for_plain_python_script", () => {
+    // Scenario: a normal recorded run is pure Python source, not a shell wrapper — the
+    // splitter must decline so the whole preview keeps highlighting as Python.
+    const code = "import json\nprint(json.dumps({'a': 1}))\n";
+    assert.equal(splitInlineInterpreterCode(code), undefined);
 });
 
 // -------------------- consent header script navigation (item 73) --------------------

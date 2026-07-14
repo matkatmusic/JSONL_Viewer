@@ -707,6 +707,9 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
     padding: 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; max-height: 200px; overflow-y: auto;
 }
 .consent-script pre.expanded { max-height: none; }
+/* Inline-interpreter body span (splitInlineInterpreterCode): blend the highlighted <span>
+   into its parent <pre> instead of rendering the hljs theme's own block box. */
+.consent-script pre .hljs { background: transparent; padding: 0; display: inline; }
 .consent-script button { margin-top: 4px; }
 .consent-readonly-block summary { cursor: pointer; margin: 8px 0; }
 /* item 73: was — the decision buttons rendered in a bottom row; they moved into the header:
