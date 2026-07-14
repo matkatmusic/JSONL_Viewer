@@ -10,7 +10,7 @@ test("nextTaskNumber prints the highest taskNumber across both task files, plus 
         JSON.parse(readFileSync(path, "utf8")).map((t: { taskNumber: number }) => t.taskNumber);
     const expected = Math.max(0, ...readNumbers("tasks.json"), ...readNumbers("completedTasks.json")) + 1;
     const printed = Number(
-        execFileSync("node", [".claude/skills/create-task/scripts/nextTaskNumber.ts"], { encoding: "utf8" }),
+        execFileSync("node", [".claude/skills/scripts/nextTaskNumber.ts"], { encoding: "utf8" }),
     );
     assert.equal(printed, expected);
 });

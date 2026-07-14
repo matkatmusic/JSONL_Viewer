@@ -4,7 +4,7 @@ description: add a new task to tasks.json from the user's description. Use disce
 argument-hint: "<task description>"
 ---
 
-- taskNumber to use: !`node .claude/skills/create-task/scripts/nextTaskNumber.ts`
+- taskNumber to use: !`node .claude/skills/scripts/nextTaskNumber.ts`
 
 Task described by the user: $ARGUMENTS
 

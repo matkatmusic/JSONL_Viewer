@@ -1,9 +1,10 @@
 // Prints the full JSON object for each task number given as an argument,
 // looking in tasks.json (open) first, then completedTasks.json.
-// Output goes to stdout because the tackle-tasks skill injects it via !`node scripts/getTaskDetails.ts <N...>`.
+// With NO arguments, prints one "OPEN|DONE <n>: <title>" line per task instead.
+// Output goes to stdout because skills inject it via !`node scripts/getTaskDetails.ts [N...]`.
 import { readFileSync } from "node:fs";
 
-type TaskRecord = { taskNumber: number };
+type TaskRecord = { taskNumber: number; title?: string };
 
 function readTaskFile(path: string): TaskRecord[] {
   return JSON.parse(readFileSync(path, "utf8"));
@@ -19,6 +20,13 @@ function describeTask(taskNumber: number, openTasks: TaskRecord[], completedTask
 
 const openTasks = readTaskFile("tasks.json");
 const completedTasks = readTaskFile("completedTasks.json");
+function listTaskTitles(tag: string, tasks: TaskRecord[]): string[] {
+  return tasks.map(t => `${tag} ${t.taskNumber}: ${t.title}`);
+}
+
 const taskNumbers = (process.argv.slice(2).join(" ").match(/\d+/g) ?? []).map(Number);
-const report = taskNumbers.map(n => describeTask(n, openTasks, completedTasks));
+const report =
+  taskNumbers.length === 0
+    ? [...listTaskTitles("OPEN", openTasks), ...listTaskTitles("DONE", completedTasks)]
+    : taskNumbers.map(n => describeTask(n, openTasks, completedTasks));
 process.stdout.write(report.join("\n") + "\n");

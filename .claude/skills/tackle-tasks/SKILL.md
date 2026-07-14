@@ -8,7 +8,7 @@ First, invoke `/ponytail:ponytail ultra`.
 
 Then:
 
-- task details: !`node .claude/skills/tackle-tasks/scripts/getTaskDetails.ts $ARGUMENTS`
+- task details: !`node .claude/skills/scripts/getTaskDetails.ts $ARGUMENTS`
 
 Review the task details above (each object comes from `tasks.json` if the task is open, or `completedTasks.json` if it was already completed). Cross-reference the task with the codebase to determine if the task is still relevant or if it has been resolved.
 Use the git history and recent commits (over the last 3 days) to confirm/deny the existence of the tasks named in $ARGUMENTS.
