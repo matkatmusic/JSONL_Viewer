@@ -34,6 +34,11 @@ export const TOOL_CALL_NODE_KIND = "tool-call";
 const USER_ROLE = "user";
 const EDIT_EVENT_KIND = "edit";
 const COMMIT_OPERATION_KIND = "commit";
+// Item 77: the two EventKind wire strings the Files tree reads (a delete dims the row, a rename
+// gives it its origin badge). Mirrored as consts like the kinds above — the webapp cannot import
+// the TS enums; tests assert equivalence against the real vocabulary.ts members.
+const DELETE_EVENT_KIND = "delete";
+const RENAME_EVENT_KIND = "rename";
 
 // ── local wire + view-model types ────────────────────────────────────────────────────────────────
 // The document arrives via fetch + JSON.parse, so ids/paths/dates are plain strings on the wire;
@@ -919,12 +924,140 @@ export function findContributingNodeIndexes(nodes: TimelineNode[], commitIndex: 
     return indexes.reverse();
 }
 
-// The Files sidebar's entries (item 66): every surviving touched file with its revision count.
-export function buildFilesSidebarViewModel(document: WireTimelineDocument): { target: string; revisionCount: number }[] {
+// One Files-pane entry: the file plus the two facts the tree renders differently (item 77).
+export type FileSidebarEntry = {
+    target: string;
+    revisionCount: number;
+    // True only when the LAST revision is a delete: m4's write->delete->write recreate ends alive.
+    isDeleted: boolean;
+    // The path this file was born at, when a rename moved it. The engine keys a renamed file's
+    // history at its FINAL path (src/reconstruction_lineage.ts), so the origin is only recoverable
+    // from the rename revision. undefined when the file was never renamed.
+    originalPath: string | undefined;
+};
+
+// The Files sidebar's entries (item 66): every surviving touched file with its revision count,
+// plus its delete/rename facts (item 77).
+export function buildFilesSidebarViewModel(document: WireTimelineDocument): FileSidebarEntry[] {
     return document.filesTouched.map((history) => ({
         target: history.target,
         revisionCount: history.revisions.length,
+        isDeleted: findLastRevisionKind(history) === DELETE_EVENT_KIND,
+        originalPath: findOriginalPath(history),
     }));
+}
+
+// The kind of the revision a file ends life at; undefined for an empty history.
+function findLastRevisionKind(history: WireFileHistory): string | undefined {
+    return history.revisions[history.revisions.length - 1]?.kind;
+}
+
+// The path a renamed file started at: the FIRST rename revision's `from`. A chained rename
+// (a->b->c) leaves revisions from=a,to=b then from=b,to=c, so the earliest `from` is the origin.
+function findOriginalPath(history: WireFileHistory): string | undefined {
+    return history.revisions.find((revision) => revision.kind === RENAME_EVENT_KIND)?.rename?.from;
+}
+
+// A Files-pane tree node (item 77): a folder with children, or a file leaf carrying its entry.
+// Mirrored (not imported) by webapp/views/sidebar.ts — this module imports sidebar.ts, so importing
+// back would be a cycle; that file's other view-model types are mirrored the same way.
+export const FOLDER_NODE_KIND = "folder";
+export const FILE_NODE_KIND = "file";
+
+export type FileTreeNode = {
+    kind: typeof FOLDER_NODE_KIND | typeof FILE_NODE_KIND;
+    name: string;
+    children: FileTreeNode[];
+    // Set only on a file leaf.
+    entry: FileSidebarEntry | undefined;
+};
+
+// The directory segments every target shares, as a path (item 77). Real targets are absolute and
+// deep (/private/var/folders/…/T/run-scenario.xxxx/alpha.py), so the tree strips this prefix —
+// otherwise the pane is a chain of single-child folders before the first real file, which is the
+// truncation item 77 is about. Segment-wise on purpose: a character-wise prefix of /foo/bar and
+// /foo/barn wrongly yields /foo/bar.
+export function findCommonDirectoryPrefix(targets: readonly string[]): string {
+    const directories = targets.map(splitDirectorySegments);
+    if (directories.length === 0) {
+        return "";
+    }
+    return directories.reduce(intersectLeadingSegments).join("/");
+}
+
+// A target's directory, as segments — never its basename, so a lone file keeps its own name.
+function splitDirectorySegments(target: string): string[] {
+    return target.split("/").slice(0, -1);
+}
+
+// The leading segments two paths agree on.
+function intersectLeadingSegments(left: readonly string[], right: readonly string[]): string[] {
+    const shared: string[] = [];
+    for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
+        if (left[index] !== right[index]) {
+            break;
+        }
+        shared.push(left[index]!);
+    }
+    return shared;
+}
+
+// Shape the flat Files entries into a nested tree, rooted below the directory prefix every target
+// shares (item 77). Folders sort before files; each group sorts alphabetically.
+export function buildFileTree(files: readonly FileSidebarEntry[]): FileTreeNode[] {
+    const prefix = findCommonDirectoryPrefix(files.map((file) => file.target));
+    const root = makeFolderNode("");
+    for (const file of files) {
+        insertFileIntoTree(root, file, prefix);
+    }
+    sortTreeNodes(root);
+    return root.children;
+}
+
+function makeFolderNode(name: string): FileTreeNode {
+    return { kind: FOLDER_NODE_KIND, name, children: [], entry: undefined };
+}
+
+// Walk (creating as needed) the folder chain below the stripped prefix, then hang the file leaf.
+function insertFileIntoTree(root: FileTreeNode, file: FileSidebarEntry, prefix: string): void {
+    const segments = stripPrefixSegments(file.target, prefix);
+    const fileName = segments[segments.length - 1]!;
+    let folder = root;
+    for (const directory of segments.slice(0, -1)) {
+        folder = findOrAddFolder(folder, directory);
+    }
+    folder.children.push({ kind: FILE_NODE_KIND, name: fileName, children: [], entry: file });
+}
+
+// A target's segments below the shared prefix. Splitting the REMAINDER (not the whole target) is
+// what removes the deep absolute root; the filter drops the remainder's empty leading segment.
+function stripPrefixSegments(target: string, prefix: string): string[] {
+    return target.slice(prefix.length).split("/").filter((segment) => segment !== "");
+}
+
+function findOrAddFolder(parent: FileTreeNode, name: string): FileTreeNode {
+    const existing = parent.children.find((child) => child.kind === FOLDER_NODE_KIND && child.name === name);
+    if (existing !== undefined) {
+        return existing;
+    }
+    const folder = makeFolderNode(name);
+    parent.children.push(folder);
+    return folder;
+}
+
+// Folders before files, then alphabetical — applied at every depth.
+function sortTreeNodes(folder: FileTreeNode): void {
+    folder.children.sort(compareTreeNodes);
+    for (const child of folder.children) {
+        sortTreeNodes(child);
+    }
+}
+
+function compareTreeNodes(left: FileTreeNode, right: FileTreeNode): number {
+    if (left.kind !== right.kind) {
+        return left.kind === FOLDER_NODE_KIND ? -1 : 1;
+    }
+    return left.name.localeCompare(right.name);
 }
 
 // The project JSONL whose file name starts with the session id (JSONLs are named after their
@@ -1838,7 +1971,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
     renderForkSidebar(
         document.getElementById("drawer")!,
         buildSessionsSidebarViewModel(nodes, listing),
-        buildFilesSidebarViewModel(reconstructionDocument),
+        buildFileTree(buildFilesSidebarViewModel(reconstructionDocument)),
         {
             onSessionClick: jumpToTimelineRow,
             onFileClick: (target: string) => {

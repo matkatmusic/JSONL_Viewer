@@ -182,6 +182,25 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
 .file-item.selected { background: var(--sel); color: #fff; }
 .file-item .revcount { color: var(--muted); margin-left: 6px; }
 .file-item.selected .revcount { color: #bcd0ea; }
+/* Item 77: the Files pane is a tree. A folder is a native <details open> (no toggle JS); each
+   level indents its own contents, so nested <details> compound the indent on their own. */
+.file-folder > summary {
+    padding: 3px 10px 3px 18px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+}
+/* The disclosure triangle already shows open/closed, so the icon stays the same either way. */
+.file-folder > summary::before { content: "📁"; margin-right: 5px; }
+.file-folder > summary:hover { background: var(--sel-hover); }
+.file-folder > *:not(summary) { padding-left: 10px; }
+/* A file deleted and never recreated: still browsable, but shown as gone. */
+.file-item.deleted { text-decoration: line-through; opacity: 0.55; }
+/* Where a rename moved the file from (its history is keyed at the final path). */
+.file-item .rename-badge { color: var(--orange); margin-left: 6px; font-size: 10px; }
+.file-item.selected .rename-badge { color: #bcd0ea; }
 .session-item { padding: 3px 10px 3px 18px; cursor: pointer; }
 .session-item:hover { background: var(--sel-hover); }
 .session-item .sess-file { font-family: var(--mono); font-size: 11px; color: var(--text); }
@@ -674,8 +693,8 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
 .two-pane { display: flex; gap: 16px; align-items: flex-start; }
 .two-pane > div { flex: 1; min-width: 0; }
 .tree-dir { color: var(--muted); font-size: 11px; margin-top: 8px; word-break: break-all; }
-.tree-file { padding: 1px 0 1px 16px; cursor: pointer; word-break: break-all; }
-.tree-file:hover { background: var(--control); }
+/* (item 77) GONE: .tree-file / .tree-file:hover were referenced by no TS — renderProjectDrawer
+   renders its leaves as `.drawer-item .drawer-file`. Preserved in webapp/archive/styles-pre-item66.css. */
 .jsonl-row { display: flex; gap: 10px; align-items: baseline; padding: 2px 8px; cursor: pointer; }
 .jsonl-row:hover { background: var(--control); }
 

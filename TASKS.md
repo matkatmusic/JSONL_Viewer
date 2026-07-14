@@ -913,7 +913,31 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   when the redirect target is the null device (new `NULL_DEVICE` guard, one check covering both
   `>` and `>>`). Not a sign of a bigger bug — the sibling idiom `> /dev/null 2>&1` already parsed
   to nothing. Added `test_parseRedirect_ignores_the_null_device` in tests/reconstruction_extract.test.ts.
-- [ ] 77: Give the Files column a true File tree view, instead of the current full-path list view.  The full paths are truncated anyway, so there's no real way to know what file is being loaded.  Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
+- [x] **77: Give the Files column a true File tree view, instead of the current full-path list view.**
+  The full paths are truncated anyway, so there's no real way to know what file is being loaded.
+  Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
+  **DONE 2026-07-14:** The Files pane (`webapp/views/sidebar.ts`) is now a nested tree of native
+  `<details open>` folders with **basename** leaves (full path moved to the `title` tooltip), instead
+  of one flat `.file-item` per absolute path. The key finding: real targets are absolute and deep
+  (`/private/var/folders/fy/…/T/run-scenario.9xxymp7j/alpha.py`), so a naive path-split tree would
+  render ~8 single-child folders before the first file — worse than the flat list. `buildFileTree`
+  therefore strips the directory prefix every target shares (`findCommonDirectoryPrefix`, compared
+  **segment-wise**: `/foo/bar` and `/foo/barn` share only `/foo`, a character-wise prefix is a bug).
+  Folders sort before files, each group alphabetical; every folder starts expanded (no toggle JS, no
+  collapse state). Per the task's "Gotchas" line (a copy-paste artifact that belongs to 77, not 78)
+  and the user's decisions: a **renamed** file shows once at its final path with a `← oldname` badge
+  (the engine already keys a renamed file's history at its final path — `src/reconstruction_lineage.ts`
+  — so `originalPath` comes from the first rename revision's `from`); a **deleted** file stays in the
+  tree struck-through/dimmed (`isDeleted` = the **LAST** revision is a delete, so m4's
+  write→delete→write recreate correctly reads as alive). **No engine/`src` change was needed** — the
+  wire already carried every fact. `clearSidebarFileSelection` and its `timeline.ts` caller are
+  untouched (leaves kept the `.file-item` class), and the call site changed by one argument.
+  15 new tests in `tests/timeline-viewmodels.test.ts` (98 pass / 0 fail in that file); both typechecks
+  and `build:webapp` clean. Also removed dead `.tree-file` CSS (referenced by no TS; preserved in
+  `webapp/archive/styles-pre-item66.css`). Plan: `plans/item77-files-tree-view.md`; notes:
+  `plans/implementation-notes-item77-files-tree-view.md`. User runs the full suite + visual pass.
+  Possible follow-ups (deliberately skipped, see notes): a header row naming the stripped common
+  root; migrating `project.ts`'s single-level `groupTargetsByDirectory` pane to the same builder.
 - [x] 78: sessions with more than 500 steps take a long time after reconstructing to show the timeline.  Add some kind of visual indicator to the user that the application hasn't frozen and is just loading.   Ideally, some kind of progress bar when the timeline is being created showing the count of timeline rows the engine is generating for the render, in the middle of the screen before the timeline is shown.  Gotchas: files that are moved/renamed/deleted: how should they appear in the Tree view?   Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
   **DONE 2026-07-13:** `renderTimelineView` (`webapp/views/timeline.ts`) now builds large
   timelines (`nodes.length >= LARGE_TIMELINE_ROW_COUNT` = 500) in yielding batches of 100 rows

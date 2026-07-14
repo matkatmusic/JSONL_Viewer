@@ -6,10 +6,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+    buildFileTree,
     buildFilesSidebarViewModel,
     buildSessionsSidebarViewModel,
     buildTurnTimelineViewModel,
     checkRowIsExpandable,
+    findCommonDirectoryPrefix,
     checkTimelineNeedsProgressOverlay,
     computeTimelineBuildProgressLabel,
     computeTimelineProgressFraction,
@@ -1264,6 +1266,44 @@ const commitWalkDocument = {
     }],
 };
 
+// Item 77: absolute targets (production shape — src/reconstruction_extract.ts resolves every
+// file_path against the transcript cwd) covering the three cases the Files tree renders specially:
+// a rename lineage keyed at its FINAL path (src/reconstruction_lineage.ts), a deleted file, and a
+// delete-then-recreate (m4) that ends alive and must NOT read as deleted.
+const fileTreeDocument = {
+    ...commitWalkDocument,
+    filesTouched: [{
+        target: "/tmp/proj/src/renamed.py",
+        revisions: [
+            { kind: EventKind.write, changeId: "c1", timestamp: "2026-01-01T00:00:05.000Z" },
+            {
+                kind: EventKind.rename,
+                changeId: "c2",
+                timestamp: "2026-01-01T00:00:06.000Z",
+                rename: { from: "/tmp/proj/src/original.py", to: "/tmp/proj/src/renamed.py" },
+            },
+        ],
+    }, {
+        target: "/tmp/proj/src/gone.py",
+        revisions: [
+            { kind: EventKind.write, changeId: "c3", timestamp: "2026-01-01T00:00:07.000Z" },
+            { kind: EventKind.delete, changeId: "c4", timestamp: "2026-01-01T00:00:08.000Z" },
+        ],
+    }, {
+        target: "/tmp/proj/README.md",
+        revisions: [
+            { kind: EventKind.write, changeId: "c5", timestamp: "2026-01-01T00:00:09.000Z" },
+            { kind: EventKind.delete, changeId: "c6", timestamp: "2026-01-01T00:00:10.000Z" },
+            { kind: EventKind.write, changeId: "c7", timestamp: "2026-01-01T00:00:11.000Z" },
+        ],
+    }],
+};
+
+// A Files-pane entry for the tree tests: the target is what varies, the rest is uninteresting here.
+function makeFileEntry(target: string) {
+    return { target, revisionCount: 1, isDeleted: false, originalPath: undefined };
+}
+
 // The indexes of a timeline's commit nodes, in order.
 function findCommitNodeIndexes(nodes: { kind: string }[]): number[] {
     return nodes.flatMap((node, index) => (node.kind === COMMIT_NODE_KIND ? [index] : []));
@@ -1595,9 +1635,151 @@ test("test_buildFilesSidebarViewModel_lists_targets_with_revision_counts", () =>
     // build the sidebar view-model from the commit-walk document (alpha 2 revs, beta 1 rev).
     const entries = buildFilesSidebarViewModel(commitWalkDocument);
     assert.deepEqual(entries, [
-        { target: "alpha.py", revisionCount: 2 },
-        { target: "beta.py", revisionCount: 1 },
+        { target: "alpha.py", revisionCount: 2, isDeleted: false, originalPath: undefined },
+        { target: "beta.py", revisionCount: 1, isDeleted: false, originalPath: undefined },
     ]);
+});
+
+test("test_buildFilesSidebarViewModel_flags_a_file_whose_last_revision_is_a_delete", () => {
+    // Scenario: a file deleted and never recreated is reported as deleted, so the tree can dim it.
+    // Steps:
+    // build the sidebar view-model from the item-77 document.
+    const entries = buildFilesSidebarViewModel(fileTreeDocument);
+    // find the entry whose history ends in a delete revision.
+    const gone = entries.find((entry) => entry.target === "/tmp/proj/src/gone.py");
+    // it is reported deleted.
+    assert.equal(gone?.isDeleted, true);
+});
+
+test("test_buildFilesSidebarViewModel_does_not_flag_a_file_recreated_after_a_delete", () => {
+    // Scenario: m4's write->delete->write recreate ends alive, so it must NOT be reported deleted.
+    // This guards against testing "any delete revision" instead of the LAST one.
+    // Steps:
+    // build the sidebar view-model from the item-77 document.
+    const entries = buildFilesSidebarViewModel(fileTreeDocument);
+    // find the file that was deleted and then written again.
+    const recreated = entries.find((entry) => entry.target === "/tmp/proj/README.md");
+    // its last revision is a write, so it is alive.
+    assert.equal(recreated?.isDeleted, false);
+});
+
+test("test_buildFilesSidebarViewModel_reports_the_original_path_of_a_renamed_file", () => {
+    // Scenario: a renamed file is ONE history keyed at its final path (reconstruction_lineage.ts);
+    // the pane still needs the path it started life at, for the rename badge.
+    // Steps:
+    // build the sidebar view-model from the item-77 document.
+    const entries = buildFilesSidebarViewModel(fileTreeDocument);
+    // find the renamed file, keyed at its FINAL path.
+    const renamed = entries.find((entry) => entry.target === "/tmp/proj/src/renamed.py");
+    // its first rename revision's `from` is the path it was born at.
+    assert.equal(renamed?.originalPath, "/tmp/proj/src/original.py");
+});
+
+test("test_buildFilesSidebarViewModel_reports_no_original_path_for_a_never_renamed_file", () => {
+    // Scenario: a file that was never renamed must carry no badge.
+    // Steps:
+    // build the sidebar view-model from the item-77 document.
+    const entries = buildFilesSidebarViewModel(fileTreeDocument);
+    // find a file with no rename revision.
+    const gone = entries.find((entry) => entry.target === "/tmp/proj/src/gone.py");
+    // no original path is reported.
+    assert.equal(gone?.originalPath, undefined);
+});
+
+test("test_findCommonDirectoryPrefix_returns_the_directories_every_target_shares", () => {
+    // Scenario: absolute targets share a long root; the tree strips it so files are readable.
+    // Steps: two files in the same directory share that whole directory.
+    assert.equal(findCommonDirectoryPrefix(["/tmp/proj/src/a.py", "/tmp/proj/src/b.py"]), "/tmp/proj/src");
+});
+
+test("test_findCommonDirectoryPrefix_stops_where_targets_diverge", () => {
+    // Scenario: targets in sibling directories share only their parent.
+    // Steps: /tmp/proj/src/a.py and /tmp/proj/docs/b.md share /tmp/proj.
+    assert.equal(findCommonDirectoryPrefix(["/tmp/proj/src/a.py", "/tmp/proj/docs/b.md"]), "/tmp/proj");
+});
+
+test("test_findCommonDirectoryPrefix_compares_whole_segments_not_characters", () => {
+    // Scenario: /foo/bar and /foo/barn share /foo, NOT /foo/bar — a character-wise prefix is a bug.
+    // Steps: the two directories differ at their second segment despite the shared text "bar".
+    assert.equal(findCommonDirectoryPrefix(["/foo/bar/a.py", "/foo/barn/b.py"]), "/foo");
+});
+
+test("test_findCommonDirectoryPrefix_uses_the_parent_directory_of_a_lone_target", () => {
+    // Scenario: one file must not have its own name eaten by the prefix (that would empty the tree).
+    // Steps: a single target contributes its directory, never its basename.
+    assert.equal(findCommonDirectoryPrefix(["/tmp/proj/src/only.py"]), "/tmp/proj/src");
+});
+
+test("test_findCommonDirectoryPrefix_is_empty_when_targets_share_no_directory", () => {
+    // Scenario: bare relative targets (the commit-walk fixture's shape) have no shared root.
+    // Steps: alpha.py and beta.py sit at the root, so nothing is stripped.
+    assert.equal(findCommonDirectoryPrefix(["alpha.py", "beta.py"]), "");
+});
+
+test("test_findCommonDirectoryPrefix_is_empty_for_no_targets", () => {
+    // Scenario: an empty Files pane must not crash the tree builder.
+    // Steps: no targets means no prefix.
+    assert.equal(findCommonDirectoryPrefix([]), "");
+});
+
+test("test_buildFileTree_nests_each_file_under_its_directories", () => {
+    // Scenario: the pane becomes a real tree — a folder node per directory, files as its leaves.
+    // Steps:
+    // build a tree from two files in different directories under a shared root.
+    const tree = buildFileTree([makeFileEntry("/root/src/a.py"), makeFileEntry("/root/docs/b.md")]);
+    // the shared /root prefix is stripped, leaving its two directories as the top level.
+    assert.deepEqual(tree.map((node) => node.name), ["docs", "src"]);
+    // each folder holds its own file, named by basename (never the full path).
+    assert.deepEqual(tree[0]!.children.map((child) => child.name), ["b.md"]);
+    assert.deepEqual(tree[1]!.children.map((child) => child.name), ["a.py"]);
+});
+
+test("test_buildFileTree_sorts_folders_before_files_then_alphabetically", () => {
+    // Scenario: a stable, readable order — folders first, each group alphabetical.
+    // Steps:
+    // build a tree mixing root-level files with a folder, supplied out of order.
+    const tree = buildFileTree([
+        makeFileEntry("/root/zeta.py"),
+        makeFileEntry("/root/alpha.py"),
+        makeFileEntry("/root/src/nested.py"),
+    ]);
+    // the folder leads, then the two root files in alphabetical order.
+    assert.deepEqual(tree.map((node) => node.name), ["src", "alpha.py", "zeta.py"]);
+});
+
+test("test_buildFileTree_carries_the_entry_facts_onto_each_leaf", () => {
+    // Scenario: leaves must keep the full target (clicks route by full path) and the render facts.
+    // Steps:
+    // build a tree from one deleted, renamed file.
+    const entry = {
+        target: "/root/src/renamed.py",
+        revisionCount: 2,
+        isDeleted: true,
+        originalPath: "/root/src/original.py",
+    };
+    const tree = buildFileTree([entry]);
+    // the lone leaf carries the entry verbatim, so onFileClick still receives the full path.
+    assert.deepEqual(tree[0]!.entry, entry);
+});
+
+test("test_buildFileTree_is_empty_for_no_files", () => {
+    // Scenario: a project with no touched files renders an empty pane, not a crash.
+    // Steps: no entries yields no nodes.
+    assert.deepEqual(buildFileTree([]), []);
+});
+
+test("test_buildFileTree_strips_the_deep_absolute_root_real_targets_carry", () => {
+    // Scenario: item 77's actual complaint — production targets are absolute and deep
+    // (/private/var/folders/…/T/run-scenario.xxxx/alpha.py), so without stripping the shared root
+    // the pane is a chain of single-child folders before the first real file.
+    // Steps:
+    // build a tree from two real-shaped absolute targets sharing their whole directory.
+    const tree = buildFileTree([
+        makeFileEntry("/private/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/run-scenario.9xxymp7j/alpha.py"),
+        makeFileEntry("/private/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/run-scenario.9xxymp7j/beta.py"),
+    ]);
+    // the whole root collapses away: two readable basenames, no folder chain at all.
+    assert.deepEqual(tree.map((node) => node.name), ["alpha.py", "beta.py"]);
 });
 
 test("test_buildSessionsSidebarViewModel_groups_rows_per_session", () => {
