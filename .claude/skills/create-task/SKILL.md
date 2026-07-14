@@ -20,6 +20,8 @@ Append ONE object to the `tasks.json` array, using this template:
 }
 ```
 
+If the request names the source note/handoff file(s) the task came from (e.g. an `update-tasks` harvest), also include `"handoffFilePaths": [<those repo-relative paths>]` in the object; otherwise omit the field.
+
 Omit completion-related fields (`completionDate`, `commitHashes`, `closureNote`) — those belong to `completedTasks.json`, which this skill never touches.
 
 Finally, confirm to the user: the task number and title that were added.

@@ -74,5 +74,97 @@
     "taskNumber": 85,
     "title": "timeline header needs Prev/Next buttons that navigate to messages where Files Touched events happened, to make it easy to jump to file-modifying events.  When a message is jumped to via these buttons, the message's expansion triangle should be clicked, showing the expanded message so that you can see the File chips for that message",
     "description": "85: timeline header needs Prev/Next buttons that navigate to messages where Files Touched events happened, to make it easy to jump to file-modifying events.  When a message is jumped to via these buttons, the message's expansion triangle should be clicked, showing the expanded message so that you can see the File chips for that message."
+  },
+  {
+    "taskNumber": 86,
+    "title": "Attribute gitBase baseline steps (\"baseline\" pseudo-lane?) instead of the unattributed lane",
+    "description": "The `gitBase:` beacon changeIds resolve to no session in `indexChangeIdsToSessionIds`, so a step whose ONLY changeId is a base-commit beacon lands in the unattributed lane (same class as the item-41 blob-ref/git-evidence survivors; the styles.css hide rule already covers it). Attributing them (e.g. \"baseline\" pseudo-lane) is a display decision — raise if wanted. (item 46)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item46-custom-data-source-paths.md"
+    ]
+  },
+  {
+    "taskNumber": 87,
+    "title": "First commit of a session shows \"No files changed\" — absorb the trailing files bubble?",
+    "description": "The FIRST commit of a session (\"baseline\") shows \"No files changed\" + no contrib rows: its file chips live on the trailing reply bubble that sorts AFTER the commit row (snapshot attribution), so the walk-back finds nothing. Later commits work. Acceptable, or should `deriveCommitChangedFiles` also absorb the files bubble immediately after the commit? (item 66)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item66-fork-style-port.md"
+    ]
+  },
+  {
+    "taskNumber": 88,
+    "title": "Rev-card op badges: single letters (A/M) vs the mockup's word badges",
+    "description": "Rev-card op badges render single letters (A/M) rather than the mockup's word badges (write/edit/user-edit) — eyeball and decide which reads better. (item 66)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item66-fork-style-port.md"
+    ]
+  },
+  {
+    "taskNumber": 89,
+    "title": "s39 emits NO commit node: compound `git add … && git commit` extracts only the add op",
+    "description": "s39 emits NO commit node (its `git add … && git commit` compound extracted only the `add` op — pre-existing engine behavior, not a port regression). Flagging in case a commit row was expected there. (item 66)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item66-fork-style-port.md"
+    ]
+  },
+  {
+    "taskNumber": 90,
+    "title": "Files tree, multi-root projects: collapse single-child chains below the root?",
+    "description": "When a project's sessions ran under different `cwd`s, the shared prefix is necessarily shallower (e.g. `/Users/matkatmusicllc`), so some real single-child chains survive (`Programming` → `jot-backup` → `src`). That is honest divergence rather than a bug, and collapsing it is exactly the chain-collapsing you declined — but if those chains bother you in practice, the fix is to collapse single-child chains *below* the root, and I'd want your go-ahead first. (item 77)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item77-files-tree-view.md"
+    ]
+  },
+  {
+    "taskNumber": 91,
+    "title": "Rename badge shows only the old basename — ambiguous for same-basename renames",
+    "description": "Rename badge text shows `← <old basename>` with the full old path in the tooltip. If two files were renamed from different directories with the same basename, the badges read identically until hovered. Say the word if you'd rather see more of the old path inline. (item 77)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item77-files-tree-view.md"
+    ]
+  },
+  {
+    "taskNumber": 92,
+    "title": "Split oversized files: webapp/views/timeline.ts, webapp/views/details.ts, tests/timeline-viewmodels.test.ts",
+    "description": "`tests/timeline-viewmodels.test.ts` (2017 lines), `webapp/views/timeline.ts` (2071 lines), and `webapp/views/details.ts` (623 lines) all trip the project's 250-line file-size hook, which also flags pre-existing deep nesting. None of it originates from items 77/84, and splitting is a large refactor outside those tasks — but the ledger keeps growing, so it deserves its own item. (items 77 + 84)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item77-files-tree-view.md",
+      "plans/archived/implementation-notes-item84-unify-bottom-pane.md"
+    ]
+  },
+  {
+    "taskNumber": 93,
+    "title": "renderFileHistoryView is a near-duplicate of the Revision View — consolidate?",
+    "description": "`renderFileHistoryView` (`webapp/views/file-history.ts:161`) — the `#/project/<p>/file/<path>` route renders per-revision rows with the *same five actions* as the rev cards (Show content / Export this version / Copy patch / Export .patch / Jump to timeline step). It was `⤷`'s destination; after item 84's bug-1 fix, nothing on the chip row reaches it. It is still reachable from the inspector's revision links and the snapshot pane's \"View in File History\" button. (item 84)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item84-unify-bottom-pane.md"
+    ]
+  },
+  {
+    "taskNumber": 94,
+    "title": "`⤷` snapshot-jump button renders for any matched changeId, not only snapshot-backed revisions",
+    "description": "`⤷`'s render condition may not match its stated meaning. It was kept because its presence indicates a revision that HAS a File History Snapshot. But `computeSnapshotJumpRoute` returns `undefined` only when the changeId is absent, resolves to no history, or resolves to a blob name with no anchored revision — i.e. the button renders for essentially any changeId that matches a revision, whether or not a snapshot backs it. If the indicator is meant to be precise, that is a separate bug. (item 84)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item84-unify-bottom-pane.md"
+    ]
+  },
+  {
+    "taskNumber": 95,
+    "title": "Doubled rtk-rewrite tool-call rows (s39): signal, or collapse into the original row?",
+    "description": "The rtk-rewrite hook rewrote BOTH `ls` and `git add` in s39, so the timeline shows `* git add … *` AND `* rtk git add … *` (the mock listed only up through mkdir, so this pair never appeared in it). This follows directly from the locked \"all tool calls, including hook rewrites\" rule — confirm the doubled rewrite rows read as signal, not noise; collapsing a rewrite into its original row (one row, two line labels) is a small follow-up if preferred. (timeline tool-call rows)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-timeline-tool-call-rows.md"
+    ]
+  },
+  {
+    "taskNumber": 96,
+    "title": "Deferred browser verifications: items 78, 80, 84 and the unified-reconstruction fix",
+    "description": "Browser checks deferred to the user's post-session pass, bundled: (a) item 78 — visual/headless verification of the timeline-build progress overlay against `#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline`; threshold 500 / batch 100 are first-cut constants, tunable if the overlay feels too eager or the bar too coarse. (b) item 80 — confirm at the repro that a long console line wraps, and re-wraps after dragging `#split-lr` to narrow the console; if long lines STILL overflow, the cause is elsewhere and the item reopens. (c) item 84 — the `☐`/`☑` range toggle is a `<button>` inside `.rev-head`, which otherwise holds `<span>`s; may need a CSS nudge — visual verify. (d) unified-juggling-conway — glance that the file-history revision-content pane still looks right (`computeContentAtTime` now renders from the revision's own `lines`); click a chip → drawer shows the fetched file, pick a range + chip → diff renders; measure the cold-load timing win on the real `jot-backup` project via the `--resetSandboxMemo` run.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item78-timeline-build-progress.md",
+      "plans/archived/implementation-notes-item80-console-word-wrap.md",
+      "plans/archived/implementation-notes-item84-unify-bottom-pane.md",
+      "plans/archived/implementation-notes-unified-juggling-conway.md"
+    ]
   }
 ]
