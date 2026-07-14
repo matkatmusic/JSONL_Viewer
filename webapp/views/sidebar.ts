@@ -36,14 +36,22 @@ type FileTreeNode = {
 
 const FOLDER_NODE_KIND = "folder";
 
-type ForkSidebarCallbacks = {
-    onSessionClick: (firstNodeIndex: number) => void;
+// What a file tree needs from its owner. The Files sidebar and the details pane's "Files touched"
+// tree (item 84) render the SAME tree with different click meanings, so this is the narrower half
+// of ForkSidebarCallbacks.
+export type FileTreeCallbacks = {
     onFileClick: (target: string) => void;
 };
 
-// Un-mark the active file — the details pane left file mode (a timeline row was selected).
-export function clearSidebarFileSelection(): void {
-    for (const item of document.querySelectorAll("#drawer .file-item.selected")) {
+type ForkSidebarCallbacks = FileTreeCallbacks & {
+    onSessionClick: (firstNodeIndex: number) => void;
+};
+
+// Un-mark the active file within ONE tree's container. There are now two trees on screen —
+// #drawer's Files pane and #details-left's "Files touched" (item 84) — and a click in one must not
+// clear the other's selection, so the root is explicit rather than hardcoded to #drawer.
+export function clearFileSelectionIn(root: HTMLElement): void {
+    for (const item of root.querySelectorAll(".file-item.selected")) {
         item.classList.remove("selected");
     }
 }
@@ -67,29 +75,33 @@ export function renderForkSidebar(drawer: HTMLElement, sessions: SessionSidebarE
     }
     drawer.append(el("div", { class: "pane-title", text: "Files" }));
     for (const node of files) {
-        drawer.append(renderFileTreeNode(node, callbacks));
+        drawer.append(renderFileTreeNode(node, callbacks, drawer));
     }
 }
 
 // A folder renders as a native <details open> (item 77: every folder starts expanded, so the pane
 // needs no toggle JS and no collapse state); a file renders as the same .file-item the flat list
-// used, so selection and clearSidebarFileSelection keep working unchanged.
-function renderFileTreeNode(node: FileTreeNode, callbacks: ForkSidebarCallbacks): HTMLElement {
+// used, so selection and clearFileSelectionIn keep working unchanged.
+// Exported for item 84: the details pane's "Files touched" column renders this SAME tree over the
+// selected node's own changed paths, rather than a second list of ellipsis-truncated full paths.
+// `selectionRoot` is the container this tree lives in — a leaf click clears the selection within
+// it and no further.
+export function renderFileTreeNode(node: FileTreeNode, callbacks: FileTreeCallbacks, selectionRoot: HTMLElement): HTMLElement {
     if (node.kind === FOLDER_NODE_KIND) {
         // open: "" — el's attrs are Record<string, string | EventListener> (webapp/app.ts:31), so a
         // boolean will not typecheck; el forwards unknown keys to setAttribute, and a present `open`
         // attribute is what expands a <details>.
         return el("details", { class: "file-folder", open: "" }, [
             el("summary", { class: "file-folder-name", text: node.name }),
-            ...node.children.map((child) => renderFileTreeNode(child, callbacks)),
+            ...node.children.map((child) => renderFileTreeNode(child, callbacks, selectionRoot)),
         ]);
     }
-    return renderFileTreeLeaf(node, node.entry!, callbacks);
+    return renderFileTreeLeaf(node, node.entry!, callbacks, selectionRoot);
 }
 
 // One file row: the basename only (item 77 — the full path was truncated to uselessness), with the
 // full path in the tooltip, its revision count, and a badge naming where a rename moved it from.
-function renderFileTreeLeaf(node: FileTreeNode, entry: FileSidebarEntry, callbacks: ForkSidebarCallbacks): HTMLElement {
+function renderFileTreeLeaf(node: FileTreeNode, entry: FileSidebarEntry, callbacks: FileTreeCallbacks, selectionRoot: HTMLElement): HTMLElement {
     const item = el("div", {
         class: entry.isDeleted ? "file-item deleted" : "file-item",
         text: node.name,
@@ -104,7 +116,7 @@ function renderFileTreeLeaf(node: FileTreeNode, entry: FileSidebarEntry, callbac
         }));
     }
     item.addEventListener("click", () => {
-        clearSidebarFileSelection();
+        clearFileSelectionIn(selectionRoot);
         item.classList.add("selected");
         callbacks.onFileClick(entry.target);
     });

@@ -368,10 +368,25 @@ notes. Already-landed flags excluded: file-history.js jump fix (`b65d15c`), s85 
   `reconstruction_git_evidence.ts`'s randomUUID splice deliberately untouched (commit markers
   are the viewer's commit signal). 8 tests written (not run — user runs the suite); after the
   scenario sweep, re-check item 31's "(unattributed)" CSS rule.
-- [ ] **35. Content-keyed memoization of `executeRunOnce`** — if the branches-pass/steps-pass
+- [x] **35. Content-keyed memoization of `executeRunOnce`** — if the branches-pass/steps-pass
   double reconstruction on real transcripts is still too costly after `f311059`'s
   lineage-window fix. Explicitly YAGNI until a new logs capture shows it matters.
   (implementation-notes-repeated-reconstruction-work)
+  **Closed 2026-07-14 (YAGNI confirmed, no code written):** the trigger condition never fired —
+  no capture shows `executeRunOnce` costing. Three findings, each independently sufficient:
+  (a) the memo is *already* content-keyed on the run — `reconstruction_script_stage.ts` keys on
+  `` `${run.timestamp.getTime()}|${run.code}` ``; only the outer cache scope
+  (`getDerivedCaches(records, reader)`) is records-array identity, so the two passes miss each
+  other's memo. Narrower than the item's title implies. (b) Item 68's read-only gate eats the
+  work first: logs5 (2026-07-13, the only post-gate capture) shows **1810 read-only skips vs 114
+  executions** — ~94% of runs never reach a sandbox. logs1–4 are all 2026-07-07, predating both
+  `f311059` and the gate, so they cannot evidence this item. (c) `builtDocumentCache` (`aee12ee`,
+  disk-backed per item 79) makes the double pass a once-per-project cost that survives server
+  respawns. The logs5 crash was checked and is unrelated (`ERR_HTTP_HEADERS_SENT`,
+  `viewer_server.ts:76` double-write). **Residual, NOT this item:** the script-stage loop itself
+  is ~250k iterations in logs5 (939 runs × 267 targets), but those are memo hits and read-only
+  skips, not spawns — memoizing `executeRunOnce` harder would not touch it. Measure before
+  filing a new item for the loop.
 - [x] **36. Item-10 polish follow-ups** — from `implementation-notes-items10-11-12.md` open
   questions, all check-on-next-look: (a) 10f: importing `diff-vs-base.js` in the test runner
   may print a one-line Node `ExperimentalWarning` about localStorage — if noisy, swap the
@@ -1036,3 +1051,72 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   cold per-record parse flood are deliberately left as separate follow-ups. Client behaviour is the
   user's standing visual-verify (console/overlay convention); pure helpers covered by
   `tests/loading-progress.test.ts`. 
+- [ ] 83. See if actual /jot folder can be reconstructed. 
+- [x] **84: unify the bottom pane for ALL file-related content** — **IMPLEMENTED 2026-07-14**
+  (staged, uncommitted; notes: `plans/implementation-notes-item84-unify-bottom-pane.md`, plan:
+  `plans/item84-unify-bottom-pane.md`). Every chip-row button is now a deep-link into
+  `renderDetailsFileMode`, which gained a `focus?: RevisionFocus` param ({changeId, mode}) plus a
+  `RevisionViewMode` enum (diff/content/record): chip name → content, `+/-` → diff, `{ }` → the
+  causing record (rev cards stay standing for free — `openInspectorPane` never touches
+  `#details-left`), `⤷` untouched. Rev cards gained a 6th `{ }` action and a `☐`/`☑` range toggle;
+  a contiguous run renders the step-range diff moved out of `showFilePreview`. NET DELETION:
+  `showFilePreview`, `showRevisionDiff`, `toggleDrawerButton`, `fetchStepFiles` + 3 imports retired
+  (commented, not deleted). 11 new tests in `tests/details-revision-view.test.ts`; typecheck +
+  `build:webapp` clean. 3 factual errors in this item's own pre-implementation text were corrected
+  first (⤷ resolves the chip's OWN changeId; `showRevisionDiffInDetails` SURVIVES — it has a live
+  caller in `appendFileList`; `{ }`'s meaning is unchanged but its rendering is not). Dropped:
+  click-again-to-close, and chip-click-while-steps-are-picked. Client behavior is the user's
+  standing visual-verify. Original description follows:
+  The bottom pane must display
+  file-related content in exactly ONE gui, whether you got there from the Files treeview or from a
+  timeline node's file chip. There is one view — the Revision View — and every route into it is the
+  same three choices: **which file, which revision selection (one card, or a contiguous run of
+  cards), which right-column mode**. Nothing else renders file content anywhere.
+  **The rule:** every timeline chip-row button is a deep-link into the Revision View. Chip button X
+  ≡ `click treeview entry → click that revision's card → click the card's X`. The left column always
+  shows the `.rev-card` list with the chip's revision selected; only the right column differs.
+  **Today it's two renderers.** The treeview click runs `renderDetailsFileMode`
+  (`webapp/views/details.ts:372`) and rewrites BOTH columns — rev cards in `#details-left`, the
+  selected revision's diff in `#details-right`. The chip click runs a separate renderer,
+  `showFilePreview` (`webapp/views/timeline.ts:1526`), which touches only `#details-right-body` and
+  leaves `#details-left` showing the previously-selected row's file list — stale and unrelated to
+  the clicked chip. This is not "build a lookalike": it is deleting the second renderer and calling
+  the first. Each chip carries its own `changeId` (one chip per change, not per file), and
+  `findRevisionForChangeId` already resolves `changeId` → revision index, so the revision to select
+  is never ambiguous.
+  - **Chip click** → `treeview entry → revision card → Show content`. Keeps the chip's meaning
+    (file content at that revision), now in the real Revision View. Deletes `showFilePreview`.
+  - **`+/-`** → `treeview entry → revision card`, nothing further: clicking a card IS how you view
+    that revision's diff today, so the card's default right-column render already IS `+/-`'s
+    meaning. Deletes `showRevisionDiff` (`timeline.ts:1595`), which
+    also retires its near-duplicate twin `showRevisionDiffInDetails` (`details.ts:301`) — same
+    `/api/diff?mode=revisions` call, same `splitDiffBlocks`, same fallback, two hand-rolled lookups,
+    two fetch caches.
+  - **`{ }`** → `treeview entry → revision card → the card's { }`. Keeps its MEANING (the file's own
+    causing JSONL record — still the only route to a file-modifying event's JSON, not a duplicate of
+    anything) but NOT its rendering: the record paints into the revision details pane with the rev
+    cards still shown. It must not take the pane over or navigate away, which is what today's
+    `openTranscriptInspectorSynced(causingLocation)` (`timeline.ts:1649`) does. Synthetic-changeId
+    chips keep the existing `openTurnInspector` fallback (`timeline.ts:1646`).
+  - **Rev cards gain a `{ }` button** as a 6th action, after `Jump to timeline step`
+    (`buildRevisionCards`, `details.ts:72`; cards built at `details.ts:430-457`). This is the button
+    the chip's `{ }` now delegates to — so it is load-bearing for the rule above, not a nicety.
+    Without it the Revision View has no JSON route at all.
+  - **`⤷`** (Jump to File History Snapshot) → UNTOUCHED, user-decided. Its value is its *presence*:
+    `computeSnapshotJumpRoute` returns `undefined` → no button, so absence signals "no File History
+    Snapshot for this revision". It navigates to the File History route — a separate surface, not
+    bottom-pane content. (CORRECTION to this item's earlier text: it resolves
+    `findRevisionForChangeId(files, change.changeId, undefined)` — the chip's OWN changeId, the same
+    revision `+/-` resolves. It does NOT vary the revision.)
+  - Gotcha: `openInspectorPane` (`inspector.ts:353`) force-hides the diff-mode toggle and pins the
+    label to "JSON"; a naive swap inherits that wrong chrome.
+  - **Step-range diff → contiguous multi-card selection.** `showFilePreview`'s per-file range diff
+    (when steps are picked, `timeline.ts:1532-1544`) does NOT get dropped — it moves into the
+    Revision View as a 4th right-column mode, hung on a multi-card selection: rev cards gain toggle
+    buttons, and selecting a **contiguous** run of cards renders that range's diff. Non-contiguous
+    selections are rejected. This is why the rule's middle term is a revision *selection*, not a
+    single revision — single card and contiguous run are the same mechanism at N=1 and N>1.
+    (NOT BUILT: chip click while a step range is picked seeding that run — never requested; see the
+    implementation notes.)
+
+- [ ] 85: timeline header needs Prev/Next buttons that navigate to messages where Files Touched events happened, to make it easy to jump to file-modifying events.  When a message is jumped to via these buttons, the message's expansion triangle should be clicked, showing the expanded message so that you can see the File chips for that message. 

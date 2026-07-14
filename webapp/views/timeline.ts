@@ -19,12 +19,16 @@ import {
     showLoadingProgress,
 } from "../app.ts";
 import { openInspectorPane, openTranscriptInspector } from "../inspector.ts";
-import { renderDetailsCommitMode, renderDetailsFileMode, renderDetailsMessageMode, type DetailsContext } from "./details.ts";
-import { clearSidebarFileSelection, renderForkSidebar } from "./sidebar.ts";
-import { findLineForChangeId, findRevisionForChangeId, splitDiffBlocks } from "./file-history.ts";
-import { renderDiffText } from "./diff-vs-base.ts";
+import { RevisionViewMode, renderDetailsCommitMode, renderDetailsFileMode, renderDetailsMessageMode, type DetailsContext } from "./details.ts";
+import { clearFileSelectionIn, renderForkSidebar } from "./sidebar.ts";
+import { findLineForChangeId, findRevisionForChangeId } from "./file-history.ts";
 import { downloadText } from "./download.ts";
-import { renderCodeInto } from "../highlight.ts";
+// (item 84) old: splitDiffBlocks (./file-history.ts), renderDiffText (./diff-vs-base.ts) and
+// renderCodeInto (../highlight.ts) were imported for showFilePreview / showRevisionDiff. Both
+// renderers are retired — the Revision View (details.ts) does this rendering now, and still
+// imports all three itself.
+// import { renderDiffText } from "./diff-vs-base.ts";
+// import { renderCodeInto } from "../highlight.ts";
 
 export const COMMIT_NODE_KIND = "commit";
 export const USER_TURN_NODE_KIND = "user-turn";
@@ -1360,13 +1364,15 @@ export async function renderTimelineView(container: HTMLElement, project: string
         return cachedPatch.text;
     };
 
-    // One step's { path: content } map, fetched on demand (skeleton steps carry no files). Mirrors
-    // fetchRangePatch's consent params; one step's map is one repo snapshot — bounded.
-    const fetchStepFiles = async (stepNumber: number): Promise<Record<string, string>> => {
-        const params = buildConsentParams();
-        params.set("step", String(stepNumber));
-        return fetchJson<Record<string, string>>(`/api/step-files?${params}`);
-    };
+    // (item 84) old: fetchStepFiles — one step's { path: content } map, showFilePreview's only
+    // data source ("state at step"). The Revision View reads a revision's content from the
+    // file-history view model instead (buildFileHistoryViewModel, already in details.ts), so this
+    // /api/step-files call has no caller left. The endpoint itself still serves the server.
+    // const fetchStepFiles = async (stepNumber: number): Promise<Record<string, string>> => {
+    //     const params = buildConsentParams();
+    //     params.set("step", String(stepNumber));
+    //     return fetchJson<Record<string, string>>(`/api/step-files?${params}`);
+    // };
 
     const flashRule = () => {
         ruleHint.classList.add("show");
@@ -1503,69 +1509,82 @@ export async function renderTimelineView(container: HTMLElement, project: string
         openTranscriptInspectorSynced({ jsonlName, rawLines, line });
     };
 
-    // Toggle shared by the drawer-opening file buttons: true when the click closed an already-open
-    // drawer for the same button (the caller stops there); false to (re)open with this button active.
-    const toggleDrawerButton = (chipElement: HTMLElement): boolean => {
-        const pane = document.getElementById("inspector")!;
-        if (chipElement === activeChip) {
-            if (!pane.classList.contains("hidden")) {
-                pane.classList.add("hidden");
-                clearActiveChip();
-                return true;
-            }
-        }
+    // The chip whose file the Details pane is showing stays highlighted (item 84).
+    const markChipActive = (chipElement: HTMLElement): void => {
         clearActiveChip();
         activeChip = chipElement;
         chipElement.classList.add("active");
-        return false;
     };
 
-    // ── file preview (requirements 5 + 7): state at step, or per-file range diff when picked —
-    // rendered into the details drawer (lines wrapped); the clicked chip stays highlighted while
-    // its file is showing. ──
-    const showFilePreview = async (node: TurnNode, change: FileChange, chipElement: HTMLElement): Promise<void> => {
-        if (toggleDrawerButton(chipElement)) {
-            return;
-        }
-        const drawer = openInspectorPane();
-        document.getElementById("inspector")!.classList.add("file-preview-drawer");
-        if (pickedIndexes.length > 0) {
-            const summary = computeRangeSummary(nodes, pickedIndexes);
-            const patchText = await fetchRangePatch(summary.fromStepIndex, summary.toStepIndex);
-            const block = splitPatchByFile(patchText).find((entry) =>
-                change.path === entry.path || change.path.endsWith(`/${entry.path}`));
-            const diffPane = el("div", { class: "timeline-preview" });
-            renderDiffText(diffPane, block?.block ?? "(file unchanged across the picked range)");
-            const pickedNumbers = pickedIndexes.map((picked) => nodes[picked]!.stepNumber!);
-            drawer.append(
-                el("div", { class: "timeline-preview-head", text: `${change.path} · diff before step ${Math.min(...pickedNumbers)} → at step ${Math.max(...pickedNumbers)}` }),
-                diffPane,
-            );
-            return;
-        }
-        // The turn's state of the file at its representative step, fetched on demand (skeleton steps
-        // carry no files). undefined when no file lives at that path at this step.
-        const filesAtStep = await fetchStepFiles(node.stepNumber!);
-        const content = filesAtStep[change.path];
-        // (item 49) old: el("div", { class: "timeline-preview", text: content ?? "(no snapshot carries this file at this step)" })
-        const contentPane = el("div", { class: "timeline-preview" });
-        if (content === undefined) {
-            contentPane.textContent = "(no snapshot carries this file at this step)";
-        } else {
-            renderCodeInto(contentPane, content, change.path);
-        }
-        drawer.append(
-            el("div", { class: "timeline-preview-head" }, [
-                el("span", { text: `${change.path} · state at step ${node.stepNumber}` }),
-                el("button", {
-                    class: "row-btn",
-                    text: "Export file state",
-                    onclick: () => downloadText(`${computeBaseName(change.path)}.step${node.stepNumber}`, content ?? ""),
-                }),
-            ]),
-            contentPane,
-        );
-    };
+    // (item 84) old: toggleDrawerButton — click-again-to-close, shared by the two drawer-opening
+    // file buttons. Retired with showFilePreview/showRevisionDiff: every chip button now opens the
+    // Revision View, and the Files-treeview entry — which the chip now IS — never closed on a
+    // second click. markChipActive above keeps the highlight half.
+    // const toggleDrawerButton = (chipElement: HTMLElement): boolean => {
+    //     const pane = document.getElementById("inspector")!;
+    //     if (chipElement === activeChip) {
+    //         if (!pane.classList.contains("hidden")) {
+    //             pane.classList.add("hidden");
+    //             clearActiveChip();
+    //             return true;
+    //         }
+    //     }
+    //     clearActiveChip();
+    //     activeChip = chipElement;
+    //     chipElement.classList.add("active");
+    //     return false;
+    // };
+
+    // (item 84) old: showFilePreview — the chip's own file renderer. It painted #details-right-body
+    // ONLY and left #details-left showing the previously-selected row's file list: stale, and
+    // unrelated to the clicked chip. The chip now calls renderDetailsFileMode, which owns BOTH
+    // columns, so the second renderer is gone rather than rebuilt as a lookalike. Its two branches
+    // moved: state-at-step → the rev card's "Show content"; the picked-range diff → the Revision
+    // View's contiguous multi-card selection (details.ts showRangeDiff).
+    // NOTE: chip-click-while-steps-are-picked is NOT rebuilt — see plans/item84-unify-bottom-pane.md.
+    // const showFilePreview = async (node: TurnNode, change: FileChange, chipElement: HTMLElement): Promise<void> => {
+    //     if (toggleDrawerButton(chipElement)) {
+    //         return;
+    //     }
+    //     const drawer = openInspectorPane();
+    //     document.getElementById("inspector")!.classList.add("file-preview-drawer");
+    //     if (pickedIndexes.length > 0) {
+    //         const summary = computeRangeSummary(nodes, pickedIndexes);
+    //         const patchText = await fetchRangePatch(summary.fromStepIndex, summary.toStepIndex);
+    //         const block = splitPatchByFile(patchText).find((entry) =>
+    //             change.path === entry.path || change.path.endsWith(`/${entry.path}`));
+    //         const diffPane = el("div", { class: "timeline-preview" });
+    //         renderDiffText(diffPane, block?.block ?? "(file unchanged across the picked range)");
+    //         const pickedNumbers = pickedIndexes.map((picked) => nodes[picked]!.stepNumber!);
+    //         drawer.append(
+    //             el("div", { class: "timeline-preview-head", text: `${change.path} · diff before step ${Math.min(...pickedNumbers)} → at step ${Math.max(...pickedNumbers)}` }),
+    //             diffPane,
+    //         );
+    //         return;
+    //     }
+    //     // The turn's state of the file at its representative step, fetched on demand (skeleton steps
+    //     // carry no files). undefined when no file lives at that path at this step.
+    //     const filesAtStep = await fetchStepFiles(node.stepNumber!);
+    //     const content = filesAtStep[change.path];
+    //     // (item 49) old: el("div", { class: "timeline-preview", text: content ?? "(no snapshot carries this file at this step)" })
+    //     const contentPane = el("div", { class: "timeline-preview" });
+    //     if (content === undefined) {
+    //         contentPane.textContent = "(no snapshot carries this file at this step)";
+    //     } else {
+    //         renderCodeInto(contentPane, content, change.path);
+    //     }
+    //     drawer.append(
+    //         el("div", { class: "timeline-preview-head" }, [
+    //             el("span", { text: `${change.path} · state at step ${node.stepNumber}` }),
+    //             el("button", {
+    //                 class: "row-btn",
+    //                 text: "Export file state",
+    //                 onclick: () => downloadText(`${computeBaseName(change.path)}.step${node.stepNumber}`, content ?? ""),
+    //             }),
+    //         ]),
+    //         contentPane,
+    //     );
+    // };
 
     // (item 66) the dead item-47 findRevisionResultLine/showRevisionJson comment block and the
     // dead item-55 showGitOperationJson helper are deleted here — see the archive copy.
@@ -1590,49 +1609,67 @@ export async function renderTimelineView(container: HTMLElement, project: string
         openTranscriptInspectorSynced({ jsonlName, rawLines, line });
     };
 
-    // +/- button: this revision's computed diff vs the previous revision, from the server's
-    // per-revision diff artifact (one @@ block per revision; splitDiffBlocks slices them).
-    const showRevisionDiff = async (change: FileChange, chipElement: HTMLElement): Promise<void> => {
-        if (toggleDrawerButton(chipElement)) {
-            return;
-        }
-        const drawer = openInspectorPane();
-        document.getElementById("inspector")!.classList.add("file-preview-drawer");
-        const history = reconstructionDocument.filesTouched.find((entry) =>
-            entry.revisions.some((revision) => revision.changeId === change.changeId));
-        if (history === undefined) {
-            drawer.append(el("div", { class: "muted", text: "no surviving revision for this change (rewound branch)" }));
-            return;
-        }
-        const revisionNumber = history.revisions.findIndex((revision) => revision.changeId === change.changeId);
-        const params = buildConsentParams();
-        params.set("file", history.target);
-        params.set("mode", "revisions");
-        const blocks = splitDiffBlocks(await fetchText(`/api/diff?${params}`));
-        const diffPane = el("div", { class: "timeline-preview" });
-        // (item 47) old: renderDiffText(diffPane, blocks[revisionNumber] ?? "(no diff block for this revision)");
-        const fallbackText = computeRevisionDiffFallbackText(blocks[revisionNumber], change);
-        if (fallbackText === undefined) {
-            renderDiffText(diffPane, blocks[revisionNumber]!);
-        } else {
-            diffPane.append(el("div", { class: "muted", text: fallbackText }));
-        }
-        drawer.append(
-            el("div", { class: "timeline-preview-head", text: `${change.path} · diff for revision ${revisionNumber + 1} (vs previous)` }),
-            diffPane,
-        );
-    };
+    // (item 84) old: showRevisionDiff — the +/- button's own revision-diff renderer, and a second
+    // implementation of details.ts's showRevisionDiffInDetails: same /api/diff?mode=revisions call,
+    // same splitDiffBlocks, same computeRevisionDiffFallbackText, two hand-rolled changeId lookups,
+    // two fetch caches. +/- now calls renderDetailsFileMode focused on its revision, whose card
+    // default render IS this diff — the details.ts copy survives as the single implementation.
+    // const showRevisionDiff = async (change: FileChange, chipElement: HTMLElement): Promise<void> => {
+    //     if (toggleDrawerButton(chipElement)) {
+    //         return;
+    //     }
+    //     const drawer = openInspectorPane();
+    //     document.getElementById("inspector")!.classList.add("file-preview-drawer");
+    //     const history = reconstructionDocument.filesTouched.find((entry) =>
+    //         entry.revisions.some((revision) => revision.changeId === change.changeId));
+    //     if (history === undefined) {
+    //         drawer.append(el("div", { class: "muted", text: "no surviving revision for this change (rewound branch)" }));
+    //         return;
+    //     }
+    //     const revisionNumber = history.revisions.findIndex((revision) => revision.changeId === change.changeId);
+    //     const params = buildConsentParams();
+    //     params.set("file", history.target);
+    //     params.set("mode", "revisions");
+    //     const blocks = splitDiffBlocks(await fetchText(`/api/diff?${params}`));
+    //     const diffPane = el("div", { class: "timeline-preview" });
+    //     // (item 47) old: renderDiffText(diffPane, blocks[revisionNumber] ?? "(no diff block for this revision)");
+    //     const fallbackText = computeRevisionDiffFallbackText(blocks[revisionNumber], change);
+    //     if (fallbackText === undefined) {
+    //         renderDiffText(diffPane, blocks[revisionNumber]!);
+    //     } else {
+    //         diffPane.append(el("div", { class: "muted", text: fallbackText }));
+    //     }
+    //     drawer.append(
+    //         el("div", { class: "timeline-preview-head", text: `${change.path} · diff for revision ${revisionNumber + 1} (vs previous)` }),
+    //         diffPane,
+    //     );
+    // };
 
     // One file's button row: [ name ] [{ }] [+/-] [⤷] <TS> L:n — revision state, the file's OWN
     // causing line, the revision's computed diff, the snapshot jump, and the causing line's
     // timestamp + label (item 55). The action buttons need a resolvable changeId.
+    // item 84: every button here is a deep-link into THE Revision View (details.ts's
+    // renderDetailsFileMode) — button X ≡ `click the treeview entry → click this revision's card →
+    // click the card's X`. They differ only in the right-column mode they ask for. ⤷ is the
+    // exception and is deliberately untouched: it navigates to the File History route (a separate
+    // surface), and its presence/absence is the signal that a revision HAS a snapshot.
     const renderFileButtonRow = (node: TurnNode, nodeIndex: number, change: FileChange, previewPane: HTMLElement): HTMLElement => {
         const causingLocation = chipLineLocations.get(`${nodeIndex}:${change.path}`);
         const buttons = [renderFileChip(change, (event: Event) => {
             event.stopPropagation();
-            showFilePreview(node, change, event.currentTarget as HTMLElement);
+            markChipActive(event.currentTarget as HTMLElement);
+            // (item 84) old: showFilePreview(node, change, event.currentTarget as HTMLElement);
+            // A chip with no changeId names no revision — open on #1, the treeview's own default.
+            if (change.changeId === undefined) {
+                renderDetailsFileMode(change.path, detailsContext);
+                return;
+            }
+            renderDetailsFileMode(change.path, detailsContext, { changeId: change.changeId, mode: RevisionViewMode.content });
         })];
         if (change.changeId !== undefined) {
+            // Narrowed once: TypeScript does not carry a property narrowing into the callbacks
+            // below, and the project's style bans the non-null assertion that would paper over it.
+            const changeId = change.changeId;
             buttons.push(el("span", {
                 class: "timeline-chip timeline-chip-action",
                 title: "Show this file's causing record in inspector",
@@ -1642,11 +1679,15 @@ export async function renderTimelineView(container: HTMLElement, project: string
                     // (item 55, closing item 53) old: openTurnInspector(node, previewPane); —
                     // reverted item 47b: the chip opens its file's OWN causing line (e.g. the
                     // Write tool_use), user-decided; synthetic changeIds keep the turn fallback.
+                    // (item 84) old: openTranscriptInspectorSynced(causingLocation); — the record
+                    // now paints inside the Revision View, rev cards standing. The fallback stays
+                    // HERE: it needs `node`, which the Revision View has no notion of.
                     if (causingLocation === undefined) {
                         openTurnInspector(node, previewPane);
                         return;
                     }
-                    openTranscriptInspectorSynced(causingLocation);
+                    markChipActive(event.currentTarget as HTMLElement);
+                    renderDetailsFileMode(change.path, detailsContext, { changeId, mode: RevisionViewMode.record });
                 },
             }));
             buttons.push(el("span", {
@@ -1655,18 +1696,29 @@ export async function renderTimelineView(container: HTMLElement, project: string
                 text: "+/-",
                 onclick: (event: Event) => {
                     event.stopPropagation();
-                    showRevisionDiff(change, event.currentTarget as HTMLElement);
+                    markChipActive(event.currentTarget as HTMLElement);
+                    // (item 84) old: showRevisionDiff(change, event.currentTarget as HTMLElement);
+                    // Clicking a card IS how you view its diff — diff is the card's own default.
+                    renderDetailsFileMode(change.path, detailsContext, { changeId, mode: RevisionViewMode.diff });
                 },
             }));
+            // The route is computed as a PRESENCE TEST, not to navigate: it resolves to undefined
+            // when this revision has no File History Snapshot, and the button's absence is how the
+            // row says so (user-decided). Not every revision has one.
             const jumpRoute = computeSnapshotJumpRoute(project, reconstructionDocument.filesTouched, change);
             if (jumpRoute !== undefined) {
                 buttons.push(el("span", {
                     class: "timeline-chip timeline-chip-action",
-                    title: "Jump to File History Snapshot",
+                    title: "Show this revision's File History Snapshot",
                     text: "⤷",
                     onclick: (event: Event) => {
                         event.stopPropagation();
-                        location.hash = jumpRoute;
+                        markChipActive(event.currentTarget as HTMLElement);
+                        // (item 84 follow-up) old: location.hash = jumpRoute; — navigating to the
+                        // File History route reloaded the whole page (progress bar and all) just to
+                        // show a revision the bottom pane can already show. Same destination as the
+                        // chip name, in the pane, no page load.
+                        renderDetailsFileMode(change.path, detailsContext, { changeId, mode: RevisionViewMode.content });
                     },
                 }));
             }
@@ -1788,7 +1840,10 @@ export async function renderTimelineView(container: HTMLElement, project: string
         for (const other of nodeRows.values()) {
             other.classList.remove("contrib");
         }
-        clearSidebarFileSelection();                       // the details pane leaves file mode
+        // The details pane leaves file mode. Only the Files sidebar's tree is cleared — the
+        // "Files touched" tree this row is about to render lives in #details-left and owns its own
+        // selection (item 84).
+        clearFileSelectionIn(document.getElementById("drawer")!);
         const node = nodes[nodeIndex]!;
         if (node.kind === COMMIT_NODE_KIND) {
             for (const contributingIndex of findContributingNodeIndexes(nodes, nodeIndex)) {
@@ -1815,6 +1870,24 @@ export async function renderTimelineView(container: HTMLElement, project: string
                 }
             });
         },
+        // item 84: a rev card's { } opens its revision's causing record. openInspectorPane fills
+        // the right column ONLY, so the rev cards on the left stay standing — that is exactly
+        // the "revision cards still shown" the item asks for, at no cost.
+        openRecordForChangeId: (changeId: string) => {
+            void (async () => {
+                const located = await findTranscriptLineForChangeId(changeId);
+                // Synthetic changeIds (user-edit / evidence splices) match no JSONL line. Say so
+                // in the right column rather than opening the inspector on nothing.
+                if (located === undefined) {
+                    openInspectorPane().append(
+                        el("div", { class: "muted", text: "no transcript line for this revision (synthetic change id)" }),
+                    );
+                    return;
+                }
+                openTranscriptInspectorSynced(located);
+            })();
+        },
+        fetchRangePatch,
     };
 
     // ── rows: one .tl-row per node (mockup renderTimeline) ──

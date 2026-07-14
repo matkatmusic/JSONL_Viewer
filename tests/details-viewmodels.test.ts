@@ -2,6 +2,8 @@
 // per node kind, 1-based revision cards, and the stored-diff-mode → toggle-label mapping.
 // Fixtures are wire-shaped literals (what the browser sees after fetch + JSON.parse); kind
 // assertions go through the vocabulary enum members, never bare literals.
+// item 84's Revision View focus + range helpers are tested in details-revision-view.test.ts
+// (this file is at the 250-line cap).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -96,3 +98,4 @@ test("test_resolveInitialFullContentsChoice_reads_the_stored_flag", () => {
     assert.equal(resolveInitialFullContentsChoice("0"), false);
     assert.equal(resolveInitialFullContentsChoice("columns"), false);
 });
+
