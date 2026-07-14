@@ -13,6 +13,7 @@ import {
     checkTimelineNeedsProgressOverlay,
     computeTimelineBuildProgressLabel,
     computeTimelineProgressFraction,
+    LARGE_TIMELINE_ROW_COUNT,
     computeGraphLaneRuns,
     computePickSegments,
     computeRolePillLabel,
@@ -1792,19 +1793,19 @@ test("test_computeSessionStartLabel_uses_custom_title_when_present", () => {
 test("test_checkTimelineNeedsProgressOverlay_returns_true_at_or_above_threshold", () => {
     // Behavior: a row count at the large-timeline threshold triggers the overlay.
     // Steps:
-    // Given a row count exactly equal to LARGE_TIMELINE_ROW_COUNT (500),
+    // Given a row count exactly equal to LARGE_TIMELINE_ROW_COUNT (whatever it is tuned to),
     // checkTimelineNeedsProgressOverlay should report true (overlay needed).
-    assert.equal(checkTimelineNeedsProgressOverlay(500), true);
+    assert.equal(checkTimelineNeedsProgressOverlay(LARGE_TIMELINE_ROW_COUNT), true);
     // And a count well above the threshold is also true.
-    assert.equal(checkTimelineNeedsProgressOverlay(1200), true);
+    assert.equal(checkTimelineNeedsProgressOverlay(LARGE_TIMELINE_ROW_COUNT * 12), true);
 });
 
 test("test_checkTimelineNeedsProgressOverlay_returns_false_below_threshold", () => {
     // Behavior: a small timeline needs no overlay and no yielding.
     // Steps:
-    // Given a row count below LARGE_TIMELINE_ROW_COUNT,
+    // Given a row count one below LARGE_TIMELINE_ROW_COUNT,
     // checkTimelineNeedsProgressOverlay should report false.
-    assert.equal(checkTimelineNeedsProgressOverlay(499), false);
+    assert.equal(checkTimelineNeedsProgressOverlay(LARGE_TIMELINE_ROW_COUNT - 1), false);
     assert.equal(checkTimelineNeedsProgressOverlay(0), false);
 });
 

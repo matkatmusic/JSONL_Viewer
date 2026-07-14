@@ -13,8 +13,10 @@ import {
     fetchRawRecords,
     fetchText,
     getConsentChoice,
+    hideLoadingProgress,
     renderConsentDialog,
     routeToFileHistory,
+    showLoadingProgress,
 } from "../app.ts";
 import { openInspectorPane, openTranscriptInspector } from "../inspector.ts";
 import { renderDetailsCommitMode, renderDetailsFileMode, renderDetailsMessageMode, type DetailsContext } from "./details.ts";
@@ -1008,8 +1010,9 @@ const SESSION_LANE_VARIABLES = ["--accent", "--green", "--orange", "--lane-viole
 const ORPHAN_LANE_COLOR = "var(--muted)";
 
 // A timeline this many rows or larger gets the build-progress overlay + chunked
-// rendering; smaller ones build synchronously (item 78).
-const LARGE_TIMELINE_ROW_COUNT = 100;
+// rendering; smaller ones build synchronously (item 78). Exported so the boundary
+// tests track this value instead of hardcoding it (it is tuned in place).
+export const LARGE_TIMELINE_ROW_COUNT = 100;
 
 // Rows built per animation frame during a chunked (large-timeline) build.
 const TIMELINE_BUILD_BATCH_SIZE = 10;
@@ -1038,27 +1041,6 @@ export function computeTimelineProgressFraction(rowsBuilt: number, totalRows: nu
 // the next batch of rows blocks the main thread again (item 78).
 function waitForNextAnimationFrame(): Promise<void> {
     return new Promise((resolve) => requestAnimationFrame(() => resolve()));
-}
-
-// The centered build-progress overlay: a label + a bar track/fill. Returned so the
-// caller can update the fill/label per batch and remove the whole overlay when done.
-interface TimelineBuildProgressOverlay {
-    element: HTMLElement;
-    update: (rowsBuilt: number, totalRows: number) => void;
-}
-
-function createTimelineBuildProgressOverlay(): TimelineBuildProgressOverlay {
-    const label = el("div", { class: "timeline-progress-label" });
-    const fill = el("div", { class: "timeline-progress-fill" });
-    const track = el("div", { class: "timeline-progress-track" }, [fill]);
-    const box = el("div", { class: "timeline-progress-box" }, [label, track]);
-    const element = el("div", { class: "timeline-progress-overlay" }, [box]);
-    const update = (rowsBuilt: number, totalRows: number) => {
-        label.textContent = computeTimelineBuildProgressLabel(rowsBuilt, totalRows);
-        fill.style.width = `${computeTimelineProgressFraction(rowsBuilt, totalRows) * 100}%`;
-    };
-    update(0, 1);   // start empty (0%) before the first paint
-    return { element, update };
 }
 
 // The letter half of a chip's letter+color badge (color alone never carries the meaning).
@@ -1705,11 +1687,13 @@ export async function renderTimelineView(container: HTMLElement, project: string
     // Large timelines build in yielding batches behind a centered progress overlay so the
     // multi-second synchronous DOM build (500+ rows) no longer looks frozen (item 78). Small
     // timelines take neither overlay nor yield — the loop stays a straight synchronous pass.
+    // Rows accumulate in a DETACHED fragment and are appended to `container` only once the whole
+    // build finishes: the half-built timeline must never show behind the overlay — the progress
+    // bar stands alone until the timeline is ready (item 78 follow-up, user-reported).
     const showBuildProgress = checkTimelineNeedsProgressOverlay(nodes.length);
-    let buildProgressOverlay: TimelineBuildProgressOverlay | null = null;
+    const rowFragment = document.createDocumentFragment();
     if (showBuildProgress) {
-        buildProgressOverlay = createTimelineBuildProgressOverlay();
-        document.body.append(buildProgressOverlay.element);
+        showLoadingProgress(computeTimelineBuildProgressLabel(0, nodes.length), computeTimelineProgressFraction(0, nodes.length));
         // Yield once so the overlay paints before the (blocking) first batch.
         await waitForNextAnimationFrame();
     }
@@ -1727,7 +1711,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
                 class: "tl-session-start-label",
                 text: computeSessionStartLabel(reconstructionDocument.sessionTitles, startedSessionId),
             }));
-            container.append(marker);
+            rowFragment.append(marker);
         }
 
         const previewPane = el("div", { class: "hidden" });
@@ -1814,15 +1798,17 @@ export async function renderTimelineView(container: HTMLElement, project: string
         }
         main.append(previewPane);
         row.append(main);
-        container.append(row);
+        rowFragment.append(row);
         nodeRows.set(index, row);
         if (showBuildProgress && (index + 1) % TIMELINE_BUILD_BATCH_SIZE === 0) {
-            buildProgressOverlay!.update(index + 1, nodes.length);
+            showLoadingProgress(computeTimelineBuildProgressLabel(index + 1, nodes.length), computeTimelineProgressFraction(index + 1, nodes.length));
             await waitForNextAnimationFrame();
         }
     }
+    // Reveal the finished timeline in one append — the first moment any row hits the live DOM.
+    container.append(rowFragment);
     } finally {
-        buildProgressOverlay?.element.remove();
+        hideLoadingProgress();
     }
     // ── Expand All / Collapse All (mockup updateToggleLabel). #toggle-all is a static skeleton
     // element outside `container`; onclick property assignment (not addEventListener) so

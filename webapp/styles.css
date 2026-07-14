@@ -855,19 +855,29 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
     display: flex;
     align-items: center;
     justify-content: center;
-    background: color-mix(in srgb, var(--bg) 55%, transparent);
+    /* Translucent backdrop: #view is empty during both the reconstruction stream and the
+       row build (renderRoute clears it; the timeline is built in a detached fragment), so the
+       half-built timeline never shows — but the loading console stays visible underneath. */
+    background: color-mix(in srgb, var(--bg) 70%, transparent);
 }
 .timeline-progress-box {
     display: flex;
     flex-direction: column;
     gap: 10px;
     min-width: 300px;
+    max-width: 60vw;
     padding: 20px 24px;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--panel);
     color: var(--text);
     font: 13px var(--ui);
+}
+/* Long stage labels (e.g. "reconstructing /very/long/path.py") ellipsize instead of widening the box. */
+.timeline-progress-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .timeline-progress-track {
     height: 6px;

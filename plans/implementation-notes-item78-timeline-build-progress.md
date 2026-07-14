@@ -36,6 +36,27 @@ Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-
 - Batch size 100 → ~12 paints for a 1200-row timeline: smooth bar without a paint
   per row.
 
+### Follow-ups (2026-07-13, user-reported during testing)
+- **Timeline showed through the overlay.** Original impl appended rows to `#view` live
+  during the build, so the half-built timeline was visible behind the translucent bar. Fix:
+  rows now accumulate in a detached `DocumentFragment` and are appended to `container` in a
+  single `container.append(rowFragment)` after the loop — the timeline's first appearance in
+  the live DOM is the moment it is complete (`renderRoute` also `replaceChildren()`s `#view`
+  first, so nothing shows behind the bar).
+- **Progress bar for the "reconstructing branches" phase (user request).** Extracted the
+  overlay into a shared app.ts singleton `showLoadingProgress(text, fraction)` /
+  `hideLoadingProgress()` (reusing the `.timeline-progress-*` CSS; `createTimelineBuildProgressOverlay`
+  deleted, DRY). `fetchDocument` now drives the same centered bar from determinate stream
+  progress lines (any `current`/`total` pair — chiefly `reconstruction_branches.ts:285`'s
+  `reconstructing <file>` pass) via `reportStreamProgress`, and hides it in its `finally`. The
+  item-78 row build reuses the same singleton via its (still-tested) label/fraction helpers.
+  Overlay is now translucent so the loading console stays visible under the bar during the long
+  reconstruction; box has `max-width: 60vw` + an ellipsized label for long paths.
+- **Known seam:** between `fetchDocument`'s finally (hides the reconstruction bar) and the row
+  build re-showing it, `buildTurnTimelineViewModel` runs synchronously with no bar (console
+  still visible). Acceptable; unify into one continuous overlay lifecycle only if it reads as a
+  flicker in practice.
+
 ### Open questions
 - Visual/headless verification against the repro
   (`#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline`) is deferred to

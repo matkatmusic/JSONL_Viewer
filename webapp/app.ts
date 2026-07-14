@@ -225,6 +225,44 @@ export function logProgress(text: string): void {
     progressTerminal!.writeln(`${formatConsoleTime()} ${tintSourceToken(text)}`, () => progressTerminal!.scrollToBottom());
 }
 
+// ─── centered loading-progress overlay ───────────────────────────────────────
+// One reusable centered bar shown during the two long phases of opening a project: the server-side
+// reconstruction stream (driven by fetchDocument's determinate progress lines) and the client-side
+// timeline row build (item 78, driven from views/timeline.ts). Created once, appended on demand.
+let loadingProgressElements: { overlay: HTMLElement; label: HTMLElement; fill: HTMLElement } | null = null;
+
+// Show or update the overlay. `fraction` is the bar fill (0..1, clamped); a non-finite fraction
+// (e.g. a zero total) fills the bar completely.
+export function showLoadingProgress(text: string, fraction: number): void {
+    if (loadingProgressElements === null) {
+        const label = el("div", { class: "timeline-progress-label" });
+        const fill = el("div", { class: "timeline-progress-fill" });
+        const track = el("div", { class: "timeline-progress-track" }, [fill]);
+        const box = el("div", { class: "timeline-progress-box" }, [label, track]);
+        const overlay = el("div", { class: "timeline-progress-overlay" }, [box]);
+        loadingProgressElements = { overlay, label, fill };
+    }
+    loadingProgressElements.label.textContent = text;
+    const safeFraction = Number.isFinite(fraction) ? Math.max(0, Math.min(1, fraction)) : 1;
+    loadingProgressElements.fill.style.width = `${safeFraction * 100}%`;
+    if (!loadingProgressElements.overlay.isConnected) {
+        document.body.append(loadingProgressElements.overlay);
+    }
+}
+
+export function hideLoadingProgress(): void {
+    loadingProgressElements?.overlay.remove();
+}
+
+// One streamed progress line: always echoed to the console, and — when it carries a determinate
+// current/total (chiefly the "reconstructing <file>" branch pass) — also driving the centered bar.
+function reportStreamProgress(parsed: WireDocumentStreamLine): void {
+    logProgress(parsed.current !== undefined ? `${parsed.current}/${parsed.total} ${parsed.label}` : parsed.label!);
+    if (parsed.current !== undefined && parsed.total !== undefined && parsed.total > 0) {
+        showLoadingProgress(`${parsed.label} — ${parsed.current} / ${parsed.total}`, parsed.current / parsed.total);
+    }
+}
+
 // Split buffered NDJSON text into complete lines plus the trailing partial line.
 export function splitNdjsonChunk(bufferedText: string, chunkText: string): { remainder: string; lines: string[] } {
     const combinedText = bufferedText + chunkText;
@@ -352,7 +390,7 @@ export async function fetchDocument<DocumentType = WireDocument>(project: string
             for (const line of lines) {
                 const parsed = JSON.parse(line) as WireDocumentStreamLine;
                 if (parsed.kind === "progress") {
-                    logProgress(parsed.current !== undefined ? `${parsed.current}/${parsed.total} ${parsed.label}` : parsed.label!);
+                    reportStreamProgress(parsed);
                 } else {
                     finalPayload = parsed;
                 }
@@ -370,6 +408,9 @@ export async function fetchDocument<DocumentType = WireDocument>(project: string
         if (error instanceof DOMException && error.name === "AbortError") logProgress("load cancelled");
         throw error;
     } finally {
+        // The reconstruction bar belongs to THIS stream; drop it when the stream ends (success,
+        // consent, error, or abort). The timeline row build (item 78) re-shows its own bar after.
+        hideLoadingProgress();
         if (inflightLoadController === controller) {
             inflightLoadController = undefined;
             setCancelButtonVisible(false);

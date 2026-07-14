@@ -927,7 +927,35 @@ was rejected as days of surgery vs. an afternoon of curated copying. Execution o
   (theme-aware). typecheck + `build:webapp` clean; suite not run (user runs). The "Gotchas: Tree
   view" line is a copy-paste artifact from task 77 (tree view), not part of this task. Plan:
   `plans/item78-timeline-build-progress.md`.
+  **Follow-ups 2026-07-13 (user-reported while testing):** (1) rows now build into a detached
+  `DocumentFragment` appended once at the end, so the half-built timeline never shows behind the
+  bar (the progress bar stands alone until the timeline is ready). (2) User asked for the same bar
+  during the server-side "reconstructing branches" phase: the overlay is now a shared app.ts
+  singleton (`showLoadingProgress`/`hideLoadingProgress`) that `fetchDocument` drives from the
+  determinate `reconstructing <file>` stream progress and the row build reuses; overlay is
+  translucent so the loading console stays visible underneath during reconstruction.
 - [ ] 79:  make `builtDocumentCache` disk-backed so respawns skip reconstruction and finish faster during development.  Discovered in: http://127.0.0.1:7343/#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline
+  **Measured 2026-07-13 (user asked to measure first):** on the large RevEng project (30,201
+  records, 87.2 MB document), a cold respawn — cold in-memory caches, WARM disk sandbox memo
+  (item 11) — spends parse 391 ms + reconstruction **468,094 ms (~7.8 min)**. Emphatically NOT
+  YAGNI: a disk-backed document cache turns that into a sub-second disk read + JSON.parse.
+  **Decision: build FULL-FIDELITY** (persist `document` + `stepFileHistories` with a
+  FileHistory/FileRevision hydration layer, so every route — incl. range-patch/step-files —
+  skips the rebuild on respawn). STILL TO DO — not yet implemented.
+  **Design note for next session:** a plain JSON.parse of the persisted value is NOT enough —
+  server code calls Path domain methods on the built values (e.g. `findFileHistory` calls
+  `entry.target.equals()` on `document.filesTouched`), so both `document` (its embedded
+  `filesTouched`/`rewoundFilesTouched`/`steps` FileHistory + Path/Date fields) AND
+  `stepFileHistories` need structure-aware hydration back into `Path`/`Date`/`Uuid` domain
+  objects (`src/structures/domain.ts`). `FileRevision` (`src/reconstruction_engine.ts:48`) and
+  `FileHistory` (`:58`) field shapes still need a full audit before writing the hydrator.
+  Suggested shape: new `src/reconstruction_document_cache.ts` (opt-in like item 11's
+  `configureSandboxMemoPersistence`; only `viewer_server.ts` enables it, CLI/tests stay
+  memory-only), one file per cacheKey under `.cache/built-documents/` (gitignored), LRU-capped,
+  with a schema-version tag so a shape change invalidates old files. Key already safe across
+  restarts (transcript mtime+size stamp + allowScripts + target + `serializePathOverrides()`).
+  Round-trip hydration test (build a small scenario → serialize → hydrate → assert range-patch/
+  step-files output identical to a fresh build) is the required correctness gate.
 - [x] 80: console should word-wrap lines that are longer than the console's width in the browser window.
   **DONE 2026-07-13:** root cause was xterm `cols` drifting out of sync with the console's
   real width — xterm autowraps at `cols`, but `fitProgressColumns` only re-fit on
