@@ -827,5 +827,13 @@
       "1d00690"
     ],
     "closureNote": "Stale premise: rev-cards have rendered word badges (opLabel = wire EventKind: write/edit/user-edit/…) since the original item-66 port commit 1d00690, styled as mockup text pills (.rev-card .op-badge + .op-write/.op-edit/.op-user-edit/.op-overwrite). The single letters live only on the timeline file chips (computeOpLetter, timeline.ts) — deliberate compact design, kept per user decision. Follow-up applied in the closing change: added pill colors for the 5 previously-uncolored kinds (delete/rename/copy/append/script-execution) in styles.css."
+  },
+  {
+    "taskNumber": 102,
+    "title": "Move the historical JS-engine code, tests, and fixtures into js-engine/archived/",
+    "description": "Move the historical javascript engine code and tests and fixtures into a 'js-engine/archived/' folder. Known candidates (audited 2026-07-14): `tests/archive/` — 3 legacy JS-engine test files (`test-file-event-observations-readedits.js` covers the retired `api/file-event-observations.js` scanner; `test-probe-helpers.js` + `test-probe-projects.js` test `tools/probe-projects`) plus `envelope.test.ts` which is archived early Engine-B (imports `src/structures/vocabulary.ts`) — decide whether it moves too or stays; `tests/fixtures/scenario-check/` — engine-a-named JSONL fixtures and sidecar/lineage/collector fixtures with ZERO references from current tests/src/scripts. CAVEAT: `api/` itself is the frozen legacy JS engine but is still LIVE as JFReD's engine (`jfred/jfred.html`, see task 58) — decide whether it counts as historical or stays put. Both tests/ dirs are currently untracked; this task supersedes task 99's commit-or-ignore question (they get committed at their new archived home).",
+    "completionDate": "2026-07-14",
+    "commitHashes": [],
+    "closureNote": "Moved the 3 legacy JS test files (test-file-event-observations-readedits.js, test-probe-helpers.js, test-probe-projects.js) to js-engine/archived/tests/ and tests/fixtures/scenario-check/ (27 files, zero live references) to js-engine/archived/fixtures/scenario-check/, staged at their new home (supersedes task 99's commit-or-ignore question). api/ stayed put — it is JFReD's live engine (jfred/jfred.html, task 58). envelope.test.ts stayed in tests/archive/ — it is early Engine-B TypeScript (imports src/structures/vocabulary.ts), not JS-engine code. commitHashes empty: work staged only, not committed."
   }
 ]

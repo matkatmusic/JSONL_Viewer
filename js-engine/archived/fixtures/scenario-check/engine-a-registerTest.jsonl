@@ -1,0 +1,2 @@
+{"type":"system","cwd":"/private/tmp/scenario-registerTest","sessionId":"s"}
+{"type":"tool_result","toolUseResult":{"type":"create","filePath":"/private/tmp/scenario-registerTest/hello.py","content":"print(\"hello world\")"}}

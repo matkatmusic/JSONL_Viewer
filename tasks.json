@@ -166,18 +166,5 @@
     "handoffFilePaths": [
       "plans/archived/handoff-develop-20260714-1530.md"
     ]
-  },
-  {
-    "taskNumber": 99,
-    "title": "Decide whether pre-existing untracked test files should ever be committed",
-    "description": "`git add tests/archive tests/fixtures/scenario-check` sweep-in was deliberately left unstaged twice during the task-skill-suite session — ask the user whether those pre-existing untracked files should ever be committed.",
-    "handoffFilePaths": [
-      "plans/archived/handoff-develop-20260714-1530.md"
-    ]
-  },
-  {
-    "taskNumber": 102,
-    "title": "Move the historical JS-engine code, tests, and fixtures into js-engine/archived/",
-    "description": "Move the historical javascript engine code and tests and fixtures into a 'js-engine/archived/' folder. Known candidates (audited 2026-07-14): `tests/archive/` — 3 legacy JS-engine test files (`test-file-event-observations-readedits.js` covers the retired `api/file-event-observations.js` scanner; `test-probe-helpers.js` + `test-probe-projects.js` test `tools/probe-projects`) plus `envelope.test.ts` which is archived early Engine-B (imports `src/structures/vocabulary.ts`) — decide whether it moves too or stays; `tests/fixtures/scenario-check/` — engine-a-named JSONL fixtures and sidecar/lineage/collector fixtures with ZERO references from current tests/src/scripts. CAVEAT: `api/` itself is the frozen legacy JS engine but is still LIVE as JFReD's engine (`jfred/jfred.html`, see task 58) — decide whether it counts as historical or stays put. Both tests/ dirs are currently untracked; this task supersedes task 99's commit-or-ignore question (they get committed at their new archived home)."
   }
 ]

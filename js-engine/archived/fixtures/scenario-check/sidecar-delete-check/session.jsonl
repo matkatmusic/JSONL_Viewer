@@ -1,0 +1,4 @@
+{"type":"system","cwd":"/private/tmp/registerTest-sidecar-delete","sessionId":"registerTest-delete","timestamp":"2026-06-18T00:00:00.000Z"}
+{"type":"tool_result","timestamp":"2026-06-18T00:00:00.000Z","toolUseResult":{"type":"create","filePath":"/private/tmp/registerTest-sidecar-delete/deleted.py","content":"temp"}}
+{"type":"assistant","timestamp":"2026-06-18T00:00:01.000Z","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"rm /private/tmp/registerTest-sidecar-delete/deleted.py"}}]}}
+{"type":"tool_result","tool_use_id":"tu-rm","timestamp":"2026-06-18T00:00:01.000Z","toolUseResult":{"stdout":"","exitCode":0}}
