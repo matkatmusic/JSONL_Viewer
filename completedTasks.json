@@ -835,5 +835,19 @@
     "completionDate": "2026-07-14",
     "commitHashes": [],
     "closureNote": "Moved the 3 legacy JS test files (test-file-event-observations-readedits.js, test-probe-helpers.js, test-probe-projects.js) to js-engine/archived/tests/ and tests/fixtures/scenario-check/ (27 files, zero live references) to js-engine/archived/fixtures/scenario-check/, staged at their new home (supersedes task 99's commit-or-ignore question). api/ stayed put — it is JFReD's live engine (jfred/jfred.html, task 58). envelope.test.ts stayed in tests/archive/ — it is early Engine-B TypeScript (imports src/structures/vocabulary.ts), not JS-engine code. commitHashes empty: work staged only, not committed."
+  },
+  {
+    "taskNumber": 57,
+    "title": "Decide the public name/brand",
+    "completionDate": "2026-07-14",
+    "closureNote": "User decided 2026-07-14: the tool is called JFRED, and it already has its own repo — which still needs the jfred codebase added to it. Downstream: the public README title (task 61) and the new repo's package name should commit to JFRED consistently.",
+    "description": "Decide the public name/brand — blocks item 60's README title and the public repo's name (item 58). `package.json` says `jsonl-viewer` (`\"private\": true`); root `README.md` says \"JSONL_Viewer\"; JFReD (\"JSONL File Reconstruction Debugger\", `jfred/jfred.html`) is technically a sub-tool — the static, browser-only debugger over the frozen legacy `api/` engine — NOT the Engine-B product in `src/`. The user referred to the whole project as \"JFRED\" when requesting publication, so JFReD may be the intended brand for everything; if so, `package.json` name/description and the README must commit to it consistently. Pure user decision, zero code."
+  },
+  {
+    "taskNumber": 59,
+    "title": "Scrub hardcoded home paths + decouple tests from the scenarios submodule",
+    "completionDate": "2026-07-14",
+    "closureNote": "Closed without code, user-decided 2026-07-14: a separate repo will be made exclusively for JFRED, so this repo won't need scrubbing — it will simply be made private when JFRED is released. The premise (\"do this in THIS repo so both repos share the code\") no longer applies.",
+    "description": "Scrub hardcoded home paths + decouple tests from the scenarios submodule — two code changes the public copy needs: (a) `tests/fixtures.ts:17-18` hardcodes `/Users/matkatmusicllc/...` scenario roots — parameterize (env var or relative `scenarios/executed` probe that skips gracefully when absent); `src/Impl_template.md`, `src/Plan_template.md`, `src/Plan_Impl_template.md` also carry absolute worktree paths (simplest: don't publish the templates — they're dev-process files). (b) exactly 4 test files touch `scenarios/`: `tests/check_scenario_coverage.test.ts`, `tests/fixtures.ts`, `tests/reconstruction_steps_name_at_time.test.ts` (commented-out ref), and `tests/viewer-viewmodels.test.ts` — make those tests self-skip when `scenarios/executed` is absent so the public suite (the other ~66 files run off committed `tests/fixtures/`) is green on a bare clone. Do this in THIS repo so both repos share the code."
   }
 ]
