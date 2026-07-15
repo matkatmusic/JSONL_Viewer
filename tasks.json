@@ -71,10 +71,11 @@
   {
     "taskNumber": 92,
     "title": "Split oversized files: webapp/views/timeline.ts, webapp/views/details.ts, tests/timeline-viewmodels.test.ts",
-    "description": "`tests/timeline-viewmodels.test.ts` (2017 lines), `webapp/views/timeline.ts` (2071 lines), and `webapp/views/details.ts` (623 lines) all trip the project's 250-line file-size hook, which also flags pre-existing deep nesting. None of it originates from items 77/84, and splitting is a large refactor outside those tasks \u2014 but the ledger keeps growing, so it deserves its own item. (items 77 + 84)",
+    "description": "`tests/timeline-viewmodels.test.ts` (2017 lines), `webapp/views/timeline.ts` (2071 lines), and `webapp/views/details.ts` (623 lines) all trip the project's 250-line file-size hook, which also flags pre-existing deep nesting. None of it originates from items 77/84, and splitting is a large refactor outside those tasks \u2014 but the ledger keeps growing, so it deserves its own item. (items 77 + 84) ALSO: src/reconstruction_git_evidence.ts is 568 lines vs the 250-line hook cap (plus one deep-nesting site around `placementAfter`) \u2014 pre-existing before task 89's compound-extraction change, flagged by the jot post-edit hook on every edit.",
     "handoffFilePaths": [
       "plans/archived/implementation-notes-item77-files-tree-view.md",
-      "plans/archived/implementation-notes-item84-unify-bottom-pane.md"
+      "plans/archived/implementation-notes-item84-unify-bottom-pane.md",
+      "plans/archived/implementation-notes-task89-compound-git-op-extraction.md"
     ]
   },
   {
@@ -118,6 +119,14 @@
     "description": "Port the suite into the jot plugin (`~/Programming/jot`) \u2014 the user's stated intent (\"I'm going to add these skills to jot\"). Add `viewTask_main()` in `common/scripts/view_task_lib.py` (translate `.claude/hooks/viewTaskHook.ts` 1:1; mirror `todo_listMain` in `common/scripts/todo_lib_scan.py`: stdin JSON \u2192 strict `/view-task` prefix match \u2192 `hookjson_emitBlock`), register `(\"/view-task\", lambda: viewTask_main())` in `_PROMPT_DISPATCH` in `scripts/jot_plugin_orchestrator.py`, add a do-nothing `skills/view-task/SKILL.md` (copy `skills/todo-list/SKILL.md`'s body), and pytest `tests/test_view_task_lib.py` (jot's PostToolBatch hook demands it). Then decide whether update-tasks/create-task/pick-a-task also move (they are plain SKILL.md + node scripts; jot skills so far are Python-backed).",
     "handoffFilePaths": [
       "plans/archived/handoff-develop-20260714-1530.md"
+    ]
+  },
+  {
+    "taskNumber": 103,
+    "title": "Failed git commands still emit timeline rows and CommitMarkers \u2014 suppress or badge?",
+    "description": "PROBLEM: git-op extraction never checks `is_error`, so a FAILED git command still contributes timeline rows. s6's compound `git add \u2026 && git commit` failed at runtime yet now contributes add+commit rows (its commit row has `resultHash: undefined` \u2014 error output carries no `[branch hash]` line); this mirrors how a failed plain `git commit` already gets a row today. Relatedly, `findGitCommitEvents` for s6 returns 2 commit events (failed compound + retry) where the repo has only 1 real commit \u2014 `resolveCommitByTimestamp` resolves both to the same commit (harmless for the evidence channel), but CommitMarkers (timeline pick hard-stops) now include the failed compound's instant; flag if a duplicate marker ever shows up as a visible artifact in the viewer. NEEDED: decide whether failed git commands should be suppressed or badged \u2014 a decision spanning ALL git ops, not just compound ones.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-task89-compound-git-op-extraction.md"
     ]
   }
 ]
