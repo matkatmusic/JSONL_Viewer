@@ -31,5 +31,5 @@ Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-
   rejected — app.ts is the views' import root, so a reverse import risks a cycle for a one-liner.
 
 ### Open questions
-- Should the consent token be clickable (jump to the raw JSONL line, like the console's
-  `matchJsonlSourceLink` tokens)? Not requested; trivial follow-up task if wanted.
+None. (Clickability was raised and decided NO — the consent dialog appears before the
+timeline is built, so a jump would have nowhere to land.)

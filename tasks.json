@@ -166,10 +166,5 @@
       "plans/archived/implementation-notes-item84-unify-bottom-pane.md",
       "plans/archived/implementation-notes-unified-juggling-conway.md"
     ]
-  },
-  {
-    "taskNumber": 97,
-    "title": "Consent view: show source JSONL path + line number per script",
-    "description": "Show which JSONL file + line each extracted script execution was taken from, on the consent view. The data is already on the wire — ConsentScript spreads the full ScriptRun including source: { filePath, lineNumber } (src/viewer_api.ts:294,307; RecordSource defined at src/parse/loadTranscript.ts:23), so nothing server-side needs to change. Client work only: (1) add source?: { filePath: string; lineNumber: number } to WireConsentScript (webapp/app.ts:49); (2) render the token in the muted header line of buildConsentScriptRow (the div showing timestamp + cwd). Mirror the existing server-side formatter formatRecordSourceToken (src/parse/loadTranscript.ts:32-37), which produces \"[file.jsonl:123]\" from the basename."
   }
 ]
