@@ -61,14 +61,6 @@
     "description": "83. See if actual /jot folder can be reconstructed."
   },
   {
-    "taskNumber": 89,
-    "title": "s39 emits NO commit node: compound `git add … && git commit` extracts only the add op",
-    "description": "PROBLEM: the s39 transcript runs `git add … && git commit` as one compound Bash command, but git-op extraction only recognizes the `add` op from compound commands, so the reconstructed timeline emits NO commit node for s39 — the commit is invisible in the viewer even though it happened. This is pre-existing engine behavior, not an item-66 port regression. NEEDED: either extend git-op extraction to recognize each op in `&&`-chained compound commands (so the commit gets its own node), or explicitly decide and document that compound-command commits are out of scope. (item 66)",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-item66-fork-style-port.md"
-    ]
-  },
-  {
     "taskNumber": 90,
     "title": "Files tree, multi-root projects: collapse single-child chains below the root?",
     "description": "PROBLEM: in multi-root projects (sessions ran under different `cwd`s), the files-tree root is the shallow shared prefix (e.g. `/Users/matkatmusicllc`), so real single-child directory chains survive below it (`Programming` → `jot-backup` → `src`). Each intermediate level holds exactly one child, so navigating the tree costs one click per level that carries no information. This is honest divergence, not a reconstruction bug. NEEDED: decide whether to collapse single-child chains *below* the root into one combined node (e.g. `Programming/jot-backup/src`). Note: root-level chain-collapsing was previously declined, so this needs explicit sign-off that below-root collapsing is wanted. (item 77)",

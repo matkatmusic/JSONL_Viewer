@@ -48,6 +48,17 @@ test("test_findGitCommitEvents_reads_the_repo_dir_from_dash_C_or_the_record_cwd"
     assert.equal(commits[1]!.cwd?.toString(), "/tmp/repo");
 });
 
+// A commit chained behind another command with `&&` is still a commit event (task 89), and its
+// `-C` dir is read from the commit's OWN segment, not the compound's head.
+test("test_findGitCommitEvents_sees_a_commit_inside_a_compound_command", () => {
+    const records = [
+        buildBashRecord('git add a.py && git -C /tmp/repo commit -m "x"', "2026-01-01T00:00:01Z", "/elsewhere"),
+    ];
+    const commits = findGitCommitEvents(records);
+    assert.equal(commits.length, 1);
+    assert.equal(commits[0]!.cwd?.toString(), "/tmp/repo");
+});
+
 test("test_readCommittedFileContent_returns_the_blob_at_a_recorded_commit", () => {
     // Steps:
     // create a temp git repo with one committed file.

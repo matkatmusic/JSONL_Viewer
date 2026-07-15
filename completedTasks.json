@@ -876,5 +876,16 @@
     ],
     "completionDate": "2026-07-15",
     "closureNote": "Closed per user decision (fix it): deriveCommitChangedFiles now also walks FORWARD to the next commit, absorbing chips whose change instant is at-or-before the commit (the trailing reply bubble that sorts after the commit row), and skips gitBase baseline chips in both directions; findContributingNodeIndexes mirrors the same walk so the highlight agrees."
+  },
+  {
+    "taskNumber": 89,
+    "title": "s39 emits NO commit node: compound `git add … && git commit` extracts only the add op",
+    "description": "PROBLEM: the s39 transcript runs `git add … && git commit` as one compound Bash command, but git-op extraction only recognizes the `add` op from compound commands, so the reconstructed timeline emits NO commit node for s39 — the commit is invisible in the viewer even though it happened. This is pre-existing engine behavior, not an item-66 port regression. NEEDED: either extend git-op extraction to recognize each op in `&&`-chained compound commands (so the commit gets its own node), or explicitly decide and document that compound-command commits are out of scope. (item 66)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item66-fork-style-port.md"
+    ],
+    "completionDate": "2026-07-15",
+    "commitHashes": [],
+    "closureNote": "Closed per user decision (extend extraction). PREMISE CORRECTION: s39's transcript records NO `git commit` at all — a block-compound.sh capture hook forced separate commands and only `git init` + `git add orders.py tests/` exist in its JSONLs, so no s39 commit node was ever recoverable; the compound-command gap was real but lives in s6-git-mv (`git add … && git commit -m \"$(cat …)\"`). FIX: splitCompoundCommandSegments in src/reconstruction_git_evidence.ts — both findGitOperations and findGitCommitEvents now parse each `&&` segment (per-segment kind/detail/command; commit segments read the compound's single tool_result for resultHash; -C dir read from the commit's own segment). s6's kind sequence gains its compound commit: [init, add, commit, add, commit, other]. 3 new tests across tests/git-operations.test.ts and tests/reconstruction_git_evidence.test.ts."
   }
 ]

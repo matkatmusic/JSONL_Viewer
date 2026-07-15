@@ -10,7 +10,7 @@ import { findGitOperations } from "../src/reconstruction_git_evidence.ts";
 import { Path, Uuid } from "../src/structures/domain.ts";
 import { BlockType, GitOperationKind, RecordType, ToolName } from "../src/structures/vocabulary.ts";
 import type { TranscriptRecord } from "../src/structures/envelope.ts";
-import { S19_JSONL, S39_JSONL_PATHS, S41_JSONL_PATHS, S85_JSONL_PATHS } from "./fixtures.ts";
+import { S6_JSONL, S19_JSONL, S39_JSONL_PATHS, S41_JSONL_PATHS, S85_JSONL_PATHS } from "./fixtures.ts";
 
 test("test_s39_git_operations_are_init_then_add", () => {
     // Scenario: s39's two-session transcript records exactly two git Bash commands — `git init`
@@ -190,6 +190,53 @@ test("test_commit_operations_without_result_output_have_no_hash", () => {
     assert.equal(operations.length, 1);
     assert.equal(operations[0]!.kind, GitOperationKind.commit);
     assert.equal(operations[0]!.resultHash, undefined);
+});
+
+test("test_compound_command_yields_one_operation_per_git_segment", () => {
+    // Scenario: one Bash call chains two git commands with `&&` (task 89). Each segment gets its
+    // own operation — the commit must not vanish into the add, the add's detail must not carry
+    // the compound tail, and only the commit segment reads the shared tool_result's hash.
+    const records = [
+        buildBashToolUseRecord('git add a.py && git commit -m "fix: x"', "toolu_compound1", "2026-01-01T00:00:01Z"),
+        buildToolResultRecord("toolu_compound1", "[master 4fa08d2] fix: x\n 2 files changed", "2026-01-01T00:00:02Z"),
+    ];
+    const operations = findGitOperations(records);
+    // assert one operation per segment, in command order.
+    assert.deepEqual(
+        operations.map((operation) => operation.kind),
+        [GitOperationKind.add, GitOperationKind.commit],
+    );
+    // assert each detail is the segment's own (no compound tail pollution).
+    assert.deepEqual(
+        operations.map((operation) => operation.detail),
+        ["a.py", "fix: x"],
+    );
+    // assert each operation carries its own segment as its command text.
+    assert.deepEqual(
+        operations.map((operation) => operation.command),
+        ["git add a.py", 'git commit -m "fix: x"'],
+    );
+    // assert the commit segment found the hash in the shared tool_result; the add carries none.
+    assert.equal(operations[0]!.resultHash, undefined);
+    assert.equal(operations[1]!.resultHash, "4fa08d2");
+});
+
+test("test_s6_compound_add_and_commit_each_get_an_operation", () => {
+    // Scenario: s6-git-mv records a compound `git add … && git commit -m "$(cat …)"` Bash command
+    // (it failed at capture time; the agent reissued the add and commit separately). Its two
+    // segments must each yield an operation — the kind sequence gains a commit at index 2
+    // (pre-task-89 extraction yielded [init, add, add, commit, other]).
+    const document = buildProjectDocument([new Path(S6_JSONL)], undefined);
+    // assert the compound contributes BOTH its add and its commit, in record order.
+    assert.deepEqual(
+        document.gitOperations.map((operation) => operation.kind),
+        [
+            GitOperationKind.init, GitOperationKind.add, GitOperationKind.commit,
+            GitOperationKind.add, GitOperationKind.commit, GitOperationKind.other,
+        ],
+    );
+    // assert the compound add's detail stops at its own segment (no `&& git commit …` tail).
+    assert.equal(document.gitOperations[1]!.detail, "s6_git.py tests/test_s6_git.py");
 });
 
 test("test_s19_without_git_yields_no_operations", () => {
