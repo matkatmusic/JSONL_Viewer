@@ -23,6 +23,7 @@ import type {
     WriteEvent,
 } from "./reconstruction_engine.ts";
 import { userEditEventFrom } from "./reconstruction_user_edit.ts";
+import { getCorpusState } from "./reconstruction_corpus.ts";
 import {
     bashAppendRedirect,
     bashCopyCommand,
@@ -339,12 +340,20 @@ export function extractScriptRenameEvents(records: TranscriptRecord[]): FileEven
 // Extract every file event across the transcript, ordered by timestamp. Bash/Write/Edit evidence comes from
 // per-record extraction; script-run renames (Bash or MCP) are recovered separately from the runs' printed
 // stdout, since the move happens inside script code that leaves no per-record tool_use event.
+// Memoized per records identity in the corpus (pure group): the result depends on the records alone, and
+// the per-file repair chain re-enters here for every reconstructed file and every pre-execution replay.
+// Callers only filter/map the shared array — no pass mutates it or its events.
 export function extractFileEvents(records: TranscriptRecord[]): FileEvent[] {
+    const state = getCorpusState(records);
+    if (state.fileEvents !== undefined) {
+        return state.fileEvents;
+    }
     const detailById = indexEditDetailByToolUseId(records);
     const events: FileEvent[] = [];
     for (const record of records) {
         collectEventsFromRecord(record, events, detailById);
     }
     events.push(...extractScriptRenameEvents(records));
-    return events.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    state.fileEvents = events.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    return state.fileEvents;
 }

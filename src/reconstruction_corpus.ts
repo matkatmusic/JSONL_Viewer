@@ -8,9 +8,11 @@
 // (Phase 4, item 14).
 
 import type { TranscriptRecord } from "./structures/envelope.ts";
-import type { BackupReader } from "./reconstruction_sidecar.ts";
-import type { FileRevision } from "./reconstruction_engine.ts";
+import type { BackupPoint, BackupReader } from "./reconstruction_sidecar.ts";
+import type { GitCommitEvent } from "./reconstruction_git_evidence.ts";
+import type { FileEvent, FileRevision } from "./reconstruction_engine.ts";
 import type { RunExecution } from "./reconstruction_script_stage.ts";
+import type { ScriptRun } from "./reconstruction_script_execution.ts";
 import { isImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 
 // The reader/exec-gate-validated cache group: per-file histories (reconstructFileOver),
@@ -27,6 +29,13 @@ export type CorpusState = {
     branchSelectionsByTip: Map<string, TranscriptRecord[]>;
     liveBranch: TranscriptRecord[] | undefined; // undefined = not cached (preserves the
                                                 // no-surviving-head early-out semantics)
+    scriptRuns: ScriptRun[] | undefined; // pure function of the records alone — never
+                                         // invalidates (undefined = not cached)
+    fileEvents: FileEvent[] | undefined; // pure function of the records alone — never
+                                         // invalidates; callers filter/map, never mutate
+    backupTimelinesByCwd: Map<string, Map<string, BackupPoint[]>>; // pure: the snapshots live in
+                                                                   // the records; keyed by cwd string
+    gitCommitEvents: GitCommitEvent[] | undefined; // pure function of the records alone
     derived: DerivedCaches;
 };
 
@@ -50,6 +59,10 @@ export function getCorpusState(records: TranscriptRecord[]): CorpusState {
         state = {
             branchSelectionsByTip: new Map<string, TranscriptRecord[]>(),
             liveBranch: undefined,
+            scriptRuns: undefined,
+            fileEvents: undefined,
+            backupTimelinesByCwd: new Map<string, Map<string, BackupPoint[]>>(),
+            gitCommitEvents: undefined,
             derived: buildDerivedCaches(undefined),
         };
         corpusStates.set(records, state);

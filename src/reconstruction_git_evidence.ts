@@ -10,6 +10,7 @@ import { isImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { dirname, join, relative } from "node:path";
 import { getRecordSource } from "./parse/loadTranscript.ts";
 import { getPathOverrides } from "./reconstruction_overrides.ts";
+import { getCorpusState } from "./reconstruction_corpus.ts";
 import {
     BlockType,
     EventKind,
@@ -38,8 +39,14 @@ import type { FileEvent, UserEditEvent, WriteEvent } from "./reconstruction_engi
 // the session whose Bash call ran it (for timeline attribution).
 export type GitCommitEvent = { cwd?: Path; timestamp: Date; sessionId?: Uuid };
 
-// Every `git commit` Bash command in the transcript, in record order.
+// Every `git commit` Bash command in the transcript, in record order. Memoized per records
+// identity in the corpus (pure group): the per-file repair chain re-enters here for every
+// reconstructed file, and the result depends on the records alone.
 export function findGitCommitEvents(records: TranscriptRecord[]): GitCommitEvent[] {
+    const state = getCorpusState(records);
+    if (state.gitCommitEvents !== undefined) {
+        return state.gitCommitEvents;
+    }
     const commits: GitCommitEvent[] = [];
     for (const record of records) {
         const timestamp = record.timestamp;
@@ -59,6 +66,7 @@ export function findGitCommitEvents(records: TranscriptRecord[]): GitCommitEvent
             });
         }
     }
+    state.gitCommitEvents = commits;
     return commits;
 }
 

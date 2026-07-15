@@ -10,12 +10,13 @@ import { Path, Uuid } from "./structures/domain.ts";
 import { EventKind } from "./structures/vocabulary.ts";
 import { resolveAgainstCwd } from "./structures/path-resolve.ts";
 import { noteStage } from "./reconstruction_provenance.ts";
+import { getCorpusState } from "./reconstruction_corpus.ts";
 import type { FileEvent, WriteEvent } from "./reconstruction_engine.ts";
 
 // sessionId names the owning file-history dir: a merged multi-session transcript reuses `@vN` blob names.
 export type BackupReader = (backupFileName: Path, sessionId?: Uuid) => string;
 
-type BackupPoint = { backupTime: Date; backupFileName: Path | null; sessionId?: Uuid };
+export type BackupPoint = { backupTime: Date; backupFileName: Path | null; sessionId?: Uuid };
 
 // The transcript's working directory, used to make the snapshots' cwd-relative paths
 // absolute. file-history-snapshot records carry none, so scan for the first record that
@@ -31,7 +32,25 @@ function findCwd(records: TranscriptRecord[]): Path | undefined {
 }
 
 // Per absolute path, the time-ordered backup points across every file-history snapshot.
+// Memoized per records identity in the corpus (pure group — the snapshots are records, not disk),
+// keyed by the cwd the paths were resolved against: every repair pass of every reconstructed file
+// re-enters here, and the timeline only depends on (records, cwd).
 function buildBackupTimeline(
+    records: TranscriptRecord[],
+    cwd: Path | undefined,
+): Map<string, BackupPoint[]> {
+    const timelinesByCwd = getCorpusState(records).backupTimelinesByCwd;
+    const cwdKey = cwd === undefined ? "" : cwd.toString();
+    const cached = timelinesByCwd.get(cwdKey);
+    if (cached !== undefined) {
+        return cached;
+    }
+    const timeline = computeBackupTimeline(records, cwd);
+    timelinesByCwd.set(cwdKey, timeline);
+    return timeline;
+}
+
+function computeBackupTimeline(
     records: TranscriptRecord[],
     cwd: Path | undefined,
 ): Map<string, BackupPoint[]> {
