@@ -1788,6 +1788,54 @@ test("test_buildFileTree_strips_the_deep_absolute_root_real_targets_carry", () =
     assert.deepEqual(tree.map((node) => node.name), ["alpha.py", "beta.py"]);
 });
 
+test("test_buildFileTree_collapses_a_single_child_folder_chain_into_one_combined_node", () => {
+    // Scenario: task 90 — in a multi-root project the shared prefix is shallow, so a real
+    // single-child folder chain survives below it and costs one click per level. The chain
+    // collapses into one combined `a/b/c` node; the root header itself is untouched.
+    // Steps:
+    // build a tree whose targets share only /Users/mm, leaving Programming -> jot-backup -> src.
+    const tree = buildFileTree([
+        makeFileEntry("/Users/mm/Programming/jot-backup/src/main.ts"),
+        makeFileEntry("/Users/mm/Programming/jot-backup/src/util.ts"),
+        makeFileEntry("/Users/mm/project/orders.py"),
+    ]);
+    // the chain renders as ONE combined node beside the branching sibling folder.
+    assert.deepEqual(tree.map((node) => node.name), ["Programming/jot-backup/src", "project"]);
+    // the combined node holds the chain's files directly.
+    assert.deepEqual(tree[0]!.children.map((child) => child.name), ["main.ts", "util.ts"]);
+    // a folder whose single child is a FILE does not merge that file into its name.
+    assert.deepEqual(tree[1]!.children.map((child) => child.name), ["orders.py"]);
+});
+
+test("test_buildFileTree_stops_collapsing_at_a_branching_folder", () => {
+    // Scenario: a chain merges only while each level holds exactly one folder — a folder with
+    // two children is real structure and must keep its own row.
+    // Steps:
+    // build a tree where a -> b branches into left/ and right/ below the /Users/mm prefix.
+    const tree = buildFileTree([
+        makeFileEntry("/Users/mm/a/b/left/x.py"),
+        makeFileEntry("/Users/mm/a/b/right/y.py"),
+        makeFileEntry("/Users/mm/other/z.py"),
+    ]);
+    // the chain merges only down to the branching folder b.
+    assert.deepEqual(tree.map((node) => node.name), ["a/b", "other"]);
+    // b's two real subfolders survive as separate children.
+    assert.deepEqual(tree[0]!.children.map((child) => child.name), ["left", "right"]);
+});
+
+test("test_buildFileTree_keeps_leaf_entries_intact_through_chain_collapse", () => {
+    // Scenario: collapsing renames FOLDER nodes only — a leaf's entry must stay verbatim,
+    // because clicks route by entry.target (the full untouched path).
+    // Steps:
+    // build a tree with one chained file and one flat file so the prefix stays /Users/mm.
+    const chainedEntry = makeFileEntry("/Users/mm/deep/chain/file.py");
+    const tree = buildFileTree([chainedEntry, makeFileEntry("/Users/mm/flat.py")]);
+    // the chain collapses into one combined folder node.
+    assert.equal(tree[0]!.name, "deep/chain");
+    // its lone leaf still carries the entry verbatim.
+    assert.deepEqual(tree[0]!.children[0]!.entry, chainedEntry);
+});
+
 test("test_buildSessionsSidebarViewModel_groups_rows_per_session", () => {
     // Scenario: the Sessions sidebar shows one entry per distinct session in first-appearance
     // order, counting that session's rows and remembering its first row for flash-scroll.

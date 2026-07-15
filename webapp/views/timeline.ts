@@ -1130,6 +1130,7 @@ export function buildFileTree(files: readonly FileSidebarEntry[]): FileTreeNode[
         insertFileIntoTree(root, file, prefix);
     }
     sortTreeNodes(root);
+    collapseSingleChildFolderChains(root.children);
     return root.children;
 }
 
@@ -1177,6 +1178,30 @@ function compareTreeNodes(left: FileTreeNode, right: FileTreeNode): number {
         return left.kind === FOLDER_NODE_KIND ? -1 : 1;
     }
     return left.name.localeCompare(right.name);
+}
+
+// Merge each folder holding exactly one folder child into a combined `a/b/c` node (task 90):
+// in multi-root projects the shared prefix is shallow, so real single-child chains survive
+// below it and cost one click per level. Only folder->folder merges — a lone FILE child keeps
+// its own row. Runs after sorting on purpose: sibling order stays keyed to the original first
+// segment. The root header itself never collapses (root-level collapsing was declined).
+function collapseSingleChildFolderChains(nodes: FileTreeNode[]): void {
+    for (const node of nodes) {
+        while (nodeHoldsExactlyOneFolderChild(node)) {
+            const onlyChild = node.children[0]!;
+            node.name = `${node.name}/${onlyChild.name}`;
+            node.children = onlyChild.children;
+        }
+        collapseSingleChildFolderChains(node.children);
+    }
+}
+
+// True when the node is a folder whose single child is itself a folder — the collapsible link.
+function nodeHoldsExactlyOneFolderChild(node: FileTreeNode): boolean {
+    if (node.kind !== FOLDER_NODE_KIND || node.children.length !== 1) {
+        return false;
+    }
+    return node.children[0]!.kind === FOLDER_NODE_KIND;
 }
 
 // The project JSONL whose file name starts with the session id (JSONLs are named after their
