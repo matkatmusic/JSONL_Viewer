@@ -1,4 +1,9 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(node .claude/skills/scripts/*)"
+    ]
+  },
   "hooks": {
     "UserPromptSubmit": [
       {

@@ -94,9 +94,10 @@
   {
     "taskNumber": 88,
     "title": "Rev-card op badges: single letters (A/M) vs the mockup's word badges",
-    "description": "Rev-card op badges render single letters (A/M) rather than the mockup's word badges (write/edit/user-edit) — eyeball and decide which reads better. (item 66)",
+    "description": "Rev-card op badges render single letters (A/M) rather than the mockup's word badges (write/edit/user-edit) — eyeball and decide which reads better. (item 66) Location: `webapp/views/timeline.ts:1183–1217` (`op-badge` span) + a styles.css width tweak. Confirm with the user before styling choices.",
     "handoffFilePaths": [
-      "plans/archived/implementation-notes-item66-fork-style-port.md"
+      "plans/archived/implementation-notes-item66-fork-style-port.md",
+      "plans/archived/handoff-develop-20260714-1530.md"
     ]
   },
   {
@@ -165,6 +166,38 @@
       "plans/archived/implementation-notes-item80-console-word-wrap.md",
       "plans/archived/implementation-notes-item84-unify-bottom-pane.md",
       "plans/archived/implementation-notes-unified-juggling-conway.md"
+    ]
+  },
+  {
+    "taskNumber": 98,
+    "title": "Port the task-management skill suite into the jot plugin",
+    "description": "Port the suite into the jot plugin (`~/Programming/jot`) — the user's stated intent (\"I'm going to add these skills to jot\"). Add `viewTask_main()` in `common/scripts/view_task_lib.py` (translate `.claude/hooks/viewTaskHook.ts` 1:1; mirror `todo_listMain` in `common/scripts/todo_lib_scan.py`: stdin JSON → strict `/view-task` prefix match → `hookjson_emitBlock`), register `(\"/view-task\", lambda: viewTask_main())` in `_PROMPT_DISPATCH` in `scripts/jot_plugin_orchestrator.py`, add a do-nothing `skills/view-task/SKILL.md` (copy `skills/todo-list/SKILL.md`'s body), and pytest `tests/test_view_task_lib.py` (jot's PostToolBatch hook demands it). Then decide whether update-tasks/create-task/pick-a-task also move (they are plain SKILL.md + node scripts; jot skills so far are Python-backed).",
+    "handoffFilePaths": [
+      "plans/archived/handoff-develop-20260714-1530.md"
+    ]
+  },
+  {
+    "taskNumber": 99,
+    "title": "Decide whether pre-existing untracked test files should ever be committed",
+    "description": "`git add tests/archive tests/fixtures/scenario-check` sweep-in was deliberately left unstaged twice during the task-skill-suite session — ask the user whether those pre-existing untracked files should ever be committed.",
+    "handoffFilePaths": [
+      "plans/archived/handoff-develop-20260714-1530.md"
+    ]
+  },
+  {
+    "taskNumber": 100,
+    "title": "Run the full suite post-item-84: `npm test`",
+    "description": "Run the full suite: `npm test`. It has not been run since item 84 landed. Baseline expectation from the project narrative: ~467 tests with 1 pre-existing s85 failure that is the healthy baseline — do not \"fix\" it, it is tracked separately. Anything else failing is new.",
+    "handoffFilePaths": [
+      "plans/archived/handoff-develop-20260714-1539.md"
+    ]
+  },
+  {
+    "taskNumber": 101,
+    "title": "Decide the fate of the uncommitted engine memoization",
+    "description": "The working tree carries uncommitted reconstruction-pipeline memoization changes (`src/reconstruction_corpus.ts` and friends). It is either someone's in-flight work or an abandoned experiment. It typechecks and is not obviously broken, but it has no committed home and no test naming it. Ask the user before committing OR reverting.",
+    "handoffFilePaths": [
+      "plans/archived/handoff-develop-20260714-1539.md"
     ]
   }
 ]
