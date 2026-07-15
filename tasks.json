@@ -53,7 +53,7 @@
   {
     "taskNumber": 67,
     "title": "Script-run details: script + before/after diff panels",
-    "description": "67. Script-run details: script + before/after diff panels** — for script\n  runs that modify files, the bottom (Details) pane shows two panels: left is the\n  script itself, right is a side-by-side diff of the affected file(s) before vs\n  after the run. BLOCKED on a prerequisite that doesn't exist yet: detection of\n  which script runs modify files (the engine has script-run rows but no\n  \"this run changed files X, Y\" linkage to drive the diff panel). Logged\n  2026-07-11; do not build until the detection piece is designed."
+    "description": "67. Script-run details: script + before/after diff panels — PROBLEM: when a script-run row that modified files is selected in the timeline, the Details pane gives no way to see what the script actually did to those files; the script source and the resulting file changes can only be correlated by manually cross-referencing rev cards. NEEDED: for script runs that modify files, the Details pane shows two panels — left: the script itself; right: a side-by-side diff of each affected file before vs. after the run. BLOCKED on a prerequisite that doesn't exist yet: the engine has script-run rows but no \"this run changed files X, Y\" linkage to drive the diff panel. Logged 2026-07-11; do not build until that detection piece is designed."
   },
   {
     "taskNumber": 83,
@@ -79,7 +79,7 @@
   {
     "taskNumber": 89,
     "title": "s39 emits NO commit node: compound `git add … && git commit` extracts only the add op",
-    "description": "s39 emits NO commit node (its `git add … && git commit` compound extracted only the `add` op — pre-existing engine behavior, not a port regression). Flagging in case a commit row was expected there. (item 66)",
+    "description": "PROBLEM: the s39 transcript runs `git add … && git commit` as one compound Bash command, but git-op extraction only recognizes the `add` op from compound commands, so the reconstructed timeline emits NO commit node for s39 — the commit is invisible in the viewer even though it happened. This is pre-existing engine behavior, not an item-66 port regression. NEEDED: either extend git-op extraction to recognize each op in `&&`-chained compound commands (so the commit gets its own node), or explicitly decide and document that compound-command commits are out of scope. (item 66)",
     "handoffFilePaths": [
       "plans/archived/implementation-notes-item66-fork-style-port.md"
     ]
@@ -87,7 +87,7 @@
   {
     "taskNumber": 90,
     "title": "Files tree, multi-root projects: collapse single-child chains below the root?",
-    "description": "When a project's sessions ran under different `cwd`s, the shared prefix is necessarily shallower (e.g. `/Users/matkatmusicllc`), so some real single-child chains survive (`Programming` → `jot-backup` → `src`). That is honest divergence rather than a bug, and collapsing it is exactly the chain-collapsing you declined — but if those chains bother you in practice, the fix is to collapse single-child chains *below* the root, and I'd want your go-ahead first. (item 77)",
+    "description": "PROBLEM: in multi-root projects (sessions ran under different `cwd`s), the files-tree root is the shallow shared prefix (e.g. `/Users/matkatmusicllc`), so real single-child directory chains survive below it (`Programming` → `jot-backup` → `src`). Each intermediate level holds exactly one child, so navigating the tree costs one click per level that carries no information. This is honest divergence, not a reconstruction bug. NEEDED: decide whether to collapse single-child chains *below* the root into one combined node (e.g. `Programming/jot-backup/src`). Note: root-level chain-collapsing was previously declined, so this needs explicit sign-off that below-root collapsing is wanted. (item 77)",
     "handoffFilePaths": [
       "plans/archived/implementation-notes-item77-files-tree-view.md"
     ]
@@ -95,7 +95,7 @@
   {
     "taskNumber": 91,
     "title": "Rename badge shows only the old basename — ambiguous for same-basename renames",
-    "description": "Rename badge text shows `← <old basename>` with the full old path in the tooltip. If two files were renamed from different directories with the same basename, the badges read identically until hovered. Say the word if you'd rather see more of the old path inline. (item 77)",
+    "description": "PROBLEM: the rename badge shows only `← <old basename>`, with the full old path relegated to the tooltip. When two files in different directories were renamed from the same basename, their badges are visually identical — the user cannot tell the renames apart without hovering each one. NEEDED: disambiguate inline, e.g. show the shortest distinguishing suffix of the old path (only when two badges would otherwise collide, or always), or decide the tooltip is sufficient and close. (item 77)",
     "handoffFilePaths": [
       "plans/archived/implementation-notes-item77-files-tree-view.md"
     ]
@@ -112,7 +112,7 @@
   {
     "taskNumber": 93,
     "title": "renderFileHistoryView is a near-duplicate of the Revision View — consolidate?",
-    "description": "`renderFileHistoryView` (`webapp/views/file-history.ts:161`) — the `#/project/<p>/file/<path>` route renders per-revision rows with the *same five actions* as the rev cards (Show content / Export this version / Copy patch / Export .patch / Jump to timeline step). It was `⤷`'s destination; after item 84's bug-1 fix, nothing on the chip row reaches it. It is still reachable from the inspector's revision links and the snapshot pane's \"View in File History\" button. (item 84)",
+    "description": "PROBLEM: two views implement the same per-revision UI independently. `renderFileHistoryView` (`webapp/views/file-history.ts:161`, route `#/project/<p>/file/<path>`) renders per-revision rows with the *same five actions* as the Revision View's rev cards (Show content / Export this version / Copy patch / Export .patch / Jump to timeline step). Since item 84's bug-1 fix removed its `⤷` chip-row entry point, it is reachable only from the inspector's revision links and the snapshot pane's \"View in File History\" button — yet every future change to the five actions must be made in both places. NEEDED: consolidate — either retire `renderFileHistoryView` and repoint its two remaining entry points at the Revision View, or extract the shared revision-row rendering into one helper both views call. (item 84)",
     "handoffFilePaths": [
       "plans/archived/implementation-notes-item84-unify-bottom-pane.md"
     ]
@@ -120,7 +120,7 @@
   {
     "taskNumber": 94,
     "title": "`⤷` snapshot-jump button renders for any matched changeId, not only snapshot-backed revisions",
-    "description": "`⤷`'s render condition may not match its stated meaning. It was kept because its presence indicates a revision that HAS a File History Snapshot. But `computeSnapshotJumpRoute` returns `undefined` only when the changeId is absent, resolves to no history, or resolves to a blob name with no anchored revision — i.e. the button renders for essentially any changeId that matches a revision, whether or not a snapshot backs it. If the indicator is meant to be precise, that is a separate bug. (item 84)",
+    "description": "PROBLEM: the `⤷` snapshot-jump button is supposed to signal \"this revision HAS a File History Snapshot\", but its render condition doesn't check that. It renders whenever `computeSnapshotJumpRoute` returns a route, and that returns `undefined` only when the changeId is absent, resolves to no history, or resolves to a blob name with no anchored revision — i.e. the button appears for essentially any changeId that matches a revision, snapshot-backed or not. The indicator over-fires and misleads. NEEDED: tighten the render condition so `⤷` appears only for revisions actually backed by a snapshot, or redefine/document the button's meaning as \"jumpable\" rather than \"snapshot-backed\". (item 84)",
     "handoffFilePaths": [
       "plans/archived/implementation-notes-item84-unify-bottom-pane.md"
     ]
@@ -128,7 +128,7 @@
   {
     "taskNumber": 95,
     "title": "Doubled rtk-rewrite tool-call rows (s39): signal, or collapse into the original row?",
-    "description": "The rtk-rewrite hook rewrote BOTH `ls` and `git add` in s39, so the timeline shows `* git add … *` AND `* rtk git add … *` (the mock listed only up through mkdir, so this pair never appeared in it). This follows directly from the locked \"all tool calls, including hook rewrites\" rule — confirm the doubled rewrite rows read as signal, not noise; collapsing a rewrite into its original row (one row, two line labels) is a small follow-up if preferred. (timeline tool-call rows)",
+    "description": "PROBLEM: when the rtk-rewrite hook rewrites a tool call, the timeline renders two rows for one logical action — the original and the rewrite. In s39 the hook rewrote both `ls` and `git add`, so the timeline shows `* git add … *` AND `* rtk git add … *`. This follows the locked \"all tool calls, including hook rewrites\" rule, but the doubled rows may read as noise rather than signal. NEEDED: decide whether doubled hook-rewrite rows stay as-is (two rows = signal) or a rewrite collapses into its original row (one row, two line labels); if collapsing, implement it in the timeline tool-call row rendering. (timeline tool-call rows)",
     "handoffFilePaths": [
       "plans/archived/implementation-notes-timeline-tool-call-rows.md"
     ]
