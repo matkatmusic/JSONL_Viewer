@@ -1,3 +1,5 @@
+// task 93: RETIRED — the #/project/<p>/file/<path> route now lands in THE Revision View
+// (renderDetailsFileMode, webapp/views/details-revision-view.ts). Preserved per archive policy.
 // File-history view (#/project/<name>/file/<path>): every revision of one file, newest last,
 // with per-revision export/patch/jump actions and the Diff-vs-Base entry point.
 // The DOM-free view-model half lives in file-history-model.ts.

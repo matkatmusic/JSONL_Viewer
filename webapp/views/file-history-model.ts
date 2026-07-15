@@ -1,6 +1,7 @@
 // File-history view model (DOM-free): wire shapes, revision-text rendering, revision anchoring,
 // changeId lookup, and per-revision diff block slicing. Tested against scenario ground truth
-// (viewer-file-history.test.ts); the DOM half lives in file-history.ts.
+// (viewer-file-history.test.ts). task 93: the DOM half (file-history.ts) is retired to
+// webapp/archive/ — the Revision View (details-revision-view.ts) is this model's consumer now.
 
 // Wire shapes (JSON off the server: ids/paths/dates are plain strings), minimal to this file's use.
 type WireRename = { from: string; to: string };

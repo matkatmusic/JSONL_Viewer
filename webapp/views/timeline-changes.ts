@@ -96,7 +96,8 @@ export function deriveFileChanges(step: WireStepSnapshot, revisionIndex: Revisio
     return changes;
 }
 
-// The file-history route a chip's revision jumps to ("#/project/<p>/file/<path>/rev/<n>"),
+// The file route a chip's revision jumps to ("#/project/<p>/file/<path>/rev/<n>", which lands
+// in THE Revision View since task 93),
 // or undefined when the change carries no changeId or it resolves to no surviving revision
 // number (re-stamped synthetic ids, blob names without an anchored revision) — those chips
 // get no jump button rather than a dead link.

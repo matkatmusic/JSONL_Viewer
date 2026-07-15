@@ -6,6 +6,7 @@
 // in details-model.ts).
 
 import { el } from "../app-dom.ts";
+import { routeToFileHistory } from "../app-routes.ts";
 import { revealDetailsPane } from "../inspector.ts";
 import { buildFileHistoryViewModel } from "./file-history-model.ts";
 import { splitPatchByFile } from "./timeline-changes.ts";
@@ -42,6 +43,12 @@ export function renderDetailsFileMode(target: string, context: DetailsContext, f
         left.append(el("div", { class: "dempty", text: "No revisions" }));
         return;
     }
+    // task 93: the Diff-vs-Base entry moved here from the retired File History view.
+    left.append(el("button", {
+        class: "row-btn",
+        text: "Diff vs Base",
+        onclick: () => { location.hash = `${routeToFileHistory(context.project, target)}/vsbase`; },
+    }));
     const cards = buildRevisionCards(history);
     const focusedIndex = computeFocusedCardIndex(cards, focus);
     const focusedMode = focus?.mode ?? RevisionViewMode.diff;

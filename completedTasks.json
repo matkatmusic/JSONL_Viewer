@@ -909,5 +909,15 @@
     ],
     "completionDate": "2026-07-15",
     "closureNote": "Closed by the codebase-wide oversize split (user-expanded scope): audited all 153 tracked TS files via the jot hook's own filesize_check.py, then split every file over the 250-line cap \u2014 the four named files (timeline.ts 2266->220+14 modules, timeline-viewmodels.test.ts 2364->17 topic files, details.ts 685->4 modules, reconstruction_git_evidence.ts 558->3 modules) plus 26 more src/webapp/tests files (~35 new modules total, incl. app.ts 1219->10 modules). Pure moves, no re-export shims, callers import canonical homes directly. typecheck + build:webapp green; test suite deliberately left for the user to run. Deep-nesting hook flags recorded in plans/implementation-notes-task-92.md as follow-up input. Staged, not committed."
+  },
+  {
+    "taskNumber": 93,
+    "title": "renderFileHistoryView is a near-duplicate of the Revision View \u2014 consolidate?",
+    "description": "PROBLEM: two views implement the same per-revision UI independently. `renderFileHistoryView` (`webapp/views/file-history.ts:161`, route `#/project/<p>/file/<path>`) renders per-revision rows with the *same five actions* as the Revision View's rev cards (Show content / Export this version / Copy patch / Export .patch / Jump to timeline step). Since item 84's bug-1 fix removed its `\u2937` chip-row entry point, it is reachable only from the inspector's revision links and the snapshot pane's \"View in File History\" button \u2014 yet every future change to the five actions must be made in both places. NEEDED: consolidate \u2014 either retire `renderFileHistoryView` and repoint its two remaining entry points at the Revision View, or extract the shared revision-row rendering into one helper both views call. (item 84)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item84-unify-bottom-pane.md"
+    ],
+    "completionDate": "2026-07-15",
+    "closureNote": "Option 1 implemented (user decision): renderFileHistoryView archived to webapp/archive/file-history-pre-task93.ts; the #/project/<p>/file/<path>[/rev/<n>] route now renders THE Revision View (renderDetailsFileMode) via the timeline's exported activeDetailsContext, with computeFileRouteFocus mapping the /rev/<n> anchor to a content-mode RevisionFocus (4 new tests); the Diff-vs-Base entry button moved into the Revision View. Staged, not committed."
   }
 ]

@@ -69,14 +69,6 @@
     ]
   },
   {
-    "taskNumber": 93,
-    "title": "renderFileHistoryView is a near-duplicate of the Revision View \u2014 consolidate?",
-    "description": "PROBLEM: two views implement the same per-revision UI independently. `renderFileHistoryView` (`webapp/views/file-history.ts:161`, route `#/project/<p>/file/<path>`) renders per-revision rows with the *same five actions* as the Revision View's rev cards (Show content / Export this version / Copy patch / Export .patch / Jump to timeline step). Since item 84's bug-1 fix removed its `\u2937` chip-row entry point, it is reachable only from the inspector's revision links and the snapshot pane's \"View in File History\" button \u2014 yet every future change to the five actions must be made in both places. NEEDED: consolidate \u2014 either retire `renderFileHistoryView` and repoint its two remaining entry points at the Revision View, or extract the shared revision-row rendering into one helper both views call. (item 84)",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-item84-unify-bottom-pane.md"
-    ]
-  },
-  {
     "taskNumber": 94,
     "title": "`\u2937` snapshot-jump button renders for any matched changeId, not only snapshot-backed revisions",
     "description": "PROBLEM: the `\u2937` snapshot-jump button is supposed to signal \"this revision HAS a File History Snapshot\", but its render condition doesn't check that. It renders whenever `computeSnapshotJumpRoute` returns a route, and that returns `undefined` only when the changeId is absent, resolves to no history, or resolves to a blob name with no anchored revision \u2014 i.e. the button appears for essentially any changeId that matches a revision, snapshot-backed or not. The indicator over-fires and misleads. NEEDED: tighten the render condition so `\u2937` appears only for revisions actually backed by a snapshot, or redefine/document the button's meaning as \"jumpable\" rather than \"snapshot-backed\". (item 84)",

@@ -1,4 +1,4 @@
-// Tests for the file-history view model (webapp/views/file-history.ts — plain ES module,
+// Tests for the file-history view model (webapp/views/file-history-model.ts — plain ES module,
 // DOM-free): revision content vs scenario ground truth, revision anchoring, changeId lookup,
 // and per-revision diff block slicing. See tests/viewer-test-helpers.ts for the fixture rationale.
 

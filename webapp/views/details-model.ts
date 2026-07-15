@@ -12,6 +12,7 @@ import {
     type TimelineNode,
     type WireTimelineDocument,
 } from "./timeline-types.ts";
+import { computeAnchoredRevisionIndex } from "./file-history-model.ts";
 
 // ── types (derived from timeline's wire/view-model types — one canonical home, no copies) ──
 
@@ -55,6 +56,23 @@ export type RevisionFocus = { changeId: string; mode: RevisionViewMode };
 
 // The two diff-toggle labels (#dm-columns / #dm-inline).
 export type DiffToggleLabel = "columns" | "inline";
+
+// task 93: the /file/<path>/rev/<n> route carries a 1-based revision number; the Revision View
+// focuses by changeId. Content mode mirrors the retired File History view's anchored
+// auto-expand. No anchor / unknown target / out-of-range number → no focus (card #1, diff).
+export function computeFileRouteFocus(
+    filesTouched: WireFileHistory[], target: string, anchorRev: string | undefined,
+): RevisionFocus | undefined {
+    const fileHistory = filesTouched.find((entry) => entry.target === target);
+    if (fileHistory === undefined) {
+        return undefined;
+    }
+    const revisionIndex = computeAnchoredRevisionIndex(anchorRev, fileHistory.revisions.length);
+    if (revisionIndex === undefined) {
+        return undefined;
+    }
+    return { changeId: fileHistory.revisions[revisionIndex]!.changeId, mode: RevisionViewMode.content };
+}
 
 // ── view-model half (DOM-free, tested) ─────────────────────────────────────────────────────
 

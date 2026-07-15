@@ -48,6 +48,12 @@ import {
     type WireProjectListing,
     type WireTimelineDocument,
 } from "./timeline-types.ts";
+import type { DetailsContext } from "./details-model.ts";
+
+// task 93: the /file/ drawer route (app-drawer.ts) renders THE Revision View, which needs the
+// current render pass's DetailsContext. renderTimelineView always runs before
+// renderSubRouteDrawer (app-router.ts), so this is set whenever that route fires.
+export let activeDetailsContext: DetailsContext | undefined;
 
 // The project-wide revision timeline (#/project/<name>/timeline[/session/<jsonl>]) — the default
 // view a drawer JSONL link opens. anchorJsonl scrolls to that session's first node.
@@ -166,6 +172,8 @@ export async function renderTimelineView(container: HTMLElement, project: string
             fetchRangePatch: (fromStep: number, toStep: number) => fetchRangePatch(context, fromStep, toStep),
         },
     };
+    // task 93: publish this pass's DetailsContext for the /file/ drawer route.
+    activeDetailsContext = context.detailsContext;
 
     renderSelectbarButtons(context);
     await resolveLineLabels(context);

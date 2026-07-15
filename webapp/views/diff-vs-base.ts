@@ -157,7 +157,8 @@ export async function renderDiffVsBaseView(
         el("div", { class: "pane-title", text: `${target} · vs base` }),
         el("span", { class: "muted", text: "base #1 →" }),
         revisionSelect,
-        el("a", { href: routeToFileHistory(project, target), text: "← file history" }),
+        // task 93: the route now opens THE Revision View (the File History view is retired).
+        el("a", { href: routeToFileHistory(project, target), text: "← file revisions" }),
     ]));
     container.append(diffPane);
     await loadDiff();

@@ -11,6 +11,7 @@ import {
     RevisionViewMode,
     buildRevisionCards,
     checkCardRunIsContiguous,
+    computeFileRouteFocus,
     computeFocusedCardIndex,
     computeOwningNodeIndexes,
 } from "../webapp/views/details-model.ts";
@@ -160,3 +161,31 @@ test("test_computeOwningNodeIndexes_skips_an_owner_whose_snapshots_are_empty", (
     assert.deepEqual(computeOwningNodeIndexes(cards, ONE_SNAPSHOT_EMPTY_NODE_OWNING_A_REVISION, [0]), []);
 });
 
+
+// ── the /file/ route's focus (task 93: the retired File History view's anchor semantics) ────
+
+test("test_computeFileRouteFocus_maps_anchor_number_to_that_revisions_changeId_in_content_mode", () => {
+    // Step 1: the /file/src/orders.py/rev/2 route names the file's 2nd revision (1-based).
+    const focus = computeFileRouteFocus([THREE_REVISION_HISTORY], "src/orders.py", "2");
+    // Step 2: the Revision View focuses that revision's changeId, in content mode — the
+    // retired File History view auto-expanded the anchored revision's content pane.
+    assert.deepEqual(focus, { changeId: "toolu_second", mode: RevisionViewMode.content });
+});
+
+test("test_computeFileRouteFocus_returns_undefined_without_an_anchor", () => {
+    // Step 1: the bare /file/src/orders.py route carries no /rev/<n> anchor.
+    // Step 2: no focus — renderDetailsFileMode defaults to card #1 in diff mode.
+    assert.equal(computeFileRouteFocus([THREE_REVISION_HISTORY], "src/orders.py", undefined), undefined);
+});
+
+test("test_computeFileRouteFocus_returns_undefined_for_an_unknown_target", () => {
+    // Step 1: the routed file is absent from the document's filesTouched.
+    // Step 2: no focus — the view itself renders its "No revisions" empty state.
+    assert.equal(computeFileRouteFocus([THREE_REVISION_HISTORY], "src/missing.py", "1"), undefined);
+});
+
+test("test_computeFileRouteFocus_returns_undefined_for_an_out_of_range_anchor", () => {
+    // Step 1: /rev/9 on a 3-revision history names no revision.
+    // Step 2: no focus rather than a fabricated one.
+    assert.equal(computeFileRouteFocus([THREE_REVISION_HISTORY], "src/orders.py", "9"), undefined);
+});

@@ -4,9 +4,23 @@
 import { openInspectorPane } from "./inspector.ts";
 import { peekCachedDocument } from "./app-fetch.ts";
 import { renderConversationView } from "./views/conversation.ts";
+import { computeFileRouteFocus } from "./views/details-model.ts";
+import { renderDetailsFileMode } from "./views/details-revision-view.ts";
 import { renderDiffVsBaseView } from "./views/diff-vs-base.ts";
-import { renderFileHistoryView } from "./views/file-history.ts";
 import { renderRawLinesView } from "./views/raw-lines.ts";
+import { activeDetailsContext } from "./views/timeline.ts";
+
+// task 93: the file route's landing — THE Revision View, focused on the /rev/<n> anchor when
+// present. activeDetailsContext is set by renderTimelineView, which app-router.ts always runs
+// before renderSubRouteDrawer; undefined only if the timeline render itself failed.
+function renderFileRouteInRevisionView(target: string, segments: string[]): void {
+    if (activeDetailsContext === undefined) {
+        return;
+    }
+    const anchorRev = segments[4] === "rev" ? segments[5] : undefined;
+    const focus = computeFileRouteFocus(activeDetailsContext.document.filesTouched, target, anchorRev);
+    renderDetailsFileMode(target, activeDetailsContext, focus);
+}
 
 // The drawer overlay for a project's jsonl/file sub-routes: the route's view renders into the
 // inspector pane over the timeline. No drawer while the consent dialog or a build error still
@@ -33,8 +47,13 @@ export async function renderSubRouteDrawer(project: string, segments: string[]):
             headerText = `Diff vs base — ${target}`;
             renderContent = (content: HTMLElement) => renderDiffVsBaseView(content, project, target, segments[5]);
         } else {
-            headerText = `File history — ${target}`;
-            renderContent = (content: HTMLElement) => renderFileHistoryView(content, project, target, segments[4] === "rev" ? segments[5] : undefined);
+            // task 93: the File History view is retired (webapp/archive/) — the route lands in
+            // THE Revision View instead. renderDetailsFileMode reveals the pane and sets its
+            // own header, so the drawer's openInspectorPane/headerText tail must not run.
+            // task 93: was — headerText = `File history — ${target}`;
+            // task 93: was — renderContent = (content: HTMLElement) => renderFileHistoryView(content, project, target, segments[4] === "rev" ? segments[5] : undefined);
+            renderFileRouteInRevisionView(target, segments);
+            return;
         }
     }
     if (renderContent === undefined) {

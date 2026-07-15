@@ -64,7 +64,7 @@ function checkValueIsLong(tokenClass: string, token: string): boolean {
 }
 
 // A backupFileName token of the CURRENT record, rendered by on-disk presence: a "view
-// snapshot" link + [View in File History] button when the blob exists, a dimmed
+// snapshot" link + [View in File Revisions] button when the blob exists, a dimmed
 // "(missing from disk)" suffix when it does not, a plain token while the probe is in flight.
 // This treatment replaces the generic revision-link behavior for these tokens.
 function appendSnapshotToken(
@@ -90,7 +90,7 @@ function appendSnapshotToken(
     if (anchor !== undefined) {
         pre.append(el("button", {
             class: "row-btn snapshot-history-btn",
-            text: "View in File History",
+            text: "View in File Revisions",   // task 93: the route now opens THE Revision View
             onclick: () => {
                 location.hash = computeRevisionLinkRoute(snapshotContext.project!, anchor);
             },
