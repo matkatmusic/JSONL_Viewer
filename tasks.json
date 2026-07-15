@@ -185,14 +185,6 @@
     ]
   },
   {
-    "taskNumber": 100,
-    "title": "Run the full suite post-item-84: `npm test`",
-    "description": "Run the full suite: `npm test`. It has not been run since item 84 landed. Baseline expectation from the project narrative: ~467 tests with 1 pre-existing s85 failure that is the healthy baseline — do not \"fix\" it, it is tracked separately. Anything else failing is new.",
-    "handoffFilePaths": [
-      "plans/archived/handoff-develop-20260714-1539.md"
-    ]
-  },
-  {
     "taskNumber": 101,
     "title": "Decide the fate of the uncommitted engine memoization",
     "description": "The working tree carries uncommitted reconstruction-pipeline memoization changes (`src/reconstruction_corpus.ts` and friends). It is either someone's in-flight work or an abandoned experiment. It typechecks and is not obviously broken, but it has no committed home and no test naming it. Ask the user before committing OR reverting.",
