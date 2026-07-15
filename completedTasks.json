@@ -800,5 +800,32 @@
     ],
     "closureNote": "Implemented client-side in de9f2c7: source? declared on WireConsentScript and new formatConsentSourceToken (client mirror of formatRecordSourceToken) appends \" [file.jsonl:123]\" to each consent row's muted header; 3 tests added in tests/viewer-viewmodels.test.ts; typecheck + build:webapp verified. Token is deliberately NOT clickable — the consent dialog shows before the timeline exists, so a jump would have nowhere to land (user-decided). Same commit carries a drive-by fix for a pre-existing npm run typecheck failure in splitInlineInterpreterCode (regex groups typed string|undefined).",
     "description": "Show which JSONL file + line each extracted script execution was taken from, on the consent view. The data is already on the wire — ConsentScript spreads the full ScriptRun including source: { filePath, lineNumber } (src/viewer_api.ts:294,307; RecordSource defined at src/parse/loadTranscript.ts:23), so nothing server-side needs to change. Client work only: (1) add source?: { filePath: string; lineNumber: number } to WireConsentScript (webapp/app.ts:49); (2) render the token in the muted header line of buildConsentScriptRow (the div showing timestamp + cwd). Mirror the existing server-side formatter formatRecordSourceToken (src/parse/loadTranscript.ts:32-37), which produces \"[file.jsonl:123]\" from the basename."
+  },
+  {
+    "taskNumber": 101,
+    "title": "Decide the fate of the uncommitted engine memoization",
+    "completionDate": "2026-07-14",
+    "commitHashes": [
+      "fb093ce"
+    ],
+    "handoffFilePaths": [
+      "plans/archived/handoff-develop-20260714-1539.md"
+    ],
+    "closureNote": "Committed as fb093ce (its own commit, user-decided). Investigation showed the 4-file diff (+54/−5: reconstruction_corpus/extract/git_evidence/sidecar) was not an abandoned experiment: all four CorpusState caches are read on hot pipeline paths, and HEAD's reconstruction_script_execution.ts already referenced state.scriptRuns 4× while HEAD's CorpusState lacked the field — HEAD did not typecheck without this diff, so revert was not viable.",
+    "description": "The working tree carries uncommitted reconstruction-pipeline memoization changes (`src/reconstruction_corpus.ts` and friends). It is either someone's in-flight work or an abandoned experiment. It typechecks and is not obviously broken, but it has no committed home and no test naming it. Ask the user before committing OR reverting."
+  },
+  {
+    "taskNumber": 88,
+    "title": "Rev-card op badges: single letters (A/M) vs the mockup's word badges",
+    "description": "Rev-card op badges render single letters (A/M) rather than the mockup's word badges (write/edit/user-edit) — eyeball and decide which reads better. (item 66) Location: `webapp/views/timeline.ts:1183–1217` (`op-badge` span) + a styles.css width tweak. Confirm with the user before styling choices.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item66-fork-style-port.md",
+      "plans/archived/handoff-develop-20260714-1530.md"
+    ],
+    "completionDate": "2026-07-14",
+    "commitHashes": [
+      "1d00690"
+    ],
+    "closureNote": "Stale premise: rev-cards have rendered word badges (opLabel = wire EventKind: write/edit/user-edit/…) since the original item-66 port commit 1d00690, styled as mockup text pills (.rev-card .op-badge + .op-write/.op-edit/.op-user-edit/.op-overwrite). The single letters live only on the timeline file chips (computeOpLetter, timeline.ts) — deliberate compact design, kept per user decision. Follow-up applied in the closing change: added pill colors for the 5 previously-uncolored kinds (delete/rename/copy/append/script-execution) in styles.css."
   }
 ]

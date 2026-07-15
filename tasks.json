@@ -92,15 +92,6 @@
     ]
   },
   {
-    "taskNumber": 88,
-    "title": "Rev-card op badges: single letters (A/M) vs the mockup's word badges",
-    "description": "Rev-card op badges render single letters (A/M) rather than the mockup's word badges (write/edit/user-edit) — eyeball and decide which reads better. (item 66) Location: `webapp/views/timeline.ts:1183–1217` (`op-badge` span) + a styles.css width tweak. Confirm with the user before styling choices.",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-item66-fork-style-port.md",
-      "plans/archived/handoff-develop-20260714-1530.md"
-    ]
-  },
-  {
     "taskNumber": 89,
     "title": "s39 emits NO commit node: compound `git add … && git commit` extracts only the add op",
     "description": "s39 emits NO commit node (its `git add … && git commit` compound extracted only the `add` op — pre-existing engine behavior, not a port regression). Flagging in case a commit row was expected there. (item 66)",
@@ -185,11 +176,8 @@
     ]
   },
   {
-    "taskNumber": 101,
-    "title": "Decide the fate of the uncommitted engine memoization",
-    "description": "The working tree carries uncommitted reconstruction-pipeline memoization changes (`src/reconstruction_corpus.ts` and friends). It is either someone's in-flight work or an abandoned experiment. It typechecks and is not obviously broken, but it has no committed home and no test naming it. Ask the user before committing OR reverting.",
-    "handoffFilePaths": [
-      "plans/archived/handoff-develop-20260714-1539.md"
-    ]
+    "taskNumber": 102,
+    "title": "Move the historical JS-engine code, tests, and fixtures into js-engine/archived/",
+    "description": "Move the historical javascript engine code and tests and fixtures into a 'js-engine/archived/' folder. Known candidates (audited 2026-07-14): `tests/archive/` — 3 legacy JS-engine test files (`test-file-event-observations-readedits.js` covers the retired `api/file-event-observations.js` scanner; `test-probe-helpers.js` + `test-probe-projects.js` test `tools/probe-projects`) plus `envelope.test.ts` which is archived early Engine-B (imports `src/structures/vocabulary.ts`) — decide whether it moves too or stays; `tests/fixtures/scenario-check/` — engine-a-named JSONL fixtures and sidecar/lineage/collector fixtures with ZERO references from current tests/src/scripts. CAVEAT: `api/` itself is the frozen legacy JS engine but is still LIVE as JFReD's engine (`jfred/jfred.html`, see task 58) — decide whether it counts as historical or stays put. Both tests/ dirs are currently untracked; this task supersedes task 99's commit-or-ignore question (they get committed at their new archived home)."
   }
 ]

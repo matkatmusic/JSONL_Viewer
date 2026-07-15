@@ -569,6 +569,12 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
 .op-edit { background: #1f5a99; }
 .op-user-edit { background: #7a4bb0; }
 .op-overwrite { background: #a35217; }
+/* the remaining EventKind pills, hued like their timeline letter badges (task 88) */
+.op-delete { background: #9c2b2b; }
+.op-rename { background: #5d4b9e; }
+.op-copy { background: #2c6e35; }
+.op-append { background: #1f5a99; }
+.op-script-execution { background: #1f6e6a; }
 .rev-ts { color: var(--muted); font-size: 10px; }
 .rev-actions { display: flex; flex-wrap: wrap; gap: 3px; }
 .rev-actions button { font-size: 9px; padding: 1px 5px; }
