@@ -856,5 +856,25 @@
     "completionDate": "2026-07-15",
     "closureNote": "Implemented 2026-07-15: added ◀ Prev / Next ▶ buttons to #timeline-pane-header (webapp/index.html) wired in renderTimelineView; new exported pure helper findAdjacentFileTouchedIndex walks to the nearest agent turn with non-empty fileChanges. A jump expands the row (adds .expanded, same effect as clicking its ▸ triangle so File chips show), refreshes the Expand All label, and selects the row via selectTimelineRow (renders details + centers). Buttons disable when no candidate exists in their direction (refreshFileNavButtons; button:disabled styling). 4 unit tests appended to tests/timeline-viewmodels.test.ts. Work staged, not committed.",
     "description": "85: timeline header needs Prev/Next buttons that navigate to messages where Files Touched events happened, to make it easy to jump to file-modifying events.  When a message is jumped to via these buttons, the message's expansion triangle should be clicked, showing the expanded message so that you can see the File chips for that message."
+  },
+  {
+    "taskNumber": 86,
+    "title": "Attribute gitBase baseline steps (\"baseline\" pseudo-lane?) instead of the unattributed lane",
+    "description": "The `gitBase:` beacon changeIds resolve to no session in `indexChangeIdsToSessionIds`, so a step whose ONLY changeId is a base-commit beacon lands in the unattributed lane (same class as the item-41 blob-ref/git-evidence survivors; the styles.css hide rule already covers it). Attributing them (e.g. \"baseline\" pseudo-lane) is a display decision — raise if wanted. (item 46)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item46-custom-data-source-paths.md"
+    ],
+    "completionDate": "2026-07-15",
+    "closureNote": "Closed per user decision: gitBase-only steps now split out of the generic unattributed synthetic turn into a dedicated baseline agent-turn node (isGitBaseline) whose role pill reads 'git-derived baseline' and whose text names the base commit hash. New GIT_BASE_CHANGE_ID_PREFIX wire mirror + computeRolePillClass hyphenation + styles.css pill color."
+  },
+  {
+    "taskNumber": 87,
+    "title": "First commit of a session shows \"No files changed\" — absorb the trailing files bubble?",
+    "description": "The FIRST commit of a session (\"baseline\") shows \"No files changed\" + no contrib rows: its file chips live on the trailing reply bubble that sorts AFTER the commit row (snapshot attribution), so the walk-back finds nothing. Later commits work. Acceptable, or should `deriveCommitChangedFiles` also absorb the files bubble immediately after the commit? (item 66)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item66-fork-style-port.md"
+    ],
+    "completionDate": "2026-07-15",
+    "closureNote": "Closed per user decision (fix it): deriveCommitChangedFiles now also walks FORWARD to the next commit, absorbing chips whose change instant is at-or-before the commit (the trailing reply bubble that sorts after the commit row), and skips gitBase baseline chips in both directions; findContributingNodeIndexes mirrors the same walk so the highlight agrees."
   }
 ]

@@ -61,22 +61,6 @@
     "description": "83. See if actual /jot folder can be reconstructed."
   },
   {
-    "taskNumber": 86,
-    "title": "Attribute gitBase baseline steps (\"baseline\" pseudo-lane?) instead of the unattributed lane",
-    "description": "The `gitBase:` beacon changeIds resolve to no session in `indexChangeIdsToSessionIds`, so a step whose ONLY changeId is a base-commit beacon lands in the unattributed lane (same class as the item-41 blob-ref/git-evidence survivors; the styles.css hide rule already covers it). Attributing them (e.g. \"baseline\" pseudo-lane) is a display decision — raise if wanted. (item 46)",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-item46-custom-data-source-paths.md"
-    ]
-  },
-  {
-    "taskNumber": 87,
-    "title": "First commit of a session shows \"No files changed\" — absorb the trailing files bubble?",
-    "description": "The FIRST commit of a session (\"baseline\") shows \"No files changed\" + no contrib rows: its file chips live on the trailing reply bubble that sorts AFTER the commit row (snapshot attribution), so the walk-back finds nothing. Later commits work. Acceptable, or should `deriveCommitChangedFiles` also absorb the files bubble immediately after the commit? (item 66)",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-item66-fork-style-port.md"
-    ]
-  },
-  {
     "taskNumber": 89,
     "title": "s39 emits NO commit node: compound `git add … && git commit` extracts only the add op",
     "description": "PROBLEM: the s39 transcript runs `git add … && git commit` as one compound Bash command, but git-op extraction only recognizes the `add` op from compound commands, so the reconstructed timeline emits NO commit node for s39 — the commit is invisible in the viewer even though it happened. This is pre-existing engine behavior, not an item-66 port regression. NEEDED: either extend git-op extraction to recognize each op in `&&`-chained compound commands (so the commit gets its own node), or explicitly decide and document that compound-command commits are out of scope. (item 66)",

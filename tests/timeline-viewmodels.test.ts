@@ -38,6 +38,8 @@ import {
     computeRangeSummary,
     findTimelineNodeIndexForRawLine,
     findAdjacentFileTouchedIndex,
+    computeRolePillClass,
+    GIT_BASE_CHANGE_ID_PREFIX,
     indexRevisionsByChangeId,
     splitPatchByFile,
     truncateToolCallSummary,
@@ -53,6 +55,7 @@ import { routeToFileHistory } from "../webapp/app.ts";
 import { buildProjectDocument, buildProjectReconstruction, renderRangePatch } from "../src/viewer_api.ts";
 import { Path } from "../src/structures/domain.ts";
 import { RecordType, EventKind, GitOperationKind } from "../src/structures/vocabulary.ts";
+import { BASE_COMMIT_CHANGE_ID_PREFIX } from "../src/reconstruction_base_commit.ts";
 import { readFileSync } from "node:fs";
 import { S2_JSONL, S45_JSONL, S39_JSONL_PATHS, S40_JSONL_PATHS, S84_JSONL_PATHS, S85_JSONL_PATHS } from "./fixtures.ts";
 
@@ -2098,4 +2101,216 @@ test("test_findAdjacentFileTouchedIndex_returns_undefined_when_no_candidate_in_d
     ];
     // searching forward from index 0 finds nothing.
     assert.equal(findAdjacentFileTouchedIndex(nodes, 0, 1), undefined);
+});
+
+test("test_gitBaseChangeIdPrefix_mirrors_engine_constant", () => {
+    // Scenario: the webapp's local gitBase: wire-string mirror must equal the engine's
+    // BASE_COMMIT_CHANGE_ID_PREFIX (single-source vocabulary, asserted like the enum mirrors).
+    // Steps:
+    // assert the two constants are the same string.
+    assert.equal(GIT_BASE_CHANGE_ID_PREFIX, BASE_COMMIT_CHANGE_ID_PREFIX);
+});
+
+// Minimal git-baseline document (task 86): one real turn pair, one gitBase-only step (no
+// session), and one generic unattributed step (blob-ref style changeId resolving nowhere,
+// changedPaths fallback) that must NOT merge into the baseline node.
+const gitBaselineDocument = {
+    messages: [{
+        uuid: "prompt-1",
+        role: RecordType.user,
+        sessionId: "session-a",
+        timestamp: "2026-01-01T00:10:00.000Z",
+        text: "start working",
+    }, {
+        uuid: "reply-1",
+        role: RecordType.assistant,
+        sessionId: "session-a",
+        timestamp: "2026-01-01T00:10:10.000Z",
+        text: "working",
+    }],
+    steps: [
+        { index: 1, when: "2026-01-01T00:00:00.000Z", sessionId: undefined, changeIds: ["gitBase:abc1234:orders.py"], changedPaths: [], files: {} },
+        { index: 2, when: "2026-01-01T00:20:00.000Z", sessionId: undefined, changeIds: ["deadbeef00000000@v1"], changedPaths: ["notes.txt"], files: {} },
+    ],
+    filesTouched: [{
+        target: "orders.py",
+        revisions: [{ kind: EventKind.write, changeId: "gitBase:abc1234:orders.py", timestamp: "2026-01-01T00:00:00.000Z" }],
+    }],
+    rewoundFilesTouched: [],
+    commitMarkers: [],
+    gitOperations: [],
+};
+
+test("test_buildTurnTimelineViewModel_routes_gitBase_only_step_to_baseline_node", () => {
+    // Scenario: a step whose every changeId is a gitBase: beacon becomes its own agent-turn node
+    // flagged isGitBaseline, carrying the baseline file chips (task 86).
+    // Steps:
+    // build the timeline from the git-baseline document.
+    const { nodes } = buildTurnTimelineViewModel(gitBaselineDocument);
+    // find the baseline node and assert it exists exactly once.
+    const baselineNodes = nodes.filter((node) => node.isGitBaseline === true);
+    assert.equal(baselineNodes.length, 1);
+    // assert it is an agent turn (a regular message row) carrying the baseline file chip.
+    assert.equal(baselineNodes[0]!.kind, AGENT_TURN_NODE_KIND);
+    assert.deepEqual(baselineNodes[0]!.fileChanges!.map((change) => change.path), ["orders.py"]);
+});
+
+test("test_buildTurnTimelineViewModel_names_base_commit_in_baseline_node_text", () => {
+    // Scenario: the baseline node's message text names the base commit hash extracted from the
+    // gitBase:<hash>:<target> changeId, so the row summary reads meaningfully.
+    // Steps:
+    // build the timeline and find the baseline node.
+    const { nodes } = buildTurnTimelineViewModel(gitBaselineDocument);
+    const baselineNode = nodes.find((node) => node.isGitBaseline === true);
+    // assert its text mentions the hash.
+    assert.ok(baselineNode!.text!.includes("abc1234"));
+});
+
+test("test_buildTurnTimelineViewModel_keeps_generic_unattributed_step_out_of_baseline_node", () => {
+    // Scenario: a generic unattributed step (non-gitBase changeIds) still collects into the plain
+    // synthetic turn — it must NOT merge into the baseline node.
+    // Steps:
+    // build the timeline from the git-baseline document.
+    const { nodes } = buildTurnTimelineViewModel(gitBaselineDocument);
+    // find the plain synthetic turn by its notes.txt fallback chip.
+    const genericNode = nodes.find((node) => (node.fileChanges ?? []).some((change) => change.path === "notes.txt"));
+    // assert it exists and is not flagged as baseline.
+    assert.ok(genericNode !== undefined);
+    assert.notEqual(genericNode!.isGitBaseline, true);
+});
+
+test("test_computeRolePillLabel_labels_git_baseline_turn", () => {
+    // Scenario: the baseline node's role pill reads "git-derived baseline" instead of Agent
+    // (task 86 — the user-chosen tag).
+    // Steps:
+    // build the timeline and find the baseline node.
+    const { nodes } = buildTurnTimelineViewModel(gitBaselineDocument);
+    const baselineNode = nodes.find((node) => node.isGitBaseline === true);
+    // assert the pill label.
+    assert.equal(computeRolePillLabel(baselineNode!), "git-derived baseline");
+});
+
+test("test_computeRolePillClass_hyphenates_multiword_labels", () => {
+    // Scenario: the pill's CSS class token hyphenates label spaces so "git-derived baseline"
+    // stays one class; single-word labels keep their existing class names.
+    // Steps:
+    // assert the multi-word label hyphenates.
+    assert.equal(computeRolePillClass("git-derived baseline"), "role-pill-git-derived-baseline");
+    // assert a single-word label is unchanged from the old inline lowercasing.
+    assert.equal(computeRolePillClass("User"), "role-pill-user");
+});
+
+// First-commit document (task 87): the only work happens mid-turn before the commit, so the
+// chips' owning reply bubble (00:40) sorts AFTER the commit row (00:30); a second change (00:50)
+// happens after the commit. A gitBase baseline step seeds orders.py before everything.
+const firstCommitDocument = {
+    messages: [{
+        uuid: "prompt-1",
+        role: RecordType.user,
+        sessionId: "session-a",
+        timestamp: "2026-01-01T00:00:00.000Z",
+        text: "write alpha and commit it",
+    }, {
+        uuid: "reply-1",
+        role: RecordType.assistant,
+        sessionId: "session-a",
+        timestamp: "2026-01-01T00:00:40.000Z",
+        text: "wrote alpha and committed",
+    }],
+    steps: [
+        { index: 1, when: "2025-12-31T00:00:00.000Z", sessionId: undefined, changeIds: ["gitBase:abc1234:orders.py"], changedPaths: [], files: {} },
+        { index: 2, when: "2026-01-01T00:00:25.000Z", sessionId: "session-a", changeIds: ["change-alpha-1"], changedPaths: [], files: {} },
+        { index: 3, when: "2026-01-01T00:00:50.000Z", sessionId: "session-a", changeIds: ["change-beta-1"], changedPaths: [], files: {} },
+    ],
+    filesTouched: [{
+        target: "orders.py",
+        revisions: [{ kind: EventKind.write, changeId: "gitBase:abc1234:orders.py", timestamp: "2025-12-31T00:00:00.000Z" }],
+    }, {
+        target: "alpha.py",
+        revisions: [{ kind: EventKind.write, changeId: "change-alpha-1", timestamp: "2026-01-01T00:00:25.000Z" }],
+    }, {
+        target: "beta.py",
+        revisions: [{ kind: EventKind.write, changeId: "change-beta-1", timestamp: "2026-01-01T00:00:50.000Z" }],
+    }],
+    rewoundFilesTouched: [],
+    commitMarkers: [],
+    gitOperations: [{
+        kind: GitOperationKind.commit,
+        detail: "first",
+        command: 'git commit -m "first"',
+        timestamp: "2026-01-01T00:00:30.000Z",
+        sessionId: "session-a",
+    }],
+};
+
+test("test_deriveCommitChangedFiles_absorbs_trailing_bubble_for_first_commit", () => {
+    // Scenario: the FIRST commit's chips live on the reply bubble sorted after it (snapshot
+    // attribution); the forward absorb lists them instead of "No files changed" (task 87).
+    // Steps:
+    // build the timeline and take the first (only) commit.
+    const { nodes } = buildTurnTimelineViewModel(firstCommitDocument);
+    const [commitIndex] = findCommitNodeIndexes(nodes);
+    // assert the pre-commit change (00:25 <= 00:30) is absorbed from the trailing bubble.
+    const paths = deriveCommitChangedFiles(nodes, commitIndex!).map((change) => change.path);
+    assert.ok(paths.includes("alpha.py"));
+});
+
+test("test_deriveCommitChangedFiles_excludes_changes_made_after_the_commit", () => {
+    // Scenario: the forward absorb takes ONLY chips whose change instant is at-or-before the
+    // commit — work done after the commit (00:50 > 00:30) stays out.
+    // Steps:
+    // build the timeline and take the commit.
+    const { nodes } = buildTurnTimelineViewModel(firstCommitDocument);
+    const [commitIndex] = findCommitNodeIndexes(nodes);
+    // assert the post-commit change is not listed.
+    const paths = deriveCommitChangedFiles(nodes, commitIndex!).map((change) => change.path);
+    assert.ok(!paths.includes("beta.py"));
+});
+
+test("test_deriveCommitChangedFiles_never_lists_git_baseline_chips", () => {
+    // Scenario: baseline seeds are pre-session repo state, never part of a commit's delta —
+    // the baseline node sorts before the first commit but its chips must not be listed.
+    // Steps:
+    // build the timeline and take the commit.
+    const { nodes } = buildTurnTimelineViewModel(firstCommitDocument);
+    const [commitIndex] = findCommitNodeIndexes(nodes);
+    // assert the gitBase-seeded path is not listed.
+    const paths = deriveCommitChangedFiles(nodes, commitIndex!).map((change) => change.path);
+    assert.ok(!paths.includes("orders.py"));
+});
+
+test("test_deriveCommitChangedFiles_forward_walk_stops_at_next_commit", () => {
+    // Scenario: the forward absorb never crosses the NEXT commit row — a qualifying chip sitting
+    // beyond it belongs to that later commit's window.
+    // Steps:
+    // add a second commit between the first commit and the trailing bubble.
+    const document = {
+        ...firstCommitDocument,
+        gitOperations: [...firstCommitDocument.gitOperations, {
+            kind: GitOperationKind.commit,
+            detail: "second",
+            command: 'git commit -m "second"',
+            timestamp: "2026-01-01T00:00:35.000Z",
+            sessionId: "session-a",
+        }],
+    };
+    const { nodes } = buildTurnTimelineViewModel(document);
+    const [firstCommitIndex, secondCommitIndex] = findCommitNodeIndexes(nodes);
+    // assert the first commit's forward walk stopped at the second commit (no absorb).
+    assert.deepEqual(deriveCommitChangedFiles(nodes, firstCommitIndex!), []);
+    // assert the second commit absorbed the trailing bubble's pre-commit chip instead.
+    const secondPaths = deriveCommitChangedFiles(nodes, secondCommitIndex!).map((change) => change.path);
+    assert.ok(secondPaths.includes("alpha.py"));
+});
+
+test("test_findContributingNodeIndexes_includes_trailing_bubble", () => {
+    // Scenario: the commit's contributing-row highlight includes the trailing bubble the forward
+    // absorb took chips from (task 87 — the walk and the highlight must agree).
+    // Steps:
+    // build the timeline, take the commit, and locate the trailing reply bubble.
+    const { nodes } = buildTurnTimelineViewModel(firstCommitDocument);
+    const [commitIndex] = findCommitNodeIndexes(nodes);
+    const replyIndex = nodes.findIndex((node) => node.uuid === "reply-1");
+    // assert the reply row is listed as contributing.
+    assert.ok(findContributingNodeIndexes(nodes, commitIndex!).includes(replyIndex));
 });

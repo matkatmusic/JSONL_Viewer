@@ -405,6 +405,7 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
 .role-pill.role-pill-agent { color: var(--lane-violet); }
 .role-pill.role-pill-tool { color: var(--orange); }
 .role-pill.role-pill-script { color: var(--lane-teal); }
+.role-pill.role-pill-git-derived-baseline { color: var(--green); }
 .tl-row.selected .role-pill { color: #fff; }
 .tl-text.role-tool { color: var(--orange); }
 .tl-text.role-script { color: var(--lane-teal); }

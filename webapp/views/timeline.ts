@@ -149,6 +149,9 @@ type TurnNode = {
     stepNumber?: number;
     fileChanges?: FileChange[];
     isOrphaned?: boolean;
+    // True on the synthetic turn holding gitBase: baseline steps (task 86) — the row renders as
+    // a regular message whose role pill reads "git-derived baseline".
+    isGitBaseline?: boolean;
     detail?: undefined;
     resultHash?: undefined;
     summary?: undefined;
@@ -165,6 +168,7 @@ type SessionEndNode = {
     stepNumber?: number;
     fileChanges?: FileChange[];
     isOrphaned?: boolean;
+    isGitBaseline?: undefined;
     uuid?: undefined;
     text?: undefined;
     isSystem?: undefined;
@@ -192,6 +196,7 @@ type CommitNode = {
     stepNumber?: undefined;
     fileChanges?: undefined;
     isOrphaned?: undefined;
+    isGitBaseline?: undefined;
     summary?: undefined;
     toolName?: undefined;
     toolUseId?: undefined;
@@ -209,6 +214,7 @@ type ToolCallNode = {
     toolUseId: string;
     // Copied from the engine's per-record wire stamp — a tool row on a rewound branch dims too.
     isOrphaned?: boolean;
+    isGitBaseline?: undefined;
     text?: undefined;
     isSystem?: undefined;
     snapshots?: undefined;
@@ -461,13 +467,49 @@ function checkNodeCanOwnSnapshot(node: TurnNode, snapshot: SnapshotInstant): boo
     return node.when >= snapshot.when;
 }
 
+// True when every changeId on the step is a base-commit beacon (task 86): the step carries the
+// repo's pre-session state, evidenced by no session's record.
+function checkSnapshotIsGitBaseline(snapshot: WireStepSnapshot): boolean {
+    if (snapshot.changeIds.length === 0) {
+        return false;
+    }
+    return snapshot.changeIds.every((changeId) => changeId.startsWith(GIT_BASE_CHANGE_ID_PREFIX));
+}
+
+// The baseline node's message text: the beacon changeId is gitBase:<hash>:<target>, so the
+// commit hash is the second colon-separated field (hashes never contain colons).
+function computeGitBaselineText(snapshot: WireStepSnapshot): string {
+    const commitHash = snapshot.changeIds[0]!.split(":")[1] ?? "";
+    return `Files seeded from git base commit ${commitHash}`;
+}
+
 // Per snapshot: the FIRST agent-turn node of its own session at or after it (turnNodes are in
 // message order, chronological per session). Ownerless snapshots are always a trailing suffix of
 // their session (steps are chronological), so they collect into ONE synthetic empty-text agent
-// turn per session — no file change is ever silently dropped.
+// turn per session — no file change is ever silently dropped. gitBase-only steps split off
+// FIRST into a dedicated baseline node (task 86).
 function attachSnapshotsToAgentTurns(turnNodes: TurnNode[], steps: WireStepSnapshot[]): void {
     const syntheticTurns = new Map<string | undefined, TurnNode>();
+    let baselineTurn: TurnNode | undefined;
     for (const snapshot of steps) {
+        // (task 86) gitBase-only steps get their own baseline node — they must not mingle with
+        // the generic unattributed synthetic turn below.
+        if (checkSnapshotIsGitBaseline(snapshot)) {
+            if (baselineTurn === undefined) {
+                baselineTurn = {
+                    kind: AGENT_TURN_NODE_KIND,
+                    when: snapshot.when,
+                    sessionId: snapshot.sessionId,
+                    text: computeGitBaselineText(snapshot),
+                    isGitBaseline: true,
+                    snapshots: [],
+                    gitOperations: [],
+                };
+                turnNodes.push(baselineTurn);
+            }
+            baselineTurn.snapshots.push(snapshot);
+            continue;
+        }
         const owner = turnNodes.find((node) => checkNodeCanOwnSnapshot(node, snapshot));
         if (owner !== undefined) {
             owner.snapshots.push(snapshot);
@@ -825,6 +867,10 @@ export function computeSessionShortLabel(sessionId: string): string {
 // Wire event kind of a script-made revision (mirrors EventKind.scriptExecution).
 const SCRIPT_EXECUTION_EVENT_KIND = "script-execution";
 
+// Wire-string mirror of BASE_COMMIT_CHANGE_ID_PREFIX (src/reconstruction_base_commit.ts) — a
+// changeId with this prefix is a base-commit baseline beacon, evidenced by no session's record.
+export const GIT_BASE_CHANGE_ID_PREFIX = "gitBase:";
+
 // The session-start marker's text: the session's user-given custom title when the document
 // carries one ("Session <title> started: <id>"), else id-only ("Session started: <id>").
 // sessionTitles is optional — older cached documents predate the field.
@@ -850,17 +896,25 @@ export function findSessionStartIndexes(nodes: TimelineNode[]): { nodeIndex: num
     return starts;
 }
 
-// The pill-style role tag opening a row — "User" / "Agent" / "Tool" / "Script" (item 66
-// follow-up). An agent turn whose file chips carry a script-made revision is the script
-// run's row, so it reads "Script"; commit and session-end rows get none (their text names
+// The pill-style role tag opening a row — "User" / "Agent" / "Tool" / "Script" /
+// "git-derived baseline" (item 66 follow-up; task 86). An agent turn whose file chips carry a
+// script-made revision is the script run's row, so it reads "Script"; the synthetic baseline
+// node reads "git-derived baseline"; commit and session-end rows get none (their text names
 // them).
 export function computeRolePillLabel(node: TimelineNode): string | undefined {
     if (node.kind === USER_TURN_NODE_KIND) return "User";
     if (node.kind === TOOL_CALL_NODE_KIND) return "Tool";
     if (node.kind !== AGENT_TURN_NODE_KIND) return undefined;
+    if (node.isGitBaseline === true) return "git-derived baseline";
     const ranScript = (node.fileChanges ?? []).some((change) => change.eventKind === SCRIPT_EXECUTION_EVENT_KIND);
     if (ranScript) return "Script";
     return "Agent";
+}
+
+// The pill's per-label CSS class token — multi-word labels ("git-derived baseline") hyphenate so
+// the class stays a single token.
+export function computeRolePillClass(label: string): string {
+    return `role-pill-${label.toLowerCase().replaceAll(" ", "-")}`;
 }
 
 // A row's collapsed one-line text, per node kind (item 66): turns show their first text line
@@ -883,12 +937,36 @@ export function computeRowSummaryText(node: TimelineNode): string {
     return firstLine;
 }
 
-// A commit's changed-file list (item 66, mockup logic): walk back from the commit to the previous
-// commit EXCLUSIVE (or the timeline start), collecting every surviving row's file changes; each
-// path is listed once, keeping the occurrence CLOSEST to the commit (its latest revision).
+// True when the chip is a base-commit baseline seed (tasks 86/87): baseline state is
+// pre-session, never part of a commit's delta.
+function checkChangeIsGitBaseline(change: FileChange): boolean {
+    if (change.changeId === undefined) {
+        return false;
+    }
+    return change.changeId.startsWith(GIT_BASE_CHANGE_ID_PREFIX);
+}
+
+// A commit's changed-file list (item 66, mockup logic): walk back from the commit to the
+// previous commit EXCLUSIVE (or the timeline start), collecting every surviving row's file
+// changes; each path is listed once, keeping the occurrence CLOSEST to the commit (its latest
+// revision). Then walk FORWARD to the next commit EXCLUSIVE, absorbing only chips whose change
+// instant is at-or-before the commit — pre-commit work whose owning reply bubble sorts after the
+// commit row (task 87: the first commit otherwise shows "No files changed"). Baseline (gitBase)
+// chips are never a commit's delta and are skipped in both directions.
 export function deriveCommitChangedFiles(nodes: TimelineNode[], commitIndex: number): FileChange[] {
+    const commitWhen = nodes[commitIndex]!.when;
     const changes: FileChange[] = [];
     const seenPaths = new Set<string>();
+    const collectChange = (change: FileChange): void => {
+        if (checkChangeIsGitBaseline(change)) {
+            return;
+        }
+        if (seenPaths.has(change.path)) {
+            return;
+        }
+        seenPaths.add(change.path);
+        changes.push(change);
+    };
     for (let index = commitIndex - 1; index >= 0; index -= 1) {
         const node = nodes[index]!;
         if (node.kind === COMMIT_NODE_KIND) {
@@ -898,20 +976,44 @@ export function deriveCommitChangedFiles(nodes: TimelineNode[], commitIndex: num
             continue;
         }
         for (const change of node.fileChanges ?? []) {
-            if (seenPaths.has(change.path)) {
+            collectChange(change);
+        }
+    }
+    for (let index = commitIndex + 1; index < nodes.length; index += 1) {
+        const node = nodes[index]!;
+        if (node.kind === COMMIT_NODE_KIND) {
+            break;
+        }
+        if (node.isOrphaned === true) {
+            continue;
+        }
+        for (const change of node.fileChanges ?? []) {
+            if (change.when > commitWhen) {
                 continue;
             }
-            seenPaths.add(change.path);
-            changes.push(change);
+            collectChange(change);
         }
     }
     return changes;
 }
 
-// The rows a selected commit highlights (`.contrib`, item 66): the same walk back to the previous
-// commit, including every surviving row whose file changes overlap the commit's changed paths.
+// The rows a selected commit highlights (`.contrib`, item 66): the same two-direction walk as
+// deriveCommitChangedFiles, including every surviving row whose qualifying file changes overlap
+// the commit's changed paths. Indexes return ascending.
 export function findContributingNodeIndexes(nodes: TimelineNode[], commitIndex: number): number[] {
+    const commitWhen = nodes[commitIndex]!.when;
     const changedPaths = new Set(deriveCommitChangedFiles(nodes, commitIndex).map((change) => change.path));
+    // A chip contributes when it is not a baseline seed, happened at-or-before the commit (always
+    // true for backward rows — owners sit at-or-after their snapshots), and touches a changed path.
+    const checkChangeContributes = (change: FileChange): boolean => {
+        if (checkChangeIsGitBaseline(change)) {
+            return false;
+        }
+        if (change.when > commitWhen) {
+            return false;
+        }
+        return changedPaths.has(change.path);
+    };
     const indexes: number[] = [];
     for (let index = commitIndex - 1; index >= 0; index -= 1) {
         const node = nodes[index]!;
@@ -921,11 +1023,24 @@ export function findContributingNodeIndexes(nodes: TimelineNode[], commitIndex: 
         if (node.isOrphaned === true) {
             continue;
         }
-        if ((node.fileChanges ?? []).some((change) => changedPaths.has(change.path))) {
+        if ((node.fileChanges ?? []).some(checkChangeContributes)) {
             indexes.push(index);
         }
     }
-    return indexes.reverse();
+    indexes.reverse();
+    for (let index = commitIndex + 1; index < nodes.length; index += 1) {
+        const node = nodes[index]!;
+        if (node.kind === COMMIT_NODE_KIND) {
+            break;
+        }
+        if (node.isOrphaned === true) {
+            continue;
+        }
+        if ((node.fileChanges ?? []).some(checkChangeContributes)) {
+            indexes.push(index);
+        }
+    }
+    return indexes;
 }
 
 // One Files-pane entry: the file plus the two facts the tree renders differently (item 77).
@@ -1992,7 +2107,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
         }
         const rolePillLabel = computeRolePillLabel(node);
         if (rolePillLabel !== undefined) {
-            line.append(el("span", { class: `role-pill role-pill-${rolePillLabel.toLowerCase()}`, text: rolePillLabel }));
+            line.append(el("span", { class: `role-pill ${computeRolePillClass(rolePillLabel)}`, text: rolePillLabel }));
         }
         line.append(el("span", {
             class: `tl-text ${computeRoleClass(node.kind)}${node.isSystem === true ? " system" : ""}`,
