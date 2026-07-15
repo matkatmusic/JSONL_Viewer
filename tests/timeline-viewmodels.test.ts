@@ -37,6 +37,7 @@ import {
     // checkStepIsOrphaned,
     computeRangeSummary,
     findTimelineNodeIndexForRawLine,
+    findAdjacentFileTouchedIndex,
     indexRevisionsByChangeId,
     splitPatchByFile,
     truncateToolCallSummary,
@@ -45,6 +46,8 @@ import {
     AGENT_TURN_NODE_KIND,
     SESSION_END_NODE_KIND,
     TOOL_CALL_NODE_KIND,
+    type TimelineNode,
+    type FileChange,
 } from "../webapp/views/timeline.ts";
 import { routeToFileHistory } from "../webapp/app.ts";
 import { buildProjectDocument, buildProjectReconstruction, renderRangePatch } from "../src/viewer_api.ts";
@@ -2014,4 +2017,85 @@ test("test_computeTimelineProgressFraction_guards_against_zero_total", () => {
     // Steps:
     // Given 0 built of 0 total, the fraction is 1 (a complete/empty build).
     assert.equal(computeTimelineProgressFraction(0, 0), 1);
+});
+
+// ── task 85: header Prev/Next over file-touching agent turns ──
+// findAdjacentFileTouchedIndex reads only kind + fileChanges, so hand-built minimal turn
+// nodes (wire shape) exercise it fully.
+function makeTurnNodeFixture(
+    kind: typeof USER_TURN_NODE_KIND | typeof AGENT_TURN_NODE_KIND,
+    fileChanges: FileChange[],
+): TimelineNode {
+    return {
+        kind,
+        when: "2026-01-01T00:00:00.000Z",
+        sessionId: undefined,
+        text: "",
+        snapshots: [],
+        gitOperations: [],
+        fileChanges,
+    };
+}
+
+const singleFileChangeFixture: FileChange[] = [{
+    path: "orders.py",
+    eventKind: EventKind.edit,
+    renamedFrom: undefined,
+    isFirstRevision: false,
+    changeId: undefined,
+    when: "2026-01-01T00:00:00.000Z",
+}];
+
+test("test_findAdjacentFileTouchedIndex_next_from_before_start_finds_first_candidate", () => {
+    // Behavior: with the reference before the first row (-1), Next lands on the first
+    // agent turn that carries file chips.
+    // Steps:
+    // a user turn, then a chipless agent turn, then an agent turn with chips.
+    const nodes = [
+        makeTurnNodeFixture(USER_TURN_NODE_KIND, []),
+        makeTurnNodeFixture(AGENT_TURN_NODE_KIND, []),
+        makeTurnNodeFixture(AGENT_TURN_NODE_KIND, singleFileChangeFixture),
+    ];
+    // searching forward from -1 returns the chip-bearing row's index.
+    assert.equal(findAdjacentFileTouchedIndex(nodes, -1, 1), 2);
+});
+
+test("test_findAdjacentFileTouchedIndex_next_skips_non_agent_and_chipless_rows", () => {
+    // Behavior: Next skips user turns and agent turns without file changes.
+    // Steps:
+    // a chip-bearing agent turn, a user turn, a chipless agent turn, a chip-bearing agent turn.
+    const nodes = [
+        makeTurnNodeFixture(AGENT_TURN_NODE_KIND, singleFileChangeFixture),
+        makeTurnNodeFixture(USER_TURN_NODE_KIND, []),
+        makeTurnNodeFixture(AGENT_TURN_NODE_KIND, []),
+        makeTurnNodeFixture(AGENT_TURN_NODE_KIND, singleFileChangeFixture),
+    ];
+    // searching forward from index 0 skips indexes 1 and 2 and lands on 3.
+    assert.equal(findAdjacentFileTouchedIndex(nodes, 0, 1), 3);
+});
+
+test("test_findAdjacentFileTouchedIndex_prev_finds_nearest_earlier_candidate", () => {
+    // Behavior: Prev walks backwards to the nearest earlier chip-bearing agent turn.
+    // Steps:
+    // same four rows as the skip test, searching backward from the last row.
+    const nodes = [
+        makeTurnNodeFixture(AGENT_TURN_NODE_KIND, singleFileChangeFixture),
+        makeTurnNodeFixture(USER_TURN_NODE_KIND, []),
+        makeTurnNodeFixture(AGENT_TURN_NODE_KIND, []),
+        makeTurnNodeFixture(AGENT_TURN_NODE_KIND, singleFileChangeFixture),
+    ];
+    // searching backward from index 3 skips indexes 2 and 1 and lands on 0.
+    assert.equal(findAdjacentFileTouchedIndex(nodes, 3, -1), 0);
+});
+
+test("test_findAdjacentFileTouchedIndex_returns_undefined_when_no_candidate_in_direction", () => {
+    // Behavior: walking off either end without a candidate is undefined (button no-op).
+    // Steps:
+    // one chip-bearing agent turn followed only by a user turn.
+    const nodes = [
+        makeTurnNodeFixture(AGENT_TURN_NODE_KIND, singleFileChangeFixture),
+        makeTurnNodeFixture(USER_TURN_NODE_KIND, []),
+    ];
+    // searching forward from index 0 finds nothing.
+    assert.equal(findAdjacentFileTouchedIndex(nodes, 0, 1), undefined);
 });

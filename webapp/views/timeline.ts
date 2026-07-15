@@ -1139,6 +1139,23 @@ export function checkRowIsExpandable(node: TimelineNode): boolean {
     return node.kind !== SESSION_END_NODE_KIND;
 }
 
+// Nearest agent turn carrying file chips, walking from fromIndex in direction (task 85's
+// header Prev/Next). fromIndex -1 means "before the first row"; undefined means no
+// candidate in that direction.
+export function findAdjacentFileTouchedIndex(
+    nodes: TimelineNode[],
+    fromIndex: number,
+    direction: 1 | -1,
+): number | undefined {
+    for (let index = fromIndex + direction; index >= 0 && index < nodes.length; index += direction) {
+        const node = nodes[index]!;
+        if (node.kind === AGENT_TURN_NODE_KIND && (node.fileChanges ?? []).length > 0) {
+            return index;
+        }
+    }
+    return undefined;
+}
+
 // ─── render half (DOM only — every computation lives in the view-model above) ───────────────────
 
 // Fixed session-lane palette, assigned by first appearance; a session keeps its color for the
@@ -1323,6 +1340,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
     const previewPanes = new Map<number, HTMLElement>();   // node index -> its fallback-message pane
     const expandableRows: HTMLElement[] = [];              // rows #toggle-all expands/collapses
     let selectedRow: HTMLElement | null = null;
+    let fileNavReferenceIndex = -1;                        // last selected/jumped row (task 85 Prev/Next)
     let pickedIndexes: number[] = [];
     let activeChip: HTMLElement | null = null;            // the chip whose file the preview drawer is showing
     const clearActiveChip = () => {
@@ -1836,6 +1854,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
             selectedRow.classList.remove("selected");
         }
         selectedRow = row;
+        fileNavReferenceIndex = nodeIndex;                 // Prev/Next walk from the manual selection
         row.classList.add("selected");
         for (const other of nodeRows.values()) {
             other.classList.remove("contrib");
@@ -2039,6 +2058,22 @@ export async function renderTimelineView(container: HTMLElement, project: string
         updateToggleLabel();
     };
     updateToggleLabel();
+
+    // ── header Prev/Next over file-touching agent turns (task 85). Expanding IS the task's
+    // "click the triangle": the chips live in the bubble. onclick assignment, like #toggle-all,
+    // so re-renders never stack handlers. Off either end the click is a silent no-op. ──
+    const jumpToAdjacentFileTouchedRow = (direction: 1 | -1): void => {
+        const target = findAdjacentFileTouchedIndex(nodes, fileNavReferenceIndex, direction);
+        if (target === undefined) {
+            return;
+        }
+        fileNavReferenceIndex = target;
+        nodeRows.get(target)!.classList.add("expanded");
+        updateToggleLabel();
+        jumpToTimelineRow(target);
+    };
+    (document.getElementById("files-prev") as HTMLButtonElement).onclick = () => jumpToAdjacentFileTouchedRow(-1);
+    (document.getElementById("files-next") as HTMLButtonElement).onclick = () => jumpToAdjacentFileTouchedRow(1);
 
     // ── fork sidebar (phase 6): the Sessions + Files panes in the static #drawer ──
     renderForkSidebar(

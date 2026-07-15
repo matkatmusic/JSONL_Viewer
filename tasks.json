@@ -61,11 +61,6 @@
     "description": "83. See if actual /jot folder can be reconstructed."
   },
   {
-    "taskNumber": 85,
-    "title": "timeline header needs Prev/Next buttons that navigate to messages where Files Touched events happened, to make it easy to jump to file-modifying events.  When a message is jumped to via these buttons, the message's expansion triangle should be clicked, showing the expanded message so that you can see the File chips for that message",
-    "description": "85: timeline header needs Prev/Next buttons that navigate to messages where Files Touched events happened, to make it easy to jump to file-modifying events.  When a message is jumped to via these buttons, the message's expansion triangle should be clicked, showing the expanded message so that you can see the File chips for that message."
-  },
-  {
     "taskNumber": 86,
     "title": "Attribute gitBase baseline steps (\"baseline\" pseudo-lane?) instead of the unattributed lane",
     "description": "The `gitBase:` beacon changeIds resolve to no session in `indexChangeIdsToSessionIds`, so a step whose ONLY changeId is a base-commit beacon lands in the unattributed lane (same class as the item-41 blob-ref/git-evidence survivors; the styles.css hide rule already covers it). Attributing them (e.g. \"baseline\" pseudo-lane) is a display decision — raise if wanted. (item 46)",
