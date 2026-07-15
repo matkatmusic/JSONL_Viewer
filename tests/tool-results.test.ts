@@ -112,3 +112,4 @@ test("test_edit_result_carries_path_and_nonempty_structured_patch", () => {
     assert.ok(Array.isArray(hunk.lines));
     assert.equal(typeof hunk.lines[0], "string");
 });
+

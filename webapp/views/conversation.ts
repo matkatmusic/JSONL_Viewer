@@ -1,19 +1,15 @@
 // Conversation view (#/project/<name>/jsonl/<file>): chat-like — genuine turns as bubbles,
 // every other record as a collapsed one-line stub, a branch selector strip, and edit-event
 // markers linking into the file-history view. Clicking any record opens the JSON inspector.
-// The view-model half is DOM-free and tested against scenario ground truth (viewer-viewmodels.test.ts).
+// The view-model half is DOM-free and tested against scenario ground truth (viewer-project-views.test.ts).
 
-import {
-    el as elUntyped,
-    fetchDocument,
-    fetchRawRecords,
-    logProgress,
-    renderConsentDialog,
-    routeToConversation,
-    routeToFileHistory,
-} from "../app.ts";
+import { el as elUntyped } from "../app-dom.ts";
+import { logProgress } from "../app-console.ts";
+import { fetchDocument, fetchRawRecords } from "../app-fetch.ts";
+import { renderConsentDialog } from "../app-consent.ts";
+import { routeToConversation, routeToFileHistory } from "../app-routes.ts";
 import { openTranscriptInspector } from "../inspector.ts";
-import { findLineForChangeId } from "./file-history.ts";
+import { findLineForChangeId } from "./file-history-model.ts";
 
 // Local typed view of app.ts's el() while app.ts is typed in parallel — attrs limited to the
 // keys this view actually passes. ponytail: shim only; drop once app.ts exports its own types.
@@ -183,3 +179,4 @@ export async function renderConversationView(container: HTMLElement, project: st
         anchorNode.scrollIntoView({ block: "center" });
     }
 }
+

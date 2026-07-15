@@ -34,3 +34,4 @@ test("unknown task number reports not-found instead of crashing", () => {
   const output = JSON.parse(runHook("/view-task 99999"));
   assert.ok(output.reason.includes("Task 99999: not found"));
 });
+

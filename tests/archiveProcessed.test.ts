@@ -28,3 +28,4 @@ test("moves a file into sibling archived/ and reports collisions without overwri
 test("no arguments: exits non-zero without archiving anything", () => {
     assert.throws(() => execFileSync("node", [SCRIPT], { encoding: "utf8", stdio: "pipe" }));
 });
+

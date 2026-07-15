@@ -22,3 +22,4 @@ test("ignores the table header and separator rows", () => {
     assert.equal(parseRow("| Scenario | Status | Steps | Last passing reconstruction |"), undefined);
     assert.equal(parseRow("|----------|--------|-------|------------------------------|"), undefined);
 });
+

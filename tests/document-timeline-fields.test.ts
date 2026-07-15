@@ -128,3 +128,4 @@ test("test_document_carries_session_titles", () => {
     // custom-title records, so s84's map is empty (the marker falls back to id-only).
     assert.deepEqual(s84Document.sessionTitles, {});
 });
+

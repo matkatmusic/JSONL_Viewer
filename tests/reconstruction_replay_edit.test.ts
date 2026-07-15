@@ -94,3 +94,4 @@ test("test_reverseEditFromAfter_returns_undefined_when_after_content_mismatches"
     };
     assert.equal(reverseEditFromAfter(["a", "WRONG", "b"], buildEditWithHunk(hunk)), undefined);
 });
+

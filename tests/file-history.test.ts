@@ -60,3 +60,4 @@ test("test_file_history_snapshot_exposes_tracked_file_backups", () => {
     assert.ok(backup.backupTime instanceof Date);
     assert.ok(backup.backupFileName === null || backup.backupFileName instanceof Path);
 });
+

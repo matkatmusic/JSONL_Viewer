@@ -68,3 +68,4 @@ test("test_runGitUnifiedDiff_emits_no_preamble_and_no_newline_markers", () => {
     assert.ok(!output.includes("diff --git"));
     assert.ok(output.startsWith("@@ -"), "output starts at the first hunk header");
 });
+

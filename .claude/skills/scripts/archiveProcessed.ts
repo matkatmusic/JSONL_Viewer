@@ -23,3 +23,4 @@ for (const file of files) {
   renameSync(file, destination);
   console.log(`archived: ${file}`);
 }
+

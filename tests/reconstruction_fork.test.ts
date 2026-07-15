@@ -56,3 +56,4 @@ test("test_an_abandoned_subtree_already_holding_an_existing_tip_is_skipped", () 
     const branches = findStructuralRewoundBranches(records, existingTips);
     assert.equal(branches.length, 0);
 });
+

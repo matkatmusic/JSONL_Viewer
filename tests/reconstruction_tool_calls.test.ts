@@ -98,3 +98,4 @@ test("test_compute_tool_call_summary_prefers_command_then_file_path", () => {
     assert.equal(computeToolCallSummary({ input: { query: "bar" } }), "bar");
     assert.equal(computeToolCallSummary({ input: { count: 3 } }), "");
 });
+

@@ -21,3 +21,4 @@ test("computeLanguageForPath returns undefined for a leading-dot name", () => {
 test("computeLanguageForPath returns undefined for an unknown extension", () => {
     assert.equal(computeLanguageForPath("notes.txt"), undefined);
 });
+

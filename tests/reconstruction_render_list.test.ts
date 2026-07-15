@@ -76,3 +76,4 @@ test("test_list_shows_copy_entry_with_provenance", () => {
     assert.ok(output.includes("copy"));
     assert.ok(output.includes("(copied from s3_source.py)"));
 });
+

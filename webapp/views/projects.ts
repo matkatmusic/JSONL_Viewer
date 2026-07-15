@@ -1,7 +1,9 @@
 // Projects tree (#/): every project in the active folder, most recently active first
 // (the server's scan order), narrowable by a live name filter.
 
-import { el as elUntyped, fetchJson, routeToProject } from "../app.ts";
+import { el as elUntyped } from "../app-dom.ts";
+import { fetchJson } from "../app-fetch.ts";
+import { routeToProject } from "../app-routes.ts";
 
 // Wire shapes for /api/projects (dates arrive as plain ISO strings).
 type WireJsonlFile = { modifiedAt: string };
@@ -49,3 +51,4 @@ export async function renderProjectsView(container: HTMLElement): Promise<void> 
     container.append(listPane);
     renderList();
 }
+

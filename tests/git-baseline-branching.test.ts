@@ -46,3 +46,4 @@ test("test_s39_has_no_rewound_branches", () => {
     const document = buildProjectDocument(S39_JSONL_PATHS, undefined);
     assert.deepEqual(document.rewoundFilesTouched, []);
 });
+

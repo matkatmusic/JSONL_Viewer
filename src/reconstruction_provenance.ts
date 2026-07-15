@@ -49,3 +49,4 @@ export function drainProvenance(): ProvenanceEntry[] {
 export function clearProvenance(): void {
     buffer = [];
 }
+

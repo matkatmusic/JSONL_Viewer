@@ -12,3 +12,4 @@ export function setImpureExecutionAllowed(allowed: boolean): void {
 export function isImpureExecutionAllowed(): boolean {
     return impureExecutionAllowed;
 }
+

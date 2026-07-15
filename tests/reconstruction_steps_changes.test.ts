@@ -120,3 +120,4 @@ test("test_stripTrailingNewline_drops_exactly_one_trailing_newline", () => {
     assert.equal(stripTrailingNewline("a\nb\n"), "a\nb");
     assert.equal(stripTrailingNewline("a\nb"), "a\nb");
 });
+

@@ -7,13 +7,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { type ProgressEvent } from "../src/parse/loadTranscript.ts";
 import { loadTranscript } from "../src/parse/loadTranscript.ts";
+import { formatSendingDocumentLabel } from "../src/viewer_api.ts";
 import {
-    formatSendingDocumentLabel,
     computeRecordProgressStride,
     RECORD_PROGRESS_MAX_LINES,
     loadProjectRecords,
-} from "../src/viewer_api.ts";
-import { classifyLoadPhase, LOAD_PHASE_COUNT, matchJsonlSourceLink, reconcileServerBootId } from "../webapp/app.ts";
+} from "../src/viewer_api_records.ts";
+import { matchJsonlSourceLink } from "../webapp/app-console.ts";
+import { reconcileServerBootId } from "../webapp/app-fetch.ts";
+import { classifyLoadPhase, LOAD_PHASE_COUNT } from "../webapp/app-progress.ts";
 import { S19_JSONL } from "./fixtures.ts";
 import { copyFixtureIntoTempDir } from "./utilities.ts";
 
@@ -125,3 +127,4 @@ test("test_reconcileServerBootId_clears_consent_only_when_boot_id_changes", () =
         delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
     }
 });
+

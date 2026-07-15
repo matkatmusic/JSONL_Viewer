@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { tmpdir } from "node:os";
-import { buildProjectReconstruction, renderRangePatch, computePatchRoot, parseRangePatchQuery, resolveStepFiles, parseStepFilesQuery } from "../src/viewer_api.ts";
+import { buildProjectReconstruction } from "../src/viewer_api.ts";
+import { renderRangePatch, computePatchRoot, parseRangePatchQuery, resolveStepFiles, parseStepFilesQuery } from "../src/viewer_api_diffs.ts";
 import { resolveFilesAtStep } from "../src/reconstruction_steps.ts";
 import { S85_JSONL_PATHS } from "./fixtures.ts";
 import {
@@ -138,3 +139,4 @@ test("test_range_patch_endpoint_returns_patch_text", () => {
     assert.throws(() => parseRangePatchQuery(new URLSearchParams("fromStep=1.5&toStep=5")));
     assert.throws(() => parseRangePatchQuery(new URLSearchParams("fromStep=0&toStep=5")));
 });
+

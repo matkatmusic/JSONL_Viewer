@@ -25,3 +25,4 @@ test("test_evict_least_recently_used_entries_drops_oldest_beyond_capacity", () =
     evictLeastRecentlyUsedEntries(cache, 2);
     assert.deepEqual([...cache.keys()], ["b", "c"]);
 });
+

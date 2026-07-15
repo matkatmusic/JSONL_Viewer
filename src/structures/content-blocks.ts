@@ -122,3 +122,4 @@ export function getContentBlocks(record: TranscriptRecord): ContentBlock[] {
     hydratedBlocksByRecord.set(record, blocks);
     return blocks;
 }
+

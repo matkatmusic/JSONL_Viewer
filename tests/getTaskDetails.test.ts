@@ -25,3 +25,4 @@ test("with a task number: prints that task's full JSON object", () => {
     assert.ok(output.startsWith(`task ${firstOpenTask.taskNumber} (OPEN):`));
     assert.deepEqual(JSON.parse(output.slice(output.indexOf("{"))), firstOpenTask);
 });
+

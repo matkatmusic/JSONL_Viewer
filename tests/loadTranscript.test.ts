@@ -212,3 +212,4 @@ test("test_parseTranscriptLine_rejects_unmodeled_top_level_key", () => {
     // parsing it through the gate throws.
     assert.throws(() => parseTranscriptLine(line), UnmodeledFieldError);
 });
+

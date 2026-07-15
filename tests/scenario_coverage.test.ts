@@ -27,3 +27,4 @@ for (const scenario of listCoveredScenarios()) {
         );
     });
 }
+

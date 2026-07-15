@@ -34,3 +34,4 @@ export type EnvelopeBase = {
 // through fields those later tasks model — the Task 6 gate enforces at runtime
 // that no top-level key is left unmodeled.
 export type TranscriptRecord = EnvelopeBase & { [key: string]: unknown };
+

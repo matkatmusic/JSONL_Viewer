@@ -30,3 +30,4 @@ function printOpenSections(file: string): void {
 
 const files = process.argv.length > 2 ? process.argv.slice(2) : listDefaultNoteFiles();
 for (const file of files) printOpenSections(file);
+

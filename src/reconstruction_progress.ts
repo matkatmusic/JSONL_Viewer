@@ -26,3 +26,4 @@ export function reportReconstructionProgress(label: string, current?: number, to
     }
     activeSink({ kind: DocumentResponseKind.progress, label, current, total });
 }
+

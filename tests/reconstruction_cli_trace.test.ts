@@ -85,3 +85,4 @@ test("test_help_flag_documents_details_and_mode_options", () => {
     assert.ok(out.includes(TraceDetailMode.previewOnly));
     assert.ok(out.includes(TraceDetailMode.full));
 });
+

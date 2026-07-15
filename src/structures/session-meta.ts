@@ -109,3 +109,4 @@ export function getAttachmentEntry(
     }
     return record as unknown as AttachmentEntry;
 }
+

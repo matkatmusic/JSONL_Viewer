@@ -200,3 +200,4 @@ export function renderTrace(partition: LinePartition, options: TraceOptions): st
     const renderedRows = selectedRows.map((row) => renderRow(row, options));
     return renderedRows.join("\n");
 }
+

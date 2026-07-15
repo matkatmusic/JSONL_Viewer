@@ -3,9 +3,11 @@ import assert from "node:assert/strict";
 import {
     collectDescendantUuids,
     findDeepestPromptOrReply,
+} from "../src/reconstruction_tree.ts";
+import {
     findPromptForkPoints,
     isGenuineUserPrompt,
-} from "../src/reconstruction_tree.ts";
+} from "../src/reconstruction_prompts.ts";
 import { BlockType, RecordType } from "../src/structures/vocabulary.ts";
 import type { TranscriptRecord } from "../src/structures/envelope.ts";
 import { Uuid } from "../src/structures/domain.ts";
@@ -180,3 +182,4 @@ test("test_findDeepestPromptOrReply_returns_the_last_assistant_not_a_trailing_sy
     assert.ok(tip !== undefined);
     assert.equal(tip!.toString().slice(0, 8), "1623ed02");
 });
+

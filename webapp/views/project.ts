@@ -1,18 +1,16 @@
 // Project navigation: a persistent left drawer on every #/project/* route (the project's
 // JSONL files and touched files stay reachable from the conversation/file/raw views), and
 // the project landing view, which hosts the script-consent dialog and a summary.
-// The view-model half is DOM-free and tested against scenario ground truth (viewer-viewmodels.test.ts).
+// The view-model half is DOM-free and tested against scenario ground truth (viewer-project-views.test.ts).
 
+import { el as elUntyped } from "../app-dom.ts";
 import {
-    el as elUntyped,
     fetchDocument,
     fetchJson,
     peekCachedDocument,
-    renderConsentDialog,
-    routeToFileHistory,
-    routeToProject,
-    routeToTimeline,
-} from "../app.ts";
+} from "../app-fetch.ts";
+import { renderConsentDialog } from "../app-consent.ts";
+import { routeToFileHistory, routeToProject, routeToTimeline } from "../app-routes.ts";
 
 // app.ts is being typed in parallel; typed view of its untyped `el` for this file's call sites.
 const el = elUntyped as (
@@ -111,3 +109,4 @@ export async function renderProjectView(container: HTMLElement, project: string)
     container.append(el("div", { class: "pane-title", text: project }));
     container.append(el("div", { class: "muted", text: `${result.document!.messages.length} conversation turns · ${viewModel.fileTargets.length} files touched · pick a JSONL or file on the left` }));
 }
+

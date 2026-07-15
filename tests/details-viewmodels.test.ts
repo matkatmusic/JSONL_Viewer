@@ -7,9 +7,9 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildRevisionCards, computeDetailsHeaderText, mapStoredDiffModeToToggle, resolveInitialFullContentsChoice } from "../webapp/views/details.ts";
-import { AGENT_TURN_NODE_KIND, COMMIT_NODE_KIND, type TimelineNode } from "../webapp/views/timeline.ts";
-import { DiffDisplayMode } from "../webapp/views/diff-vs-base.ts";
+import { buildRevisionCards, computeDetailsHeaderText, mapStoredDiffModeToToggle, resolveInitialFullContentsChoice } from "../webapp/views/details-model.ts";
+import { AGENT_TURN_NODE_KIND, COMMIT_NODE_KIND, type TimelineNode } from "../webapp/views/timeline-types.ts";
+import { DiffDisplayMode } from "../webapp/views/diff-vs-base-model.ts";
 import { EventKind } from "../src/structures/vocabulary.ts";
 
 test("test_computeDetailsHeaderText_formats_message_nodes", () => {
@@ -98,4 +98,5 @@ test("test_resolveInitialFullContentsChoice_reads_the_stored_flag", () => {
     assert.equal(resolveInitialFullContentsChoice("0"), false);
     assert.equal(resolveInitialFullContentsChoice("columns"), false);
 });
+
 

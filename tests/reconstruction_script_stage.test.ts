@@ -1,15 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { reconstructAll } from "../src/reconstruction_engine.ts";
-import { linesTextOf } from "../src/reconstruction_branches.ts";
+import { linesTextOf } from "../src/reconstruction_revisions.ts";
+import { injectScriptExecutions } from "../src/reconstruction_script_stage.ts";
 import {
     discoverScriptCreatedPaths,
     executeRunOnce,
-    injectScriptExecutions,
     runForTarget,
     PROGRESS_LABEL_READ_ONLY_SKIP_PREFIX,
-} from "../src/reconstruction_script_stage.ts";
-import { findScriptExecutionRuns, PROGRESS_LABEL_SANDBOX_SPAWN_PREFIX } from "../src/reconstruction_script_execution.ts";
+} from "../src/reconstruction_script_runs.ts";
+import { findScriptExecutionRuns } from "../src/reconstruction_script_execution.ts";
+import { PROGRESS_LABEL_SANDBOX_SPAWN_PREFIX } from "../src/reconstruction_script_sandbox.ts";
 import { setReconstructionProgressSink } from "../src/reconstruction_progress.ts";
 import type { BackupReader } from "../src/reconstruction_sidecar.ts";
 import { BlockType, EventKind, RecordType, ToolName } from "../src/structures/vocabulary.ts";
@@ -194,3 +195,4 @@ test("test_executeRunOnce_skips_the_sandbox_for_a_read_only_script", () => {
         setReconstructionProgressSink(undefined);
     }
 });
+

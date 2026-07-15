@@ -8,8 +8,9 @@ import {
     isImpureExecutionAllowed,
     setImpureExecutionAllowed,
 } from "../src/reconstruction_exec_gate.ts";
-import { discoverScriptCreatedPaths, injectScriptExecutions } from "../src/reconstruction_script_stage.ts";
-import { placeGitCommitEvidence } from "../src/reconstruction_git_evidence.ts";
+import { injectScriptExecutions } from "../src/reconstruction_script_stage.ts";
+import { discoverScriptCreatedPaths } from "../src/reconstruction_script_runs.ts";
+import { placeGitCommitEvidence } from "../src/reconstruction_git_placement.ts";
 import type { BackupReader } from "../src/reconstruction_sidecar.ts";
 import { BlockType, RecordType, ToolName } from "../src/structures/vocabulary.ts";
 import type { TranscriptRecord } from "../src/structures/envelope.ts";
@@ -123,3 +124,4 @@ test("test_exec_gate_disable_blocks_git_evidence", () => {
         rmSync(repo, { recursive: true, force: true });
     }
 });
+

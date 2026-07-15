@@ -14,3 +14,4 @@ test("nextTaskNumber prints the highest taskNumber across both task files, plus 
     );
     assert.equal(printed, expected);
 });
+

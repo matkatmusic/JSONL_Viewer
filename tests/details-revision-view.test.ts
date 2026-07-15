@@ -13,8 +13,8 @@ import {
     checkCardRunIsContiguous,
     computeFocusedCardIndex,
     computeOwningNodeIndexes,
-} from "../webapp/views/details.ts";
-import { AGENT_TURN_NODE_KIND, type FileChange, type TimelineNode } from "../webapp/views/timeline.ts";
+} from "../webapp/views/details-model.ts";
+import { AGENT_TURN_NODE_KIND, type FileChange, type TimelineNode } from "../webapp/views/timeline-types.ts";
 import { EventKind } from "../src/structures/vocabulary.ts";
 
 // ── fixtures ────────────────────────────────────────────────────────────────────────────────
@@ -159,3 +159,4 @@ test("test_computeOwningNodeIndexes_skips_an_owner_whose_snapshots_are_empty", (
     // and send a garbage /api/range-patch request.
     assert.deepEqual(computeOwningNodeIndexes(cards, ONE_SNAPSHOT_EMPTY_NODE_OWNING_A_REVISION, [0]), []);
 });
+

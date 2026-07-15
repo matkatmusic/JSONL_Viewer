@@ -4,12 +4,9 @@ import { execSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import {
-    findFallbackRepoDirs,
-    findGitCommitEvents,
-    placeGitCommitEvidence,
-    readCommittedFileContent,
-} from "../src/reconstruction_git_evidence.ts";
+import { findFallbackRepoDirs, readCommittedFileContent } from "../src/reconstruction_git_evidence.ts";
+import { findGitCommitEvents } from "../src/reconstruction_git_operations.ts";
+import { placeGitCommitEvidence } from "../src/reconstruction_git_placement.ts";
 import { setPathOverrides } from "../src/reconstruction_overrides.ts";
 import { loadTranscript } from "../src/parse/loadTranscript.ts";
 import { injectScriptExecutions } from "../src/reconstruction_script_stage.ts";
@@ -229,3 +226,4 @@ test("test_find_fallback_repo_dirs_orders_override_before_preserved", () => {
         rmSync(transcriptDir, { recursive: true, force: true });
     }
 });
+

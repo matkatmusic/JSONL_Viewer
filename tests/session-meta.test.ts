@@ -97,3 +97,4 @@ test("test_attachment_payload_type_covers_s2_kinds", () => {
         assert.ok(allowed.has(type), `unmodeled attachment kind: ${type}`);
     }
 });
+

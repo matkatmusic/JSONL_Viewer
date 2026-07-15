@@ -95,3 +95,4 @@ test("test_distinct_final_paths_collapses_rename_source", () => {
     assert.equal(finals.length, 1);
     assert.equal(finals[0]!.toString(), "/b.py");
 });
+

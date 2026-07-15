@@ -96,3 +96,4 @@ test("test_renderTrace_details_full_shows_the_pretty_printed_record", () => {
     // The full record is pretty-printed (multi-line, indented JSON) rather than a one-line preview.
     assert.ok(out.includes('"command": "git commit -m wip"'));
 });
+

@@ -10,7 +10,7 @@ import { BranchRole, EventKind } from "./structures/vocabulary.ts";
 import {
     collectAcceptedUserEditIds,
     extractRenderableEvents,
-} from "./reconstruction_branches.ts";
+} from "./reconstruction_renderable.ts";
 import {
     collectSurvivingUuids,
     findConversationBranches,
@@ -246,3 +246,4 @@ export function buildConversationDag(records: TranscriptRecord[], reader?: Backu
     const kept = surviving === undefined ? rewound : [surviving, ...rewound];
     return assembleDag(rootUuid, kept);
 }
+

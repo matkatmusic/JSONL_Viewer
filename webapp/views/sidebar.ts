@@ -4,7 +4,7 @@
 // renders them and routes clicks back to the timeline through the callbacks.
 // Item 77: the Files pane is a nested tree of <details>/basenames, not a flat list of full paths.
 
-import { el } from "../app.ts";
+import { el } from "../app-dom.ts";
 
 // One Sessions-pane entry (buildSessionsSidebarViewModel's shape).
 type SessionSidebarEntry = {
@@ -126,3 +126,4 @@ function renderFileTreeLeaf(node: FileTreeNode, entry: FileSidebarEntry, callbac
 function basenameOf(path: string): string {
     return path.slice(path.lastIndexOf("/") + 1);
 }
+

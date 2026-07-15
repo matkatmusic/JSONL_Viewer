@@ -897,5 +897,17 @@
     ],
     "completionDate": "2026-07-15",
     "closureNote": "User signed off on below-root collapsing (root-level stays declined). Implemented collapseSingleChildFolderChains post-pass in buildFileTree (webapp/views/timeline.ts): each folder holding exactly one folder child merges into a combined a/b/c node, stopping at branching folders and file children. 3 new tests in tests/timeline-viewmodels.test.ts; 755 tests green."
+  },
+  {
+    "taskNumber": 92,
+    "title": "Split oversized files: webapp/views/timeline.ts, webapp/views/details.ts, tests/timeline-viewmodels.test.ts",
+    "description": "`tests/timeline-viewmodels.test.ts` (2017 lines), `webapp/views/timeline.ts` (2071 lines), and `webapp/views/details.ts` (623 lines) all trip the project's 250-line file-size hook, which also flags pre-existing deep nesting. None of it originates from items 77/84, and splitting is a large refactor outside those tasks \u2014 but the ledger keeps growing, so it deserves its own item. (items 77 + 84) ALSO: src/reconstruction_git_evidence.ts is 568 lines vs the 250-line hook cap (plus one deep-nesting site around `placementAfter`) \u2014 pre-existing before task 89's compound-extraction change, flagged by the jot post-edit hook on every edit.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item77-files-tree-view.md",
+      "plans/archived/implementation-notes-item84-unify-bottom-pane.md",
+      "plans/archived/implementation-notes-task89-compound-git-op-extraction.md"
+    ],
+    "completionDate": "2026-07-15",
+    "closureNote": "Closed by the codebase-wide oversize split (user-expanded scope): audited all 153 tracked TS files via the jot hook's own filesize_check.py, then split every file over the 250-line cap \u2014 the four named files (timeline.ts 2266->220+14 modules, timeline-viewmodels.test.ts 2364->17 topic files, details.ts 685->4 modules, reconstruction_git_evidence.ts 558->3 modules) plus 26 more src/webapp/tests files (~35 new modules total, incl. app.ts 1219->10 modules). Pure moves, no re-export shims, callers import canonical homes directly. typecheck + build:webapp green; test suite deliberately left for the user to run. Deep-nesting hook flags recorded in plans/implementation-notes-task-92.md as follow-up input. Staged, not committed."
   }
 ]

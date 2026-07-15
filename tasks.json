@@ -69,16 +69,6 @@
     ]
   },
   {
-    "taskNumber": 92,
-    "title": "Split oversized files: webapp/views/timeline.ts, webapp/views/details.ts, tests/timeline-viewmodels.test.ts",
-    "description": "`tests/timeline-viewmodels.test.ts` (2017 lines), `webapp/views/timeline.ts` (2071 lines), and `webapp/views/details.ts` (623 lines) all trip the project's 250-line file-size hook, which also flags pre-existing deep nesting. None of it originates from items 77/84, and splitting is a large refactor outside those tasks \u2014 but the ledger keeps growing, so it deserves its own item. (items 77 + 84) ALSO: src/reconstruction_git_evidence.ts is 568 lines vs the 250-line hook cap (plus one deep-nesting site around `placementAfter`) \u2014 pre-existing before task 89's compound-extraction change, flagged by the jot post-edit hook on every edit.",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-item77-files-tree-view.md",
-      "plans/archived/implementation-notes-item84-unify-bottom-pane.md",
-      "plans/archived/implementation-notes-task89-compound-git-op-extraction.md"
-    ]
-  },
-  {
     "taskNumber": 93,
     "title": "renderFileHistoryView is a near-duplicate of the Revision View \u2014 consolidate?",
     "description": "PROBLEM: two views implement the same per-revision UI independently. `renderFileHistoryView` (`webapp/views/file-history.ts:161`, route `#/project/<p>/file/<path>`) renders per-revision rows with the *same five actions* as the Revision View's rev cards (Show content / Export this version / Copy patch / Export .patch / Jump to timeline step). Since item 84's bug-1 fix removed its `\u2937` chip-row entry point, it is reachable only from the inspector's revision links and the snapshot pane's \"View in File History\" button \u2014 yet every future change to the five actions must be made in both places. NEEDED: consolidate \u2014 either retire `renderFileHistoryView` and repoint its two remaining entry points at the Revision View, or extract the shared revision-row rendering into one helper both views call. (item 84)",

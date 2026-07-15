@@ -8,9 +8,9 @@ import {
     computeBlobRequestUrl,
     computeRevisionLinkRoute,
     computeSnapshotHistoryAnchor,
-    extractReadableText,
     findTrackedBackupEntry,
-} from "../webapp/inspector.ts";
+} from "../webapp/inspector-links.ts";
+import { extractReadableText } from "../webapp/inspector-text.ts";
 
 test("test_extract_readable_text_returns_string_message_content_verbatim", () => {
     // Scenario: a user record whose message.content is a plain string — the prompt text IS
@@ -158,3 +158,4 @@ test("test_blob_request_url_encodes_both_query_params", () => {
         "/api/blob?session=a4918fd5-session&name=abcdef0123456789%40v2",
     );
 });
+

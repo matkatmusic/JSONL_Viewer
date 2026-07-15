@@ -10,3 +10,4 @@ export function downloadText(fileName: string, text: string): void {
     link.click();
     URL.revokeObjectURL(url);
 }
+

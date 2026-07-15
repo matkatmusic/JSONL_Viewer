@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildProjectDocument } from "../src/viewer_api.ts";
-import { findGitOperations } from "../src/reconstruction_git_evidence.ts";
+import { findGitOperations } from "../src/reconstruction_git_operations.ts";
 import { Path, Uuid } from "../src/structures/domain.ts";
 import { BlockType, GitOperationKind, RecordType, ToolName } from "../src/structures/vocabulary.ts";
 import type { TranscriptRecord } from "../src/structures/envelope.ts";
@@ -247,3 +247,4 @@ test("test_s19_without_git_yields_no_operations", () => {
     const document = buildProjectDocument([new Path(S19_JSONL)], undefined);
     assert.deepEqual(document.gitOperations, []);
 });
+

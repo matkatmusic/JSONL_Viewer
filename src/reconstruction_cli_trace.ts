@@ -129,3 +129,4 @@ export function runTrace(invocation: TraceInvocation): string {
     }
     return renderTrace(partitionLines(new Path(invocation.jsonlPath)), invocation.options);
 }
+

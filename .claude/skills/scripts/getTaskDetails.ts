@@ -30,3 +30,4 @@ const report =
     ? [...listTaskTitles("OPEN", openTasks), ...listTaskTitles("DONE", completedTasks)]
     : taskNumbers.map(n => describeTask(n, openTasks, completedTasks));
 process.stdout.write(report.join("\n") + "\n");
+

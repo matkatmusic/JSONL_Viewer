@@ -39,3 +39,4 @@ export function renderCodeInto(element: HTMLElement, content: string, path: stri
     element.innerHTML = hljs.highlight(content, { language, ignoreIllegals: true }).value;
     element.classList.add("hljs");
 }
+

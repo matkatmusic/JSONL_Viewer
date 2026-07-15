@@ -2,9 +2,11 @@
 // the legacy filter modes (Show All / File Only / Edits Only) plus a substring filter.
 // Clicking a line opens the JSON inspector.
 
-import { el as elUntyped, fetchDocument, fetchRawRecords, renderConsentDialog } from "../app.ts";
+import { el as elUntyped } from "../app-dom.ts";
+import { fetchDocument, fetchRawRecords } from "../app-fetch.ts";
+import { renderConsentDialog } from "../app-consent.ts";
 import { openTranscriptInspector } from "../inspector.ts";
-import { findLineForChangeId } from "./file-history.ts";
+import { findLineForChangeId } from "./file-history-model.ts";
 
 // Wire shapes for the pieces of the /api/document payload this view reads (ids/dates arrive as
 // plain strings over the wire, so these stay local rather than importing engine types).
@@ -109,3 +111,4 @@ export async function renderRawLinesView(container: HTMLElement, project: string
     container.append(listPane);
     renderList();
 }
+

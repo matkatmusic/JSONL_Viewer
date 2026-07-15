@@ -64,3 +64,4 @@ export function parseRecord(line: string): TranscriptRecord {
     hydrateEnvelope(parsed);
     return parsed as TranscriptRecord;
 }
+

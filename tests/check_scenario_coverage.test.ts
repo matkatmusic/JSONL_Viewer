@@ -186,3 +186,4 @@ test("test_checkScenario_reports_a_mismatch_with_the_broken_fixture", () => {
     assert.ok(mismatch.diff.includes("scenario19.py"), `diff should name the file: ${mismatch.diff}`);
     assert.ok(mismatch.jsonlLine.length > 0, "jsonlLine should be set");
 });
+

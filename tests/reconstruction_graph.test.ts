@@ -166,3 +166,4 @@ test("test_an_empty_surviving_branch_sorts_below_a_rewound_branch_with_turns", (
     assert.equal(dag.branches[0]!.role, BranchRole.rewound);
     assert.equal(dag.branches[1]!.role, BranchRole.surviving);
 });
+

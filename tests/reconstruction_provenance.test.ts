@@ -49,3 +49,4 @@ test("test_drainProvenance_returns_entries_then_empties_the_buffer", () => {
     assert.equal(drainProvenance().length, 0);
     disableProvenance();
 });
+

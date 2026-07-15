@@ -9,7 +9,7 @@ import { Uuid } from "./structures/domain.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { getContentBlocks } from "./structures/content-blocks.ts";
 import { getAttachmentEntry } from "./structures/session-meta.ts";
-import { collectOrphanedUuids } from "./reconstruction_branch.ts";
+import { collectOrphanedUuids } from "./reconstruction_orphans.ts";
 
 // One tool call, parsed for the timeline: the tool's name, a one-line summary of what it did
 // (command / file path / pattern), when and which session ran it (for chronological placement),
@@ -136,3 +136,4 @@ export function findToolCalls(records: TranscriptRecord[]): ToolCall[] {
     }
     return calls;
 }
+

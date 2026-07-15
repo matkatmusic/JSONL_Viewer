@@ -123,3 +123,4 @@ export function getFileHistorySnapshot(
         isSnapshotUpdate: raw.isSnapshotUpdate,
     };
 }
+

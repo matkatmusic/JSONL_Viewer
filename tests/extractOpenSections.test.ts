@@ -31,3 +31,4 @@ test("prints banner-labelled sections and stops at the next header", () => {
     assert.ok(output.includes("1. step one"));
     assert.ok(!output.includes("- hidden") && !output.includes("secret.ts"));
 });
+

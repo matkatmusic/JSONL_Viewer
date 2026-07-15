@@ -52,3 +52,4 @@ test("test_parseRecord_throws_on_unknown_record_type", () => {
     // parsing it throws an UnknownRecordTypeError.
     assert.throws(() => parseRecord(line), UnknownRecordTypeError);
 });
+

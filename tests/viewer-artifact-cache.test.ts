@@ -5,16 +5,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-    computeTranscriptSetStamp,
-    loadProjectRecords,
     buildProjectDocument,
     buildDocumentWithConsent,
-    renderRevisionDiff,
-    renderDiffVsBase,
-    ARTIFACT_CACHE_CAPACITY,
-    PROGRESS_LABEL_RECORDS_CACHE_HIT,
     PROGRESS_LABEL_ARTIFACT_CACHE_HIT,
 } from "../src/viewer_api.ts";
+import {
+    computeTranscriptSetStamp,
+    loadProjectRecords,
+    ARTIFACT_CACHE_CAPACITY,
+    PROGRESS_LABEL_RECORDS_CACHE_HIT,
+} from "../src/viewer_api_records.ts";
+import {
+    renderRevisionDiff,
+    renderDiffVsBase,
+} from "../src/viewer_api_diffs.ts";
 import { Path } from "../src/structures/domain.ts";
 import { copyFixtureIntoTempDir, advanceFileMtimeByOneSecond } from "./utilities.ts";
 import { S1_JSONL, S19_JSONL, S37_JSONL, S85_JSONL_PATHS } from "./fixtures.ts";
@@ -202,3 +206,4 @@ test("test_revision_diff_from_untargeted_document_matches_targeted_build", () =>
     // ...and the identical vs-base diff at revision 0.
     assert.equal(renderDiffVsBase(untargetedDocument, trackedFile, 0), renderDiffVsBase(targetedDocument, trackedFile, 0));
 });
+

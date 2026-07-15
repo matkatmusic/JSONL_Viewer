@@ -9,3 +9,4 @@ test("test_s1_fixture_transcript_exists_on_disk", () => {
     // opaque read error inside every other test.
     assert.ok(existsSync(S1_JSONL), `missing s1 fixture: ${S1_JSONL}`);
 });
+

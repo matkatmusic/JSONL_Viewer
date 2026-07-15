@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
     collectAcceptedUserEditIds,
     extractRenderableEvents,
-} from "../src/reconstruction_branches.ts";
+} from "../src/reconstruction_renderable.ts";
 import { EventKind } from "../src/structures/vocabulary.ts";
 import { loadRecords } from "./utilities.ts";
 import { S13_JSONL, S15_JSONL } from "./fixtures.ts";
@@ -49,3 +49,4 @@ test("test_extractRenderableEvents_keeps_the_genuine_S15_user_edit_turn", () => 
     // Exactly one user-edit turn survives (the genuine content-changing edit).
     assert.equal(renderable.filter((event) => event.kind === EventKind.userEdit).length, 1);
 });
+

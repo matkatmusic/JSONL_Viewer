@@ -18,10 +18,8 @@ import {
     selectLiveBranch,
     type ConversationBranch,
 } from "./reconstruction_branch.ts";
-import {
-    reconstructFileOver,
-    reconstructFilesOver,
-} from "./reconstruction_branches.ts";
+import { reconstructFileOver } from "./reconstruction_branches.ts";
+import { reconstructFilesOver } from "./reconstruction_renderable.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
 import type { ScriptExecutionEvent } from "./reconstruction_script_execution.ts";
 
@@ -244,3 +242,4 @@ function buildRewoundBranchHistory(
     );
     return { rewindPoint: branch.rewindPoint!, tip: branch.tip, histories };
 }
+

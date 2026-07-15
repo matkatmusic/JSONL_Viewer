@@ -21,7 +21,7 @@ import {
     parseMvPaths,
     parseRedirect,
     parseRmTargets,
-} from "./reconstruction_extract.ts";
+} from "./reconstruction_bash_events.ts";
 
 // Whether a bash command is one of the file ops the engine extracts an event from (rm/mv/cp/redirect),
 // as opposed to a non-file-op command (git status, pytest, …) that yields no event. Reuses the same
@@ -165,3 +165,4 @@ export function partitionLines(jsonl: Path): LinePartition {
     }
     return { kept, ignored };
 }
+

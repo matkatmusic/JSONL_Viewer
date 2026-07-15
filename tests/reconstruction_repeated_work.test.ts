@@ -5,7 +5,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reconstructFilesOver } from "../src/reconstruction_branches.ts";
+import { reconstructFilesOver } from "../src/reconstruction_renderable.ts";
 import { setReconstructionProgressSink } from "../src/reconstruction_progress.ts";
 import type { BackupReader } from "../src/reconstruction_sidecar.ts";
 import { BlockType, RecordType, ToolName } from "../src/structures/vocabulary.ts";
@@ -139,3 +139,4 @@ test("test_five_files_two_runs_execute_twice_and_replay_each_lineage_once_per_ru
         assert.ok(replays.length <= 2, `${filename} replayed ${replays.length} times (max 2)`);
     }
 });
+

@@ -6,16 +6,16 @@ import assert from "node:assert/strict";
 import {
     extractConversationMessages,
     summarizeBranches,
-    buildStepSnapshots,
     buildLineVerdicts,
     buildReconstructionDocument,
 } from "../src/reconstruction_json.ts";
+import { buildStepSnapshots } from "../src/reconstruction_json_steps.ts";
 import {
     reconstructBranches,
     type FileHistory,
 } from "../src/reconstruction_engine.ts";
 import { countStepsInTranscript } from "../src/reconstruction_steps.ts";
-import { isGenuineUserPrompt } from "../src/reconstruction_tree.ts";
+import { isGenuineUserPrompt } from "../src/reconstruction_prompts.ts";
 import { RecordType, BlockType, Verdict } from "../src/structures/vocabulary.ts";
 import type { BackupReader } from "../src/reconstruction_sidecar.ts";
 import {
@@ -228,3 +228,4 @@ test("test_buildReconstructionDocument_includes_line_verdicts_for_every_record",
     // Verify.
     assert.equal(document.lineVerdicts.length, records.length);
 });
+

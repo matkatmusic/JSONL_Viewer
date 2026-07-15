@@ -52,3 +52,4 @@ export function runGitUnifiedDiff(
         rmSync(directory, { recursive: true, force: true });
     }
 }
+

@@ -205,3 +205,4 @@ export enum GitOperationKind {
 }
 
 export const KNOWN_GIT_OPERATION_KINDS: GitOperationKind[] = Object.values(GitOperationKind);
+

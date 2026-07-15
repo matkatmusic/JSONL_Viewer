@@ -166,3 +166,4 @@ test("test_read_commit_timestamp_returns_undefined_for_bad_repo", () => {
     const timestamp = readCommitTimestamp(new Path("/nonexistent-reveng-base-commit-dir"), new Uuid("deadbeef"));
     assert.equal(timestamp, undefined);
 });
+

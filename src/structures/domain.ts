@@ -40,3 +40,4 @@ export class Uuid {
         return this.value === other.value;
     }
 }
+

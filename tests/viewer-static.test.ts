@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { resolveStaticFilePath } from "../src/viewer_api.ts";
+import { resolveStaticFilePath } from "../src/viewer_api_projects.ts";
 
 // Two sibling roots mirroring webapp/dist (compiled JS) and webapp/ (source assets).
 function buildStaticRoots(): { distDir: string; webappDir: string } {
@@ -36,3 +36,4 @@ test("test_resolveStaticFilePath_falls_back_to_the_webapp_source", () => {
     // resolving styles.css must pick the webapp copy.
     assert.equal(resolveStaticFilePath("styles.css", distDir, webappDir), join(webappDir, "styles.css"));
 });
+

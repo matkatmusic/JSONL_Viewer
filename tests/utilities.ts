@@ -114,3 +114,4 @@ export function advanceFileMtimeByOneSecond(filePath: Path): void {
     const futureSeconds = Date.now() / 1000 + 1;
     utimesSync(filePath.toString(), futureSeconds, futureSeconds);
 }
+

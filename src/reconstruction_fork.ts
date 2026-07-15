@@ -12,9 +12,11 @@ import type { ConversationBranch } from "./reconstruction_branch.ts";
 import {
     collectDescendantUuids,
     findDeepestPromptOrReply,
+} from "./reconstruction_tree.ts";
+import {
     findPromptForkPoints,
     isGenuineUserPrompt,
-} from "./reconstruction_tree.ts";
+} from "./reconstruction_prompts.ts";
 
 // The rewound branches discovered structurally from the parentUuid forks, none of which is already
 // represented by an existing (head-based) tip. Purely additive: the dedup guard skips any abandoned
@@ -123,3 +125,4 @@ function subtreeHoldsClaimedTip(
     }
     return false;
 }
+

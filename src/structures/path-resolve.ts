@@ -14,3 +14,4 @@ export function resolveAgainstCwd(cwd: Path | undefined, path: Path): string {
     }
     return resolve(cwd.toString(), path.toString());
 }
+

@@ -11,3 +11,4 @@ function readTaskFile(path: string): TaskRecord[] {
 const taskNumbers = [...readTaskFile("tasks.json"), ...readTaskFile("completedTasks.json")]
   .map(t => t.taskNumber);
 process.stdout.write(`${Math.max(0, ...taskNumbers) + 1}\n`);
+

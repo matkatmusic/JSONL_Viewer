@@ -4,3 +4,4 @@
 // nothing from the engine) so engine/replay/render may all import it as a value without a
 // runtime cycle. Design: plans/reconstruction-engine-design.md ("The per-line model").
 export const DOES_NOT_EXIST_YET = -1;
+

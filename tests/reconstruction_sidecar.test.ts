@@ -185,3 +185,4 @@ test("test_seed_prefers_at_or_before_over_later_when_both_exist", () => {
     assert.equal(seed!.changeId.toString(), "before@v1");
     assert.equal((seed as WriteEvent).content, "pre-edit content\n");
 });
+

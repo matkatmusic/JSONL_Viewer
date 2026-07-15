@@ -59,3 +59,4 @@ const reason =
     ? `Usage: /view-task <N...>\n\nOpen tasks:\n${openTasks.map(t => `  ${t.taskNumber}: ${t.title ?? ""}`).join("\n")}`
     : numbers.map(n => describeTask(n, openTasks, completedTasks)).join("\n\n");
 process.stdout.write(JSON.stringify({ decision: "block", reason }) + "\n");
+

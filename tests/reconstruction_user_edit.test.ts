@@ -55,3 +55,4 @@ test("test_extractFileEvents_includes_the_user_edit_for_S15", () => {
     assert.equal(writeCount, 2);
     assert.ok(userEditIndex >= writeCount);
 });
+

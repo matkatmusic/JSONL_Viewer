@@ -83,3 +83,4 @@ test("test_getContentBlocks_accepts_image_block", () => {
     assert.equal(blocks.length, 1);
     assert.equal(blocks[0]?.type, BlockType.image);
 });
+

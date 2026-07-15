@@ -104,3 +104,4 @@ test("test_disk_cache_is_capped_at_capacity", () => {
     // reset config so later tests stay memory-only.
     configureDocumentCachePersistence(undefined);
 });
+

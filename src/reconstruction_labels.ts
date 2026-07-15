@@ -16,3 +16,4 @@ export function getBaseName(path: Path): string {
     const parts = path.toString().split("/");
     return parts[parts.length - 1]!;
 }
+

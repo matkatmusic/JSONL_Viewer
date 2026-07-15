@@ -36,3 +36,4 @@ for (const r of md.split("\n").filter((l: string) => l.startsWith("| /Users"))) 
 console.log("\nSection B fileop=true rows by kind:", JSON.stringify(byKind));
 console.log("Real source-file mutations hiding as an ignored bash variant:", realMut.length);
 for (const m of realMut) console.log("  !!", m);
+

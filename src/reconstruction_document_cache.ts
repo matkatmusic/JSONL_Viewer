@@ -158,3 +158,4 @@ function evictOldestBeyondCapacity(directory: Path): void {
         console.error(`document cache evicted ${name} (capacity ${DOCUMENT_CACHE_CAPACITY})`);
     }
 }
+

@@ -3,7 +3,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkNavigationStartsNewProjectLoad, checkRouteIsTimeline } from "../webapp/app.ts";
+import { checkRouteIsTimeline } from "../webapp/app-routes.ts";
+import { checkNavigationStartsNewProjectLoad } from "../webapp/app-router.ts";
 
 test("test_check_route_is_timeline_accepts_every_project_route", () => {
     // Scenario: the timeline is ALWAYS a loaded project's base view (user decision 2026-07-06) —
@@ -45,3 +46,4 @@ test("test_check_navigation_keeps_console_on_non_project_routes", () => {
     assert.equal(checkNavigationStartsNewProjectLoad("project-a", undefined), false);
     assert.equal(checkNavigationStartsNewProjectLoad(undefined, undefined), false);
 });
+

@@ -22,3 +22,4 @@ test("test_known_record_types_match_s1_vocabulary", () => {
     // KNOWN_RECORD_TYPES must contain exactly those, no more and no less.
     assert.deepEqual([...KNOWN_RECORD_TYPES].sort(), expected);
 });
+

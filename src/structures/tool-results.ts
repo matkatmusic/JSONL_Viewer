@@ -183,3 +183,4 @@ export function getToolResultForUserRecord(
     }
     return resolveToolResult(toolName, raw);
 }
+

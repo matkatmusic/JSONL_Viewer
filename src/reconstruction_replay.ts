@@ -202,3 +202,4 @@ export function replayEvents(events: FileEvent[]): FileRevision[] {
     }
     return revisions;
 }
+

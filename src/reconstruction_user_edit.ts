@@ -83,3 +83,4 @@ function parseNumberedSnippet(snippet: string): BeaconSnippet {
     }
     return { lines, hasEllipsis };
 }
+

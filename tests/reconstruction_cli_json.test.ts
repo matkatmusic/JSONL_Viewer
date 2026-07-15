@@ -3,7 +3,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runCli, parseArgs } from "../src/reconstruction_cli.ts";
+import { runCli } from "../src/reconstruction_cli.ts";
+import { parseArgs } from "../src/reconstruction_cli_args.ts";
 import { loadRecords } from "./utilities.ts";
 import { S19_JSONL } from "./fixtures.ts";
 
@@ -113,3 +114,4 @@ test("test_parseArgs_file_is_alias_for_target", () => {
     // Verify.
     assert.equal(viaFile?.toString(), viaTarget?.toString());
 });
+

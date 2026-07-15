@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { loadTranscript } from "../src/parse/loadTranscript.ts";
 import { selectBranchRecords, selectLiveBranch } from "../src/reconstruction_branch.ts";
 import { reconstructAll } from "../src/reconstruction_engine.ts";
-import { executeRunOnce } from "../src/reconstruction_script_stage.ts";
+import { executeRunOnce } from "../src/reconstruction_script_runs.ts";
 import { findScriptExecutionRuns } from "../src/reconstruction_script_execution.ts";
 import type { BackupReader } from "../src/reconstruction_sidecar.ts";
 import { BlockType, RecordType, ToolName } from "../src/structures/vocabulary.ts";
@@ -169,3 +169,4 @@ test("test_derived_caches_are_invalidated_when_the_reader_identity_changes", () 
     assert.ok(withReaderA.length > 0);
     assert.notEqual(withReaderB[0]!.revisions, withReaderA[0]!.revisions);
 });
+

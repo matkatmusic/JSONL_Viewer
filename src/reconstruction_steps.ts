@@ -11,8 +11,8 @@ import type { Path, Uuid } from "./structures/domain.ts";
 import {
     lastRevisionAtOrBefore,
     linesTextOf,
-    reconstructFilesOver,
-} from "./reconstruction_branches.ts";
+} from "./reconstruction_revisions.ts";
+import { reconstructFilesOver } from "./reconstruction_renderable.ts";
 import type { FileHistory, FileRevision, RenameInfo } from "./reconstruction_engine.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
 import { reportReconstructionProgress } from "./reconstruction_progress.ts";
@@ -197,3 +197,4 @@ export function renderRepoSnapshot(snapshot: RepoSnapshot): string {
     const paths = [...snapshot.keys()].sort((a, b) => a.toString().localeCompare(b.toString()));
     return paths.map((path) => `### ${path}\n${snapshot.get(path)}`).join("\n\n");
 }
+
