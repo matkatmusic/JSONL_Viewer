@@ -9,9 +9,9 @@ Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-
 ### Design decisions
 
 - Candidate rows are `kind === AGENT_TURN_NODE_KIND && fileChanges.length > 0` — file chips only render inside agent-turn bubbles (timeline.ts renderer), so any other row could never "show the File chips" after expansion.
-- Jump uses the existing `jumpToTimelineRow` (scroll + flash), not `selectTimelineRow`: the task asks to navigate and expand, not to change the selection or re-render the details pane. Sidebar session clicks already use the same primitive.
+- Jump uses `selectTimelineRow` (select + render details + center) — user-decided 2026-07-15, replacing the initial `jumpToTimelineRow` scroll+flash. The row is expanded BEFORE selecting so the post-render centering (item 50) measures the layout with the bubble open.
 - "Click the expansion triangle" is implemented as `row.classList.add("expanded")` + `updateToggleLabel()` — byte-for-byte what the triangle's own click handler does, minus the toggle (re-visiting an already-expanded row must not collapse it).
-- The navigation reference index follows the last manually selected row (`selectTimelineRow` updates it), so Prev/Next continue from wherever the user last clicked, not from the last button jump only.
+- The navigation reference index follows the last selected row (`selectTimelineRow` updates it, and button jumps now go through selection), so Prev/Next continue from wherever the user last clicked.
 - Buttons are unclassed so they inherit the shared header-button chrome (styles.css:86); no CSS change.
 - New pure helper `findAdjacentFileTouchedIndex(nodes, fromIndex, direction)` is exported from the view-model half and unit-tested in tests/timeline-viewmodels.test.ts (4 tests, hand-built minimal wire-shape nodes).
 
@@ -21,9 +21,9 @@ Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-
 
 ### Tradeoffs
 
-- No disabled/hidden state on the buttons when no candidate exists in a direction — the click is a silent no-op (`findAdjacentFileTouchedIndex` returns undefined). ponytail: add disabled styling only if wanted.
+- Disabled-button state (user-requested 2026-07-15): `refreshFileNavButtons` disables Prev/Next when `findAdjacentFileTouchedIndex` finds no candidate in that direction; it runs on render, after every jump, and on every manual row selection. Styling reuses the existing `.toolbar-btn:disabled` rule, extended to plain `button:disabled` (styles.css:126).
 - One direction-parameterized helper instead of separate findNext/findPrev functions — half the code, same tests.
 
 ### Open questions
 
-- Should Prev/Next also select the row (rendering its details pane) rather than just scroll+flash+expand? Current behavior matches the task text; selecting is a one-line swap to `void selectTimelineRow(target)` if preferred.
+- ~~Should Prev/Next also select the row?~~ RESOLVED 2026-07-15: user chose "select the row" — jumps now run `void selectTimelineRow(target)`.

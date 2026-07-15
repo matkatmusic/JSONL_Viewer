@@ -123,7 +123,7 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
     font-size: 12px; cursor: pointer;
 }
 .toolbar-btn:hover:not(:disabled), .row-btn:hover:not(:disabled) { background: var(--control-hover); border-color: var(--accent); }
-.toolbar-btn:disabled, .row-btn:disabled { opacity: 0.5; cursor: default; }
+.toolbar-btn:disabled, .row-btn:disabled, button:disabled { opacity: 0.5; cursor: default; }
 .row-btn { font-size: 11px; padding: 1px 7px; }
 .popover {
     position: absolute;

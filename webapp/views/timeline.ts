@@ -1341,6 +1341,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
     const expandableRows: HTMLElement[] = [];              // rows #toggle-all expands/collapses
     let selectedRow: HTMLElement | null = null;
     let fileNavReferenceIndex = -1;                        // last selected/jumped row (task 85 Prev/Next)
+    let refreshFileNavButtons = (): void => {};            // no-op until the header buttons are wired below
     let pickedIndexes: number[] = [];
     let activeChip: HTMLElement | null = null;            // the chip whose file the preview drawer is showing
     const clearActiveChip = () => {
@@ -1855,6 +1856,7 @@ export async function renderTimelineView(container: HTMLElement, project: string
         }
         selectedRow = row;
         fileNavReferenceIndex = nodeIndex;                 // Prev/Next walk from the manual selection
+        refreshFileNavButtons();
         row.classList.add("selected");
         for (const other of nodeRows.values()) {
             other.classList.remove("contrib");
@@ -2061,19 +2063,26 @@ export async function renderTimelineView(container: HTMLElement, project: string
 
     // ── header Prev/Next over file-touching agent turns (task 85). Expanding IS the task's
     // "click the triangle": the chips live in the bubble. onclick assignment, like #toggle-all,
-    // so re-renders never stack handlers. Off either end the click is a silent no-op. ──
+    // so re-renders never stack handlers. A button disables when no candidate row exists in
+    // its direction; selectTimelineRow re-enables/disables both on every selection. ──
+    const filesPrevButton = document.getElementById("files-prev") as HTMLButtonElement;
+    const filesNextButton = document.getElementById("files-next") as HTMLButtonElement;
+    refreshFileNavButtons = () => {
+        filesPrevButton.disabled = findAdjacentFileTouchedIndex(nodes, fileNavReferenceIndex, -1) === undefined;
+        filesNextButton.disabled = findAdjacentFileTouchedIndex(nodes, fileNavReferenceIndex, 1) === undefined;
+    };
     const jumpToAdjacentFileTouchedRow = (direction: 1 | -1): void => {
         const target = findAdjacentFileTouchedIndex(nodes, fileNavReferenceIndex, direction);
         if (target === undefined) {
             return;
         }
-        fileNavReferenceIndex = target;
-        nodeRows.get(target)!.classList.add("expanded");
+        nodeRows.get(target)!.classList.add("expanded");   // expand BEFORE selecting so centering sees the bubble
         updateToggleLabel();
-        jumpToTimelineRow(target);
+        void selectTimelineRow(target);                    // selects + renders details + centers; also updates fileNavReferenceIndex + button states
     };
-    (document.getElementById("files-prev") as HTMLButtonElement).onclick = () => jumpToAdjacentFileTouchedRow(-1);
-    (document.getElementById("files-next") as HTMLButtonElement).onclick = () => jumpToAdjacentFileTouchedRow(1);
+    filesPrevButton.onclick = () => jumpToAdjacentFileTouchedRow(-1);
+    filesNextButton.onclick = () => jumpToAdjacentFileTouchedRow(1);
+    refreshFileNavButtons();
 
     // ── fork sidebar (phase 6): the Sessions + Files panes in the static #drawer ──
     renderForkSidebar(
