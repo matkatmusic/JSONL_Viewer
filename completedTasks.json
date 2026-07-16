@@ -967,7 +967,7 @@
   {
     "taskNumber": 67,
     "title": "Script-run details: script + before/after diff panels",
-    "description": "67. Script-run details: script + before/after diff panels — PROBLEM: when a script-run row that modified files is selected in the timeline, the Details pane gives no way to see what the script actually did to those files; the script source and the resulting file changes can only be correlated by manually cross-referencing rev cards. NEEDED: for script runs that modify files, the Details pane shows two panels — left: the script itself; right: a side-by-side diff of each affected file before vs. after the run. BLOCKED on a prerequisite that doesn't exist yet: the engine has script-run rows but no \"this run changed files X, Y\" linkage to drive the diff panel. Logged 2026-07-11; do not build until that detection piece is designed.",
+    "description": "67. Script-run details: script + before/after diff panels \u2014 PROBLEM: when a script-run row that modified files is selected in the timeline, the Details pane gives no way to see what the script actually did to those files; the script source and the resulting file changes can only be correlated by manually cross-referencing rev cards. NEEDED: for script runs that modify files, the Details pane shows two panels \u2014 left: the script itself; right: a side-by-side diff of each affected file before vs. after the run. BLOCKED on a prerequisite that doesn't exist yet: the engine has script-run rows but no \"this run changed files X, Y\" linkage to drive the diff panel. Logged 2026-07-11; do not build until that detection piece is designed.",
     "handoffFilePaths": [
       "plans/task67-script-run-details.md",
       "plans/implementation-notes-task67-script-run-details.md"
@@ -975,5 +975,15 @@
     "completionDate": "2026-07-15",
     "commitHashes": [],
     "closureNote": "Prerequisite resolved per user direction: the sandbox replay already knows each run's pre/post states, so summarizeScriptRunFileChanges diffs them onto a new wire scriptRuns field; tool-call rows badge 'modified N file(s)' and a new Details script-run mode shows the script beside stacked side-by-side before/after diffs. Tests authored (6) and passing via the post-edit hook; suites not run manually per instruction. Work staged, not yet committed (add the commit hash when committing)."
+  },
+  {
+    "taskNumber": 110,
+    "title": "Copy RevEng's scenarios/executed/ into JFRED so check_scenario_coverage + scenario tests pass locally",
+    "description": "Decided 2026-07-16: move/copy the executed-scenarios data from RevEng to JFRED so check_scenario_coverage.ts and the scenario-dependent tests work there. VERIFIED destination: tests/check_scenario_coverage.test.ts:22 derives EXECUTED_ROOT = <repo>/scenarios/executed/ relative to the test file, so the data belongs at JFRED/scenarios/executed/ (inside the scenarios submodule checkout, same as RevEng). VERIFIED gitignore: the scenarios repo's .gitignore already ignores executed/ (and .plate/), so the copy stays untracked \u2014 nothing to add. Copy RevEng scenarios/executed/* (197 entries; skip .plate/) after JFRED's scenarios submodule exists (task 58 STEP 2). Cloners without this machine regenerate executed/ via run-all-scenarios.py; this copy is what makes npm test pass on THIS machine without a full ~86-scenario regeneration run.",
+    "completionDate": "2026-07-16",
+    "commitHashes": [
+      "082468f (jfred repo)"
+    ],
+    "closureNote": "Done as part of task 58 STEP 2: rsynced RevEng scenarios/executed/ (195 dirs, .plate excluded) into JFRED/scenarios/executed/ \u2014 the location check_scenario_coverage.test.ts:22 derives (EXECUTED_ROOT = <repo>/scenarios/executed/). The scenarios repo's own .gitignore already covered executed/, so the copy stays untracked (0 untracked entries in the submodule). User confirmed the full JFRED npm test suite passes, incl. check_scenario_coverage."
   }
 ]

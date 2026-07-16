@@ -115,10 +115,5 @@
     "taskNumber": 109,
     "title": "Remove run-scenario and sync-jsonl-projects from the jot plugin once jfredToolsPlugin is live",
     "description": "Decided 2026-07-16: jot eventually LOSES /run-scenario and /sync-jsonl-projects \u2014 they become JFRED/jfredToolsPlugin property (tasks 58/107/108). DEFERRED until jfredToolsPlugin (task 108) is installed and proven as the daily driver, because jot is in active daily use and removing skills from it while JFRED is unproven is risky. Scope in ~/Programming/jot: delete skills/run-scenario/ + skills/sync-jsonl-projects/, remove their routing entries from scripts/jot_plugin_orchestrator.py (the run-scenario-* subcommand table at lines ~88-106 and the /run-scenario prompt match), and remove run_scenario_lib.py (or shim it to the new canonical home if one exists by then). Follow jot's archive-don't-delete convention where applicable."
-  },
-  {
-    "taskNumber": 110,
-    "title": "Copy RevEng's scenarios/executed/ into JFRED so check_scenario_coverage + scenario tests pass locally",
-    "description": "Decided 2026-07-16: move/copy the executed-scenarios data from RevEng to JFRED so check_scenario_coverage.ts and the scenario-dependent tests work there. VERIFIED destination: tests/check_scenario_coverage.test.ts:22 derives EXECUTED_ROOT = <repo>/scenarios/executed/ relative to the test file, so the data belongs at JFRED/scenarios/executed/ (inside the scenarios submodule checkout, same as RevEng). VERIFIED gitignore: the scenarios repo's .gitignore already ignores executed/ (and .plate/), so the copy stays untracked \u2014 nothing to add. Copy RevEng scenarios/executed/* (197 entries; skip .plate/) after JFRED's scenarios submodule exists (task 58 STEP 2). Cloners without this machine regenerate executed/ via run-all-scenarios.py; this copy is what makes npm test pass on THIS machine without a full ~86-scenario regeneration run."
   }
 ]
