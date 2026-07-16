@@ -32,13 +32,20 @@ function buildConsentedS25Document(): ReconstructionDocument {
 }
 
 test("test_declined_build_lists_script_runs_with_empty_changed_paths", () => {
-    // Scenario: a declined build (exec gate off, the default) still lists every recorded run —
-    // the consent dialog needs the code — but reports nothing changed, because nothing may execute.
+    // Scenario: a declined build (exec gate explicitly off — the gate DEFAULTS ON for CLI/tests,
+    // only the viewer server boots it off) still lists every recorded run — the consent dialog
+    // needs the code — but reports nothing changed, because nothing may execute.
     // Steps:
-    // build the s25 document with the gate at its resting (off) state.
+    // build the s25 document with the gate forced off, restoring the test-process default after.
     // assert the runs are listed, each with code and a Date timestamp.
     // assert every run's changedPaths is exactly [].
-    const document = buildProjectDocument([new Path(S25_JSONL)], undefined);
+    setImpureExecutionAllowed(false);
+    let document: ReconstructionDocument;
+    try {
+        document = buildProjectDocument([new Path(S25_JSONL)], undefined);
+    } finally {
+        setImpureExecutionAllowed(true);
+    }
     assert.ok(document.scriptRuns.length > 0);
     for (const run of document.scriptRuns) {
         assert.ok(run.code.length > 0);
