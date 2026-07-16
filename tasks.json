@@ -51,11 +51,6 @@
     "description": "64. Public-repo CI workflow** \u2014 no `.github/` exists anywhere today. One workflow in\n  the public repo: `npm ci`, `tsc --noEmit` (`npm run typecheck`), `npm test` \u2014 viable on a\n  bare clone only after item 59 makes the suite scenario-submodule-optional. Add\n  `npm run build:webapp` to catch webapp tsconfig breakage. Nothing else (no matrix, no\n  release automation) until the repo has users."
   },
   {
-    "taskNumber": 67,
-    "title": "Script-run details: script + before/after diff panels",
-    "description": "67. Script-run details: script + before/after diff panels \u2014 PROBLEM: when a script-run row that modified files is selected in the timeline, the Details pane gives no way to see what the script actually did to those files; the script source and the resulting file changes can only be correlated by manually cross-referencing rev cards. NEEDED: for script runs that modify files, the Details pane shows two panels \u2014 left: the script itself; right: a side-by-side diff of each affected file before vs. after the run. BLOCKED on a prerequisite that doesn't exist yet: the engine has script-run rows but no \"this run changed files X, Y\" linkage to drive the diff panel. Logged 2026-07-11; do not build until that detection piece is designed."
-  },
-  {
     "taskNumber": 83,
     "title": "See if actual /jot folder can be reconstructed",
     "description": "83. See if actual /jot folder can be reconstructed."

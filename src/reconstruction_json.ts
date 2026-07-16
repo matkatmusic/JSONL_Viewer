@@ -13,6 +13,7 @@ import { collectOrphanedUuids } from "./reconstruction_orphans.ts";
 import { findGitCommitEvents } from "./reconstruction_git_commit_events.ts";
 import { findGitOperations, type GitOperation } from "./reconstruction_git_operations.ts";
 import { findToolCalls, type ToolCall } from "./reconstruction_tool_calls.ts";
+import { summarizeScriptRunFileChanges, type ScriptRunFileChanges } from "./reconstruction_script_runs.ts";
 import type { FileHistory, BranchedReconstruction } from "./reconstruction_engine.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
 import { buildStepSnapshots, type StepSnapshot } from "./reconstruction_json_steps.ts";
@@ -149,6 +150,7 @@ export type ReconstructionDocument = {
     commitMarkers: CommitMarker[];
     gitOperations: GitOperation[];
     toolCalls: ToolCall[];
+    scriptRuns: ScriptRunFileChanges[];
 };
 
 // The wire document AND the compact step-file histories, returned as SEPARATE values: the histories are
@@ -189,6 +191,8 @@ export function buildReconstructionDocument(
     }));
     const gitOperations = findGitOperations(records);
     const toolCalls = findToolCalls(records);
+    reportReconstructionProgress("summarizing script-run file changes");
+    const scriptRuns = summarizeScriptRunFileChanges(records, reader);
     const document: ReconstructionDocument = {
         sessionId: findSessionId(records),
         sessionTitles: findSessionTitles(records),
@@ -201,6 +205,7 @@ export function buildReconstructionDocument(
         commitMarkers,
         gitOperations,
         toolCalls,
+        scriptRuns,
     };
     return { document, stepFileHistories };
 }

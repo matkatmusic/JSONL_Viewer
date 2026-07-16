@@ -114,7 +114,8 @@ function mapSplitCellClass(lineClass: string): string {
 
 // The mockup's two-column diff grid, driven by diff-vs-base's computeSplitRows: full rows span
 // the grid as hunk headers; pair rows emit ln+body cells per side (empty cells keep alignment).
-function appendColumnsDiff(body: HTMLElement, diffText: string): void {
+// Exported for the script-run mode's stacked per-file diffs (task 67).
+export function appendColumnsDiff(body: HTMLElement, diffText: string): void {
     const grid = el("div", { class: "diff-cols" });
     for (const row of computeSplitRows(diffText)) {
         if (row.kind === SplitRowKind.full) {

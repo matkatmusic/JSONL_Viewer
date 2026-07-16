@@ -354,6 +354,28 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
     border-radius: 8px;
     padding: 0 6px;
 }
+/* task 67: the script-run Details mode's left panel — the run's own source, scrollable. */
+.script-source {
+    font-family: var(--mono);
+    font-size: 12px;
+    white-space: pre;
+    overflow: auto;
+    margin: 0;
+    padding: 8px;
+    min-height: 0;
+    flex: 1 1 auto;
+}
+/* task 67: informational twin of .failed-badge — a script run's sandbox-proven file count. */
+.script-files-badge {
+    flex: 0 0 auto;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 0 6px;
+}
 .tl-line {
     display: flex;
     align-items: center;

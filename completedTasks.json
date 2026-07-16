@@ -963,5 +963,17 @@
     "completionDate": "2026-07-15",
     "commitHashes": [],
     "closureNote": "Failed git commands (tool_result is_error) now stamp GitOperation.isError through the wire onto commit nodes and their Bash tool-call rows, rendered as a red FAILED badge; rows are badged, never suppressed. Suite green. Work staged, not yet committed (add the commit hash when committing)."
+  },
+  {
+    "taskNumber": 67,
+    "title": "Script-run details: script + before/after diff panels",
+    "description": "67. Script-run details: script + before/after diff panels — PROBLEM: when a script-run row that modified files is selected in the timeline, the Details pane gives no way to see what the script actually did to those files; the script source and the resulting file changes can only be correlated by manually cross-referencing rev cards. NEEDED: for script runs that modify files, the Details pane shows two panels — left: the script itself; right: a side-by-side diff of each affected file before vs. after the run. BLOCKED on a prerequisite that doesn't exist yet: the engine has script-run rows but no \"this run changed files X, Y\" linkage to drive the diff panel. Logged 2026-07-11; do not build until that detection piece is designed.",
+    "handoffFilePaths": [
+      "plans/task67-script-run-details.md",
+      "plans/implementation-notes-task67-script-run-details.md"
+    ],
+    "completionDate": "2026-07-15",
+    "commitHashes": [],
+    "closureNote": "Prerequisite resolved per user direction: the sandbox replay already knows each run's pre/post states, so summarizeScriptRunFileChanges diffs them onto a new wire scriptRuns field; tool-call rows badge 'modified N file(s)' and a new Details script-run mode shows the script beside stacked side-by-side before/after diffs. Tests authored (6) and passing via the post-edit hook; suites not run manually per instruction. Work staged, not yet committed (add the commit hash when committing)."
   }
 ]

@@ -67,6 +67,14 @@ export type WireToolCall = {
     // Engine-stamped branch membership (optional: older cached documents lack it).
     isOrphaned?: boolean;
 };
+// One script run and the files its consented sandbox execution changed (task 67); changedPaths
+// is [] on a declined build. toolUseId joins the run to its Bash/MCP tool-call row.
+export type WireScriptRun = {
+    toolUseId?: string;
+    timestamp: string;
+    code: string;
+    changedPaths: string[];
+};
 export type WireTimelineDocument = {
     filesTouched: WireFileHistory[];
     rewoundFilesTouched: WireFileHistory[];
@@ -76,6 +84,8 @@ export type WireTimelineDocument = {
     commitMarkers: WireCommitMarker[];
     // Optional: an older cached document lacks the field (same convention as gitOperations).
     toolCalls?: WireToolCall[];
+    // Optional (same convention): the script runs and their sandbox-proven file changes.
+    scriptRuns?: WireScriptRun[];
     // Optional (same convention): user-given session names from `custom-title` records.
     sessionTitles?: Record<string, string>;
 };
@@ -134,6 +144,7 @@ export type TurnNode = {
     summary?: undefined;
     toolName?: undefined;
     toolUseId?: undefined;
+    scriptRun?: undefined;
 };
 
 // One session-end terminator per session (appendSessionEndNodes).
@@ -156,6 +167,7 @@ export type SessionEndNode = {
     summary?: undefined;
     toolName?: undefined;
     toolUseId?: undefined;
+    scriptRun?: undefined;
 };
 
 // One git-commit hard stop (deriveCommitNodes); never numbered, never pickable.
@@ -180,6 +192,7 @@ export type CommitNode = {
     summary?: undefined;
     toolName?: undefined;
     toolUseId?: undefined;
+    scriptRun?: undefined;
 };
 
 // One un-bubbled tool-call row (item 55; deriveToolCallNodes): `* <summary> * [{ }] <TS> L:n`.
@@ -197,6 +210,10 @@ export type ToolCallNode = {
     // True when this row is a FAILED git command's Bash call (task 103): stamped by joining the
     // node's record uuid to the document's errored gitOperations — the row's FAILED badge.
     isError?: boolean;
+    // The script run this row executed, when its sandbox execution modified files (task 67):
+    // joined by toolUseId in deriveToolCallNodes — drives the row badge and the Details pane's
+    // script + before/after mode. Absent for read-only runs and non-script tool calls.
+    scriptRun?: WireScriptRun;
     isGitBaseline?: undefined;
     text?: undefined;
     isSystem?: undefined;

@@ -7,6 +7,7 @@ import {
     TOOL_CALL_NODE_KIND,
     type CommitNode,
     type ToolCallNode,
+    type WireScriptRun,
     type WireTimelineDocument,
 } from "./timeline-types.ts";
 
@@ -42,6 +43,13 @@ export function deriveToolCallNodes(document: WireTimelineDocument): ToolCallNod
             .filter((operation) => operation.isError === true)
             .map((operation) => operation.uuid),
     );
+    // task 67: only runs the sandbox proved modified files ride their rows — a read-only run
+    // (empty changedPaths) behaves like any other tool call.
+    const scriptRunsByToolUseId = new Map<string, WireScriptRun>(
+        (document.scriptRuns ?? [])
+            .filter((run) => run.toolUseId !== undefined && run.changedPaths.length > 0)
+            .map((run) => [run.toolUseId!, run]),
+    );
     return (document.toolCalls ?? []).map((call) => ({
         kind: TOOL_CALL_NODE_KIND,
         when: call.timestamp,
@@ -52,5 +60,6 @@ export function deriveToolCallNodes(document: WireTimelineDocument): ToolCallNod
         toolUseId: call.toolUseId,
         isOrphaned: call.isOrphaned === true,
         isError: failedGitCommandUuids.has(call.uuid) ? true : undefined,
+        scriptRun: scriptRunsByToolUseId.get(call.toolUseId),
     }));
 }

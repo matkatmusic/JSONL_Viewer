@@ -2,11 +2,12 @@
 // on a row, the Expand All toggle, and the Prev/Next file-touched walkers.
 
 import { renderDetailsCommitMode, renderDetailsMessageMode } from "./details.ts";
+import { renderDetailsScriptRunMode } from "./details-script-run.ts";
 import { clearFileSelectionIn } from "./sidebar.ts";
 import { findContributingNodeIndexes } from "./timeline-commit-files.ts";
 import type { TimelineRenderContext } from "./timeline-render-context.ts";
 import { findAdjacentFileTouchedIndex } from "./timeline-sessions.ts";
-import { COMMIT_NODE_KIND } from "./timeline-types.ts";
+import { COMMIT_NODE_KIND, TOOL_CALL_NODE_KIND } from "./timeline-types.ts";
 
 // Restart the row-flash animation (mockup jumpToTimelineRow's remove/reflow/add dance).
 export function flashRowElement(row: HTMLElement): void {
@@ -54,6 +55,10 @@ export async function selectTimelineRow(context: TimelineRenderContext, nodeInde
             context.nodeRows.get(contributingIndex)?.classList.add("contrib");
         }
         await renderDetailsCommitMode(node, nodeIndex, context.detailsContext);
+    } else if (node.kind === TOOL_CALL_NODE_KIND && node.scriptRun !== undefined) {
+        // task 67: a script run that modified files gets the script + before/after mode
+        // (scriptRun is only stamped when its changedPaths is non-empty — deriveToolCallNodes).
+        await renderDetailsScriptRunMode(node, nodeIndex, context.detailsContext);
     } else {
         await renderDetailsMessageMode(node, nodeIndex, context.detailsContext);
     }

@@ -164,6 +164,10 @@ export async function buildTimelineRows(context: TimelineRenderContext, containe
         if (node.isError === true) {
             line.append(el("span", { class: "failed-badge", text: "FAILED" }));
         }
+        // task 67: a script run the sandbox proved modified files carries its count on the row.
+        if (node.scriptRun !== undefined) {
+            line.append(el("span", { class: "script-files-badge", text: `modified ${node.scriptRun.changedPaths.length} file(s)` }));
+        }
         line.append(el("span", { class: "tl-ts", text: new Date(node.when).toLocaleString() }));
         line.append(el("span", { class: "tl-pos", text: context.lineLabels.get(index) ?? "" }));
         line.append(el("span", { class: "tl-uuid", text: node.sessionId === undefined ? "" : computeSessionShortLabel(node.sessionId) }));

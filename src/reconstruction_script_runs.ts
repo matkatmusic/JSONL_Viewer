@@ -4,7 +4,7 @@
 
 import { isImpureExecutionAllowed } from "./reconstruction_exec_gate.ts";
 import { getDerivedCaches } from "./reconstruction_corpus.ts";
-import { Path } from "./structures/domain.ts";
+import { Path, type Uuid } from "./structures/domain.ts";
 import { resolveAgainstCwd } from "./structures/path-resolve.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { reportReconstructionProgress } from "./reconstruction_progress.ts";
@@ -180,4 +180,48 @@ export function discoverScriptCreatedPaths(
         }
     }
     return [...created.values()];
+}
+
+// One recorded script run and the files its sandbox execution changed, created, or deleted —
+// captured at reconstruction time (task 67; executeRunOnce is memoized, so a consented build
+// pays nothing extra) and carried onto the wire document for the timeline's script-run rows.
+export type ScriptRunFileChanges = {
+    toolUseId: Uuid | undefined;
+    timestamp: Date;
+    code: string;
+    changedPaths: Path[];
+};
+
+export function summarizeScriptRunFileChanges(
+    records: TranscriptRecord[],
+    reader: BackupReader | undefined,
+): ScriptRunFileChanges[] {
+    return findScriptExecutionRuns(records).map((run) => ({
+        toolUseId: run.toolUseId,
+        timestamp: run.timestamp,
+        code: run.code,
+        changedPaths: computeRunChangedPaths(run, records, reader),
+    }));
+}
+
+// The absolute paths executeRunOnce's pre/post diff shows changed, created, or deleted (the
+// union of both states' keys covers all three in one content comparison) — [] on a declined
+// build (nothing may execute) or when no sidecar reader exists. The gate check comes BEFORE
+// executeRunOnce so a declined build never runs a script.
+function computeRunChangedPaths(
+    run: ScriptRun,
+    records: TranscriptRecord[],
+    reader: BackupReader | undefined,
+): Path[] {
+    if (reader === undefined || !isImpureExecutionAllowed()) return [];
+    const execution = executeRunOnce(run, records, reader);
+    if (execution.post === undefined) return [];
+    const changed = new Map<string, Path>();
+    for (const key of new Set([...execution.pre.keys(), ...execution.post.keys()])) {
+        if (isJunkStateKey(key)) continue;
+        if (execution.pre.get(key) === execution.post.get(key)) continue;
+        const absolute = resolveAgainstCwd(run.cwd, new Path(key));
+        if (!changed.has(absolute)) changed.set(absolute, new Path(absolute));
+    }
+    return [...changed.values()];
 }

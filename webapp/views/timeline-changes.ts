@@ -20,6 +20,11 @@ import {
 // changeId with this prefix is a base-commit baseline beacon, evidenced by no session's record.
 export const GIT_BASE_CHANGE_ID_PREFIX = "gitBase:";
 
+// Wire-string mirror of SCRIPT_RUN_CHANGE_ID_PREFIX (src/reconstruction_script_execution.ts) —
+// a `scriptRun:<tool_use id>:<target>` changeId marks a synthetic script-execution revision
+// (task 67: the Details pane joins a run's changed files to these revisions).
+export const SCRIPT_RUN_CHANGE_ID_PREFIX = "scriptRun:";
+
 // True when every changeId on the step is a base-commit beacon (task 86): the step carries the
 // repo's pre-session state, evidenced by no session's record.
 export function checkSnapshotIsGitBaseline(snapshot: WireStepSnapshot): boolean {
