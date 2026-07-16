@@ -58,12 +58,14 @@
   {
     "taskNumber": 96,
     "title": "Deferred browser verifications: items 78, 80, 84 and the unified-reconstruction fix",
-    "description": "Browser checks deferred to the user's post-session pass, bundled: (a) item 78 \u2014 visual/headless verification of the timeline-build progress overlay against `#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline`; threshold 500 / batch 100 are first-cut constants, tunable if the overlay feels too eager or the bar too coarse. (b) item 80 \u2014 confirm at the repro that a long console line wraps, and re-wraps after dragging `#split-lr` to narrow the console; if long lines STILL overflow, the cause is elsewhere and the item reopens. (c) item 84 \u2014 the `\u2610`/`\u2611` range toggle is a `<button>` inside `.rev-head`, which otherwise holds `<span>`s; may need a CSS nudge \u2014 visual verify. (d) unified-juggling-conway \u2014 glance that the file-history revision-content pane still looks right (`computeContentAtTime` now renders from the revision's own `lines`); click a chip \u2192 drawer shows the fetched file, pick a range + chip \u2192 diff renders; measure the cold-load timing win on the real `jot-backup` project via the `--resetSandboxMemo` run.",
+    "description": "Browser checks deferred to the user's post-session pass, bundled: (a) item 78 \u2014 visual/headless verification of the timeline-build progress overlay against `#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline`; threshold 500 / batch 100 are first-cut constants, tunable if the overlay feels too eager or the bar too coarse. (b) item 80 \u2014 confirm at the repro that a long console line wraps, and re-wraps after dragging `#split-lr` to narrow the console; if long lines STILL overflow, the cause is elsewhere and the item reopens. (c) item 84 \u2014 the `\u2610`/`\u2611` range toggle is a `<button>` inside `.rev-head`, which otherwise holds `<span>`s; may need a CSS nudge \u2014 visual verify. (d) unified-juggling-conway \u2014 glance that the file-history revision-content pane still looks right (`computeContentAtTime` now renders from the revision's own `lines`); click a chip \u2192 drawer shows the fetched file, pick a range + chip \u2192 diff renders; measure the cold-load timing win on the real `jot-backup` project via the `--resetSandboxMemo` run. (e) task 93 — the bare `/file/<path>` route (no /rev anchor) now opens revision #1 in DIFF mode instead of the old collapsed all-revisions list; if the collapsed-list overview mattered, say so — the rev-card list on the left is the intended replacement. (f) task 103 — a failed compound git command still produces a (badged) commit node resolving to the same instant as the retry (badge-don't-suppress decision); flag if the duplicate marker ever shows up as a visible artifact in the viewer.",
     "handoffFilePaths": [
       "plans/archived/implementation-notes-item78-timeline-build-progress.md",
       "plans/archived/implementation-notes-item80-console-word-wrap.md",
       "plans/archived/implementation-notes-item84-unify-bottom-pane.md",
-      "plans/archived/implementation-notes-unified-juggling-conway.md"
+      "plans/archived/implementation-notes-unified-juggling-conway.md",
+      "plans/archived/implementation-notes-task93-retire-file-history-view.md",
+      "plans/archived/implementation-notes-tasks-103-91-94.md"
     ]
   },
   {
@@ -72,6 +74,31 @@
     "description": "Port the suite into the jot plugin (`~/Programming/jot`) \u2014 the user's stated intent (\"I'm going to add these skills to jot\"). Add `viewTask_main()` in `common/scripts/view_task_lib.py` (translate `.claude/hooks/viewTaskHook.ts` 1:1; mirror `todo_listMain` in `common/scripts/todo_lib_scan.py`: stdin JSON \u2192 strict `/view-task` prefix match \u2192 `hookjson_emitBlock`), register `(\"/view-task\", lambda: viewTask_main())` in `_PROMPT_DISPATCH` in `scripts/jot_plugin_orchestrator.py`, add a do-nothing `skills/view-task/SKILL.md` (copy `skills/todo-list/SKILL.md`'s body), and pytest `tests/test_view_task_lib.py` (jot's PostToolBatch hook demands it). Then decide whether update-tasks/create-task/pick-a-task also move (they are plain SKILL.md + node scripts; jot skills so far are Python-backed).",
     "handoffFilePaths": [
       "plans/archived/handoff-develop-20260714-1530.md"
+    ]
+  },
+  {
+    "taskNumber": 104,
+    "title": "Disable context-mode subagent-routing hook for this project?",
+    "description": "The permission classifier denied ~40% of subagent spawns until you confirmed the context-mode injected block was benign (mid-session). Consider disabling the context-mode plugin's subagent-routing hook for this project to avoid the same friction next session. (From implementation notes for task 92.)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-task-92.md"
+    ]
+  },
+  {
+    "taskNumber": 105,
+    "title": "Restructure deep-nesting-flagged timeline/details modules",
+    "description": "The post-edit hook's deep-nesting flags on `timeline-render-rows.ts` (121-198), `timeline-changes.ts` (53-62, 156, 179), and `details-diff.ts` (128-137) are pre-existing structure left untouched by design during tasks 92 and 67 to keep those diffs reviewable. Worth a dedicated restructuring pass if the per-edit hook noise on those files becomes annoying.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-task-92.md",
+      "plans/archived/implementation-notes-task67-script-run-details.md"
+    ]
+  },
+  {
+    "taskNumber": 106,
+    "title": "Decide: script runs without toolUseId surface only via revision machinery",
+    "description": "Runs with no `toolUseId` (synthetic, none observed in real transcripts) can never join a tool-call row, so their file changes surface only through the existing revision machinery — acceptable? Decide and either close as accepted or add a fallback surfacing for such runs. (From implementation notes for task 67.)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-task67-script-run-details.md"
     ]
   }
 ]

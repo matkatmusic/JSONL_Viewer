@@ -7,9 +7,11 @@ First, invoke `/ponytail:ponytail ultra`.
 
 Then:
 
-1. Files to process: !`ls plans/implementation-notes-*.md plans/handoff-*.md 2>/dev/null`
+1. Files to process: !`node .claude/skills/scripts/extractOpenSections.ts --list`
 
-2. Extracted open-work sections (every `### Open questions` section from implementation notes, the `## What Remains` section from handoffs; each under a `=== <file> ===` banner): !`node .claude/skills/scripts/extractOpenSections.ts`
+2. Extracted open-work sections (every `### Open questions` section from implementation notes, the `## What Remains` section from handoffs; each under a `=== <file> ===` banner): 
+!`node .claude/skills/scripts/extractOpenSections.ts`
+
 
    Apply judgment to the extracted text above: skip items the section itself marks as resolved (e.g. "None blocking"), and skip empty sections.
 

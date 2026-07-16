@@ -28,6 +28,10 @@ function printOpenSections(file: string): void {
   }
 }
 
-const files = process.argv.length > 2 ? process.argv.slice(2) : listDefaultNoteFiles();
-for (const file of files) printOpenSections(file);
+if (process.argv[2] === "--list") {
+  for (const file of listDefaultNoteFiles()) console.log(file);
+} else {
+  const files = process.argv.length > 2 ? process.argv.slice(2) : listDefaultNoteFiles();
+  for (const file of files) printOpenSections(file);
+}
 
