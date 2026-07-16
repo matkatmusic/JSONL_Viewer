@@ -7,8 +7,8 @@
     "scripts": {
         "test": "node --import tsx --test tests/*.test.ts",
         "typecheck": "tsc --noEmit",
-        "build:webapp": "tsc -p tsconfig.webapp.json",
-        "app": "npm run build:webapp && tsx src/viewer_server.ts"
+        "build:webapp": "tsc -p jfred/tsconfig.webapp.json",
+        "app": "npm run build:webapp && tsx jfred/src/viewer_server.ts --projects-dir scenarios/executed"
     },
     "devDependencies": {
         "@types/node": "^22.20.0",

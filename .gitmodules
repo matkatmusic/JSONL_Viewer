@@ -6,3 +6,7 @@
 	path = scenarios
 	url = https://github.com/matkatmusic/jfred-claude-scenarios.git
 	branch = develop
+[submodule "jfred"]
+	path = jfred
+	url = https://github.com/matkatmusic/jfred.git
+	branch = develop

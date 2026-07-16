@@ -4,6 +4,6 @@ description: Plan an engine handler for a numbered scenario from the Plan_templa
 argument-hint: <N>
 ---
 
-Read src/Plan_template.md
+Read plans/templates/Plan_template.md
 
 Your X is $ARGUMENTS

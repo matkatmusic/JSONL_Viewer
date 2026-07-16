@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Revision Timeline — mockup</title>
+<style>
+  /* ponytail: mockup — all data hardcoded; only rail drawing, inspector tabs,
+     file-row preview swap, and pick-contiguity are live JS */
+  :root {
+    --page:        #0d0d0d;
+    --surface:     #1a1a19;
+    --surface-2:   #222221;
+    --ink:         #ffffff;
+    --ink-2:       #c3c2b7;
+    --ink-muted:   #898781;
+    --hairline:    rgba(255,255,255,0.10);
+    --grid:        #2c2c2a;
+
+    --sess-a:      #3987e5;   /* session lane colors: categorical slots */
+    --sess-b:      #199e70;
+    --sess-c:      #c98500;
+    --lane-orphan: #6b6a64;
+
+    --op-add:      #0ca30c;
+    --op-mod:      #3987e5;
+    --op-move:     #9085e9;
+    --op-del:      #e66767;
+    --op-ink:      #0d0d0d;
+
+    --shadow:      rgba(0,0,0,0.45);
+    --syn-k:       #6da7ec;
+    --syn-s:       #4db894;
+    --syn-n:       #c98500;
+    --diff-add:    #9fd89f;
+    --diff-add-bg: rgba(12,163,12,0.13);
+    --diff-del:    #e6a3a3;
+    --diff-del-bg: rgba(230,103,103,0.12);
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --page:        #f9f9f7;
+      --surface:     #fcfcfb;
+      --surface-2:   #f0efec;
+      --ink:         #0b0b0b;
+      --ink-2:       #52514e;
+      --ink-muted:   #898781;
+      --hairline:    rgba(11,11,11,0.10);
+      --grid:        #e1e0d9;
+
+      --sess-a:      #2a78d6;
+      --sess-b:      #1baf7a;
+      --sess-c:      #eda100;
+      --lane-orphan: #9b9a92;
+
+      --op-add:      #0ca30c;
+      --op-mod:      #2a78d6;
+      --op-move:     #4a3aa7;
+      --op-del:      #d03b3b;
+      --op-ink:      #ffffff;
+
+      --shadow:      rgba(11,11,11,0.15);
+      --syn-k:       #1c5cab;
+      --syn-s:       #0f7a52;
+      --syn-n:       #9a6a00;
+      --diff-add:    #0a6b0a;
+      --diff-add-bg: rgba(12,163,12,0.10);
+      --diff-del:    #a02020;
+      --diff-del-bg: rgba(208,59,59,0.10);
+      color-scheme: light;
+    }
+  }
+  * { margin: 0; box-sizing: border-box; }
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 24px;
+  }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+
+  /* ---------- header ---------- */
+  header { max-width: 1240px; margin: 0 auto 16px; }
+  h1 { font-size: 18px; font-weight: 650; }
+  .sub { color: var(--ink-muted); font-size: 12.5px; margin-top: 2px; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 999px; padding: 4px 12px;
+    color: var(--ink-2); font-size: 12.5px; cursor: default;
+  }
+  .chip.on { border-color: var(--sess-a); color: var(--ink); }
+  .toolbar .spacer { flex: 1; }
+  .legend { display: inline-flex; gap: 14px; color: var(--ink-muted); font-size: 12px; }
+
+  /* ---------- layout ---------- */
+  .wrap { max-width: 1240px; margin: 0 auto; display: flex; gap: 16px; align-items: flex-start; }
+  .timeline {
+    flex: 1; position: relative;
+    background: var(--surface); border: 1px solid var(--hairline); border-radius: 10px;
+    padding: 6px 12px 12px 0; overflow: hidden;
+  }
+  .rail { position: absolute; top: 0; left: 0; pointer-events: none; }
+
+  /* ---------- session headers ---------- */
+  .session {
+    height: 46px; padding-left: 100px; display: flex; align-items: center; gap: 10px;
+    font-size: 12.5px; color: var(--ink-2);
+  }
+  .session .swatch { width: 10px; height: 10px; border-radius: 3px; }
+  .session .caret { color: var(--ink-muted); font-size: 11px; width: 12px; }
+  .session .id { color: var(--ink); font-weight: 600; }
+  .session .meta { color: var(--ink-muted); }
+  .session .line { flex: 1; border-top: 1px solid var(--grid); }
+  .session.collapsed { opacity: 0.75; }
+
+  /* ---------- rows ---------- */
+  .row {
+    height: 76px; padding: 10px 12px 10px 100px;
+    display: flex; flex-direction: column; justify-content: center; gap: 5px;
+    border-radius: 8px; position: relative;
+  }
+  .pick {
+    position: absolute; left: 24px; top: 7px;
+    width: 15px; height: 15px; accent-color: var(--sess-a); cursor: pointer;
+  }
+  .pick:disabled { opacity: 0.3; cursor: not-allowed; }
+  .row.picked { background: rgba(57,135,229,0.08); }
+  .row.picked:hover { background: rgba(57,135,229,0.13); }
+  .row:hover { background: var(--surface-2); }
+  .row.selected { background: var(--surface-2); box-shadow: inset 0 0 0 1.5px var(--sess-a); }
+  .row-top { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .step { font-weight: 650; font-size: 13px; white-space: nowrap; }
+  .prompt {
+    color: var(--ink-2); font-size: 13px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+  }
+  .time { color: var(--ink-muted); font-size: 11.5px; white-space: nowrap; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .fchip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--page); border: 1px solid var(--hairline);
+    border-radius: 5px; padding: 2px 8px 2px 3px;
+  }
+  .fchip.plain { padding: 2px 8px; }
+  .op {
+    width: 16px; height: 16px; border-radius: 3px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font: 700 10.5px/1 ui-monospace, monospace; color: var(--op-ink);
+  }
+  .op.A { background: var(--op-add); }
+  .op.M { background: var(--op-mod); }
+  .op.R { background: var(--op-move); }
+  .op.D { background: var(--op-del); }
+  .more { color: var(--ink-muted); font-size: 12px; align-self: center; }
+
+  .row.orphan { opacity: 0.55; }
+  .row.orphan .fchip { border-style: dashed; }
+  .tag {
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em;
+    color: var(--ink-muted); border: 1px dashed var(--ink-muted);
+    border-radius: 4px; padding: 1px 6px; text-transform: uppercase;
+  }
+  .tag.commit { color: var(--sess-a); border: 1px solid var(--sess-a); }
+  .session-b .tag.commit { color: var(--sess-b); border-color: var(--sess-b); }
+
+  .divider {
+    height: 44px; display: flex; align-items: center; gap: 10px;
+    padding-left: 100px; color: var(--ink-muted); font-size: 12px;
+  }
+  .divider .line { flex: 1; border-top: 1px dashed var(--grid); }
+
+  /* ---------- selection / export bar ---------- */
+  .selectbar {
+    position: sticky; bottom: 0; margin: 8px 12px 0 12px;
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface-2); border: 1px solid var(--sess-a);
+    border-radius: 8px; padding: 10px 14px;
+    box-shadow: 0 -8px 24px var(--shadow);
+    font-size: 13px; color: var(--ink-2);
+  }
+  .selectbar b { color: var(--ink); }
+  .selectbar .spacer { flex: 1; }
+  .selectbar .rule {
+    color: var(--op-del); font-size: 12px; opacity: 0; transition: opacity 0.25s;
+  }
+  .selectbar .rule.show { opacity: 1; }
+  .btn {
+    font: 600 12.5px/1 system-ui, sans-serif; cursor: default;
+    background: var(--page); color: var(--ink-2);
+    border: 1px solid var(--hairline); border-radius: 6px; padding: 8px 14px;
+  }
+  .btn.primary { background: var(--sess-a); border-color: var(--sess-a); color: #fff; }
+  .btn.small { padding: 4px 9px; font-size: 11px; }
+
+  /* ---------- inspector ---------- */
+  aside {
+    width: 360px; flex-shrink: 0; position: sticky; top: 24px;
+    background: var(--surface); border: 1px solid var(--hairline); border-radius: 10px;
+    padding: 16px;
+  }
+  aside h2 { font-size: 14px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+  aside h2 .swatch { width: 9px; height: 9px; border-radius: 3px; background: var(--sess-a); }
+  aside .meta { color: var(--ink-muted); font-size: 12px; margin-top: 2px; }
+  aside .quote {
+    margin: 12px 0; padding: 10px 12px; border-left: 2px solid var(--grid);
+    color: var(--ink-2); font-size: 13px; background: var(--page); border-radius: 0 6px 6px 0;
+  }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--grid); margin-bottom: 10px; }
+  .tab {
+    font-size: 12.5px; font-weight: 600; color: var(--ink-muted);
+    padding: 7px 12px; cursor: pointer; border-bottom: 2px solid transparent;
+  }
+  .tab.active { color: var(--ink); border-bottom-color: var(--sess-a); }
+  .pane { display: none; }
+  .pane.active { display: block; }
+
+  .file {
+    display: grid; grid-template-columns: 16px 1fr auto; gap: 8px; align-items: center;
+    padding: 8px 6px; border-radius: 6px; cursor: pointer;
+  }
+  .file:hover { background: var(--surface-2); }
+  .file.active { background: var(--surface-2); box-shadow: inset 2px 0 0 var(--sess-a); }
+  .file .path { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stat { display: flex; align-items: center; gap: 6px; font-size: 11.5px; }
+  .stat .plus { color: var(--op-add); } .stat .minus { color: var(--op-del); }
+  .bars { display: inline-flex; gap: 1px; }
+  .bars i { width: 7px; height: 7px; border-radius: 1.5px; background: var(--grid); }
+  .bars i.p { background: var(--op-add); } .bars i.m { background: var(--op-del); }
+
+  .preview { display: none; margin-top: 10px; }
+  .preview.active { display: block; }
+  .preview-head {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface-2); border: 1px solid var(--grid); border-bottom: none;
+    border-radius: 6px 6px 0 0; padding: 6px 10px; font-size: 11.5px; color: var(--ink-2);
+  }
+  .preview-head .spacer { flex: 1; }
+  .codeblock {
+    background: var(--page); border: 1px solid var(--grid); border-radius: 0 0 6px 6px;
+    padding: 10px 12px; overflow-x: auto; max-height: 260px; overflow-y: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11.5px; line-height: 1.55; color: var(--ink-2); white-space: pre;
+  }
+  .codeblock .ln { color: var(--ink-muted); opacity: 0.5; user-select: none; }
+  .codeblock .dl { display: block; }
+  .codeblock .dp { background: var(--diff-add-bg); color: var(--diff-add); }
+  .codeblock .dm { background: var(--diff-del-bg); color: var(--diff-del); }
+  .codeblock .dh { color: var(--ink-muted); }
+  .codeblock .k { color: var(--syn-k); }    /* json keys / code keywords */
+  .codeblock .s { color: var(--syn-s); }    /* strings */
+  .codeblock .n { color: var(--syn-n); }    /* numbers */
+  aside .hint { margin-top: 14px; color: var(--ink-muted); font-size: 11.5px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Revision Timeline</h1>
+  <div class="sub mono">project: jotVerifySequence &middot; 3 sessions &middot; 17 steps &middot; 11 files touched</div>
+  <div class="toolbar">
+    <span class="chip on">Sessions: all &#9662;</span>
+    <span class="chip on">All files &#9662;</span>
+    <span class="chip on"><span class="op A">A</span> added</span>
+    <span class="chip on"><span class="op M">M</span> modified</span>
+    <span class="chip on"><span class="op R">R</span> moved</span>
+    <span class="chip on"><span class="op D">D</span> deleted</span>
+    <span class="chip">show orphaned: on</span>
+    <span class="spacer"></span>
+    <span class="legend"><span>&#9679; step (agent turn)</span><span style="color:var(--lane-orphan)">&#9862; orphaned by rewind</span></span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="timeline" id="timeline">
+
+    <svg class="rail" id="rail"></svg>
+
+    <!-- ============ session A ============ -->
+    <div class="session" data-color="var(--sess-a)">
+      <span class="caret">&#9662;</span>
+      <span class="swatch" style="background:var(--sess-a)"></span>
+      <span class="id mono">d415450b</span>
+      <span class="meta">harmonic-raccoon &middot; Jul 1 &middot; 8 steps</span>
+      <span class="line"></span>
+    </div>
+
+    <div class="row" data-dot>
+      <input class="pick" type="checkbox">
+      <div class="row-top"><span class="step">Step 1</span><span class="prompt">&ldquo;scaffold a CSV parser with header detection&rdquo;</span><span class="time">10:02 AM</span></div>
+      <div class="chips">
+        <span class="fchip"><span class="op A">A</span><span class="mono">csv_parser.py</span></span>
+        <span class="fchip"><span class="op A">A</span><span class="mono">test_csv.py</span></span>
+      </div>
+    </div>
+
+    <div class="row" data-dot>
+      <input class="pick" type="checkbox">
+      <div class="row-top"><span class="step">Step 2</span><span class="prompt">&ldquo;headers with commas inside quotes break&rdquo;</span><span class="time">10:06 AM</span></div>
+      <div class="chips">
+        <span class="fchip"><span class="op M">M</span><span class="mono">csv_parser.py</span></span>
+      </div>
+    </div>
+
+    <div class="row" data-dot>
+      <input class="pick" type="checkbox">
+      <div class="row-top"><span class="step">Step 3</span><span class="prompt">&ldquo;add a main entry point with argparse&rdquo;</span><span class="time">10:11 AM</span></div>
+      <div class="chips">
+        <span class="fchip"><span class="op A">A</span><span class="mono">main.py</span></span>
+        <span class="fchip"><span class="op M">M</span><span class="mono">csv_parser.py</span></span>
+      </div>
+    </div>
+
+    <div class="row" data-dot>
+      <input class="pick" type="checkbox">
+      <div class="row-top"><span class="step">Step 4</span><span class="prompt">&ldquo;wire the --delimiter flag through&rdquo;</span><span class="time">10:14 AM</span></div>
+      <div class="chips">
+        <span class="fchip"><span class="op M">M</span><span class="mono">main.py</span></span>
+      </div>
+    </div>
+
+    <div class="row orphan" data-dot data-branch="orphan">
+      <input class="pick" type="checkbox" disabled title="orphaned — not on the active path">
+      <div class="row-top"><span class="step">Step 5</span><span class="tag">orphaned</span><span class="prompt">&ldquo;refactor everything into a package&rdquo;</span><span class="time">10:19 AM</span></div>
+      <div class="chips">
+        <span class="fchip"><span class="op R">R</span><span class="mono">csv_parser.py &rarr; pkg/parser.py</span></span>
+        <span class="fchip"><span class="op M">M</span><span class="mono">main.py</span></span>
+      </div>
+    </div>
+
+    <div class="row orphan" data-dot data-branch="orphan">
+      <input class="pick" type="checkbox" disabled title="orphaned — not on the active path">
+      <div class="row-top"><span class="step">Step 6</span><span class="tag">orphaned</span><span class="prompt">&ldquo;imports are broken now, fix them&rdquo;</span><span class="time">10:23 AM</span></div>
+      <div class="chips">
+        <span class="fchip"><span class="op M">M</span><span class="mono">main.py</span></span>
+        <span class="fchip"><span class="op M">M</span><span class="mono">pkg/parser.py</span></span>
+        <span class="more">+2 more</span>
+      </div>
+    </div>
+
+    <div class="divider">
+      <span>&#10554; user rewound to step 4 &mdash; 2 steps orphaned</span><span class="line"></span>
+    </div>
+
+    <div class="row picked" data-dot>
+      <input class="pick" type="checkbox" checked>
+      <div class="row-top"><span class="step">Step 5&prime;</span><span class="prompt">&ldquo;actually just move the script via MCP instead&rdquo;</span><span class="time">10:31 AM</span></div>
+      <div class="chips">
+        <span class="fchip"><span class="op R">R</span><span class="mono">scripts/convert.py &rarr; tools/convert.py</span></span>
+      </div>
+    </div>
+
+    <div class="row selected picked" data-dot>
+      <input class="pick" type="checkbox" checked>
+      <div class="row-top"><span class="step">Step 6&prime;</span><span class="prompt">&ldquo;document the tool and hook it into main&rdquo;</span><span class="time">10:36 AM</span></div>
+      <div class="chips">
+        <span class="fchip"><span class="op M">M</span><span class="mono">main.py</span></span>
+        <span class="fchip"><span class="op A">A</span><span class="mono">README.md</span></span>
+      </div>
+    </div>
+
+    <div class="row picked" data-dot>
+      <input class="pick" type="checkbox" checked>
+      <div class="row-top"><span class="step">Step 7</span><span class="prompt">&ldquo;clean up the scratch file&rdquo;</span><span class="time">10:40 AM</span></div>
+      <div class="chips">
+        <span class="fchip"><span class="op D">D</span><span class="mono">scratch.py</span></span>
+        <span class="fchip"><span class="op M">M</span><span class="mono">README.md</span></span>
+      </div>
+    </div>
+
+    <div class="row" data-dot data-kind="commit" title="commit — hard stop: picks can't cross it">
+      <div class="row-top"><span class="step">Step 8</span><span class="tag commit">commit</span><span class="prompt">&ldquo;commit the CSV and move-script work&rdquo;</span><span class="time">10:44 AM</span></div>
+      <div class="chips">
+        <span class="fchip plain"><span class="mono">git commit</span></span>
+        <span class="fchip plain"><span class="mono">a3f91c2</span></span>
+      </div>
+    </div>
+
+    <!-- ============ session B ============ -->
+    <div class="session session-b" data-color="var(--sess-b)">
+      <span class="caret">&#9662;</span>
+      <span class="swatch" style="background:var(--sess-b)"></span>
+      <span class="id mono">9c22e1a0</span>
+      <span class="meta">quiet-lantern &middot; Jul 2 &middot; 3 steps</span>
+      <span class="line"></span>
+    </div>
+
+    <div class="row" data-dot>
+      <input class="pick" type="checkbox">
+      <div class="row-top"><span class="step">Step 1</span><span class="prompt">&ldquo;resume: add --dry-run to the converter&rdquo;</span><span class="time">9:12 AM</span></div>
+      <div class="chips">
+        <span class="fchip"><span class="op M">M</span><span class="mono">tools/convert.py</span></span>
+      </div>
+    </div>
+
+    <div class="row" data-dot>
+      <input class="pick" type="checkbox">
+      <div class="row-top"><span class="step">Step 2</span><span class="prompt">&ldquo;add config file support&rdquo;</span><span class="time">9:20 AM</span></div>
+      <div class="chips">
+        <span class="fchip"><span class="op A">A</span><span class="mono">config.toml</span></span>
+        <span class="fchip"><span class="op M">M</span><span class="mono">main.py</span></span>
+      </div>
+    </div>
+
+    <div class="row" data-dot data-kind="commit" title="commit — hard stop: picks can't cross it">
+      <div class="row-top"><span class="step">Step 3</span><span class="tag commit">commit</span><span class="prompt">&ldquo;commit dry-run + config support&rdquo;</span><span class="time">9:26 AM</span></div>
+      <div class="chips">
+        <span class="fchip plain"><span class="mono">git commit</span></span>
+        <span class="fchip plain"><span class="mono">7be04d1</span></span>
+      </div>
+    </div>
+
+    <!-- ============ session C (collapsed) ============ -->
+    <div class="session collapsed" data-color="var(--sess-c)">
+      <span class="caret">&#9656;</span>
+      <span class="swatch" style="background:var(--sess-c)"></span>
+      <span class="id mono">41f0c9aa</span>
+      <span class="meta">misty-harbor &middot; Jul 3 &middot; 6 steps &middot; 3 files &middot; collapsed</span>
+      <span class="line"></span>
+    </div>
+
+    <div class="selectbar" id="selectbar">
+      <span id="selectbar-text"><b>3 steps picked</b> &middot; 4 files</span>
+      <span class="rule" id="rule-hint">picks must be contiguous &mdash; commits are hard stops</span>
+      <span class="spacer"></span>
+      <button class="btn">Export .patch</button>
+      <button class="btn primary">Group into commit&hellip;</button>
+    </div>
+
+  </div>
+
+  <aside>
+    <div class="tabs">
+      <span class="tab" data-pane="mode-step">Step 6&prime;</span>
+      <span class="tab active" data-pane="mode-range">Picked range 5&prime;&ndash;7</span>
+    </div>
+
+    <div class="pane" id="mode-step">
+    <h2><span class="swatch"></span>Step 6&prime; &middot; turn 14 <span class="meta mono" style="margin-left:auto">d415450b</span></h2>
+    <div class="meta">Jul 1, 10:36 AM &middot; 2 files changed &middot; +53 &minus;3</div>
+    <div class="quote">&ldquo;document the tool and hook it into main&rdquo;</div>
+
+    <div class="tabs">
+      <span class="tab active" data-pane="pane-files">Files</span>
+      <span class="tab" data-pane="pane-json">Step JSON</span>
+    </div>
+
+    <div class="pane active" id="pane-files">
+      <div class="file active" data-preview="prev-main">
+        <span class="op M">M</span>
+        <span class="path mono">main.py</span>
+        <span class="stat"><span class="plus">+12</span><span class="minus">&minus;3</span>
+          <span class="bars"><i class="p"></i><i class="p"></i><i class="p"></i><i class="m"></i><i></i></span></span>
+      </div>
+      <div class="file" data-preview="prev-readme">
+        <span class="op A">A</span>
+        <span class="path mono">README.md</span>
+        <span class="stat"><span class="plus">+41</span><span class="minus">&minus;0</span>
+          <span class="bars"><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i></span></span>
+      </div>
+
+      <div class="preview active" id="prev-main">
+        <div class="preview-head">
+          <span class="mono">main.py</span><span>@ step 6&prime; &middot; 87 lines</span>
+          <span class="spacer"></span>
+          <button class="btn small">Export file state</button>
+        </div>
+        <div class="codeblock"><span class="ln"> 1  </span><span class="k">#!/usr/bin/env python3</span>
+<span class="ln"> 2  </span><span class="k">import</span> argparse
+<span class="ln"> 3  </span><span class="k">from</span> csv_parser <span class="k">import</span> parse_csv
+<span class="ln"> 4  </span><span class="k">from</span> tools.convert <span class="k">import</span> convert
+<span class="ln"> 5  </span>
+<span class="ln"> 6  </span><span class="k">def</span> main():
+<span class="ln"> 7  </span>    ap = argparse.ArgumentParser()
+<span class="ln"> 8  </span>    ap.add_argument(<span class="s">"--delimiter"</span>, default=<span class="s">","</span>)
+<span class="ln"> 9  </span>    ap.add_argument(<span class="s">"--convert"</span>, action=<span class="s">"store_true"</span>)
+<span class="ln">10  </span>    args = ap.parse_args()
+<span class="ln">11  </span>    rows = parse_csv(args.path, args.delimiter)
+<span class="ln">12  </span>    &hellip;</div>
+      </div>
+
+      <div class="preview" id="prev-readme">
+        <div class="preview-head">
+          <span class="mono">README.md</span><span>@ step 6&prime; &middot; 41 lines</span>
+          <span class="spacer"></span>
+          <button class="btn small">Export file state</button>
+        </div>
+        <div class="codeblock"><span class="ln"> 1  </span><span class="k"># csv-tools</span>
+<span class="ln"> 2  </span>
+<span class="ln"> 3  </span>Parse CSVs and convert scripts between layouts.
+<span class="ln"> 4  </span>
+<span class="ln"> 5  </span><span class="k">## Usage</span>
+<span class="ln"> 6  </span>
+<span class="ln"> 7  </span><span class="s">    python main.py data.csv --delimiter ";"</span>
+<span class="ln"> 8  </span>
+<span class="ln"> 9  </span><span class="k">## Tools</span>
+<span class="ln">10  </span>
+<span class="ln">11  </span>- <span class="s">`tools/convert.py`</span> &mdash; moved from scripts/
+<span class="ln">12  </span>    &hellip;</div>
+      </div>
+    </div>
+
+    <div class="pane" id="pane-json">
+      <div class="preview-head">
+        <span class="mono">line 212 of d415450b.jsonl</span>
+        <span class="spacer"></span>
+        <button class="btn small">Copy JSON</button>
+      </div>
+      <div class="codeblock">{
+  <span class="k">"type"</span>: <span class="s">"assistant"</span>,
+  <span class="k">"uuid"</span>: <span class="s">"9f3c1a72-&hellip;"</span>,
+  <span class="k">"parentUuid"</span>: <span class="s">"e08b44d0-&hellip;"</span>,
+  <span class="k">"timestamp"</span>: <span class="s">"2026-07-01T10:36:12.480Z"</span>,
+  <span class="k">"message"</span>: {
+    <span class="k">"role"</span>: <span class="s">"assistant"</span>,
+    <span class="k">"content"</span>: [
+      { <span class="k">"type"</span>: <span class="s">"tool_use"</span>,
+        <span class="k">"name"</span>: <span class="s">"Edit"</span>,
+        <span class="k">"input"</span>: {
+          <span class="k">"file_path"</span>: <span class="s">"main.py"</span>,
+          <span class="k">"old_string"</span>: <span class="s">"&hellip;"</span>,
+          <span class="k">"new_string"</span>: <span class="s">"&hellip;"</span> } }
+    ]
+  },
+  <span class="k">"toolUseResult"</span>: { <span class="k">"filePath"</span>: <span class="s">"main.py"</span>, <span class="k">"structuredPatch"</span>: [&hellip;] }
+}</div>
+    </div>
+
+    </div><!-- /mode-step -->
+
+    <div class="pane active" id="mode-range">
+      <h2><span class="swatch"></span>Range: steps 5&prime;&ndash;7 <span class="meta mono" style="margin-left:auto">d415450b</span></h2>
+      <div class="meta">3 steps &middot; 4 files &middot; +58 &minus;21 &middot; diff base: before 5&prime; &rarr; after 7</div>
+      <div class="quote">Clicking a file shows the combined diff across the picked range.</div>
+
+      <div class="file active" data-preview="rprev-main">
+        <span class="op M">M</span>
+        <span class="path mono">main.py</span>
+        <span class="stat"><span class="plus">+13</span><span class="minus">&minus;3</span>
+          <span class="bars"><i class="p"></i><i class="p"></i><i class="p"></i><i class="m"></i><i></i></span></span>
+      </div>
+      <div class="file" data-preview="rprev-convert">
+        <span class="op R">R</span>
+        <span class="path mono">tools/convert.py</span>
+        <span class="stat"><span class="plus">+0</span><span class="minus">&minus;0</span>
+          <span class="bars"><i></i><i></i><i></i><i></i><i></i></span></span>
+      </div>
+      <div class="file" data-preview="rprev-readme">
+        <span class="op A">A</span>
+        <span class="path mono">README.md</span>
+        <span class="stat"><span class="plus">+45</span><span class="minus">&minus;0</span>
+          <span class="bars"><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i><i class="p"></i></span></span>
+      </div>
+      <div class="file" data-preview="rprev-scratch">
+        <span class="op D">D</span>
+        <span class="path mono">scratch.py</span>
+        <span class="stat"><span class="plus">+0</span><span class="minus">&minus;18</span>
+          <span class="bars"><i class="m"></i><i class="m"></i><i class="m"></i><i class="m"></i><i class="m"></i></span></span>
+      </div>
+
+      <div class="preview active" id="rprev-main">
+        <div class="preview-head">
+          <span class="mono">main.py</span><span>before 5&prime; &rarr; after 7</span>
+          <span class="spacer"></span>
+          <button class="btn small">View file @ 7</button>
+        </div>
+        <div class="codeblock"><span class="dl dh">@@ -1,5 +1,6 @@</span><span class="dl">  #!/usr/bin/env python3</span><span class="dl">  import argparse</span><span class="dl">  from csv_parser import parse_csv</span><span class="dl dp">+ from tools.convert import convert</span><span class="dl dh">@@ -7,9 +8,11 @@</span><span class="dl">      ap = argparse.ArgumentParser()</span><span class="dl">      ap.add_argument("--delimiter", default=",")</span><span class="dl dp">+     ap.add_argument("--convert", action="store_true")</span><span class="dl dm">-     rows = parse_csv(args.path)</span><span class="dl dp">+     rows = parse_csv(args.path, args.delimiter)</span><span class="dl dp">+     if args.convert: convert(rows)</span></div>
+      </div>
+
+      <div class="preview" id="rprev-convert">
+        <div class="preview-head">
+          <span class="mono">tools/convert.py</span><span>before 5&prime; &rarr; after 7</span>
+          <span class="spacer"></span>
+          <button class="btn small">View file @ 7</button>
+        </div>
+        <div class="codeblock"><span class="dl dh">renamed: scripts/convert.py &rarr; tools/convert.py</span><span class="dl dh">similarity 100% &middot; contents unchanged</span></div>
+      </div>
+
+      <div class="preview" id="rprev-readme">
+        <div class="preview-head">
+          <span class="mono">README.md</span><span>before 5&prime; &rarr; after 7</span>
+          <span class="spacer"></span>
+          <button class="btn small">View file @ 7</button>
+        </div>
+        <div class="codeblock"><span class="dl dh">new file &middot; 45 lines</span><span class="dl dp">+ # csv-tools</span><span class="dl dp">+</span><span class="dl dp">+ Parse CSVs and convert scripts between layouts.</span><span class="dl dp">+</span><span class="dl dp">+ ## Usage</span><span class="dl dp">+ &hellip;</span></div>
+      </div>
+
+      <div class="preview" id="rprev-scratch">
+        <div class="preview-head">
+          <span class="mono">scratch.py</span><span>before 5&prime; &rarr; after 7</span>
+          <span class="spacer"></span>
+          <button class="btn small">View file @ 5&prime;&minus;1</button>
+        </div>
+        <div class="codeblock"><span class="dl dh">deleted &middot; 18 lines</span><span class="dl dm">- # temp experiments</span><span class="dl dm">- from csv_parser import parse_csv</span><span class="dl dm">- print(parse_csv("x.csv"))</span><span class="dl dm">- &hellip;</span></div>
+      </div>
+    </div><!-- /mode-range -->
+
+    <div class="hint">Live in this mock: checkboxes (contiguity enforced), inspector tabs, file rows.
+    Static: clicking a timeline step would repopulate the Step tab; changing picks would retitle the Range tab.</div>
+  </aside>
+</div>
+
+<script>
+// ---- draw the graph rail from row geometry ----
+function drawRail() {
+  const tl = document.getElementById('timeline');
+  const svg = document.getElementById('rail');
+  const MAIN_X = 32, ORPHAN_X = 68;
+  svg.setAttribute('width', 100);
+  svg.setAttribute('height', tl.scrollHeight);
+  let parts = [];
+  let color = null, prevMain = null, orphans = [], forkFrom = null;
+
+  const flushOrphans = () => {
+    if (!orphans.length) return;
+    const o0 = orphans[0], oN = orphans[orphans.length - 1];
+    parts.push(`<path d="M ${MAIN_X} ${forkFrom} C ${MAIN_X} ${forkFrom+44}, ${ORPHAN_X} ${o0-42}, ${ORPHAN_X} ${o0}" fill="none" stroke="var(--lane-orphan)" stroke-width="2" stroke-dasharray="5 4"/>`);
+    if (oN > o0) parts.push(`<line x1="${ORPHAN_X}" y1="${o0}" x2="${ORPHAN_X}" y2="${oN}" stroke="var(--lane-orphan)" stroke-width="2" stroke-dasharray="5 4"/>`);
+    parts.push(`<line x1="${ORPHAN_X}" y1="${oN}" x2="${ORPHAN_X}" y2="${oN+30}" stroke="var(--lane-orphan)" stroke-width="2" stroke-dasharray="5 4"/>`);
+    parts.push(`<line x1="${ORPHAN_X-5}" y1="${oN+25}" x2="${ORPHAN_X+5}" y2="${oN+35}" stroke="var(--lane-orphan)" stroke-width="2"/>`);
+    parts.push(`<line x1="${ORPHAN_X+5}" y1="${oN+25}" x2="${ORPHAN_X-5}" y2="${oN+35}" stroke="var(--lane-orphan)" stroke-width="2"/>`);
+    orphans.forEach(y => parts.push(`<circle cx="${ORPHAN_X}" cy="${y}" r="5" fill="var(--surface)" stroke="var(--lane-orphan)" stroke-width="2"/>`));
+    orphans = [];
+  };
+
+  for (const el of tl.children) {
+    if (el.classList.contains('session')) {
+      flushOrphans();
+      color = el.dataset.color;
+      prevMain = null;                       // spine breaks between sessions
+      continue;
+    }
+    if (!el.hasAttribute('data-dot')) continue;
+    const cy = el.offsetTop + el.offsetHeight / 2;
+    if (el.dataset.branch === 'orphan') {
+      if (forkFrom === null || orphans.length === 0) forkFrom = prevMain;
+      orphans.push(cy);
+      continue;
+    }
+    if (prevMain !== null)
+      parts.push(`<line x1="${MAIN_X}" y1="${prevMain}" x2="${MAIN_X}" y2="${cy}" stroke="${color}" stroke-width="2"/>`);
+    if (el.dataset.kind === 'commit') {
+      parts.push(`<circle cx="${MAIN_X}" cy="${cy}" r="7" fill="var(--surface)" stroke="${color}" stroke-width="2"/>`);
+      parts.push(`<circle cx="${MAIN_X}" cy="${cy}" r="2.5" fill="${color}"/>`);
+    } else {
+      if (el.classList.contains('selected'))
+        parts.push(`<circle cx="${MAIN_X}" cy="${cy}" r="9" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.6"/>`);
+      parts.push(`<circle cx="${MAIN_X}" cy="${cy}" r="6" fill="${color}" stroke="var(--surface)" stroke-width="2"/>`);
+    }
+    prevMain = cy;
+  }
+  flushOrphans();
+  svg.innerHTML = parts.join('');
+}
+drawRail();
+addEventListener('resize', drawRail);
+
+// ---- pick contiguity + selection bar ----
+// commit rows carry no checkbox and bump the segment counter: a pick range
+// must stay contiguous within one commit-bounded segment
+const boxes = [];
+{
+  let seg = 0;
+  for (const el of document.getElementById('timeline').children) {
+    if (!el.classList.contains('row')) continue;
+    if (el.dataset.kind === 'commit') { seg++; continue; }
+    const b = el.querySelector('.pick');
+    if (b && !b.disabled) { b.dataset.seg = seg; boxes.push(b); }
+  }
+}
+const bar = document.getElementById('selectbar');
+const barText = document.getElementById('selectbar-text');
+const ruleHint = document.getElementById('rule-hint');
+
+function updateBar() {
+  const picked = boxes.filter(b => b.checked);
+  boxes.forEach(b => b.closest('.row').classList.toggle('picked', b.checked));
+  bar.style.display = picked.length ? 'flex' : 'none';
+  const files = new Set();
+  picked.forEach(b => b.closest('.row')
+    .querySelectorAll('.fchip:not(.plain) .mono')
+    .forEach(m => files.add(m.textContent.split('→').pop().trim())));
+  barText.innerHTML = `<b>${picked.length} step${picked.length === 1 ? '' : 's'} picked</b> &middot; ${files.size} file${files.size === 1 ? '' : 's'}`;
+}
+
+boxes.forEach(box => box.addEventListener('change', () => {
+  const idx = boxes.map((b, i) => b.checked ? i : -1).filter(i => i >= 0);
+  const oneSegment = new Set(idx.map(i => boxes[i].dataset.seg)).size <= 1;
+  const contiguous = !idx.length ||
+    (oneSegment && idx[idx.length - 1] - idx[0] + 1 === idx.length);
+  if (!contiguous) {
+    box.checked = !box.checked;             // revert the illegal pick
+    ruleHint.classList.add('show');
+    setTimeout(() => ruleHint.classList.remove('show'), 1600);
+  }
+  updateBar();
+}));
+updateBar();
+
+// ---- inspector tabs (scoped per .tabs group, so mode + inner tabs nest) ----
+document.querySelectorAll('.tabs').forEach(group => {
+  const tabs = [...group.querySelectorAll('.tab')];
+  tabs.forEach(tab => tab.addEventListener('click', () => {
+    tabs.forEach(t => {
+      t.classList.toggle('active', t === tab);
+      document.getElementById(t.dataset.pane).classList.toggle('active', t === tab);
+    });
+  }));
+});
+// ---- file rows swap their preview, scoped to the containing pane ----
+document.querySelectorAll('.file').forEach(f => f.addEventListener('click', () => {
+  const pane = f.closest('.pane');
+  pane.querySelectorAll('.file').forEach(x => x.classList.toggle('active', x === f));
+  pane.querySelectorAll('.preview').forEach(p => p.classList.toggle('active', p.id === f.dataset.preview));
+}));
+</script>
+
+</body>
+</html>
