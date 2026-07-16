@@ -8,6 +8,7 @@ import { el } from "../app-dom.ts";
 import { revealDetailsPane } from "../inspector.ts";
 import { deriveCommitChangedFiles } from "./timeline-commit-files.ts";
 import {
+    applyRenameBadgeLabels,
     buildFileTree,
     buildFilesSidebarViewModel,
     type FileSidebarEntry,
@@ -50,9 +51,16 @@ function buildTouchedFileEntries(changes: FileChange[], wireDocument: WireTimeli
             revisionCount: 0,
             isDeleted: false,
             originalPath: change.renamedFrom,
+            renameBadgeLabel: undefined,
         });
     }
-    return [...entriesByTarget.values()];
+    // Relabel COPIES, pane-locally (task 91): this pane shows only the node's own files, so its
+    // badges disambiguate among those; the copies are mandatory because `known` entries are the
+    // SAME objects the Files sidebar holds — relabeling them in place would rewrite the
+    // sidebar's badges as a side effect of opening a node.
+    const entries = [...entriesByTarget.values()].map((entry) => ({ ...entry }));
+    applyRenameBadgeLabels(entries);
+    return entries;
 }
 
 // The left pane's clickable file list (message + commit modes): clicking a file marks it

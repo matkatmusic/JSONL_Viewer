@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { findFallbackRepoDirs, readCommittedFileContent } from "../src/reconstruction_git_evidence.ts";
-import { findGitCommitEvents } from "../src/reconstruction_git_operations.ts";
+import { findGitCommitEvents } from "../src/reconstruction_git_commit_events.ts";
 import { placeGitCommitEvidence } from "../src/reconstruction_git_placement.ts";
 import { setPathOverrides } from "../src/reconstruction_overrides.ts";
 import { loadTranscript } from "../src/parse/loadTranscript.ts";

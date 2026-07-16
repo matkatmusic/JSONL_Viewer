@@ -81,6 +81,17 @@ function computeRevisionNumberAtTime(revisions: WireRevisionRef[], timestamp: st
     return revisionNumber;
 }
 
+// A backup blob name (`<hex>@vN`) — the changeId shape a File History Snapshot stamps on a
+// revision. The capture group is the per-file prefix findRevisionForChangeId's fallback keys on.
+const BACKUP_BLOB_CHANGE_ID = /^(.+@)v\d+$/;
+
+// True when the changeId names a File History Snapshot blob — the snapshot-backed signal the
+// timeline's 📷 jump button keys on (task 94): tool-evidenced revisions (`toolu_…` ids) have no
+// snapshot to jump to.
+export function checkChangeIdIsBackupBlobName(changeId: string): boolean {
+    return BACKUP_BLOB_CHANGE_ID.test(changeId);
+}
+
 // The file target and 1-based revision number of the revision whose changeId equals `changeId`
 // (toolu id or backup blob name), or undefined when no surviving history carries it. The number
 // feeds the /rev/<n> route, whose view anchors that revision. A backup blob name whose exact
@@ -94,7 +105,7 @@ export function findRevisionForChangeId(filesTouched: WireFileHistoryRef[], chan
             return { target: history.target, revisionNumber: index + 1 };
         }
     }
-    const blobMatch = /^(.+@)v\d+$/.exec(changeId);
+    const blobMatch = BACKUP_BLOB_CHANGE_ID.exec(changeId);
     if (blobMatch === null) {
         return undefined;
     }

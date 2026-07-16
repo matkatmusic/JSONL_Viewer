@@ -23,6 +23,9 @@ type FileSidebarEntry = {
     isDeleted: boolean;
     // The path a renamed file was born at (item 77); undefined when it was never renamed.
     originalPath: string | undefined;
+    // The badge's disambiguated inline text (task 91), computed by timeline-file-tree.ts's
+    // applyRenameBadgeLabels; undefined when the file was never renamed.
+    renameBadgeLabel: string | undefined;
 };
 
 // One Files-pane tree node (buildFileTree's shape). Mirrored, not imported: timeline.ts imports this
@@ -111,7 +114,9 @@ function renderFileTreeLeaf(node: FileTreeNode, entry: FileSidebarEntry, callbac
     if (entry.originalPath !== undefined) {
         item.append(el("span", {
             class: "rename-badge",
-            text: `← ${basenameOf(entry.originalPath)}`,
+            // task 91: the label is pre-disambiguated (shortest distinguishing suffix on
+            // collision); the basename fallback keeps an unstamped entry rendering as before.
+            text: `← ${entry.renameBadgeLabel ?? basenameOf(entry.originalPath)}`,
             title: `renamed from ${entry.originalPath}`,
         }));
     }

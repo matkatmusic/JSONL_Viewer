@@ -3,14 +3,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+    applyRenameBadgeLabels,
     buildFileTree,
+    buildFilesSidebarViewModel,
     findCommonDirectoryPrefix,
 } from "../webapp/views/timeline-file-tree.ts";
+import { RENAME_EVENT_KIND, type WireTimelineDocument } from "../webapp/views/timeline-types.ts";
 
 // A Files-pane entry for the tree tests: the target is what varies, the rest is uninteresting here.
 
-function makeFileEntry(target: string) {
-    return { target, revisionCount: 1, isDeleted: false, originalPath: undefined };
+function makeFileEntry(target: string, originalPath?: string) {
+    return { target, revisionCount: 1, isDeleted: false, originalPath, renameBadgeLabel: undefined };
 }
 
 test("test_findCommonDirectoryPrefix_returns_the_directories_every_target_shares", () => {
@@ -83,6 +86,7 @@ test("test_buildFileTree_carries_the_entry_facts_onto_each_leaf", () => {
         revisionCount: 2,
         isDeleted: true,
         originalPath: "/root/src/original.py",
+        renameBadgeLabel: undefined,
     };
     const tree = buildFileTree([entry]);
     // the lone leaf carries the entry verbatim, so onFileClick still receives the full path.
@@ -126,6 +130,74 @@ test("test_buildFileTree_collapses_a_single_child_folder_chain_into_one_combined
     assert.deepEqual(tree[0]!.children.map((child) => child.name), ["main.ts", "util.ts"]);
     // a folder whose single child is a FILE does not merge that file into its name.
     assert.deepEqual(tree[1]!.children.map((child) => child.name), ["orders.py"]);
+});
+
+test("test_applyRenameBadgeLabels_keeps_basename_when_unique", () => {
+    // Scenario: task 91 — badges only grow when they would collide; unique old basenames stay
+    // bare, and a never-renamed entry gets no label at all.
+    // Steps:
+    // two renames from DIFFERENT old basenames, plus one never-renamed file.
+    const entries = [
+        makeFileEntry("/root/src/new_a.py", "/root/src/old_a.py"),
+        makeFileEntry("/root/docs/new_b.py", "/root/docs/old_b.py"),
+        makeFileEntry("/root/plain.py"),
+    ];
+    applyRenameBadgeLabels(entries);
+    // unique basenames stay bare; the unrenamed entry stays unlabeled.
+    assert.deepEqual(entries.map((entry) => entry.renameBadgeLabel), ["old_a.py", "old_b.py", undefined]);
+});
+
+test("test_applyRenameBadgeLabels_extends_to_shortest_distinguishing_suffix_on_collision", () => {
+    // Scenario: task 91's actual complaint — two renames from the SAME old basename in different
+    // directories render identical `← utils.py` badges; each must grow to the shortest suffix
+    // that tells them apart.
+    // Steps:
+    // two renames whose old paths differ only at the parent directory.
+    const entries = [
+        makeFileEntry("/root/src/helpers.py", "/root/src/utils.py"),
+        makeFileEntry("/root/docs/helpers.py", "/root/docs/utils.py"),
+    ];
+    applyRenameBadgeLabels(entries);
+    // one extra segment is enough to distinguish them.
+    assert.deepEqual(entries.map((entry) => entry.renameBadgeLabel), ["src/utils.py", "docs/utils.py"]);
+});
+
+test("test_applyRenameBadgeLabels_extends_past_equal_parent_segments", () => {
+    // Scenario: the distinguishing segment can sit deeper than the immediate parent — depth must
+    // keep growing until the suffixes actually differ, not stop after one segment.
+    // Steps:
+    // two renames whose old paths share basename AND parent, diverging one level higher.
+    const entries = [
+        makeFileEntry("/root/a/pkg/helpers.py", "/root/a/pkg/utils.py"),
+        makeFileEntry("/root/b/pkg/helpers.py", "/root/b/pkg/utils.py"),
+    ];
+    applyRenameBadgeLabels(entries);
+    // pkg/utils.py still collides, so both grow one more level.
+    assert.deepEqual(entries.map((entry) => entry.renameBadgeLabel), ["a/pkg/utils.py", "b/pkg/utils.py"]);
+});
+
+test("test_buildFilesSidebarViewModel_stamps_rename_badge_labels", () => {
+    // Scenario: the sidebar's producer applies the disambiguation itself — proving the labels
+    // arrive stamped on the view model, not just that the helper works in isolation.
+    // Steps:
+    // a wire document with two histories renamed from same-basename old paths.
+    const makeRenamedHistory = (target: string, from: string) => ({
+        target,
+        revisions: [{ kind: RENAME_EVENT_KIND, changeId: `toolu_${from}`, timestamp: "2026-07-01T10:00:00Z", rename: { from, to: target } }],
+    });
+    const document: WireTimelineDocument = {
+        filesTouched: [
+            makeRenamedHistory("/root/src/helpers.py", "/root/src/utils.py"),
+            makeRenamedHistory("/root/docs/helpers.py", "/root/docs/utils.py"),
+        ],
+        rewoundFilesTouched: [],
+        messages: [],
+        steps: [],
+        commitMarkers: [],
+    };
+    const entries = buildFilesSidebarViewModel(document);
+    // both entries carry the disambiguated suffix labels.
+    assert.deepEqual(entries.map((entry) => entry.renameBadgeLabel), ["src/utils.py", "docs/utils.py"]);
 });
 
 test("test_buildFileTree_stops_collapsing_at_a_branching_folder", () => {

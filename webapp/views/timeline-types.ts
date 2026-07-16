@@ -49,6 +49,9 @@ export type WireGitOperation = {
     // The commit's short hash from its tool_result text (item 66); absent on non-commit
     // operations, older cached documents, and commits whose result echoed no hash.
     resultHash?: string;
+    // True when the command's own tool_result errored (task 103) — the timeline's red FAILED
+    // badge; absent on success and on older cached documents.
+    isError?: boolean;
 };
 export type WireCommitMarker = { timestamp: string; sessionId?: string };
 // One non-file-edit tool call (item 55): summary is its one-line command/path/pattern; uuid is
@@ -127,6 +130,7 @@ export type TurnNode = {
     isGitBaseline?: boolean;
     detail?: undefined;
     resultHash?: undefined;
+    isError?: undefined;
     summary?: undefined;
     toolName?: undefined;
     toolUseId?: undefined;
@@ -148,6 +152,7 @@ export type SessionEndNode = {
     gitOperations?: undefined;
     detail?: undefined;
     resultHash?: undefined;
+    isError?: undefined;
     summary?: undefined;
     toolName?: undefined;
     toolUseId?: undefined;
@@ -161,6 +166,8 @@ export type CommitNode = {
     detail?: string;
     // The commit's short hash (item 66) — the fork layout's `GIT COMMIT [hash]` pill.
     resultHash?: string;
+    // True when the commit command's tool_result errored (task 103) — the row's FAILED badge.
+    isError?: boolean;
     uuid?: undefined;
     text?: undefined;
     isSystem?: undefined;
@@ -187,6 +194,9 @@ export type ToolCallNode = {
     toolUseId: string;
     // Copied from the engine's per-record wire stamp — a tool row on a rewound branch dims too.
     isOrphaned?: boolean;
+    // True when this row is a FAILED git command's Bash call (task 103): stamped by joining the
+    // node's record uuid to the document's errored gitOperations — the row's FAILED badge.
+    isError?: boolean;
     isGitBaseline?: undefined;
     text?: undefined;
     isSystem?: undefined;

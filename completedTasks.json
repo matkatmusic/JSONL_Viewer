@@ -575,6 +575,20 @@
     "description": "55. Timeline tool-call rows redesign** \u2014 user-specified (s39 screenshot + chat): every\n  tool call renders as an un-bubbled row `* <summary, 50 chars> * [{ }] <TS> L:n (of N)`\n  between the conversation bubbles; the files bubble keeps its step number; chips regain\n  per-chip `{ }` targets + labels (closes items 24 and 53); plus the inspector Prev/Next\n  selection-sync bug (stepping onto snapshot lines 49/50 selected Step 3).\n  Plan: `plans/timeline-tool-call-rows.md`.\n  **Closed 2026-07-09 (implemented; suite NOT run \u2014 user runs it):**\n  (a) engine: new `src/reconstruction_tool_calls.ts` \u2014 `findToolCalls` extracts every\n  non-Write/Edit tool_use (name, one-line summary, record uuid, toolUseId, timestamp)\n  PLUS one extra row per PreToolUse hook whose `updatedInput.command` differs from the\n  tool_use's own command (s39's `rtk ls` and `rtk git add`; the ls tool_use and the rtk\n  hook SHARE toolUseId `toolu_015S4\u2026` \u2014 the \"hook-only execution\" theory was wrong);\n  document/wire gains `toolCalls[]` (`reconstruction_json.ts`).\n  (b) view-model: `TOOL_CALL_NODE_KIND` nodes sort chronologically among turns\n  (`deriveToolCallNodes`; rank turn < tool-call < commit < session-end); never numbered,\n  never pickable; `appendSessionEndNodes` now also scans tool-call instants so a trailing\n  `git add` row precedes its session end. Git rows retired from turn bubbles\n  (`attachGitOperationsToAgentTurns` + `renderGitOperationRow` commented out with item-55\n  markers; `deriveCommitNodes` untouched); `computeToolActivityTag`'s \"tool call\" branch\n  retired (\"tool result\" stays).\n  (c) selection-sync bug fix: `findTimelineNodeIndexForRawLine` is now tiered \u2014 agent turns\n  (changeIds + own `\"uuid\":\"\u2026\"` line), tool-call rows (own record line, then toolUseId\n  reference \u2014 hook attachments/tool_results select their row), user turns (own\n  `\"uuid\":\"\u2026\"` line ONLY; the bare-substring match that fired on snapshot `messageId`s and\n  caused the Step-3 jump is gone). Lines owned by no node keep the current selection.\n  (d) chips: `FileChange.when` + causing-line `L:n (of N)` labels; `{ }` opens the causing\n  record (item-53 closure above).\n  Tests: `tests/reconstruction_tool_calls.test.ts` (5) + 9 new / 2 adjusted in\n  `tests/timeline-viewmodels.test.ts` (written, not run). Verified live headlessly on s39:\n  rows/labels/step numbers/rail exactly match the user's mock; L:32/33/39/44 rows, chips\n  L:51/L:55; raw-line 48 \u2192 mkdir row, 49/50 \u2192 selection unchanged."
   },
   {
+    "taskNumber": 57,
+    "title": "Decide the public name/brand",
+    "completionDate": "2026-07-14",
+    "closureNote": "User decided 2026-07-14: the tool is called JFRED, and it already has its own repo \u2014 which still needs the jfred codebase added to it. Downstream: the public README title (task 61) and the new repo's package name should commit to JFRED consistently.",
+    "description": "Decide the public name/brand \u2014 blocks item 60's README title and the public repo's name (item 58). `package.json` says `jsonl-viewer` (`\"private\": true`); root `README.md` says \"JSONL_Viewer\"; JFReD (\"JSONL File Reconstruction Debugger\", `jfred/jfred.html`) is technically a sub-tool \u2014 the static, browser-only debugger over the frozen legacy `api/` engine \u2014 NOT the Engine-B product in `src/`. The user referred to the whole project as \"JFRED\" when requesting publication, so JFReD may be the intended brand for everything; if so, `package.json` name/description and the README must commit to it consistently. Pure user decision, zero code."
+  },
+  {
+    "taskNumber": 59,
+    "title": "Scrub hardcoded home paths + decouple tests from the scenarios submodule",
+    "completionDate": "2026-07-14",
+    "closureNote": "Closed without code, user-decided 2026-07-14: a separate repo will be made exclusively for JFRED, so this repo won't need scrubbing \u2014 it will simply be made private when JFRED is released. The premise (\"do this in THIS repo so both repos share the code\") no longer applies.",
+    "description": "Scrub hardcoded home paths + decouple tests from the scenarios submodule \u2014 two code changes the public copy needs: (a) `tests/fixtures.ts:17-18` hardcodes `/Users/matkatmusicllc/...` scenario roots \u2014 parameterize (env var or relative `scenarios/executed` probe that skips gracefully when absent); `src/Impl_template.md`, `src/Plan_template.md`, `src/Plan_Impl_template.md` also carry absolute worktree paths (simplest: don't publish the templates \u2014 they're dev-process files). (b) exactly 4 test files touch `scenarios/`: `tests/check_scenario_coverage.test.ts`, `tests/fixtures.ts`, `tests/reconstruction_steps_name_at_time.test.ts` (commented-out ref), and `tests/viewer-viewmodels.test.ts` \u2014 make those tests self-skip when `scenarios/executed` is absent so the public suite (the other ~66 files run off committed `tests/fixtures/`) is green on a bare clone. Do this in THIS repo so both repos share the code."
+  },
+  {
     "taskNumber": 65,
     "title": "Fork-style GUI mockup for the webapp timeline",
     "completionDate": "2026-07-10",
@@ -786,6 +800,123 @@
     "description": "84: unify the bottom pane for ALL file-related content** \u2014 **IMPLEMENTED 2026-07-14**\n  (staged, uncommitted; notes: `plans/implementation-notes-item84-unify-bottom-pane.md`, plan:\n  `plans/item84-unify-bottom-pane.md`). Every chip-row button is now a deep-link into\n  `renderDetailsFileMode`, which gained a `focus?: RevisionFocus` param ({changeId, mode}) plus a\n  `RevisionViewMode` enum (diff/content/record): chip name \u2192 content, `+/-` \u2192 diff, `{ }` \u2192 the\n  causing record (rev cards stay standing for free \u2014 `openInspectorPane` never touches\n  `#details-left`), `\u2937` untouched. Rev cards gained a 6th `{ }` action and a `\u2610`/`\u2611` range toggle;\n  a contiguous run renders the step-range diff moved out of `showFilePreview`. NET DELETION:\n  `showFilePreview`, `showRevisionDiff`, `toggleDrawerButton`, `fetchStepFiles` + 3 imports retired\n  (commented, not deleted). 11 new tests in `tests/details-revision-view.test.ts`; typecheck +\n  `build:webapp` clean. 3 factual errors in this item's own pre-implementation text were corrected\n  first (\u2937 resolves the chip's OWN changeId; `showRevisionDiffInDetails` SURVIVES \u2014 it has a live\n  caller in `appendFileList`; `{ }`'s meaning is unchanged but its rendering is not). Dropped:\n  click-again-to-close, and chip-click-while-steps-are-picked. Client behavior is the user's\n  standing visual-verify. Original description follows:\n  The bottom pane must display\n  file-related content in exactly ONE gui, whether you got there from the Files treeview or from a\n  timeline node's file chip. There is one view \u2014 the Revision View \u2014 and every route into it is the\n  same three choices: **which file, which revision selection (one card, or a contiguous run of\n  cards), which right-column mode**. Nothing else renders file content anywhere.\n  **The rule:** every timeline chip-row button is a deep-link into the Revision View. Chip button X\n  \u2261 `click treeview entry \u2192 click that revision's card \u2192 click the card's X`. The left column always\n  shows the `.rev-card` list with the chip's revision selected; only the right column differs.\n  **Today it's two renderers.** The treeview click runs `renderDetailsFileMode`\n  (`webapp/views/details.ts:372`) and rewrites BOTH columns \u2014 rev cards in `#details-left`, the\n  selected revision's diff in `#details-right`. The chip click runs a separate renderer,\n  `showFilePreview` (`webapp/views/timeline.ts:1526`), which touches only `#details-right-body` and\n  leaves `#details-left` showing the previously-selected row's file list \u2014 stale and unrelated to\n  the clicked chip. This is not \"build a lookalike\": it is deleting the second renderer and calling\n  the first. Each chip carries its own `changeId` (one chip per change, not per file), and\n  `findRevisionForChangeId` already resolves `changeId` \u2192 revision index, so the revision to select\n  is never ambiguous.\n  - **Chip click** \u2192 `treeview entry \u2192 revision card \u2192 Show content`. Keeps the chip's meaning\n    (file content at that revision), now in the real Revision View. Deletes `showFilePreview`.\n  - **`+/-`** \u2192 `treeview entry \u2192 revision card`, nothing further: clicking a card IS how you view\n    that revision's diff today, so the card's default right-column render already IS `+/-`'s\n    meaning. Deletes `showRevisionDiff` (`timeline.ts:1595`), which\n    also retires its near-duplicate twin `showRevisionDiffInDetails` (`details.ts:301`) \u2014 same\n    `/api/diff?mode=revisions` call, same `splitDiffBlocks`, same fallback, two hand-rolled lookups,\n    two fetch caches.\n  - **`{ }`** \u2192 `treeview entry \u2192 revision card \u2192 the card's { }`. Keeps its MEANING (the file's own\n    causing JSONL record \u2014 still the only route to a file-modifying event's JSON, not a duplicate of\n    anything) but NOT its rendering: the record paints into the revision details pane with the rev\n    cards still shown. It must not take the pane over or navigate away, which is what today's\n    `openTranscriptInspectorSynced(causingLocation)` (`timeline.ts:1649`) does. Synthetic-changeId\n    chips keep the existing `openTurnInspector` fallback (`timeline.ts:1646`).\n  - **Rev cards gain a `{ }` button** as a 6th action, after `Jump to timeline step`\n    (`buildRevisionCards`, `details.ts:72`; cards built at `details.ts:430-457`). This is the button\n    the chip's `{ }` now delegates to \u2014 so it is load-bearing for the rule above, not a nicety.\n    Without it the Revision View has no JSON route at all.\n  - **`\u2937`** (Jump to File History Snapshot) \u2192 UNTOUCHED, user-decided. Its value is its *presence*:\n    `computeSnapshotJumpRoute` returns `undefined` \u2192 no button, so absence signals \"no File History\n    Snapshot for this revision\". It navigates to the File History route \u2014 a separate surface, not\n    bottom-pane content. (CORRECTION to this item's earlier text: it resolves\n    `findRevisionForChangeId(files, change.changeId, undefined)` \u2014 the chip's OWN changeId, the same\n    revision `+/-` resolves. It does NOT vary the revision.)\n  - Gotcha: `openInspectorPane` (`inspector.ts:353`) force-hides the diff-mode toggle and pins the\n    label to \"JSON\"; a naive swap inherits that wrong chrome.\n  - **Step-range diff \u2192 contiguous multi-card selection.** `showFilePreview`'s per-file range diff\n    (when steps are picked, `timeline.ts:1532-1544`) does NOT get dropped \u2014 it moves into the\n    Revision View as a 4th right-column mode, hung on a multi-card selection: rev cards gain toggle\n    buttons, and selecting a **contiguous** run of cards renders that range's diff. Non-contiguous\n    selections are rejected. This is why the rule's middle term is a revision *selection*, not a\n    single revision \u2014 single card and contiguous run are the same mechanism at N=1 and N>1.\n    (NOT BUILT: chip click while a step range is picked seeding that run \u2014 never requested; see the\n    implementation notes.)"
   },
   {
+    "taskNumber": 85,
+    "title": "timeline header needs Prev/Next buttons that navigate to messages where Files Touched events happened, to make it easy to jump to file-modifying events.  When a message is jumped to via these buttons, the message's expansion triangle should be clicked, showing the expanded message so that you can see the File chips for that message",
+    "completionDate": "2026-07-15",
+    "closureNote": "Implemented 2026-07-15: added \u25c0 Prev / Next \u25b6 buttons to #timeline-pane-header (webapp/index.html) wired in renderTimelineView; new exported pure helper findAdjacentFileTouchedIndex walks to the nearest agent turn with non-empty fileChanges. A jump expands the row (adds .expanded, same effect as clicking its \u25b8 triangle so File chips show), refreshes the Expand All label, and selects the row via selectTimelineRow (renders details + centers). Buttons disable when no candidate exists in their direction (refreshFileNavButtons; button:disabled styling). 4 unit tests appended to tests/timeline-viewmodels.test.ts. Work staged, not committed.",
+    "description": "85: timeline header needs Prev/Next buttons that navigate to messages where Files Touched events happened, to make it easy to jump to file-modifying events.  When a message is jumped to via these buttons, the message's expansion triangle should be clicked, showing the expanded message so that you can see the File chips for that message."
+  },
+  {
+    "taskNumber": 86,
+    "title": "Attribute gitBase baseline steps (\"baseline\" pseudo-lane?) instead of the unattributed lane",
+    "description": "The `gitBase:` beacon changeIds resolve to no session in `indexChangeIdsToSessionIds`, so a step whose ONLY changeId is a base-commit beacon lands in the unattributed lane (same class as the item-41 blob-ref/git-evidence survivors; the styles.css hide rule already covers it). Attributing them (e.g. \"baseline\" pseudo-lane) is a display decision \u2014 raise if wanted. (item 46)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item46-custom-data-source-paths.md"
+    ],
+    "completionDate": "2026-07-15",
+    "closureNote": "Closed per user decision: gitBase-only steps now split out of the generic unattributed synthetic turn into a dedicated baseline agent-turn node (isGitBaseline) whose role pill reads 'git-derived baseline' and whose text names the base commit hash. New GIT_BASE_CHANGE_ID_PREFIX wire mirror + computeRolePillClass hyphenation + styles.css pill color."
+  },
+  {
+    "taskNumber": 87,
+    "title": "First commit of a session shows \"No files changed\" \u2014 absorb the trailing files bubble?",
+    "description": "The FIRST commit of a session (\"baseline\") shows \"No files changed\" + no contrib rows: its file chips live on the trailing reply bubble that sorts AFTER the commit row (snapshot attribution), so the walk-back finds nothing. Later commits work. Acceptable, or should `deriveCommitChangedFiles` also absorb the files bubble immediately after the commit? (item 66)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item66-fork-style-port.md"
+    ],
+    "completionDate": "2026-07-15",
+    "closureNote": "Closed per user decision (fix it): deriveCommitChangedFiles now also walks FORWARD to the next commit, absorbing chips whose change instant is at-or-before the commit (the trailing reply bubble that sorts after the commit row), and skips gitBase baseline chips in both directions; findContributingNodeIndexes mirrors the same walk so the highlight agrees."
+  },
+  {
+    "taskNumber": 88,
+    "title": "Rev-card op badges: single letters (A/M) vs the mockup's word badges",
+    "description": "Rev-card op badges render single letters (A/M) rather than the mockup's word badges (write/edit/user-edit) \u2014 eyeball and decide which reads better. (item 66) Location: `webapp/views/timeline.ts:1183\u20131217` (`op-badge` span) + a styles.css width tweak. Confirm with the user before styling choices.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item66-fork-style-port.md",
+      "plans/archived/handoff-develop-20260714-1530.md"
+    ],
+    "completionDate": "2026-07-14",
+    "commitHashes": [
+      "1d00690"
+    ],
+    "closureNote": "Stale premise: rev-cards have rendered word badges (opLabel = wire EventKind: write/edit/user-edit/\u2026) since the original item-66 port commit 1d00690, styled as mockup text pills (.rev-card .op-badge + .op-write/.op-edit/.op-user-edit/.op-overwrite). The single letters live only on the timeline file chips (computeOpLetter, timeline.ts) \u2014 deliberate compact design, kept per user decision. Follow-up applied in the closing change: added pill colors for the 5 previously-uncolored kinds (delete/rename/copy/append/script-execution) in styles.css."
+  },
+  {
+    "taskNumber": 89,
+    "title": "s39 emits NO commit node: compound `git add \u2026 && git commit` extracts only the add op",
+    "description": "PROBLEM: the s39 transcript runs `git add \u2026 && git commit` as one compound Bash command, but git-op extraction only recognizes the `add` op from compound commands, so the reconstructed timeline emits NO commit node for s39 \u2014 the commit is invisible in the viewer even though it happened. This is pre-existing engine behavior, not an item-66 port regression. NEEDED: either extend git-op extraction to recognize each op in `&&`-chained compound commands (so the commit gets its own node), or explicitly decide and document that compound-command commits are out of scope. (item 66)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item66-fork-style-port.md"
+    ],
+    "completionDate": "2026-07-15",
+    "commitHashes": [],
+    "closureNote": "Closed per user decision (extend extraction). PREMISE CORRECTION: s39's transcript records NO `git commit` at all \u2014 a block-compound.sh capture hook forced separate commands and only `git init` + `git add orders.py tests/` exist in its JSONLs, so no s39 commit node was ever recoverable; the compound-command gap was real but lives in s6-git-mv (`git add \u2026 && git commit -m \"$(cat \u2026)\"`). FIX: splitCompoundCommandSegments in src/reconstruction_git_evidence.ts \u2014 both findGitOperations and findGitCommitEvents now parse each `&&` segment (per-segment kind/detail/command; commit segments read the compound's single tool_result for resultHash; -C dir read from the commit's own segment). s6's kind sequence gains its compound commit: [init, add, commit, add, commit, other]. 3 new tests across tests/git-operations.test.ts and tests/reconstruction_git_evidence.test.ts."
+  },
+  {
+    "taskNumber": 90,
+    "title": "Files tree, multi-root projects: collapse single-child chains below the root?",
+    "description": "PROBLEM: in multi-root projects (sessions ran under different `cwd`s), the files-tree root is the shallow shared prefix (e.g. `/Users/matkatmusicllc`), so real single-child directory chains survive below it (`Programming` \u2192 `jot-backup` \u2192 `src`). Each intermediate level holds exactly one child, so navigating the tree costs one click per level that carries no information. This is honest divergence, not a reconstruction bug. NEEDED: decide whether to collapse single-child chains *below* the root into one combined node (e.g. `Programming/jot-backup/src`). Note: root-level chain-collapsing was previously declined, so this needs explicit sign-off that below-root collapsing is wanted. (item 77)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item77-files-tree-view.md"
+    ],
+    "completionDate": "2026-07-15",
+    "closureNote": "User signed off on below-root collapsing (root-level stays declined). Implemented collapseSingleChildFolderChains post-pass in buildFileTree (webapp/views/timeline.ts): each folder holding exactly one folder child merges into a combined a/b/c node, stopping at branching folders and file children. 3 new tests in tests/timeline-viewmodels.test.ts; 755 tests green."
+  },
+  {
+    "taskNumber": 91,
+    "title": "Rename badge shows only the old basename \u2014 ambiguous for same-basename renames",
+    "description": "PROBLEM: the rename badge shows only `\u2190 <old basename>`, with the full old path relegated to the tooltip. When two files in different directories were renamed from the same basename, their badges are visually identical \u2014 the user cannot tell the renames apart without hovering each one. NEEDED: disambiguate inline, e.g. show the shortest distinguishing suffix of the old path (only when two badges would otherwise collide, or always), or decide the tooltip is sufficient and close. (item 77)\n DECISION: disamiguate inline.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item77-files-tree-view.md"
+    ],
+    "completionDate": "2026-07-15",
+    "commitHashes": [],
+    "closureNote": "Rename badges now disambiguate inline: applyRenameBadgeLabels grows colliding old-basename badges to the shortest distinguishing suffix (sidebar + details pane, pane-local on copies). Suite green. Work staged, not yet committed (add the commit hash when committing)."
+  },
+  {
+    "taskNumber": 92,
+    "title": "Split oversized files: webapp/views/timeline.ts, webapp/views/details.ts, tests/timeline-viewmodels.test.ts",
+    "description": "`tests/timeline-viewmodels.test.ts` (2017 lines), `webapp/views/timeline.ts` (2071 lines), and `webapp/views/details.ts` (623 lines) all trip the project's 250-line file-size hook, which also flags pre-existing deep nesting. None of it originates from items 77/84, and splitting is a large refactor outside those tasks \u2014 but the ledger keeps growing, so it deserves its own item. (items 77 + 84) ALSO: src/reconstruction_git_evidence.ts is 568 lines vs the 250-line hook cap (plus one deep-nesting site around `placementAfter`) \u2014 pre-existing before task 89's compound-extraction change, flagged by the jot post-edit hook on every edit.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item77-files-tree-view.md",
+      "plans/archived/implementation-notes-item84-unify-bottom-pane.md",
+      "plans/archived/implementation-notes-task89-compound-git-op-extraction.md"
+    ],
+    "completionDate": "2026-07-15",
+    "closureNote": "Closed by the codebase-wide oversize split (user-expanded scope): audited all 153 tracked TS files via the jot hook's own filesize_check.py, then split every file over the 250-line cap \u2014 the four named files (timeline.ts 2266->220+14 modules, timeline-viewmodels.test.ts 2364->17 topic files, details.ts 685->4 modules, reconstruction_git_evidence.ts 558->3 modules) plus 26 more src/webapp/tests files (~35 new modules total, incl. app.ts 1219->10 modules). Pure moves, no re-export shims, callers import canonical homes directly. typecheck + build:webapp green; test suite deliberately left for the user to run. Deep-nesting hook flags recorded in plans/implementation-notes-task-92.md as follow-up input. Staged, not committed."
+  },
+  {
+    "taskNumber": 93,
+    "title": "renderFileHistoryView is a near-duplicate of the Revision View \u2014 consolidate?",
+    "description": "PROBLEM: two views implement the same per-revision UI independently. `renderFileHistoryView` (`webapp/views/file-history.ts:161`, route `#/project/<p>/file/<path>`) renders per-revision rows with the *same five actions* as the Revision View's rev cards (Show content / Export this version / Copy patch / Export .patch / Jump to timeline step). Since item 84's bug-1 fix removed its `\u2937` chip-row entry point, it is reachable only from the inspector's revision links and the snapshot pane's \"View in File History\" button \u2014 yet every future change to the five actions must be made in both places. NEEDED: consolidate \u2014 either retire `renderFileHistoryView` and repoint its two remaining entry points at the Revision View, or extract the shared revision-row rendering into one helper both views call. (item 84)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item84-unify-bottom-pane.md"
+    ],
+    "completionDate": "2026-07-15",
+    "closureNote": "Option 1 implemented (user decision): renderFileHistoryView archived to webapp/archive/file-history-pre-task93.ts; the #/project/<p>/file/<path>[/rev/<n>] route now renders THE Revision View (renderDetailsFileMode) via the timeline's exported activeDetailsContext, with computeFileRouteFocus mapping the /rev/<n> anchor to a content-mode RevisionFocus (4 new tests); the Diff-vs-Base entry button moved into the Revision View. Staged, not committed."
+  },
+  {
+    "taskNumber": 94,
+    "title": "`\u2937` snapshot-jump button renders for any matched changeId, not only snapshot-backed revisions",
+    "description": "PROBLEM: the `\u2937` snapshot-jump button is supposed to signal \"this revision HAS a File History Snapshot\", but its render condition doesn't check that. It renders whenever `computeSnapshotJumpRoute` returns a route, and that returns `undefined` only when the changeId is absent, resolves to no history, or resolves to a blob name with no anchored revision \u2014 i.e. the button appears for essentially any changeId that matches a revision, snapshot-backed or not. The indicator over-fires and misleads. NEEDED: tighten the render condition so `\u2937` appears only for revisions actually backed by a snapshot, or redefine/document the button's meaning as \"jumpable\" rather than \"snapshot-backed\". (item 84)\nDECISION: Tighten the render condition so `\u2937` appears only for revisions actually backed by a snapshot, replace snapshot-button graphic with the camera emoji icon, add a tool tip that reads \"Show this specific File History Snapshot in File Revisions view\".",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-item84-unify-bottom-pane.md"
+    ],
+    "completionDate": "2026-07-15",
+    "commitHashes": [],
+    "closureNote": "Snapshot-jump button now renders only for snapshot-backed revisions (backup-blob @vN changeIds, gated in computeSnapshotJumpRoute), with camera emoji and tooltip 'Show this specific File History Snapshot in File Revisions view'. Suite green. Work staged, not yet committed (add the commit hash when committing)."
+  },
+  {
+    "taskNumber": 95,
+    "title": "Doubled rtk-rewrite tool-call rows (s39): signal, or collapse into the original row?",
+    "description": "PROBLEM: when the rtk-rewrite hook rewrites a tool call, the timeline renders two rows for one logical action \u2014 the original and the rewrite. In s39 the hook rewrote both `ls` and `git add`, so the timeline shows `* git add \u2026 *` AND `* rtk git add \u2026 *`. This follows the locked \"all tool calls, including hook rewrites\" rule, but the doubled rows may read as noise rather than signal. NEEDED: decide whether doubled hook-rewrite rows stay as-is (two rows = signal) or a rewrite collapses into its original row (one row, two line labels); if collapsing, implement it in the timeline tool-call row rendering. (timeline tool-call rows)\n DECISION: keep the doubled rows.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-timeline-tool-call-rows.md"
+    ],
+    "completionDate": "2026-07-15",
+    "commitHashes": [],
+    "closureNote": "Resolved by decision, no code change: the doubled rows (original + rtk-rewrite tool call) are the intended signal per the locked \"all tool calls, including hook rewrites\" rule; the user decided to keep them as-is."
+  },
+  {
     "taskNumber": 97,
     "title": "Consent view: show source JSONL path + line number per script",
     "completionDate": "2026-07-14",
@@ -815,20 +946,6 @@
     "description": "The working tree carries uncommitted reconstruction-pipeline memoization changes (`src/reconstruction_corpus.ts` and friends). It is either someone's in-flight work or an abandoned experiment. It typechecks and is not obviously broken, but it has no committed home and no test naming it. Ask the user before committing OR reverting."
   },
   {
-    "taskNumber": 88,
-    "title": "Rev-card op badges: single letters (A/M) vs the mockup's word badges",
-    "description": "Rev-card op badges render single letters (A/M) rather than the mockup's word badges (write/edit/user-edit) \u2014 eyeball and decide which reads better. (item 66) Location: `webapp/views/timeline.ts:1183\u20131217` (`op-badge` span) + a styles.css width tweak. Confirm with the user before styling choices.",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-item66-fork-style-port.md",
-      "plans/archived/handoff-develop-20260714-1530.md"
-    ],
-    "completionDate": "2026-07-14",
-    "commitHashes": [
-      "1d00690"
-    ],
-    "closureNote": "Stale premise: rev-cards have rendered word badges (opLabel = wire EventKind: write/edit/user-edit/\u2026) since the original item-66 port commit 1d00690, styled as mockup text pills (.rev-card .op-badge + .op-write/.op-edit/.op-user-edit/.op-overwrite). The single letters live only on the timeline file chips (computeOpLetter, timeline.ts) \u2014 deliberate compact design, kept per user decision. Follow-up applied in the closing change: added pill colors for the 5 previously-uncolored kinds (delete/rename/copy/append/script-execution) in styles.css."
-  },
-  {
     "taskNumber": 102,
     "title": "Move the historical JS-engine code, tests, and fixtures into js-engine/archived/",
     "description": "Move the historical javascript engine code and tests and fixtures into a 'js-engine/archived/' folder. Known candidates (audited 2026-07-14): `tests/archive/` \u2014 3 legacy JS-engine test files (`test-file-event-observations-readedits.js` covers the retired `api/file-event-observations.js` scanner; `test-probe-helpers.js` + `test-probe-projects.js` test `tools/probe-projects`) plus `envelope.test.ts` which is archived early Engine-B (imports `src/structures/vocabulary.ts`) \u2014 decide whether it moves too or stays; `tests/fixtures/scenario-check/` \u2014 engine-a-named JSONL fixtures and sidecar/lineage/collector fixtures with ZERO references from current tests/src/scripts. CAVEAT: `api/` itself is the frozen legacy JS engine but is still LIVE as JFReD's engine (`jfred/jfred.html`, see task 58) \u2014 decide whether it counts as historical or stays put. Both tests/ dirs are currently untracked; this task supersedes task 99's commit-or-ignore question (they get committed at their new archived home).",
@@ -837,87 +954,14 @@
     "closureNote": "Moved the 3 legacy JS test files (test-file-event-observations-readedits.js, test-probe-helpers.js, test-probe-projects.js) to js-engine/archived/tests/ and tests/fixtures/scenario-check/ (27 files, zero live references) to js-engine/archived/fixtures/scenario-check/, staged at their new home (supersedes task 99's commit-or-ignore question). api/ stayed put \u2014 it is JFReD's live engine (jfred/jfred.html, task 58). envelope.test.ts stayed in tests/archive/ \u2014 it is early Engine-B TypeScript (imports src/structures/vocabulary.ts), not JS-engine code. commitHashes empty: work staged only, not committed."
   },
   {
-    "taskNumber": 57,
-    "title": "Decide the public name/brand",
-    "completionDate": "2026-07-14",
-    "closureNote": "User decided 2026-07-14: the tool is called JFRED, and it already has its own repo \u2014 which still needs the jfred codebase added to it. Downstream: the public README title (task 61) and the new repo's package name should commit to JFRED consistently.",
-    "description": "Decide the public name/brand \u2014 blocks item 60's README title and the public repo's name (item 58). `package.json` says `jsonl-viewer` (`\"private\": true`); root `README.md` says \"JSONL_Viewer\"; JFReD (\"JSONL File Reconstruction Debugger\", `jfred/jfred.html`) is technically a sub-tool \u2014 the static, browser-only debugger over the frozen legacy `api/` engine \u2014 NOT the Engine-B product in `src/`. The user referred to the whole project as \"JFRED\" when requesting publication, so JFReD may be the intended brand for everything; if so, `package.json` name/description and the README must commit to it consistently. Pure user decision, zero code."
-  },
-  {
-    "taskNumber": 59,
-    "title": "Scrub hardcoded home paths + decouple tests from the scenarios submodule",
-    "completionDate": "2026-07-14",
-    "closureNote": "Closed without code, user-decided 2026-07-14: a separate repo will be made exclusively for JFRED, so this repo won't need scrubbing \u2014 it will simply be made private when JFRED is released. The premise (\"do this in THIS repo so both repos share the code\") no longer applies.",
-    "description": "Scrub hardcoded home paths + decouple tests from the scenarios submodule \u2014 two code changes the public copy needs: (a) `tests/fixtures.ts:17-18` hardcodes `/Users/matkatmusicllc/...` scenario roots \u2014 parameterize (env var or relative `scenarios/executed` probe that skips gracefully when absent); `src/Impl_template.md`, `src/Plan_template.md`, `src/Plan_Impl_template.md` also carry absolute worktree paths (simplest: don't publish the templates \u2014 they're dev-process files). (b) exactly 4 test files touch `scenarios/`: `tests/check_scenario_coverage.test.ts`, `tests/fixtures.ts`, `tests/reconstruction_steps_name_at_time.test.ts` (commented-out ref), and `tests/viewer-viewmodels.test.ts` \u2014 make those tests self-skip when `scenarios/executed` is absent so the public suite (the other ~66 files run off committed `tests/fixtures/`) is green on a bare clone. Do this in THIS repo so both repos share the code."
-  },
-  {
-    "taskNumber": 85,
-    "title": "timeline header needs Prev/Next buttons that navigate to messages where Files Touched events happened, to make it easy to jump to file-modifying events.  When a message is jumped to via these buttons, the message's expansion triangle should be clicked, showing the expanded message so that you can see the File chips for that message",
-    "completionDate": "2026-07-15",
-    "closureNote": "Implemented 2026-07-15: added \u25c0 Prev / Next \u25b6 buttons to #timeline-pane-header (webapp/index.html) wired in renderTimelineView; new exported pure helper findAdjacentFileTouchedIndex walks to the nearest agent turn with non-empty fileChanges. A jump expands the row (adds .expanded, same effect as clicking its \u25b8 triangle so File chips show), refreshes the Expand All label, and selects the row via selectTimelineRow (renders details + centers). Buttons disable when no candidate exists in their direction (refreshFileNavButtons; button:disabled styling). 4 unit tests appended to tests/timeline-viewmodels.test.ts. Work staged, not committed.",
-    "description": "85: timeline header needs Prev/Next buttons that navigate to messages where Files Touched events happened, to make it easy to jump to file-modifying events.  When a message is jumped to via these buttons, the message's expansion triangle should be clicked, showing the expanded message so that you can see the File chips for that message."
-  },
-  {
-    "taskNumber": 86,
-    "title": "Attribute gitBase baseline steps (\"baseline\" pseudo-lane?) instead of the unattributed lane",
-    "description": "The `gitBase:` beacon changeIds resolve to no session in `indexChangeIdsToSessionIds`, so a step whose ONLY changeId is a base-commit beacon lands in the unattributed lane (same class as the item-41 blob-ref/git-evidence survivors; the styles.css hide rule already covers it). Attributing them (e.g. \"baseline\" pseudo-lane) is a display decision \u2014 raise if wanted. (item 46)",
+    "taskNumber": 103,
+    "title": "Failed git commands still emit timeline rows and CommitMarkers \u2014 suppress or badge?",
+    "description": "PROBLEM: git-op extraction never checks `is_error`, so a FAILED git command still contributes timeline rows. s6's compound `git add \u2026 && git commit` failed at runtime yet now contributes add+commit rows (its commit row has `resultHash: undefined` \u2014 error output carries no `[branch hash]` line); this mirrors how a failed plain `git commit` already gets a row today. Relatedly, `findGitCommitEvents` for s6 returns 2 commit events (failed compound + retry) where the repo has only 1 real commit \u2014 `resolveCommitByTimestamp` resolves both to the same commit (harmless for the evidence channel), but CommitMarkers (timeline pick hard-stops) now include the failed compound's instant; flag if a duplicate marker ever shows up as a visible artifact in the viewer. NEEDED: decide whether failed git commands should be suppressed or badged \u2014 a decision spanning ALL git ops, not just compound ones. \nDECISION: Badge failed git commands as 'FAILED' (red) in the timeline.",
     "handoffFilePaths": [
-      "plans/archived/implementation-notes-item46-custom-data-source-paths.md"
-    ],
-    "completionDate": "2026-07-15",
-    "closureNote": "Closed per user decision: gitBase-only steps now split out of the generic unattributed synthetic turn into a dedicated baseline agent-turn node (isGitBaseline) whose role pill reads 'git-derived baseline' and whose text names the base commit hash. New GIT_BASE_CHANGE_ID_PREFIX wire mirror + computeRolePillClass hyphenation + styles.css pill color."
-  },
-  {
-    "taskNumber": 87,
-    "title": "First commit of a session shows \"No files changed\" \u2014 absorb the trailing files bubble?",
-    "description": "The FIRST commit of a session (\"baseline\") shows \"No files changed\" + no contrib rows: its file chips live on the trailing reply bubble that sorts AFTER the commit row (snapshot attribution), so the walk-back finds nothing. Later commits work. Acceptable, or should `deriveCommitChangedFiles` also absorb the files bubble immediately after the commit? (item 66)",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-item66-fork-style-port.md"
-    ],
-    "completionDate": "2026-07-15",
-    "closureNote": "Closed per user decision (fix it): deriveCommitChangedFiles now also walks FORWARD to the next commit, absorbing chips whose change instant is at-or-before the commit (the trailing reply bubble that sorts after the commit row), and skips gitBase baseline chips in both directions; findContributingNodeIndexes mirrors the same walk so the highlight agrees."
-  },
-  {
-    "taskNumber": 89,
-    "title": "s39 emits NO commit node: compound `git add \u2026 && git commit` extracts only the add op",
-    "description": "PROBLEM: the s39 transcript runs `git add \u2026 && git commit` as one compound Bash command, but git-op extraction only recognizes the `add` op from compound commands, so the reconstructed timeline emits NO commit node for s39 \u2014 the commit is invisible in the viewer even though it happened. This is pre-existing engine behavior, not an item-66 port regression. NEEDED: either extend git-op extraction to recognize each op in `&&`-chained compound commands (so the commit gets its own node), or explicitly decide and document that compound-command commits are out of scope. (item 66)",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-item66-fork-style-port.md"
-    ],
-    "completionDate": "2026-07-15",
-    "commitHashes": [],
-    "closureNote": "Closed per user decision (extend extraction). PREMISE CORRECTION: s39's transcript records NO `git commit` at all \u2014 a block-compound.sh capture hook forced separate commands and only `git init` + `git add orders.py tests/` exist in its JSONLs, so no s39 commit node was ever recoverable; the compound-command gap was real but lives in s6-git-mv (`git add \u2026 && git commit -m \"$(cat \u2026)\"`). FIX: splitCompoundCommandSegments in src/reconstruction_git_evidence.ts \u2014 both findGitOperations and findGitCommitEvents now parse each `&&` segment (per-segment kind/detail/command; commit segments read the compound's single tool_result for resultHash; -C dir read from the commit's own segment). s6's kind sequence gains its compound commit: [init, add, commit, add, commit, other]. 3 new tests across tests/git-operations.test.ts and tests/reconstruction_git_evidence.test.ts."
-  },
-  {
-    "taskNumber": 90,
-    "title": "Files tree, multi-root projects: collapse single-child chains below the root?",
-    "description": "PROBLEM: in multi-root projects (sessions ran under different `cwd`s), the files-tree root is the shallow shared prefix (e.g. `/Users/matkatmusicllc`), so real single-child directory chains survive below it (`Programming` \u2192 `jot-backup` \u2192 `src`). Each intermediate level holds exactly one child, so navigating the tree costs one click per level that carries no information. This is honest divergence, not a reconstruction bug. NEEDED: decide whether to collapse single-child chains *below* the root into one combined node (e.g. `Programming/jot-backup/src`). Note: root-level chain-collapsing was previously declined, so this needs explicit sign-off that below-root collapsing is wanted. (item 77)",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-item77-files-tree-view.md"
-    ],
-    "completionDate": "2026-07-15",
-    "closureNote": "User signed off on below-root collapsing (root-level stays declined). Implemented collapseSingleChildFolderChains post-pass in buildFileTree (webapp/views/timeline.ts): each folder holding exactly one folder child merges into a combined a/b/c node, stopping at branching folders and file children. 3 new tests in tests/timeline-viewmodels.test.ts; 755 tests green."
-  },
-  {
-    "taskNumber": 92,
-    "title": "Split oversized files: webapp/views/timeline.ts, webapp/views/details.ts, tests/timeline-viewmodels.test.ts",
-    "description": "`tests/timeline-viewmodels.test.ts` (2017 lines), `webapp/views/timeline.ts` (2071 lines), and `webapp/views/details.ts` (623 lines) all trip the project's 250-line file-size hook, which also flags pre-existing deep nesting. None of it originates from items 77/84, and splitting is a large refactor outside those tasks \u2014 but the ledger keeps growing, so it deserves its own item. (items 77 + 84) ALSO: src/reconstruction_git_evidence.ts is 568 lines vs the 250-line hook cap (plus one deep-nesting site around `placementAfter`) \u2014 pre-existing before task 89's compound-extraction change, flagged by the jot post-edit hook on every edit.",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-item77-files-tree-view.md",
-      "plans/archived/implementation-notes-item84-unify-bottom-pane.md",
       "plans/archived/implementation-notes-task89-compound-git-op-extraction.md"
     ],
     "completionDate": "2026-07-15",
-    "closureNote": "Closed by the codebase-wide oversize split (user-expanded scope): audited all 153 tracked TS files via the jot hook's own filesize_check.py, then split every file over the 250-line cap \u2014 the four named files (timeline.ts 2266->220+14 modules, timeline-viewmodels.test.ts 2364->17 topic files, details.ts 685->4 modules, reconstruction_git_evidence.ts 558->3 modules) plus 26 more src/webapp/tests files (~35 new modules total, incl. app.ts 1219->10 modules). Pure moves, no re-export shims, callers import canonical homes directly. typecheck + build:webapp green; test suite deliberately left for the user to run. Deep-nesting hook flags recorded in plans/implementation-notes-task-92.md as follow-up input. Staged, not committed."
-  },
-  {
-    "taskNumber": 93,
-    "title": "renderFileHistoryView is a near-duplicate of the Revision View \u2014 consolidate?",
-    "description": "PROBLEM: two views implement the same per-revision UI independently. `renderFileHistoryView` (`webapp/views/file-history.ts:161`, route `#/project/<p>/file/<path>`) renders per-revision rows with the *same five actions* as the Revision View's rev cards (Show content / Export this version / Copy patch / Export .patch / Jump to timeline step). Since item 84's bug-1 fix removed its `\u2937` chip-row entry point, it is reachable only from the inspector's revision links and the snapshot pane's \"View in File History\" button \u2014 yet every future change to the five actions must be made in both places. NEEDED: consolidate \u2014 either retire `renderFileHistoryView` and repoint its two remaining entry points at the Revision View, or extract the shared revision-row rendering into one helper both views call. (item 84)",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-item84-unify-bottom-pane.md"
-    ],
-    "completionDate": "2026-07-15",
-    "closureNote": "Option 1 implemented (user decision): renderFileHistoryView archived to webapp/archive/file-history-pre-task93.ts; the #/project/<p>/file/<path>[/rev/<n>] route now renders THE Revision View (renderDetailsFileMode) via the timeline's exported activeDetailsContext, with computeFileRouteFocus mapping the /rev/<n> anchor to a content-mode RevisionFocus (4 new tests); the Diff-vs-Base entry button moved into the Revision View. Staged, not committed."
+    "commitHashes": [],
+    "closureNote": "Failed git commands (tool_result is_error) now stamp GitOperation.isError through the wire onto commit nodes and their Bash tool-call rows, rendered as a red FAILED badge; rows are badged, never suppressed. Suite green. Work staged, not yet committed (add the commit hash when committing)."
   }
 ]

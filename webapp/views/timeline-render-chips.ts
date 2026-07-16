@@ -124,14 +124,15 @@ export function markChipActive(context: TimelineRenderContext, chipElement: HTML
 //     );
 // };
 
-// One file's button row: [ name ] [{ }] [+/-] [⤷] <TS> L:n — revision state, the file's OWN
+// One file's button row: [ name ] [{ }] [+/-] [📷] <TS> L:n — revision state, the file's OWN
 // causing line, the revision's computed diff, the snapshot jump, and the causing line's
 // timestamp + label (item 55). The action buttons need a resolvable changeId.
 // item 84: every button here is a deep-link into THE Revision View (details.ts's
 // renderDetailsFileMode) — button X ≡ `click the treeview entry → click this revision's card →
-// click the card's X`. They differ only in the right-column mode they ask for. ⤷ is the
-// exception and is deliberately untouched: it navigates to the File History route (a separate
-// surface), and its presence/absence is the signal that a revision HAS a snapshot.
+// click the card's X`. They differ only in the right-column mode they ask for. 📷 renders only
+// for snapshot-backed revisions (task 94: backup-blob changeIds, gated inside
+// computeSnapshotJumpRoute) — its presence IS the "this revision HAS a File History Snapshot"
+// indicator, no longer an any-resolvable-changeId over-fire.
 export function renderFileButtonRow(context: TimelineRenderContext, node: TurnNode, nodeIndex: number, change: FileChange, previewPane: HTMLElement): HTMLElement {
     const causingLocation = context.chipLineLocations.get(`${nodeIndex}:${change.path}`);
     const buttons = [renderFileChip(change, (event: Event) => {
@@ -182,14 +183,15 @@ export function renderFileButtonRow(context: TimelineRenderContext, node: TurnNo
             },
         }));
         // The route is computed as a PRESENCE TEST, not to navigate: it resolves to undefined
-        // when this revision has no File History Snapshot, and the button's absence is how the
-        // row says so (user-decided). Not every revision has one.
+        // when this revision has no File History Snapshot (task 94: non-blob changeIds are
+        // rejected inside computeSnapshotJumpRoute), and the button's absence is how the row
+        // says so (user-decided). Not every revision has one.
         const jumpRoute = computeSnapshotJumpRoute(context.project, context.reconstructionDocument.filesTouched, change);
         if (jumpRoute !== undefined) {
             buttons.push(el("span", {
                 class: "timeline-chip timeline-chip-action",
-                title: "Show this revision's File History Snapshot",
-                text: "⤷",
+                title: "Show this specific File History Snapshot in File Revisions view",
+                text: "📷",
                 onclick: (event: Event) => {
                     event.stopPropagation();
                     markChipActive(context, event.currentTarget as HTMLElement);

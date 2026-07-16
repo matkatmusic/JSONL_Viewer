@@ -46,8 +46,8 @@ test("test_buildFilesSidebarViewModel_lists_targets_with_revision_counts", () =>
     // build the sidebar view-model from the commit-walk document (alpha 2 revs, beta 1 rev).
     const entries = buildFilesSidebarViewModel(commitWalkDocument);
     assert.deepEqual(entries, [
-        { target: "alpha.py", revisionCount: 2, isDeleted: false, originalPath: undefined },
-        { target: "beta.py", revisionCount: 1, isDeleted: false, originalPath: undefined },
+        { target: "alpha.py", revisionCount: 2, isDeleted: false, originalPath: undefined, renameBadgeLabel: undefined },
+        { target: "beta.py", revisionCount: 1, isDeleted: false, originalPath: undefined, renameBadgeLabel: undefined },
     ]);
 });
 

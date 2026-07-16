@@ -19,7 +19,7 @@ import {
 import { computeScriptStateKey } from "./reconstruction_script_prestate.ts";
 import { runScriptAgainstState } from "./reconstruction_script_sandbox.ts";
 import type { FileEvent, UserEditEvent, WriteEvent } from "./reconstruction_engine.ts";
-import { findGitCommitEvents, type GitCommitEvent } from "./reconstruction_git_operations.ts";
+import { findGitCommitEvents, type GitCommitEvent } from "./reconstruction_git_commit_events.ts";
 import { findFallbackRepoDirs, readCommittedFileContent } from "./reconstruction_git_evidence.ts";
 
 // A lineage event carrying the file's FULL content at its instant (not a hunk-based edit).

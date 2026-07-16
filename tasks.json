@@ -61,30 +61,6 @@
     "description": "83. See if actual /jot folder can be reconstructed."
   },
   {
-    "taskNumber": 91,
-    "title": "Rename badge shows only the old basename \u2014 ambiguous for same-basename renames",
-    "description": "PROBLEM: the rename badge shows only `\u2190 <old basename>`, with the full old path relegated to the tooltip. When two files in different directories were renamed from the same basename, their badges are visually identical \u2014 the user cannot tell the renames apart without hovering each one. NEEDED: disambiguate inline, e.g. show the shortest distinguishing suffix of the old path (only when two badges would otherwise collide, or always), or decide the tooltip is sufficient and close. (item 77)",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-item77-files-tree-view.md"
-    ]
-  },
-  {
-    "taskNumber": 94,
-    "title": "`\u2937` snapshot-jump button renders for any matched changeId, not only snapshot-backed revisions",
-    "description": "PROBLEM: the `\u2937` snapshot-jump button is supposed to signal \"this revision HAS a File History Snapshot\", but its render condition doesn't check that. It renders whenever `computeSnapshotJumpRoute` returns a route, and that returns `undefined` only when the changeId is absent, resolves to no history, or resolves to a blob name with no anchored revision \u2014 i.e. the button appears for essentially any changeId that matches a revision, snapshot-backed or not. The indicator over-fires and misleads. NEEDED: tighten the render condition so `\u2937` appears only for revisions actually backed by a snapshot, or redefine/document the button's meaning as \"jumpable\" rather than \"snapshot-backed\". (item 84)",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-item84-unify-bottom-pane.md"
-    ]
-  },
-  {
-    "taskNumber": 95,
-    "title": "Doubled rtk-rewrite tool-call rows (s39): signal, or collapse into the original row?",
-    "description": "PROBLEM: when the rtk-rewrite hook rewrites a tool call, the timeline renders two rows for one logical action \u2014 the original and the rewrite. In s39 the hook rewrote both `ls` and `git add`, so the timeline shows `* git add \u2026 *` AND `* rtk git add \u2026 *`. This follows the locked \"all tool calls, including hook rewrites\" rule, but the doubled rows may read as noise rather than signal. NEEDED: decide whether doubled hook-rewrite rows stay as-is (two rows = signal) or a rewrite collapses into its original row (one row, two line labels); if collapsing, implement it in the timeline tool-call row rendering. (timeline tool-call rows)",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-timeline-tool-call-rows.md"
-    ]
-  },
-  {
     "taskNumber": 96,
     "title": "Deferred browser verifications: items 78, 80, 84 and the unified-reconstruction fix",
     "description": "Browser checks deferred to the user's post-session pass, bundled: (a) item 78 \u2014 visual/headless verification of the timeline-build progress overlay against `#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline`; threshold 500 / batch 100 are first-cut constants, tunable if the overlay feels too eager or the bar too coarse. (b) item 80 \u2014 confirm at the repro that a long console line wraps, and re-wraps after dragging `#split-lr` to narrow the console; if long lines STILL overflow, the cause is elsewhere and the item reopens. (c) item 84 \u2014 the `\u2610`/`\u2611` range toggle is a `<button>` inside `.rev-head`, which otherwise holds `<span>`s; may need a CSS nudge \u2014 visual verify. (d) unified-juggling-conway \u2014 glance that the file-history revision-content pane still looks right (`computeContentAtTime` now renders from the revision's own `lines`); click a chip \u2192 drawer shows the fetched file, pick a range + chip \u2192 diff renders; measure the cold-load timing win on the real `jot-backup` project via the `--resetSandboxMemo` run.",
@@ -101,14 +77,6 @@
     "description": "Port the suite into the jot plugin (`~/Programming/jot`) \u2014 the user's stated intent (\"I'm going to add these skills to jot\"). Add `viewTask_main()` in `common/scripts/view_task_lib.py` (translate `.claude/hooks/viewTaskHook.ts` 1:1; mirror `todo_listMain` in `common/scripts/todo_lib_scan.py`: stdin JSON \u2192 strict `/view-task` prefix match \u2192 `hookjson_emitBlock`), register `(\"/view-task\", lambda: viewTask_main())` in `_PROMPT_DISPATCH` in `scripts/jot_plugin_orchestrator.py`, add a do-nothing `skills/view-task/SKILL.md` (copy `skills/todo-list/SKILL.md`'s body), and pytest `tests/test_view_task_lib.py` (jot's PostToolBatch hook demands it). Then decide whether update-tasks/create-task/pick-a-task also move (they are plain SKILL.md + node scripts; jot skills so far are Python-backed).",
     "handoffFilePaths": [
       "plans/archived/handoff-develop-20260714-1530.md"
-    ]
-  },
-  {
-    "taskNumber": 103,
-    "title": "Failed git commands still emit timeline rows and CommitMarkers \u2014 suppress or badge?",
-    "description": "PROBLEM: git-op extraction never checks `is_error`, so a FAILED git command still contributes timeline rows. s6's compound `git add \u2026 && git commit` failed at runtime yet now contributes add+commit rows (its commit row has `resultHash: undefined` \u2014 error output carries no `[branch hash]` line); this mirrors how a failed plain `git commit` already gets a row today. Relatedly, `findGitCommitEvents` for s6 returns 2 commit events (failed compound + retry) where the repo has only 1 real commit \u2014 `resolveCommitByTimestamp` resolves both to the same commit (harmless for the evidence channel), but CommitMarkers (timeline pick hard-stops) now include the failed compound's instant; flag if a duplicate marker ever shows up as a visible artifact in the viewer. NEEDED: decide whether failed git commands should be suppressed or badged \u2014 a decision spanning ALL git ops, not just compound ones.",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-task89-compound-git-op-extraction.md"
     ]
   }
 ]

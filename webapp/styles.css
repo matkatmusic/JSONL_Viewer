@@ -343,6 +343,17 @@ button:hover { background: var(--sel-hover); border-color: var(--accent); }
     border-radius: 8px;
     padding: 0 6px;
 }
+/* task 103: the red FAILED badge on rows whose git command's tool_result errored. */
+.failed-badge {
+    flex: 0 0 auto;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--red);
+    border: 1px solid var(--red);
+    border-radius: 8px;
+    padding: 0 6px;
+}
 .tl-line {
     display: flex;
     align-items: center;

@@ -1,70 +1,20 @@
-// Parsing recorded git Bash commands out of the transcript: commit events (task 89: one per `&&`
-// segment) and the timeline's parsed git operations (item 66: kind + detail + commit-hash pill).
+// The timeline's parsed git operations (item 66: kind + detail + commit-hash pill), extracted
+// from the transcript's Bash commands. The `git commit` EVENT extraction lives in
+// reconstruction_git_commit_events.ts (250-line split), importing this file's segment splitter.
 
-import { getCorpusState } from "./reconstruction_corpus.ts";
 import { BlockType, GitOperationKind, KNOWN_GIT_OPERATION_KINDS, ToolName } from "./structures/vocabulary.ts";
-import { Path, Uuid } from "./structures/domain.ts";
+import { Uuid } from "./structures/domain.ts";
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import { getContentBlocks } from "./structures/content-blocks.ts";
-import { bareCommitHashToken, gitCommandStart, gitCommitCommand, gitCommitResultHashLine, shellCommandToken } from "./regex_expressions.ts";
-
-// A recorded `git commit`: the repo it committed in (the -C dir, else the record cwd), when, and
-// the session whose Bash call ran it (for timeline attribution).
-export type GitCommitEvent = { cwd?: Path; timestamp: Date; sessionId?: Uuid };
+import { bareCommitHashToken, gitCommandStart, gitCommitResultHashLine, shellCommandToken } from "./regex_expressions.ts";
 
 // A compound Bash command's `&&`-chained segments, each trimmed — `git add a && git commit -m "x"`
 // -> ["git add a", 'git commit -m "x"']. A command with no `&&` comes back as its own single
 // segment. Task 89: each git segment then gets its own operation/commit-event.
 // ponytail: a literal `&&` INSIDE a quoted argument would split wrongly — no transcript
 // exercises that; move to a quote-aware scan if one ever does.
-function splitCompoundCommandSegments(command: string): string[] {
+export function splitCompoundCommandSegments(command: string): string[] {
     return command.split("&&").map((segment) => segment.trim());
-}
-
-// One Bash command's commit events: one per `&&` segment matching `gitCommitCommand`, each with
-// the segment's own -C dir (else the record cwd).
-function parseCommitEventsFromCommand(
-    command: string,
-    recordCwd: Path | undefined,
-    timestamp: Date,
-    sessionId: Uuid | undefined,
-): GitCommitEvent[] {
-    const events: GitCommitEvent[] = [];
-    for (const segment of splitCompoundCommandSegments(command)) {
-        const match = segment.match(gitCommitCommand);
-        if (match === null) continue;
-        const dashCDir = match[1];
-        events.push({
-            cwd: dashCDir !== undefined ? new Path(dashCDir) : recordCwd,
-            timestamp,
-            sessionId,
-        });
-    }
-    return events;
-}
-
-// Every `git commit` Bash command in the transcript, in record order. Memoized per records
-// identity in the corpus (pure group): the per-file repair chain re-enters here for every
-// reconstructed file, and the result depends on the records alone.
-export function findGitCommitEvents(records: TranscriptRecord[]): GitCommitEvent[] {
-    const state = getCorpusState(records);
-    if (state.gitCommitEvents !== undefined) {
-        return state.gitCommitEvents;
-    }
-    const commits: GitCommitEvent[] = [];
-    for (const record of records) {
-        const timestamp = record.timestamp;
-        if (!(timestamp instanceof Date)) continue;
-        const recordCwd = (record as { cwd?: Path }).cwd;
-        for (const block of getContentBlocks(record)) {
-            if (block.type !== BlockType.tool_use || block.name !== ToolName.Bash) continue;
-            const command = (block.input as { command?: string }).command;
-            if (command === undefined) continue;
-            commits.push(...parseCommitEventsFromCommand(command, recordCwd, timestamp, record.sessionId));
-        }
-    }
-    state.gitCommitEvents = commits;
-    return commits;
 }
 
 // One recorded git command, parsed for the timeline: the subcommand family, the human detail its
@@ -82,6 +32,12 @@ export type GitOperation = {
     // kind commit and only when the output carried git's summary line — the viewer's commit pill.
     // A git hash abbreviation is free-form text, so it stays a primitive (coding-requirements 1).
     resultHash?: string;
+    // True when the Bash call's own tool_result carried is_error (task 103) — the timeline's red
+    // FAILED badge; failed commands are badged, never suppressed. A compound's single result
+    // serves every segment, so ALL its git segments carry the stamp (the shell stopped at the
+    // failing segment; the transcript cannot attribute the failure per segment). Absent on
+    // success (the resultHash stamped-only-when-present convention).
+    isError?: boolean;
 };
 
 // Global git flags that consume the NEXT token as their argument (`git -C <dir> …`,
@@ -157,21 +113,29 @@ function parseGitOperationDetail(kind: GitOperationKind, tokens: string[], subco
     return "";
 }
 
+// One Bash command's tool_result, as the operation parse reads it: the printed output text (the
+// commit-hash source) and whether the call errored (task 103's FAILED stamp).
+type GitCommandResult = { text: string; isError: boolean };
+
 // One Bash command's operations: one per `&&` segment that IS a git invocation. Commit segments
-// read their short hash from `resultText` — the compound's single tool_result serves every segment.
+// read their short hash from the result's text — the compound's single tool_result serves every
+// segment — and an errored result stamps isError on every git segment (task 103).
 function parseOperationsFromCommand(
     command: string,
     timestamp: Date,
     sessionId: Uuid | undefined,
     uuid: Uuid | undefined,
-    resultText: string | undefined,
+    result: GitCommandResult | undefined,
 ): GitOperation[] {
     const operations: GitOperation[] = [];
     for (const segment of splitCompoundCommandSegments(command)) {
         if (segment.match(gitCommandStart) === null) continue;
         const operation = parseGitOperation(segment, timestamp, sessionId, uuid);
-        if (operation.kind === GitOperationKind.commit && resultText !== undefined) {
-            operation.resultHash = extractCommitHashFromResultText(resultText);
+        if (operation.kind === GitOperationKind.commit && result !== undefined) {
+            operation.resultHash = extractCommitHashFromResultText(result.text);
+        }
+        if (result !== undefined && result.isError) {
+            operation.isError = true;
         }
         operations.push(operation);
     }
@@ -210,18 +174,19 @@ export function extractCommitHashFromResultText(resultText: string): string | un
     return bareTokenMatch[1];
 }
 
-// Every tool_result's text, keyed by its tool_use id — the lookup a commit operation resolves its
-// own printed output through (same hydrated-block pattern as reconstruction_extract's result walk).
-function indexToolResultTextByToolUseId(records: TranscriptRecord[]): Map<string, string> {
-    const textById = new Map<string, string>();
+// Every tool_result's text + error flag, keyed by its tool_use id — the lookup an operation
+// resolves its own printed output and failure through (same hydrated-block pattern as
+// reconstruction_extract's result walk).
+function indexToolResultsByToolUseId(records: TranscriptRecord[]): Map<string, GitCommandResult> {
+    const resultById = new Map<string, GitCommandResult>();
     for (const record of records) {
         for (const block of getContentBlocks(record)) {
             if (block.type !== BlockType.tool_result) continue;
             if (typeof block.content !== "string") continue;
-            textById.set(block.tool_use_id.toString(), block.content);
+            resultById.set(block.tool_use_id.toString(), { text: block.content, isError: block.is_error });
         }
     }
-    return textById;
+    return resultById;
 }
 
 // Every git Bash command in the transcript, in record order, parsed for the timeline's
@@ -231,7 +196,7 @@ function indexToolResultTextByToolUseId(records: TranscriptRecord[]): Map<string
 // operations additionally carry the short hash printed in their own tool_result (item 66: the
 // viewer's `GIT COMMIT [hash]` pill).
 export function findGitOperations(records: TranscriptRecord[]): GitOperation[] {
-    const resultTextById = indexToolResultTextByToolUseId(records);
+    const resultById = indexToolResultsByToolUseId(records);
     const operations: GitOperation[] = [];
     for (const record of records) {
         const timestamp = record.timestamp;
@@ -241,8 +206,8 @@ export function findGitOperations(records: TranscriptRecord[]): GitOperation[] {
             if (block.name !== ToolName.Bash) continue;
             const command = (block.input as { command?: string }).command;
             if (command === undefined) continue;
-            const resultText = resultTextById.get(block.id.toString());
-            operations.push(...parseOperationsFromCommand(command, timestamp, record.sessionId, record.uuid, resultText));
+            const result = resultById.get(block.id.toString());
+            operations.push(...parseOperationsFromCommand(command, timestamp, record.sessionId, record.uuid, result));
         }
     }
     return operations;

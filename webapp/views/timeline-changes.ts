@@ -3,7 +3,7 @@
 // per-node chip stamping pass.
 
 import { routeToFileHistory } from "../app-routes.ts";
-import { findRevisionForChangeId } from "./file-history-model.ts";
+import { checkChangeIdIsBackupBlobName, findRevisionForChangeId } from "./file-history-model.ts";
 import {
     COMMIT_NODE_KIND,
     EDIT_EVENT_KIND,
@@ -98,11 +98,16 @@ export function deriveFileChanges(step: WireStepSnapshot, revisionIndex: Revisio
 
 // The file route a chip's revision jumps to ("#/project/<p>/file/<path>/rev/<n>", which lands
 // in THE Revision View since task 93),
-// or undefined when the change carries no changeId or it resolves to no surviving revision
-// number (re-stamped synthetic ids, blob names without an anchored revision) — those chips
-// get no jump button rather than a dead link.
+// or undefined when the change carries no changeId, the changeId is not a backup blob name
+// (task 94: only revisions actually backed by a File History Snapshot get the 📷 button —
+// tool-evidenced `toolu_…` ids resolve to revisions too, but have no snapshot), or it resolves
+// to no surviving revision number (re-stamped synthetic ids, blob names without an anchored
+// revision) — those chips get no jump button rather than a dead link.
 export function computeSnapshotJumpRoute(project: string, filesTouched: WireFileHistory[], change: { path: string; changeId?: string }): string | undefined {
     if (change.changeId === undefined) {
+        return undefined;
+    }
+    if (!checkChangeIdIsBackupBlobName(change.changeId)) {
         return undefined;
     }
     const revisionLink = findRevisionForChangeId(filesTouched, change.changeId, undefined);

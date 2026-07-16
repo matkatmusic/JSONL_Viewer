@@ -18,17 +18,86 @@ export type FileSidebarEntry = {
     // history at its FINAL path (src/reconstruction_lineage.ts), so the origin is only recoverable
     // from the rename revision. undefined when the file was never renamed.
     originalPath: string | undefined;
+    // The rename badge's inline text (task 91): the shortest suffix of originalPath that
+    // distinguishes it from every other rename badge in the same list — bare basename when
+    // unique. undefined when the file was never renamed. Stamped by applyRenameBadgeLabels.
+    renameBadgeLabel: string | undefined;
 };
 
 // The Files sidebar's entries (item 66): every surviving touched file with its revision count,
-// plus its delete/rename facts (item 77).
+// plus its delete/rename facts (item 77) and its disambiguated rename badge (task 91).
 export function buildFilesSidebarViewModel(document: WireTimelineDocument): FileSidebarEntry[] {
-    return document.filesTouched.map((history) => ({
+    const entries = document.filesTouched.map((history) => ({
         target: history.target,
         revisionCount: history.revisions.length,
         isDeleted: findLastRevisionKind(history) === DELETE_EVENT_KIND,
         originalPath: findOriginalPath(history),
+        renameBadgeLabel: undefined,
     }));
+    applyRenameBadgeLabels(entries);
+    return entries;
+}
+
+// One rename badge being disambiguated (task 91): its entry, the old path's segments, and the
+// suffix depth grown until the badge's label collides with no other badge's.
+type RenameBadge = { entry: FileSidebarEntry; segments: string[]; depth: number };
+
+// Stamp every renamed entry's renameBadgeLabel: start each badge at the old path's basename and
+// deepen colliding badges until all labels differ (task 91 — two renames from the same basename
+// in different directories must be tellable apart without hovering).
+export function applyRenameBadgeLabels(entries: FileSidebarEntry[]): void {
+    const badges: RenameBadge[] = [];
+    for (const entry of entries) {
+        if (entry.originalPath === undefined) {
+            continue;
+        }
+        badges.push({ entry, segments: splitPathSegments(entry.originalPath), depth: 1 });
+    }
+    while (deepenCollidingBadges(badges)) {
+        // repeat until no badge grew — each pass regroups by the freshly deepened labels.
+    }
+    for (const badge of badges) {
+        badge.entry.renameBadgeLabel = computeBadgeLabel(badge);
+    }
+}
+
+function splitPathSegments(path: string): string[] {
+    return path.split("/").filter((segment) => segment !== "");
+}
+
+// A badge's current label: the last `depth` segments of its old path.
+function computeBadgeLabel(badge: RenameBadge): string {
+    return badge.segments.slice(badge.segments.length - badge.depth).join("/");
+}
+
+// Deepen every badge that shares its current label with a badge born at a DIFFERENT old path;
+// true when any badge grew (the caller loops until stable). Two identical old paths legitimately
+// share their full-path label — findGrowableBadges stops them at their segment count, so the
+// loop always terminates.
+function deepenCollidingBadges(badges: RenameBadge[]): boolean {
+    const badgesByLabel = new Map<string, RenameBadge[]>();
+    for (const badge of badges) {
+        const label = computeBadgeLabel(badge);
+        badgesByLabel.set(label, [...(badgesByLabel.get(label) ?? []), badge]);
+    }
+    let anyBadgeGrew = false;
+    for (const group of badgesByLabel.values()) {
+        for (const badge of findGrowableBadges(group)) {
+            badge.depth += 1;
+            anyBadgeGrew = true;
+        }
+    }
+    return anyBadgeGrew;
+}
+
+// The badges in a same-label group that must (and still can) grow: none when the group holds
+// fewer than two distinct old paths — that label is settled.
+function findGrowableBadges(group: RenameBadge[]): RenameBadge[] {
+    const distinctOldPaths = new Set(group.map((badge) => badge.segments.join("/")));
+    if (distinctOldPaths.size < 2) {
+        return [];
+    }
+    return group.filter((badge) => badge.depth < badge.segments.length);
 }
 
 // The kind of the revision a file ends life at; undefined for an empty history.

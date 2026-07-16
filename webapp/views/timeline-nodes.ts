@@ -8,15 +8,14 @@ import {
     deriveNodeFileChanges,
     indexRevisionsByChangeId,
 } from "./timeline-changes.ts";
+import { deriveCommitNodes, deriveToolCallNodes } from "./timeline-node-derive.ts";
 import {
     AGENT_TURN_NODE_KIND,
     COMMIT_NODE_KIND,
-    COMMIT_OPERATION_KIND,
     SESSION_END_NODE_KIND,
     TOOL_CALL_NODE_KIND,
     USER_ROLE,
     USER_TURN_NODE_KIND,
-    type CommitNode,
     type SessionEndNode,
     type SnapshotInstant,
     type TimelineNode,
@@ -121,27 +120,6 @@ function attachSnapshotsToAgentTurns(turnNodes: TurnNode[], steps: WireStepSnaps
 // showGitOperationJson) is deleted here per the plan — it lives on in
 // webapp/archive/timeline-pre-item66.ts.
 
-// Commit pick hard-stops: from the document's commit operations (which carry the message) when it
-// ships gitOperations; an older cached document lacks the field and falls back to commitMarkers.
-function deriveCommitNodes(document: WireTimelineDocument): CommitNode[] {
-    if (document.gitOperations === undefined) {
-        return document.commitMarkers.map((marker) => ({
-            kind: COMMIT_NODE_KIND,
-            when: marker.timestamp,
-            sessionId: marker.sessionId,
-        }));
-    }
-    return document.gitOperations
-        .filter((operation) => operation.kind === COMMIT_OPERATION_KIND)
-        .map((operation) => ({
-            kind: COMMIT_NODE_KIND,
-            when: operation.timestamp,
-            sessionId: operation.sessionId,
-            detail: operation.detail,
-            resultHash: operation.resultHash,
-        }));
-}
-
 // One session-end node per distinct session (insertion order), timestamped at the session's last
 // turn OR tool call — the end node closes the session after everything in it (a trailing `git
 // add` row must precede its session end, item 55); compareTimelineNodes ranks it after everything
@@ -231,19 +209,4 @@ export function buildTurnTimelineViewModel(document: WireTimelineDocument): { no
     assignStepNumbers(nodes);
     deriveNodeFileChanges(nodes, revisionIndex);
     return { nodes };
-}
-
-// One un-bubbled row per document tool call (item 55); the sort interleaves them chronologically
-// with the turns they ran between.
-function deriveToolCallNodes(document: WireTimelineDocument): ToolCallNode[] {
-    return (document.toolCalls ?? []).map((call) => ({
-        kind: TOOL_CALL_NODE_KIND,
-        when: call.timestamp,
-        sessionId: call.sessionId,
-        uuid: call.uuid,
-        toolName: call.toolName,
-        summary: call.summary,
-        toolUseId: call.toolUseId,
-        isOrphaned: call.isOrphaned === true,
-    }));
 }

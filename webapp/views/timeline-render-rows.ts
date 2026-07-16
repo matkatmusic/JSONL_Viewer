@@ -159,6 +159,11 @@ export async function buildTimelineRows(context: TimelineRenderContext, containe
             class: `tl-text ${computeRoleClass(node.kind)}${node.isSystem === true ? " system" : ""}`,
             text: computeRowSummaryText(node),
         }));
+        // task 103: a FAILED git command's rows (commit node / Bash tool-call row) badge red —
+        // failed commands are badged, never suppressed.
+        if (node.isError === true) {
+            line.append(el("span", { class: "failed-badge", text: "FAILED" }));
+        }
         line.append(el("span", { class: "tl-ts", text: new Date(node.when).toLocaleString() }));
         line.append(el("span", { class: "tl-pos", text: context.lineLabels.get(index) ?? "" }));
         line.append(el("span", { class: "tl-uuid", text: node.sessionId === undefined ? "" : computeSessionShortLabel(node.sessionId) }));

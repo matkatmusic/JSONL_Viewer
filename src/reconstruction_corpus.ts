@@ -10,7 +10,7 @@
 import type { TranscriptRecord } from "./structures/envelope.ts";
 import type { BackupPoint } from "./reconstruction_backup_timeline.ts";
 import type { BackupReader } from "./reconstruction_sidecar.ts";
-import type { GitCommitEvent } from "./reconstruction_git_operations.ts";
+import type { GitCommitEvent } from "./reconstruction_git_commit_events.ts";
 import type { FileEvent, FileRevision } from "./reconstruction_engine.ts";
 import type { RunExecution } from "./reconstruction_script_runs.ts";
 import type { ScriptRun } from "./reconstruction_script_execution.ts";

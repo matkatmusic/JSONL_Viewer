@@ -9,7 +9,7 @@ import {
     splitPatchByFile,
 } from "../webapp/views/timeline-changes.ts";
 import { buildTurnTimelineViewModel } from "../webapp/views/timeline-nodes.ts";
-import { AGENT_TURN_NODE_KIND } from "../webapp/views/timeline-types.ts";
+import { AGENT_TURN_NODE_KIND, COMMIT_NODE_KIND, TOOL_CALL_NODE_KIND } from "../webapp/views/timeline-types.ts";
 import { routeToFileHistory } from "../webapp/app-routes.ts";
 import { buildProjectReconstruction } from "../src/viewer_api.ts";
 import { renderRangePatch } from "../src/viewer_api_diffs.ts";
@@ -86,14 +86,38 @@ test("test_file_changes_carry_their_change_id", () => {
 });
 
 test("test_compute_snapshot_jump_route_targets_the_revisions_1_based_number", () => {
-    // Scenario: a chip whose changeId is a surviving revision's changeId routes to the
-    // file-history view anchored at that revision (1-based /rev/<n>, item 19).
+    // Scenario: a chip whose changeId is a SNAPSHOT-BACKED revision's changeId (a backup blob
+    // name, `<hex>@vN`) routes to the file-history view anchored at that revision (1-based
+    // /rev/<n>, item 19; task 94 narrowed the button to snapshot-backed revisions).
+    // Steps:
+    // a surviving history whose second revision was seeded from a File History Snapshot blob.
+    const filesTouched = [{
+        target: "/tmp/geo_report.py",
+        revisions: [
+            { kind: EventKind.write, changeId: "toolu_01FirstWrite", timestamp: "2026-07-01T10:00:00Z" },
+            { kind: EventKind.edit, changeId: "3fa9c2d1@v4", timestamp: "2026-07-01T10:05:00Z" },
+        ],
+    }];
+    // the blob-changeId chip routes to that revision's 1-based number.
+    const change = { path: "/tmp/geo_report.py", changeId: "3fa9c2d1@v4" };
+    assert.equal(
+        computeSnapshotJumpRoute("s84", filesTouched, change),
+        `${routeToFileHistory("s84", "/tmp/geo_report.py")}/rev/2`,
+    );
+});
+
+test("test_compute_snapshot_jump_route_returns_undefined_for_tool_evidenced_changeids", () => {
+    // Scenario: task 94 — a `toolu_…` changeId RESOLVES to a surviving revision, but that
+    // revision is tool-evidenced, not backed by a File History Snapshot: the 📷 button must
+    // not render, so the route must be undefined (this is exactly the pre-task-94 over-fire).
+    // Steps:
+    // a real surviving revision whose changeId is a tool_use id (s84's first revision is one).
     const history = s84Document.filesTouched[0]!;
     const change = { path: history.target, changeId: history.revisions[0]!.changeId };
-    assert.equal(
-        computeSnapshotJumpRoute("s84", s84Document.filesTouched, change),
-        `${routeToFileHistory("s84", history.target)}/rev/1`,
-    );
+    // precondition: the changeId is NOT a backup blob name — otherwise this test proves nothing.
+    assert.ok(!/@v\d+$/.test(change.changeId));
+    // the resolvable-but-snapshotless changeId yields no route.
+    assert.equal(computeSnapshotJumpRoute("s84", s84Document.filesTouched, change), undefined);
 });
 
 test("test_compute_snapshot_jump_route_returns_undefined_without_a_changeid", () => {
@@ -107,6 +131,39 @@ test("test_compute_snapshot_jump_route_returns_undefined_for_unresolvable_change
     // no jump button rather than a dead link.
     const change = { path: "whatever.py", changeId: "00000000-0000-4000-8000-000000000000" };
     assert.equal(computeSnapshotJumpRoute("s84", s84Document.filesTouched, change), undefined);
+});
+
+test("test_failed_git_operations_badge_their_commit_and_tool_call_nodes", () => {
+    // Scenario: task 103 — a FAILED git command still emits its rows (never suppressed), but
+    // both row kinds must carry isError so the timeline badges them FAILED: the commit node
+    // copies its operation's stamp, and the Bash tool-call row joins to the errored operation
+    // by its record uuid. An error-free tool call stays unstamped.
+    // Steps:
+    // a document with one FAILED compound (add+commit, one Bash record u1) and one clean ls.
+    const document = {
+        filesTouched: [],
+        rewoundFilesTouched: [],
+        messages: [],
+        steps: [],
+        commitMarkers: [],
+        gitOperations: [
+            { kind: "add", detail: "a.py", command: "git add a.py", timestamp: "2026-07-01T10:00:01Z", uuid: "u1", isError: true },
+            { kind: "commit", detail: "x", command: 'git commit -m "x"', timestamp: "2026-07-01T10:00:01Z", uuid: "u1", isError: true },
+        ],
+        toolCalls: [
+            { toolName: "Bash", summary: 'git add a.py && git commit -m "x"', timestamp: "2026-07-01T10:00:01Z", uuid: "u1", toolUseId: "toolu_c1" },
+            { toolName: "Bash", summary: "ls", timestamp: "2026-07-01T10:00:05Z", uuid: "u2", toolUseId: "toolu_ls" },
+        ],
+    };
+    const { nodes } = buildTurnTimelineViewModel(document);
+    // the commit hard-stop carries the FAILED stamp.
+    const commitNode = nodes.find((node) => node.kind === COMMIT_NODE_KIND);
+    assert.equal(commitNode!.isError, true);
+    // the failed Bash call's row is stamped; the clean ls row is not.
+    const toolCallErrors = nodes
+        .filter((node) => node.kind === TOOL_CALL_NODE_KIND)
+        .map((node) => node.isError);
+    assert.deepEqual(toolCallErrors, [true, undefined]);
 });
 
 test("test_file_changes_carry_snapshot_timestamp", () => {
