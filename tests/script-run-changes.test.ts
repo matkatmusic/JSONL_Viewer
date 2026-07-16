@@ -25,7 +25,7 @@ function assertChangedPathsAreDomainPaths(runs: { changedPaths: Path[] }[]): voi
 function buildConsentedS25Document(): ReconstructionDocument {
     setImpureExecutionAllowed(true);
     try {
-        return buildProjectDocument([S25_JSONL], undefined);
+        return buildProjectDocument([new Path(S25_JSONL)], undefined);
     } finally {
         setImpureExecutionAllowed(false);
     }
@@ -38,7 +38,7 @@ test("test_declined_build_lists_script_runs_with_empty_changed_paths", () => {
     // build the s25 document with the gate at its resting (off) state.
     // assert the runs are listed, each with code and a Date timestamp.
     // assert every run's changedPaths is exactly [].
-    const document = buildProjectDocument([S25_JSONL], undefined);
+    const document = buildProjectDocument([new Path(S25_JSONL)], undefined);
     assert.ok(document.scriptRuns.length > 0);
     for (const run of document.scriptRuns) {
         assert.ok(run.code.length > 0);
