@@ -147,3 +147,4 @@ __pycache__
 .gstack/
 webapp/dist/
 tools/line-state-reports
+logs*.txt
