@@ -110,10 +110,5 @@
     "taskNumber": 109,
     "title": "Remove run-scenario and sync-jsonl-projects from the jot plugin once jfredToolsPlugin is live",
     "description": "Decided 2026-07-16: jot eventually LOSES /run-scenario and /sync-jsonl-projects \u2014 they become JFRED/jfredToolsPlugin property (tasks 58/107/108). DEFERRED until jfredToolsPlugin (task 108) is installed and proven as the daily driver, because jot is in active daily use and removing skills from it while JFRED is unproven is risky. Scope in ~/Programming/jot: delete skills/run-scenario/ + skills/sync-jsonl-projects/, remove their routing entries from scripts/jot_plugin_orchestrator.py (the run-scenario-* subcommand table at lines ~88-106 and the /run-scenario prompt match), and remove run_scenario_lib.py (or shim it to the new canonical home if one exists by then). Follow jot's archive-don't-delete convention where applicable."
-  },
-  {
-    "taskNumber": 113,
-    "title": "Add a marketplace.json entry for jfredToolsPlugin so it is installable via `claude plugin install`",
-    "description": "Split out of task 108 (user decision 2026-07-16): task 108 ships jfredToolsPlugin loaded jot-style via --plugin-dir in a zshrc claude() wrapper, WITHOUT a marketplace entry. This task adds the marketplace piece afterwards: a marketplace.json entry (repo: https://github.com/matkatmusic/jfredToolsPlugin.git) so the plugin is installable via `claude plugin marketplace add` + `claude plugin install` instead of requiring a local clone + wrapper. Depends on task 108 (the plugin must exist and be proven first)."
   }
 ]
