@@ -1057,5 +1057,16 @@
     ],
     "completionDate": "2026-07-17",
     "closureNote": "Closed 2026-07-17 as ACCEPTED (decision-only, no code change). Runs without a toolUseId are synthetic-only \u2014 none observed in any real transcript, and the post-item-34 sweep shows all residual unattributed-lane changeIds are blob-ref/git-evidence, never scriptRun. If one ever appears, its file changes still surface via the revision machinery (graceful degradation: no badge/details join, data intact). Fallback surfacing deferred until a real transcript produces such a run \u2014 that sighting is the trigger and the test fixture."
+  },
+  {
+    "taskNumber": 105,
+    "title": "Restructure deep-nesting-flagged timeline/details modules",
+    "description": "The post-edit hook's deep-nesting flags on `timeline-render-rows.ts` (121-198), `timeline-changes.ts` (53-62, 156, 179), and `details-diff.ts` (128-137) are pre-existing structure left untouched by design during tasks 92 and 67 to keep those diffs reviewable. Worth a dedicated restructuring pass if the per-edit hook noise on those files becomes annoying.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-task-92.md",
+      "plans/archived/implementation-notes-task67-script-run-details.md"
+    ],
+    "completionDate": "2026-07-17",
+    "closureNote": "Closed 2026-07-17. Scope EXPANDED from 3 named files to ALL 41 deep-nesting-flagged jfred TS files (user decision via full-repo sweep with filesize_check.py, the hook's own oracle): 14 src/, 25 webapp/, 2 tests/. Method: extraction-only into module-scope verb-named helpers (never flattening nested single-condition ifs), one subagent per file; two files (app-consent, timeline-render-selectbar) done in the main session after repeated spawn-classifier denials. Gate: re-sweep = ZERO Deep-nesting flags; npx tsc --noEmit = 0 errors (2 extraction typos fixed forward: orphans tip Uuid param, details-diff optional lineNumber). REMAINING (reported, not fixed \u2014 user decision): 3 files now over the 250-line cap from added helper signatures: reconstruction_script_stage.ts 252, app-router.ts 255, inspector.ts 256. Staged in jfred, uncommitted; test suites deliberately NOT run (user runs them). Plan: plans/task105-deep-nesting-restructure-plan.md; notes: plans/implementation-notes-task105-deep-nesting.md."
   }
 ]

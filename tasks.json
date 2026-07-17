@@ -85,12 +85,8 @@
     ]
   },
   {
-    "taskNumber": 105,
-    "title": "Restructure deep-nesting-flagged timeline/details modules",
-    "description": "The post-edit hook's deep-nesting flags on `timeline-render-rows.ts` (121-198), `timeline-changes.ts` (53-62, 156, 179), and `details-diff.ts` (128-137) are pre-existing structure left untouched by design during tasks 92 and 67 to keep those diffs reviewable. Worth a dedicated restructuring pass if the per-edit hook noise on those files becomes annoying.",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-task-92.md",
-      "plans/archived/implementation-notes-task67-script-run-details.md"
-    ]
+    "taskNumber": 115,
+    "title": "Bring the 3 over-cap jfred files back under the 250-line limit",
+    "description": "Task 105's extraction pass (2026-07-17) cleared every deep-nesting flag but pushed three jfred files just over the jot hook's 250-line cap via added helper signatures: src/reconstruction_script_stage.ts (252), webapp/app-router.ts (255), webapp/inspector.ts (256). Fix each so filesize_check.py exits 0 \u2014 likely a small module split (e.g. inspector's snapshot-drawer helpers, app-router's per-route renderers) or trimming relocated comments; follow plans/coding-requirements.md (no re-export shims \u2014 new module = canonical home, callers import directly). npm test verified green after task 105 (2026-07-17), so the suite is the regression oracle for any split. Oracle: python3 ~/Programming/jot/common/scripts/filesize_check.py <file> exits 0 for all three."
   }
 ]
