@@ -100,15 +100,5 @@
     "handoffFilePaths": [
       "plans/archived/implementation-notes-task67-script-run-details.md"
     ]
-  },
-  {
-    "taskNumber": 107,
-    "title": "Replace JFRED's interim .claude run-scenario skill with the jfredToolsPlugin version",
-    "description": "BLOCKED BY tasks 108 and 109 (user, 2026-07-16). Corrected 2026-07-16: JFRED needs the /run-scenario skill (NOT /sync-jsonl-projects \u2014 that one stays in jot until jfredToolsPlugin exists and never gets a JFRED-local .claude copy). The run-scenario skill ships INTERIM in JFRED/.claude via task 58 STEP 2 (.claude/skills/run-scenario/SKILL.md + UserPromptSubmit hook in .claude/settings.json + scripts/run_scenario_dispatcher.py \u2014 zero install, but only works with the Claude session cwd inside the JFRED clone). This task = the replacement obligation: once jfredToolsPlugin (task 108) is live and proven, swap JFRED over to the plugin version. OPEN QUESTION to settle then: drop the .claude-local copy entirely (cloners must install the plugin \u2014 friction) or keep both (local copy preserves the zero-install clone experience; plugin adds use-from-anywhere)."
-  },
-  {
-    "taskNumber": 109,
-    "title": "Remove run-scenario and sync-jsonl-projects from the jot plugin once jfredToolsPlugin is live",
-    "description": "Decided 2026-07-16: jot eventually LOSES /run-scenario and /sync-jsonl-projects \u2014 they become JFRED/jfredToolsPlugin property (tasks 58/107/108). DEFERRED until jfredToolsPlugin (task 108) is installed and proven as the daily driver, because jot is in active daily use and removing skills from it while JFRED is unproven is risky. Scope in ~/Programming/jot: delete skills/run-scenario/ + skills/sync-jsonl-projects/, remove their routing entries from scripts/jot_plugin_orchestrator.py (the run-scenario-* subcommand table at lines ~88-106 and the /run-scenario prompt match), and remove run_scenario_lib.py (or shim it to the new canonical home if one exists by then). Follow jot's archive-don't-delete convention where applicable."
   }
 ]
