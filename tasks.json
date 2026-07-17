@@ -60,8 +60,8 @@
   },
   {
     "taskNumber": 98,
-    "title": "Port the task-management skill suite into the jot plugin",
-    "description": "Port the suite into the jot plugin (`~/Programming/jot`) \u2014 the user's stated intent (\"I'm going to add these skills to jot\"). Add `viewTask_main()` in `common/scripts/view_task_lib.py` (translate `.claude/hooks/viewTaskHook.ts` 1:1; mirror `todo_listMain` in `common/scripts/todo_lib_scan.py`: stdin JSON \u2192 strict `/view-task` prefix match \u2192 `hookjson_emitBlock`), register `(\"/view-task\", lambda: viewTask_main())` in `_PROMPT_DISPATCH` in `scripts/jot_plugin_orchestrator.py`, add a do-nothing `skills/view-task/SKILL.md` (copy `skills/todo-list/SKILL.md`'s body), and pytest `tests/test_view_task_lib.py` (jot's PostToolBatch hook demands it). Then decide whether update-tasks/create-task/pick-a-task also move (they are plain SKILL.md + node scripts; jot skills so far are Python-backed).",
+    "title": "Port the task-management skill suite into its own plugin",
+    "description": "Create a standalone plugin at `~/Programming/taskTools` (NOT part of jot) holding the five task* skills: `create-task`, `pick-a-task`, `tackle-tasks`, `update-tasks`, `view-task`. Scaffold `plugin.json` + `skills/` (mirror jfredToolsPlugin's layout), move each skill dir from `.claude/skills/` into the plugin, and carry along `.claude/skills/scripts/` plus any node scripts the SKILL.md files reference \u2014 fix relative paths after the move. Move `.claude/hooks/viewTaskHook.ts` into the plugin and register it as a UserPromptSubmit hook in the plugin's hooks config (it stays TypeScript \u2014 no Python translation needed since we're not adopting jot's orchestrator). Install via the local marketplace / `--plugin-dir`, verify each slash command still fires (`/view-task` hook included), then delete the `.claude/` copies. Gotcha from jfredToolsPlugin: `--plugin-dir` vs `--add-dir` behave differently \u2014 see its README.",
     "handoffFilePaths": [
       "plans/archived/handoff-develop-20260714-1530.md"
     ]
