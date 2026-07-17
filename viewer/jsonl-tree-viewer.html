@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JSONL Conversation Tree Viewer</title>
+<link rel="stylesheet" href="viewer-styles.css">
+</head>
+<body>
+<h1>JSONL Conversation Tree Viewer</h1>
+<div class="toolbar">
+  <button id="open-jsonl-btn" class="toolbar-btn">Open JSONL...</button>
+  <button id="show-all-btn" class="toolbar-btn" disabled title="Show every node, including attachments and meta entries normally hidden from the tree">Show All Nodes</button>
+  <span class="stats" id="stats"></span>
+</div>
+<div class="filter-bar" id="filter-bar">
+  <input class="filter-search" id="filter-search" placeholder="field name..." title="Type a JSON field name and press Enter">
+  <span class="filter-pos" id="filter-pos"></span>
+</div>
+<input type="file" id="jsonl-file-input" accept=".jsonl" style="display:none">
+<div id="copy-toast" class="copy-toast"></div>
+<div id="tree">
+  <div class="empty-state">Click "Open JSONL..." to load a conversation transcript.</div>
+</div>
+<div class="inspect-panel" id="inspect-panel">
+  <div class="inspect-nav">
+    <button class="inspect-nav-btn" id="inspect-prev" title="Previous line">&#9664; Prev</button>
+    <span class="inspect-title" id="inspect-title"></span>
+    <span class="inspect-pos" id="inspect-pos"></span>
+    <button class="inspect-nav-btn" id="inspect-next" title="Next line">Next &#9654;</button>
+    <span id="diff-controls">
+      <button class="inspect-nav-btn" id="diff-mode-sxs" title="Side-by-side diff">Side-by-side</button>
+      <button class="inspect-nav-btn" id="diff-mode-inline" title="Inline diff">Inline</button>
+    </span>
+    <span class="inspect-close" id="inspect-close">&#10005;</span>
+  </div>
+  <pre id="inspect-content"></pre>
+</div>
+
+<script src="viewer-globals.js"></script>
+<script src="viewer-tree-build.js"></script>
+<script src="viewer-tree-render.js"></script>
+<script src="viewer-load.js"></script>
+<script src="viewer-inspect.js"></script>
+<script src="viewer-diff.js"></script>
+<script src="viewer-events.js"></script>
+<script>
+document.getElementById('open-jsonl-btn').addEventListener('click', async function() {
+  if (window.showOpenFilePicker) {
+    try {
+      var handles = await window.showOpenFilePicker({
+        id: 'jsonl-viewer-picker',
+        types: [{ description: 'JSONL transcripts', accept: { 'application/x-jsonl': ['.jsonl'] } }],
+        multiple: false
+      });
+      var file = await handles[0].getFile();
+      var text = await file.text();
+      loadJSONL(text, file.name);
+      return;
+    } catch(e) { if (e.name === 'AbortError') return; }
+  }
+  document.getElementById('jsonl-file-input').click();
+});
+
+document.getElementById('jsonl-file-input').addEventListener('change', function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) { loadJSONL(ev.target.result, file.name); };
+  reader.readAsText(file);
+  this.value = '';
+});
+</script>
+</body>
+</html>

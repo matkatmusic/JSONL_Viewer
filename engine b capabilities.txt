@@ -1,0 +1,140 @@
+ENGINE B — CAPABILITIES / FEATURE SET
+=====================================
+
+Engine B reconstructs what a file looked like over time using only recorded evidence
+(Claude Code session JSONL transcripts, plus file-history snapshots and git as
+fallbacks), then compares the reconstruction against a reference and emits a per-line
+verdict. Guiding rule: never fabricate — prove what it can, flag what it cannot.
+
+Core implementation: api/track-line-states.js (replay engine), driven by
+api/reconstruct-file.js (orchestration); CLI at tools/track-line-states.js.
+
+
+1. INPUTS IT CAN INGEST
+-----------------------
+- Claude Code session transcripts (.jsonl), main sessions AND subagent sessions
+  (combined cache).
+- file-history snapshot blobs (the editor's tracked-file backups).
+- git: a file's commit history, blob content, and commit timestamps.
+- On-disk current file content (used as a comparison reference).
+A file referenced across many sessions is handled — events from every referencing
+transcript are gathered into one timeline.
+
+
+2. EVIDENCE KINDS IT UNDERSTANDS (18 event kinds)
+-------------------------------------------------
+Tier-1 beacons (establish truth — overwrite belief):
+  - snapshot     : a full tracked-file backup; verifies + anchors every line.
+  - write        : a Write/create/update of full content; every line authored.
+  - fileAbsent   : positive proof the file did not exist (extent = 0).
+
+Authored edits (splice content, can shift line numbers):
+  - edit         : an old_string -> new_string splice (incl. replaceAll).
+  - originalFile : the whole pre-edit file an Edit implies (the instant before splice).
+
+Observations (corroborate or contradict; may be whole-file or sparse):
+  - readFull     : a whole-file Read (absolute line numbers).
+  - readChunk    : a partial Read (offset/limit line range).
+  - cat          : a whole-file `cat` capture (numbered or plain).
+  - bashReadChunk: a partial Bash read (head / tail -n +N / sed -n) — a contiguous range.
+  - bashExtent   : a `wc -l` lower-bound on length (implies 1..N exist; never proves EOF).
+  - bashGrep     : single-file `grep -n` sparse per-line matches.
+  - grepMatches  : native Grep tool (content mode, -n) matches across many files.
+  - patchContext : the unchanged (' ') context lines inside an edit's structuredPatch.
+
+Tier-2 Bash file ops:
+  - bashRm       : `rm` — contradicts known lines, then clears belief.
+  - bashTruncate : `>` redirect — empties the file.
+  - bashAppend   : `>>` redirect — appends content.
+
+Out-of-band change flag:
+  - userModified : an Edit/Write whose userModified flag marks an external change;
+                   contentless — records a conflict and un-proves EOF (conservative drift).
+
+Transforms (no literal content; a recipe applied at replay time):
+  - scriptExecution : a recorded Bash/MCP-sandbox script run that rewrote tracked files
+                      (e.g. whole-token renames). Applied against the LIVE belief at the
+                      instant it ran — honors the script's own safety semantics (skip +
+                      flag on a count-assertion mismatch rather than writing a partial
+                      result). Cannot be pre-materialized into content.
+
+
+3. WHAT IT RECONSTRUCTS
+-----------------------
+- A per-line belief map at every timestamp (not just the final state) — a queryable
+  timeline of how each line evolved.
+- Per line: content + certainty state — authored / observed (witnessed), presumed
+  (carried forward, not re-confirmed), unknown (known to exist, content never seen).
+- File EXTENT (where the file ends / eofConfirmed) tracked separately from line content.
+- First-class provenance: every believed line points at the exact transcript record,
+  span, snapshot blob, or transform recipe that justifies it.
+
+
+4. LINEAGE & MULTI-SESSION HANDLING
+-----------------------------------
+- Follows recorded cp / mv / git mv lineage to find all alias paths of a file, so
+  history is not lost at a rename/copy.
+- Computes alias windows (which path names the file during which time interval) and
+  filters events to valid windows.
+- Merges cross-location copies ONLY when an op proves shared bytes — never by filename.
+- Discovers transcripts via a script-run bridge: sessions whose only effect was a
+  script run (no edit record) are still pulled in for the files that run rewrote.
+
+
+5. CONFLICTS
+------------
+- When an observation contradicts belief, it is recorded as a conflict (both sides'
+  text + evidence + the beacon window it falls in), not silently smoothed over.
+- Two record shapes: per-line displacement, and whole-region "floating" diagnostics
+  (an edit/flag that contradicts a fully-known region).
+- Conflicts are collapsed into coherent runs so one real divergence is not reported as
+  dozens of lines of noise.
+
+
+6. VERDICT & CLASSIFICATION
+---------------------------
+Final belief is compared to the chosen reference (on-disk -> snapshot -> git), per line:
+  - matchedObserved  : matches reference, directly witnessed.
+  - matchedPresumed  : matches, but carried forward (not re-confirmed).
+  - mismatched       : disagrees with reference (both texts recorded).
+  - neverObserved    : a reference line the transcripts never touched (evidence gap).
+  - tailUncertain    : the file's end/extent could not be proven.
+File-level classification: PASS (byte-perfect) / FAIL (concrete mismatches) /
+INDETERMINATE (insufficient evidence). A FAIL points at the exact lines and the reason.
+
+
+7. GIT-SEED (opt-in anchoring)  [--seed-commit <SHA>]
+-----------------------------------------------------
+- Seeds belief from a commit's file content as a Tier-1 baseline at the commit instant,
+  then replays only events strictly after it.
+- Lets reconstruction start from a known-good commit instead of from empty.
+- Off by default; works with or without commit-matching.
+
+
+8. COMMIT-MATCHING (always-on discovery)
+----------------------------------------
+- At every confident complete state (eofConfirmed), checks whether the reconstructed
+  belief EXACTLY reproduces any committed version of the file (all history touching it,
+  following renames: git log --all --follow).
+- Exact match is decided through the same buildFinalVerdict comparison the verdict uses
+  (mismatched == 0 AND neverObserved == 0), so matching can never diverge from scoring.
+- Matching entries are tagged with the commit { sha, shortSha, path }; the result also
+  carries a flat commitMatches roll-up [{ sha, shortSha, unixMs, timestamp }], and the
+  CLI prints "commit <shortSha> matched at <timestamp>".
+- It is the discovery complement to git-seed: it tells you WHICH commit to feed
+  --seed-commit, and where in the timeline a commit's content appears so you can read
+  the edits that came after it.
+- Clean no-op off-repo / for untracked files (empty roll-up, nothing tagged).
+- Cost: one `git log` + one `git show` per commit touching the file.
+
+
+9. HONESTY GUARANTEES / LIMITATIONS
+-----------------------------------
+- Never fabricates: a line the transcripts never witnessed stays unknown; a
+  contradiction is a conflict; an unprovable EOF stays uncertain.
+- Reconstruction quality is bounded by recorded evidence — gaps surface as
+  neverObserved / INDETERMINATE rather than guesses.
+- Known limitation: a git seed followed by a post-seed Tier-1 beacon (Write/snapshot)
+  is clobbered by that beacon; the report flags this (seedClobbered).
+- Engine core stays free of git / fs / child_process — all IO is injected by the
+  orchestration layer, keeping replay deterministic and reruns reproducible.

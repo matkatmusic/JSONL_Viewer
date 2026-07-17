@@ -1,0 +1,150 @@
+{
+  "generatedAt": "2026-06-10T19:40:00Z",
+  "note": "Audit of every non-passing file in probe-results.json projects[0] (-Users-matkatmusicllc-Desktop-claude-code-src). JSONL source corpus: ~/Programming/jot-recovery/claude-data/projects. Root-cause categories: (a) reconstruction-pipeline gap, (b) probe-projects.js not probing correctly, (c) something else (ephemeral file / on-disk drift / no reference). Headline: 0 of 11 are caused by (a) — the replay engine reconstructs fine in every case; the failures are all probe reference-selection / file-identity issues (b) or genuinely un-verifiable files (c). Per task #7 each entry is now keyed on `earliestSeenFullPath` (the file's first-known absolute path, the stable identity key) with `lastSeenFullPath` (its current on-disk path, \"\" if the file's renames/moves are unrecorded in this corpus or it was deleted) added alongside; the old `file` key is gone. Note: jsonl-tree-viewer.html resolves to lastSeenFullPath \"\" because its move into RevEng/viewer/ was NOT recorded as an mv/cp/git-mv in the jot-recovery corpus (the reorg happened in sessions outside these 13 projects), so lineage-following cannot reach the on-disk viewer/ copy — relevant to whether task #9 can reach 100% via lineage alone.",
+  "mismatches": [
+    {
+      "earliestSeenFullPath": "/Users/matkatmusicllc/Desktop/claude code src/RevEng/js/globals.js",
+      "lastSeenFullPath": "",
+      "findings": "NOT_FOUND — category (c), legitimate. globals.js was created (create@1557) and edited 7x inside an early `js/` modularization scaffold that was abandoned: RevEng/js/ is now empty and the file exists nowhere on disk. It was never committed to git (repo has a single 'Initial commit' with everything untracked), and findLastSnapshotContent() returns NULL (the file-history backup blob does not resolve in the recovered corpus). With no on-disk, snapshot, or git reference, the probe has nothing to compare the (correct) replay against, so NOT_FOUND is the right verdict — not a reconstruction failure. Minor secondary (a/data): if the file-history backup blob had been recovered, snapshot verification could have confirmed it.",
+      "relevantPipelineSourceFiles": [
+        { "jsfile": "tools/probe-projects.js", "lineNum": 259, "relevance": "verifyMissingFile(): file absent on disk, so it tries snapshot then git before giving up." },
+        { "jsfile": "common/extract-file-state.js", "lineNum": 348, "relevance": "findLastSnapshotContent() returned null for globals.js — the backup blob did not resolve, removing the snapshot reference." },
+        { "jsfile": "tools/probe-projects.js", "lineNum": 226, "relevance": "buildNotFound(): correct terminal result when no reference (disk/snapshot/git) exists." }
+      ],
+      "relevantJSONLfileLines": [
+        { "jsonlFile": "03092e1c-01db-4927-8afa-676c775f9a40.jsonl", "lineNum": 1557, "relevance": "create record for js/globals.js — proves the file was authored here but later abandoned." }
+      ]
+    },
+    {
+      "earliestSeenFullPath": "/Users/matkatmusicllc/Desktop/claude code src/RevEng/js/render.js",
+      "lastSeenFullPath": "",
+      "findings": "NOT_FOUND — category (c), legitimate. Same abandoned `js/` scaffold as globals.js: single create@1570, no further edits, RevEng/js/ now empty, file exists nowhere, never committed, snapshot blob unresolvable (findLastSnapshotContent NULL). No reference ⇒ correct NOT_FOUND; the replay itself is fine.",
+      "relevantPipelineSourceFiles": [
+        { "jsfile": "tools/probe-projects.js", "lineNum": 259, "relevance": "verifyMissingFile() snapshot+git fallbacks both fail for an abandoned file." },
+        { "jsfile": "tools/probe-projects.js", "lineNum": 226, "relevance": "buildNotFound() terminal NOT_FOUND with no available reference." }
+      ],
+      "relevantJSONLfileLines": [
+        { "jsonlFile": "03092e1c-01db-4927-8afa-676c775f9a40.jsonl", "lineNum": 1570, "relevance": "the lone create record for js/render.js." }
+      ]
+    },
+    {
+      "earliestSeenFullPath": "/Users/matkatmusicllc/Desktop/claude code src/RevEng/js/inspect.js",
+      "lastSeenFullPath": "",
+      "findings": "NOT_FOUND — category (c), legitimate. Member of the abandoned `js/` scaffold (single edit in 03092e1c). RevEng/js/ is empty, file exists nowhere on disk, never committed, snapshot blob unresolvable. No reference ⇒ correct NOT_FOUND, not a reconstruction gap.",
+      "relevantPipelineSourceFiles": [
+        { "jsfile": "tools/probe-projects.js", "lineNum": 259, "relevance": "verifyMissingFile() — all fallbacks miss for an abandoned file." },
+        { "jsfile": "tools/probe-projects.js", "lineNum": 226, "relevance": "buildNotFound() terminal result." }
+      ],
+      "relevantJSONLfileLines": [
+        { "jsonlFile": "03092e1c-01db-4927-8afa-676c775f9a40.jsonl", "lineNum": 1557, "relevance": "js/* scaffold edits begin around here; inspect.js is one of the conflated scaffold files in this session." }
+      ]
+    },
+    {
+      "earliestSeenFullPath": "/Users/matkatmusicllc/Desktop/claude code src/RevEng/js/compare.js",
+      "lastSeenFullPath": "",
+      "findings": "NOT_FOUND — category (c), legitimate. Member of the abandoned `js/` scaffold (single edit in 03092e1c). Empty js/ dir, no on-disk copy, no git, snapshot blob unresolvable. No reference ⇒ correct NOT_FOUND.",
+      "relevantPipelineSourceFiles": [
+        { "jsfile": "tools/probe-projects.js", "lineNum": 259, "relevance": "verifyMissingFile() fallbacks all miss." },
+        { "jsfile": "tools/probe-projects.js", "lineNum": 226, "relevance": "buildNotFound() terminal result." }
+      ],
+      "relevantJSONLfileLines": [
+        { "jsonlFile": "03092e1c-01db-4927-8afa-676c775f9a40.jsonl", "lineNum": 1557, "relevance": "scaffold edit block for the js/* files including compare.js." }
+      ]
+    },
+    {
+      "earliestSeenFullPath": "/Users/matkatmusicllc/Desktop/claude code src/RevEng/js/events.js",
+      "lastSeenFullPath": "",
+      "findings": "NOT_FOUND — category (c), legitimate. Abandoned `js/` scaffold: create@1596 plus edits@1977,2036, then dropped. RevEng/js/ empty, no on-disk copy, never committed, snapshot blob unresolvable. No reference ⇒ correct NOT_FOUND, replay not at fault.",
+      "relevantPipelineSourceFiles": [
+        { "jsfile": "tools/probe-projects.js", "lineNum": 259, "relevance": "verifyMissingFile() snapshot+git both fail." },
+        { "jsfile": "tools/probe-projects.js", "lineNum": 226, "relevance": "buildNotFound() terminal result." }
+      ],
+      "relevantJSONLfileLines": [
+        { "jsonlFile": "03092e1c-01db-4927-8afa-676c775f9a40.jsonl", "lineNum": 1596, "relevance": "create record for js/events.js." }
+      ]
+    },
+    {
+      "earliestSeenFullPath": "/Users/matkatmusicllc/Desktop/claude code src/RevEng/jfred-unified-load.js",
+      "lastSeenFullPath": "/Users/matkatmusicllc/Desktop/claude code src/RevEng/unified/jfred-unified-load.js",
+      "findings": "MISMATCH (snapshot) — category (b), false positive. Two compounding probe defects: (1) Stale path / move not followed — the file was created@891 at RevEng/jfred-unified-load.js, later worked on as RevEng/unified/jfred-unified-load.js, and now lives on disk at RevEng/unified/jfred-unified-load.js. The probe keyed on the first-seen path (buildFilePathIndex) which is not on disk, so it fell through to the snapshot reference instead of comparing against the real current file. (2) Snapshot-predates-final-edit — trySnapshotVerify replays ALL 25 edits (final state) but compares against the LAST file-history-snapshot at line 1774, and there is exactly 1 edit AFTER that snapshot (edit@1780). So the snapshot is one edit stale; a correct full replay necessarily differs from it ⇒ false MISMATCH. The replay engine is correct; the probe's reference is wrong.",
+      "relevantPipelineSourceFiles": [
+        { "jsfile": "tools/probe-projects.js", "lineNum": 186, "relevance": "trySnapshotVerify() compares the full-replay (all edits) against the LAST snapshot, which is stale whenever any edit follows the last snapshot — exactly this case." },
+        { "jsfile": "common/extract-file-state.js", "lineNum": 348, "relevance": "findLastSnapshotContent() supplies the line-1774 snapshot that predates edit@1780, the root of the false diff." },
+        { "jsfile": "tools/probe-projects.js", "lineNum": 271, "relevance": "verifyTarget() only checks fs.existsSync(fullPath) at the stale recorded path; it never relocates to the current unified/ path via cp/mv lineage, forcing the snapshot fallback." }
+      ],
+      "relevantJSONLfileLines": [
+        { "jsonlFile": "3267d34f-bc66-4fd2-be8d-0490fcdf8542.jsonl", "lineNum": 1774, "relevance": "last file-history-snapshot for the file — the (stale) content the probe compared against." },
+        { "jsonlFile": "3267d34f-bc66-4fd2-be8d-0490fcdf8542.jsonl", "lineNum": 1780, "relevance": "the final edit, occurring AFTER the last snapshot — makes the snapshot one revision behind the correct replay." }
+      ]
+    },
+    {
+      "earliestSeenFullPath": "/Users/matkatmusicllc/Desktop/claude code src/RevEng/jfred-load.js",
+      "lastSeenFullPath": "/Users/matkatmusicllc/Desktop/claude code src/RevEng/jfred/jfred-load.js",
+      "findings": "MISMATCH (snapshot) — category (b), false positive, strongest multi-session case. find-jsonls-for-file reports 3 sessions touch this file (b7ca3b7c, 3267d34f, 90c292f6); the probe verified only 3267d34f. In that session the file has a single EDIT (edit@1776) recorded at RevEng/jfred/jfred-load.js (the file was moved into jfred/ — it now lives on disk at RevEng/jfred/jfred-load.js, not the probe's fullPath RevEng/jfred-load.js). Replaying one isolated edit cannot reproduce a file built across 3 sessions, and on top of that the comparison snapshot (line 1774) precedes the edit (edit@1776) — snapshot-predates-final-edit again. Because the chosen path is not on disk, the cumulative-replay fallback (which needs on-disk content) never runs. Net: probe reference + single-session isolation, not a reconstruction-engine gap.",
+      "relevantPipelineSourceFiles": [
+        { "jsfile": "tools/probe-projects.js", "lineNum": 365, "relevance": "tryCumulativeVerify() — the multi-session assembler — is gated behind on-disk content and ≥2 sessions; with the file off-disk it is skipped, so the 3-session history is never combined." },
+        { "jsfile": "common/replay-edits.js", "lineNum": 251, "relevance": "collectSessionsForFile() only scans the texts passed in (one project dir), and is only reached via the on-disk path — so it never assembled this file's 3 sessions." },
+        { "jsfile": "tools/probe-projects.js", "lineNum": 186, "relevance": "trySnapshotVerify() then compares a one-edit replay against a snapshot (line 1774) that itself predates edit@1776 — double-stale." }
+      ],
+      "relevantJSONLfileLines": [
+        { "jsonlFile": "3267d34f-bc66-4fd2-be8d-0490fcdf8542.jsonl", "lineNum": 1776, "relevance": "the lone edit for jfred-load.js in the probed session — proves the file was created in another session (single edit, no create here)." },
+        { "jsonlFile": "3267d34f-bc66-4fd2-be8d-0490fcdf8542.jsonl", "lineNum": 1774, "relevance": "snapshot used as reference, captured before edit@1776." }
+      ]
+    },
+    {
+      "earliestSeenFullPath": "/Users/matkatmusicllc/Desktop/claude code src/.vscode/launch.json",
+      "lastSeenFullPath": "/Users/matkatmusicllc/Desktop/claude code src/RevEng/.claude/launch.json",
+      "findings": "MISMATCH (on-disk) — category (b), basename-collision bug. Within session 3b6806e4 the basename 'launch.json' was recorded at THREE distinct paths: src/.vscode/launch.json, RevEng/.claude/launch.json, and src/.claude/launch.json (all confirmed: the latter two exist on disk; the probe's chosen fullPath src/.vscode/launch.json is missing, but a sibling .vscode copy exists one level up). The probe keys targets by basename (collectProbeTargets / buildFilePathIndex), so edits to three different files are merged into a single replay stream and then compared to one on-disk file. The 4 'ignored' edits are the tell — edits to the other two launch.json files that don't belong to the compared file. The mismatch is an artifact of conflating distinct files by basename, not a replay error.",
+      "relevantPipelineSourceFiles": [
+        { "jsfile": "tools/probe-projects.js", "lineNum": 149, "relevance": "collectProbeTargets() dedupes targets by basename (edits[i].file), collapsing 3 distinct launch.json files into one target." },
+        { "jsfile": "tools/probe-projects.js", "lineNum": 135, "relevance": "buildFilePathIndex() maps basename→first-seen absolute path, so a single path represents three different on-disk files." },
+        { "jsfile": "tools/probe-projects.js", "lineNum": 239, "relevance": "verifyExistingFile() then replays the merged edit stream against one on-disk file, producing the spurious diff (4 foreign edits ignored)." }
+      ],
+      "relevantJSONLfileLines": [
+        { "jsonlFile": "3b6806e4-bb89-49f3-ba34-2cb18788fbf1.jsonl", "lineNum": 2521, "relevance": "first create record (.vscode/launch.json) — start of the basename-merged stream." },
+        { "jsonlFile": "3b6806e4-bb89-49f3-ba34-2cb18788fbf1.jsonl", "lineNum": 3059, "relevance": "a create record for a DIFFERENT launch.json (.claude/launch.json) sharing the basename — the source of the conflation." }
+      ]
+    },
+    {
+      "earliestSeenFullPath": "/Users/matkatmusicllc/Desktop/claude code src/RevEng/jsonl-tree-viewer.html",
+      "lastSeenFullPath": "",
+      "findings": "MISMATCH (snapshot) — category (b), false positive. This entry is session 3b6806e4. The file was created@2609 and edited ~18x here; it now lives on disk at RevEng/viewer/jsonl-tree-viewer.html (moved into viewer/), so the probe's fullPath RevEng/jsonl-tree-viewer.html is not on disk and it fell through to the snapshot reference. The last snapshot is at line 2887 but 3 edits follow it (edit@2951, edit@3112, edit@3129) — snapshot-predates-final-edit, so the correct full replay necessarily differs from the stale snapshot. (The file is also touched by 4 sessions total, reinforcing that single-session/stale-path verification is the wrong frame.) Replay is fine; reference is stale + path not followed to viewer/.",
+      "relevantPipelineSourceFiles": [
+        { "jsfile": "tools/probe-projects.js", "lineNum": 186, "relevance": "trySnapshotVerify() compares full replay against the last snapshot (line 2887), which is 3 edits stale here." },
+        { "jsfile": "tools/probe-projects.js", "lineNum": 271, "relevance": "verifyTarget() checks only the stale recorded path; it never relocates to viewer/jsonl-tree-viewer.html via lineage, forcing the snapshot fallback." },
+        { "jsfile": "common/collect-touches.js", "lineNum": 172, "relevance": "resolveAliases() is exactly the rename/move lineage the CLI uses but the probe does NOT — adopting it would let the probe verify against the moved on-disk file." }
+      ],
+      "relevantJSONLfileLines": [
+        { "jsonlFile": "3b6806e4-bb89-49f3-ba34-2cb18788fbf1.jsonl", "lineNum": 2887, "relevance": "last file-history-snapshot — the stale content compared against." },
+        { "jsonlFile": "3b6806e4-bb89-49f3-ba34-2cb18788fbf1.jsonl", "lineNum": 3129, "relevance": "final edit, after the last snapshot — proves the snapshot is behind the true final state." }
+      ]
+    },
+    {
+      "earliestSeenFullPath": "/Users/matkatmusicllc/Programming/jot/hooks/post_tool_use_hook.sh",
+      "lastSeenFullPath": "/Users/matkatmusicllc/Programming/jot/hooks/post_tool_use_hook.sh",
+      "findings": "MISMATCH (on-disk) — category (b)+(c). find-jsonls-for-file reports 8 sessions touch this hook, spread across MULTIPLE project dirs (it is the live jot post-tool-use hook, edited continuously — it is even running during this very audit). The probe verified only session 41be5a18 (here it has just update@623 + edit@806), within the -Desktop-claude-code-src project dir. The on-disk file reflects the cumulative result of all 8 sessions plus ongoing edits, so a 2-edit single-session replay cannot match it. The cumulative-replay fallback can't help: it only scans sessions in the SAME project dir (probeProject loads allTexts per directory; collectSessionsForFile searches only those), but this file's other 7 sessions live in other project dirs — cross-project history is never assembled. (c) compounds it: the on-disk target keeps drifting because the hook is actively maintained. Not a reconstruction-engine gap.",
+      "relevantPipelineSourceFiles": [
+        { "jsfile": "tools/probe-projects.js", "lineNum": 376, "relevance": "probeProject() loads allTexts for ONE project directory only, so cumulative replay can never reach this file's sessions in other project dirs." },
+        { "jsfile": "tools/probe-projects.js", "lineNum": 365, "relevance": "tryCumulativeVerify() merges sessions but is bounded by the single-dir allTexts it is handed — cross-project authorship is out of reach." },
+        { "jsfile": "common/replay-edits.js", "lineNum": 251, "relevance": "collectSessionsForFile() only finds sessions within the passed (single-dir) corpus, missing the other 7 touching sessions." }
+      ],
+      "relevantJSONLfileLines": [
+        { "jsonlFile": "41be5a18-1094-464b-9195-6daffe792b6f.jsonl", "lineNum": 806, "relevance": "the last of only 2 edits to the hook in the probed session — far short of the on-disk state authored across 8 sessions." }
+      ]
+    },
+    {
+      "earliestSeenFullPath": "/Users/matkatmusicllc/Desktop/claude code src/RevEng/jsonl-tree-viewer.html",
+      "lastSeenFullPath": "",
+      "findings": "NOT_FOUND — category (b). This entry is session f3abcd5d, where the file is EDITED 35x (edit-only: no create record, and zero file-history-snapshot records in this session). The file was created in a different session and now lives on disk at RevEng/viewer/jsonl-tree-viewer.html, but the probe used the stale recorded path RevEng/jsonl-tree-viewer.html (not on disk) and, with no snapshot in this session and no git copy, returned NOT_FOUND. The reconstruction would succeed if the probe (a) followed the move to viewer/ via lineage, or (b) assembled the file's 4 touching sessions instead of verifying f3abcd5d in isolation. So this is an edit-only / multi-session / stale-path probe limitation, not a replay failure.",
+      "relevantPipelineSourceFiles": [
+        { "jsfile": "tools/probe-projects.js", "lineNum": 271, "relevance": "verifyTarget() checks only the stale recorded path; the file is on disk at viewer/ but the probe never relocates there." },
+        { "jsfile": "common/collect-touches.js", "lineNum": 172, "relevance": "resolveAliases() lineage (used by the CLI, not the probe) would map the old path to the current viewer/ location and to the creating session." },
+        { "jsfile": "tools/probe-projects.js", "lineNum": 365, "relevance": "tryCumulativeVerify() could combine the 4 sessions, but is gated on on-disk content at the stale path so it never runs." }
+      ],
+      "relevantJSONLfileLines": [
+        { "jsonlFile": "f3abcd5d-c57a-4853-9354-6534b7a25377.jsonl", "lineNum": 44, "relevance": "first of 35 edit-only records (no create) — proves the file was created in another session and only edited here." },
+        { "jsonlFile": "f3abcd5d-c57a-4853-9354-6534b7a25377.jsonl", "lineNum": 464, "relevance": "last edit in this session; with no snapshot and an off-disk path, the probe has no reference." }
+      ]
+    }
+  ]
+}

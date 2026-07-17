@@ -1,0 +1,254 @@
+# Engine B reconstruction MISMATCHes (247 total: 158 in-project, 89 not-in-project)
+
+Columns: comparedVia | matchedObserved/matchedPresumed/mismatched/neverObserved | path
+
+## filesInProject (live on disk inside a project root) (158)
+- [on-disk] 6/0/0/337  /Users/matkatmusicllc/.claude/plans/calm-jingling-cookie.md
+- [on-disk] 143/0/6/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/.gitignore
+- [on-disk] 106/0/7/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/alias-windows.js
+- [on-disk] 29/122/15/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/apply-one-event.js
+- [on-disk] 82/0/7/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/bash-op-events.js
+- [on-disk] 116/0/22/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/bash-op-evidence.js
+- [on-disk] 120/0/8/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/bash-read-commands.js
+- [on-disk] 115/0/7/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/bash-read-events.js
+- [on-disk] 64/0/15/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/bash-read-evidence.js
+- [on-disk] 70/0/5/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/bash-read-touches.js
+- [on-disk] 57/162/6/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/conflict-cascade-collapse.js
+- [on-disk] 159/0/14/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/edit-splice.js
+- [on-disk] 246/0/4/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/edit-stream-extraction.js
+- [on-disk] 83/0/4/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/evidence-record-access.js
+- [on-disk] 118/0/5/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/extract-bash-file-ops.js
+- [on-disk] 51/0/2/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/file-event-kinds.js
+- [on-disk] 24/0/9/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/file-event-wishlists.js
+- [on-disk] 239/0/11/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/file-historical-lineage.js
+- [on-disk] 140/0/7/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/file-path-history.js
+- [on-disk] 180/0/15/29  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/git-file-state.js
+- [on-disk] 52/0/2/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/grep-tool-events.js
+- [on-disk] 28/0/7/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/grep-tool-evidence.js
+- [on-disk] 127/0/2/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/grep-tool-results.js
+- [on-disk] 78/0/11/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/line-diff.js
+- [on-disk] 194/0/49/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/line-state-evidence.js
+- [on-disk] 56/0/3/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/numbered-entries.js
+- [on-disk] 52/0/3/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/promote-per-line-status.js
+- [on-disk] 220/56/11/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/reconstruction-reference-sources.js
+- [on-disk] 89/201/10/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/replay-verification.js
+- [on-disk] 29/235/4/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/rewind-classification.js
+- [on-disk] 198/0/1/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/scenario-reconstruction-check.js
+- [on-disk] 67/0/4/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/scenario-reconstruction-engines.js
+- [on-disk] 64/0/3/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/snapshot-store-io.js
+- [on-disk] 105/0/2/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/split-read-assembly.js
+- [on-disk] 64/0/9/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/structured-patch-events.js
+- [on-disk] 51/0/7/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/structured-patch-evidence.js
+- [on-disk] 85/0/2/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/subagent-transcript-discovery.js
+- [on-disk] 15/0/219/8  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/track-line-states.js
+- [on-disk] 140/0/4/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/transcript-discovery.js
+- [on-disk] 38/0/136/8  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/transcript-parsers.js
+- [on-disk] 75/0/7/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/unified-reconstruct-patch.js
+- [on-disk] 189/0/19/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/unified-reconstruct-step-extractors.js
+- [on-disk] 127/0/8/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/unified-reconstruct-steps.js
+- [on-disk] 208/0/10/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/unified-reconstruct.js
+- [on-disk] 47/0/5/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/api/user-modified-events.js
+- [on-disk] 200/0/6/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/diff/jfred-diff-filter-mode.js
+- [on-disk] 284/0/3/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/diff/jfred-diff-main.js
+- [on-disk] 130/0/7/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/diff/jfred-diff-tree.js
+- [on-disk] 81/0/5/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/jfred/jfred-load.js
+- [on-disk] 119/0/24/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/research/properties/originalFile/scan.js
+- [on-disk] 60/122/9/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-alias-windows.js
+- [on-disk] 98/0/4/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-apply-one-event.js
+- [on-disk] 122/0/1/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-array-tool-use-result.js
+- [on-disk] 98/0/21/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-bash-op-events.js
+- [on-disk] 119/0/20/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-bash-op-evidence.js
+- [on-disk] 147/0/1/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-bash-read-commands.js
+- [on-disk] 89/0/29/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-bash-read-events.js
+- [on-disk] 68/0/9/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-bash-read-evidence.js
+- [on-disk] 194/0/1/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-conflict-cascade-collapse.js
+- [on-disk] 160/0/1/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-edit-replay.js
+- [on-disk] 230/0/19/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-edit-stream-extraction.js
+- [on-disk] 63/0/1/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-evidence-record-access.js
+- [on-disk] 89/0/4/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-file-event-kinds.js
+- [on-disk] 119/0/12/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-file-event-observations.js
+- [on-disk] 52/0/9/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-file-event-wishlists.js
+- [on-disk] 81/0/12/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-file-events-extractors-bash.js
+- [on-disk] 226/0/20/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-file-events-extractors.js
+- [on-disk] 58/0/9/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-file-historical-lineage-bash.js
+- [on-disk] 41/0/1/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-file-historical-lineage-read.js
+- [on-disk] 25/0/2/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-file-historical-lineage-windows.js
+- [on-disk] 229/0/17/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-file-historical-lineage.js
+- [on-disk] 101/0/4/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-file-path-history.js
+- [on-disk] 171/0/1/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-file-state-history.js
+- [on-disk] 52/0/7/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-grep-tool-events.js
+- [on-disk] 56/0/5/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-grep-tool-evidence.js
+- [on-disk] 100/0/7/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-grep-tool-results.js
+- [on-disk] 112/0/16/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-json-inspector.js
+- [on-disk] 114/0/10/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-line-diff.js
+- [on-disk] 37/168/36/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-line-state-evidence.js
+- [on-disk] 73/0/11/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-numbered-entries.js
+- [on-disk] 230/0/11/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-probe-projects-v2.js
+- [on-disk] 181/0/6/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-probe-v2-assembly.js
+- [on-disk] 68/0/8/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-probe-v2-classify.js
+- [on-disk] 127/0/6/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-probe-v2-enumerate.js
+- [on-disk] 57/0/1/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-probe-v2-ordering.js
+- [on-disk] 70/0/8/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-probe-v2-provenance.js
+- [on-disk] 101/0/14/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-probe-v2-report.js
+- [on-disk] 171/0/2/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-probe-v2-shared.js
+- [on-disk] 98/0/9/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-promote-per-line-status.js
+- [on-disk] 208/0/24/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-read-event-scanner.js
+- [on-disk] 19/103/5/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-reconstruction-reference-sources.js
+- [on-disk] 149/0/35/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-reference-ladder.js
+- [on-disk] 216/0/14/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-replay-verification.js
+- [on-disk] 172/0/1/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-rewind-classification.js
+- [on-disk] 193/0/21/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-scenario-reconstruction-check.js
+- [on-disk] 157/0/13/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-scenario-reconstruction-engines.js
+- [on-disk] 189/0/10/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-snapshot-events.js
+- [on-disk] 81/0/3/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-snapshot-store-io.js
+- [on-disk] 130/0/18/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-spike-item16-list2-notfound-yield.js
+- [on-disk] 43/0/1/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-spike-item6-context-mode-yield.js
+- [on-disk] 76/0/23/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-split-read-assembly.js
+- [on-disk] 47/0/18/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-structured-patch-events.js
+- [on-disk] 63/0/9/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-structured-patch-evidence.js
+- [on-disk] 111/0/4/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-subagent-transcript-discovery.js
+- [on-disk] 29/73/30/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-track-line-states-bashops.js
+- [on-disk] 79/0/24/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-track-line-states-bashreads.js
+- [on-disk] 124/0/11/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-track-line-states-originalfile.js
+- [on-disk] 86/0/7/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-track-line-states-patchcontext.js
+- [on-disk] 112/0/27/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-track-line-states-reference.js
+- [on-disk] 77/0/12/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-track-line-states-usermodified.js
+- [on-disk] 43/118/27/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-track-line-states.js
+- [on-disk] 143/0/4/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-transcript-discovery.js
+- [on-disk] 89/0/52/10  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-transcript-parsers.js
+- [on-disk] 82/0/10/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-unified-reconstruct-patch.js
+- [on-disk] 125/0/17/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-unified-reconstruct-step-extractors.js
+- [on-disk] 121/0/6/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-unified-reconstruct-steps.js
+- [on-disk] 264/0/32/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-unified-reconstruct.js
+- [on-disk] 89/0/14/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/test-user-modified-events.js
+- [on-disk] 199/0/8/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tests/verify-all-scenarios.js
+- [on-disk] 200/0/12/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/assemble-split-reads.js
+- [on-disk] 159/0/6/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/detect-rewinds.js
+- [on-disk] 92/0/2/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/diagnose-mismatch.js
+- [on-disk] 104/0/16/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/find-jsonls-at-commit.js
+- [on-disk] 62/0/7/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/find-jsonls-for-file.js
+- [on-disk] 133/0/2145/592  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/probe-mismatches-v2.json
+- [on-disk] 281/0/8/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/probe-projects-v2.js
+- [on-disk] 137/0/11/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/probe-v2-assembly.js
+- [on-disk] 89/0/4/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/probe-v2-shared.js
+- [on-disk] 146/0/14/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/reconstruct.js
+- [on-disk] 94/0/3/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/replay-edits.js
+- [on-disk] 109/0/6/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/spike-item16-list2-notfound-yield.js
+- [on-disk] 228/0/15/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/spike-item6-context-mode-yield.js
+- [on-disk] 4/0/143/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/track-line-states.js
+- [on-disk] 179/0/6/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/turn-analyzer.js
+- [on-disk] 21/0/2/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/tools/unified-reconstruct.js
+- [on-disk] 132/0/2/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/unified/jfred-unified-load.js
+- [on-disk] 1733/0/21/0  /Users/matkatmusicllc/Desktop/claude code src/RevEng/viewer/JSONL-tree-viewer-v2-dev.html
+- [on-disk] 22/0/1/0  /Users/matkatmusicllc/Programming/jot-recovery/.vscode/launch.json
+- [on-disk] 3/22/36/0  /Users/matkatmusicllc/Programming/jot-recovery/tests/helpers/fakes.py
+- [on-disk] 26/0/0/1  /Users/matkatmusicllc/Programming/jot/.gitignore
+- [on-disk] 27/0/1/0  /Users/matkatmusicllc/Programming/jot/prompt.txt
+- [on-disk] 61/0/130/2  /Users/matkatmusicllc/Programming/jot/scripts/jot_plugin_orchestrator.py
+- [on-disk] 10/0/192/0  /Users/matkatmusicllc/Programming/jot/skills/debate/README.md
+- [on-disk] 24/0/263/0  /Users/matkatmusicllc/Programming/jot/tests/test_bg_permissions_lib.py
+- [on-disk] 5/0/537/0  /Users/matkatmusicllc/Programming/jot/tests/test_debate_agents.py
+- [on-disk] 14/0/909/0  /Users/matkatmusicllc/Programming/jot/tests/test_debate_lib_agents.py
+- [on-disk] 2/11/1028/0  /Users/matkatmusicllc/Programming/jot/tests/test_debate_main.py
+- [on-disk] 9/0/225/0  /Users/matkatmusicllc/Programming/jot/tests/test_jot_buildcmd.py
+- [on-disk] 49/0/928/0  /Users/matkatmusicllc/Programming/jot/tests/test_jot_lib.py
+- [on-disk] 23/0/514/0  /Users/matkatmusicllc/Programming/jot/tests/test_jot_plugin_orchestrator.py
+- [on-disk] 23/0/185/0  /Users/matkatmusicllc/Programming/jot/tests/test_logic_path_tree.py
+- [on-disk] 0/46/183/0  /Users/matkatmusicllc/Programming/jot/tests/test_plate_ensure_capture.py
+- [on-disk] 55/0/228/0  /Users/matkatmusicllc/Programming/jot/tests/test_plate_ensure_capture_ignores_correctly.py
+- [on-disk] 2/0/52/0  /Users/matkatmusicllc/Programming/jot/tests/test_plate_lib.py
+- [on-disk] 7/0/825/0  /Users/matkatmusicllc/Programming/jot/tests/test_plate_other.py
+- [on-disk] 17/0/212/0  /Users/matkatmusicllc/Programming/jot/tests/test_plate_push_no_changes_repro.py
+- [on-disk] 50/842/7/0  /Users/matkatmusicllc/Programming/jot/tests/test_todo_lib.py
+- [on-disk] 1/0/248/0  /Users/matkatmusicllc/Programming/jot/tests/test_util_terminal.py
+
+## filesNotInProject (deleted or outside project roots) (89)
+- [snapshot] 15/0/114/0  .
+- [snapshot] 19/0/145/80  .
+- [snapshot] 124/0/66/0  .
+- [snapshot] 14/0/63/0  .
+- [snapshot] 0/0/0/1665  .
+- [snapshot] 37/0/84/0  .
+- [snapshot] 8/0/164/0  .
+- [snapshot] 1/0/226/65  .
+- [snapshot] 0/0/127/0  .
+- [snapshot] 0/0/151/0  .
+- [snapshot] 0/0/77/0  .
+- [snapshot] 0/0/73/0  .
+- [snapshot] 0/0/92/0  .
+- [snapshot] 0/0/7/182  .
+- [snapshot] 2/0/151/0  .
+- [snapshot] 5/0/196/0  .
+- [snapshot] 73/0/25/0  .
+- [snapshot] 68/0/19/2  .
+- [snapshot] 3/0/265/6  .
+- [snapshot] 0/29/637/0  .
+- [snapshot] 0/0/6/186  .
+- [snapshot] 0/0/0/178  .
+- [snapshot] 0/0/0/100  .
+- [snapshot] 0/15/436/0  .
+- [snapshot] 0/0/0/128  .
+- [snapshot] 0/0/0/1  .
+- [snapshot] 28/0/445/54  .
+- [snapshot] 0/0/0/892  .
+- [snapshot] 0/0/0/1831  .
+- [snapshot] 0/0/0/934  .
+- [snapshot] 2/0/25/2  .
+- [snapshot] 2/0/51/0  .
+- [snapshot] 1/0/108/0  .
+- [snapshot] 0/0/0/59  .
+- [snapshot] 0/0/0/86  .
+- [snapshot] 5/0/204/0  .
+- [snapshot] 5/369/46/0  .
+- [snapshot] 0/106/409/0  .
+- [snapshot] 0/0/0/190  .
+- [snapshot] 0/0/0/285  .
+- [snapshot] 0/0/0/21  .
+- [snapshot] 0/0/0/89  .
+- [snapshot] 0/0/0/114  .
+- [snapshot] 0/0/0/79  .
+- [snapshot] 0/0/0/34  .
+- [snapshot] 0/0/0/16  .
+- [snapshot] 0/0/0/46  .
+- [snapshot] 0/0/0/116  .
+- [snapshot] 0/0/0/26  .
+- [snapshot] 0/0/0/20  .
+- [snapshot] 0/0/0/42  .
+- [snapshot] 0/0/0/13  .
+- [snapshot] 0/0/0/11  .
+- [snapshot] 122/0/9/0  .
+- [snapshot] 0/94/3947/136  .
+- [snapshot] 0/0/0/12116  .
+- [snapshot] 0/0/0/2021  .
+- [snapshot] 0/0/21/0  .
+- [snapshot] 2/0/28/2  .
+- [snapshot] 0/0/0/111  .
+- [snapshot] 0/0/0/93  .
+- [snapshot] 20/0/155/0  .
+- [snapshot] 4/0/15/0  .
+- [snapshot] 4/0/177/0  .
+- [snapshot] 4/0/54/0  .
+- [snapshot] 4/0/30/0  .
+- [snapshot] 0/0/1/212  .
+- [snapshot] 0/0/1/199  .
+- [snapshot] 0/0/1/157  .
+- [snapshot] 0/0/0/251  .
+- [snapshot] 0/0/0/46  .
+- [snapshot] 0/0/0/50  .
+- [snapshot] 0/0/0/33  .
+- [snapshot] 0/0/0/19  .
+- [snapshot] 0/0/0/34  .
+- [snapshot] 0/0/0/19  .
+- [snapshot] 0/0/0/21  .
+- [snapshot] 0/0/0/54  .
+- [snapshot] 0/0/0/23  .
+- [snapshot] 0/0/0/46  .
+- [snapshot] 0/0/0/36  .
+- [snapshot] 0/0/0/378  .
+- [snapshot] 0/217/368/0  .
+- [snapshot] 12/0/19/0  .
+- [snapshot] 13/904/0/97  .
+- [snapshot] 14/0/53/0  .
+- [git] 1/0/20/0  .
+- [on-disk] 1/0/88/14  /Users/matkatmusicllc/Programming/dotfiles/claude/settings.json
+- [on-disk] 125/0/1/0  /Users/matkatmusicllc/Programming/dotfiles/install.sh
