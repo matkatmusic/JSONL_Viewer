@@ -1047,5 +1047,15 @@
     "description": "Decided 2026-07-16: jot eventually LOSES /run-scenario and /sync-jsonl-projects \u2014 they become JFRED/jfredToolsPlugin property (tasks 58/107/108). DEFERRED until jfredToolsPlugin (task 108) is installed and proven as the daily driver, because jot is in active daily use and removing skills from it while JFRED is unproven is risky. Scope in ~/Programming/jot: delete skills/run-scenario/ + skills/sync-jsonl-projects/, remove their routing entries from scripts/jot_plugin_orchestrator.py (the run-scenario-* subcommand table at lines ~88-106 and the /run-scenario prompt match), and remove run_scenario_lib.py (or shim it to the new canonical home if one exists by then). Follow jot's archive-don't-delete convention where applicable.",
     "completionDate": "2026-07-17",
     "closureNote": "Closed 2026-07-17. jot loses /run-scenario + /sync-jsonl-projects (now jfredToolsPlugin property). NOTE: jot was on branch recovery-test-plate_ops_trash with ~234 dirty entries; skill dirs and libs were UNTRACKED there. Archived (archive/ mirrors original paths, staged): skills/run-scenario/, skills/sync-jsonl-projects/, common/scripts/{run_scenario_lib,sync_lib,sync_lib_format,sync_lib_paths,sync_lib_rsync}.py, tests/test_sync_lib.py. jot_plugin_orchestrator.py: imports + 7 run-scenario-* argv entries + 2 prompt entries COMMENTED OUT (task-109 markers, comment-out convention) \u2014 left UNSTAGED because the file already carried unrelated dirty changes. hooks.json needed no edit (generic orchestrator entry). Verified: /run-scenario passes through silently, /todo-list still dispatches. Nothing committed."
+  },
+  {
+    "taskNumber": 106,
+    "title": "Decide: script runs without toolUseId surface only via revision machinery",
+    "description": "Runs with no `toolUseId` (synthetic, none observed in real transcripts) can never join a tool-call row, so their file changes surface only through the existing revision machinery \u2014 acceptable? Decide and either close as accepted or add a fallback surfacing for such runs. (From implementation notes for task 67.)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-task67-script-run-details.md"
+    ],
+    "completionDate": "2026-07-17",
+    "closureNote": "Closed 2026-07-17 as ACCEPTED (decision-only, no code change). Runs without a toolUseId are synthetic-only \u2014 none observed in any real transcript, and the post-item-34 sweep shows all residual unattributed-lane changeIds are blob-ref/git-evidence, never scriptRun. If one ever appears, its file changes still surface via the revision machinery (graceful degradation: no badge/details join, data intact). Fallback surfacing deferred until a real transcript produces such a run \u2014 that sighting is the trigger and the test fixture."
   }
 ]

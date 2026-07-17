@@ -92,13 +92,5 @@
       "plans/archived/implementation-notes-task-92.md",
       "plans/archived/implementation-notes-task67-script-run-details.md"
     ]
-  },
-  {
-    "taskNumber": 106,
-    "title": "Decide: script runs without toolUseId surface only via revision machinery",
-    "description": "Runs with no `toolUseId` (synthetic, none observed in real transcripts) can never join a tool-call row, so their file changes surface only through the existing revision machinery \u2014 acceptable? Decide and either close as accepted or add a fallback surfacing for such runs. (From implementation notes for task 67.)",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-task67-script-run-details.md"
-    ]
   }
 ]
