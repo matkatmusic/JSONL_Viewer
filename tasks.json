@@ -26,11 +26,6 @@
     "description": "60. Bundle a sanitized sample session (demo data)** \u2014 the JFRED public repo needs one\n  committed, clean-room JSONL session (plus its file-history sidecar blobs) so\n  `npm run app` shows a populated timeline out-of-the-box and JFReD has a demo file. Cheapest\n  path: generate a fresh capture with the existing scenario runner (`/run-scenario`) against\n  a toy project in a temp dir, then verify zero personal paths inside (the transcript records\n  cwd \u2014 use a neutral temp cwd or post-process). This is also the data every screenshot in\n  item 61 uses."
   },
   {
-    "taskNumber": 61,
-    "title": "Write the JFRED repo README (the actual pitch)",
-    "description": "Write the JFRED repo's README (reframed 2026-07-15 for task 57's decision: public repo = JFRED, the static browser-only debugger \u2014 no Engine B, no npm). Outline: (1) hook \u2014 one sentence + hero screenshot: Claude Code's `/rewind` does NOT track changes made outside Claude (link https://code.claude.com/docs/en/checkpointing) \u2014 external edits, script runs, and git operations are invisible to checkpoints; JFRED reconstructs a session's file-change history from its JSONL transcript and file-history sidecar backups. (2) screenshots per item 62. (3) \"How it works\" \u2014 3\u20134 paragraphs on JFReD's own model (the api/ scripts: transcript parsing, read/edit-stream extraction, snapshot store, edit replay, rewind classification; never fabricate \u2014 reconstruct only from evidence). Do NOT cite docs/engine-b-overview.md \u2014 Engine B stays private. (4) quick start: open `jfred/jfred.html` in a browser and load a JSONL (+ sidecar) \u2014 zero install. (5) honest scope notes: static, browser-only; what reconstruction can/can't recover. Screenshots land via item 62."
-  },
-  {
     "taskNumber": 62,
     "title": "Capture JFRED README screenshots + stepper GIF",
     "description": "Capture JFRED README screenshots + GIF (reframed 2026-07-15: public repo = JFRED static debugger only \u2014 the webapp timeline / Diff-vs-Base / Details drawer are Engine-B private surfaces, dropped). Against the item-60 sample session, open `jfred/jfred.html` in the headless browse daemon and capture: (a) HERO: the three-pane PREVIOUS/COMPUTED/NEXT stepper mid-session; (b) the load screen with a JSONL loaded (line list populated); (c) a step showing a reconstructed file diff between panes. Plus one animated GIF stepping through revisions \u2014 worth more than all stills; record via screenshot sequence \u2192 `ffmpeg`/`gifski`. Light theme, consistent window size, no personal paths visible in any frame (the sample session's temp cwd will show \u2014 item 60 must make it neutral)."
@@ -70,20 +65,5 @@
     "handoffFilePaths": [
       "plans/archived/handoff-develop-20260714-1530.md"
     ]
-  },
-  {
-    "taskNumber": 115,
-    "title": "Bring the 3 over-cap jfred files back under the 250-line limit",
-    "description": "Task 105's extraction pass (2026-07-17) cleared every deep-nesting flag but pushed three jfred files just over the jot hook's 250-line cap via added helper signatures: src/reconstruction_script_stage.ts (252), webapp/app-router.ts (255), webapp/inspector.ts (256). Fix each so filesize_check.py exits 0 \u2014 likely a small module split (e.g. inspector's snapshot-drawer helpers, app-router's per-route renderers) or trimming relocated comments; follow plans/coding-requirements.md (no re-export shims \u2014 new module = canonical home, callers import directly). npm test verified green after task 105 (2026-07-17), so the suite is the regression oracle for any split. Oracle: python3 ~/Programming/jot/common/scripts/filesize_check.py <file> exits 0 for all three."
-  },
-  {
-    "taskNumber": 116,
-    "title": "jfredToolsPlugin: document the context-mode plugin requirement for run-scenario",
-    "description": "Ensure that the repo that owns the run-scenario skill (the jfredToolsPlugin submodule, jfred/jfredToolsPlugin) documents the need for the context-mode plugin being installed. Many scenario files (s32, s36\u2013s38, s74, s75, s80, s84, s85, and the new s87-demo-composite) instruct the driven agent to run scripts through the context-mode MCP sandbox (ctx_execute / ctx_batch_execute); without the plugin installed in the capture environment those steps cannot be followed and the run diverges. Add the requirement to jfredToolsPlugin/README.md and/or skills/run-scenario/SKILL.md \u2014 state which scenarios need it and that a clean CLAUDE_CONFIG_DIR capture (task 60's plan) must still install context-mode."
-  },
-  {
-    "taskNumber": 117,
-    "title": "Add a linter tool for scenario files",
-    "description": "Add a linter tool for scenario files so a .txt scenario can be validated before run-all-scenarios.py / the run-scenario skill processes it. No standalone linter exists today (2026-07-17): the de-facto validator is runScenario_convertTxtToJson in jfredToolsPlugin/common/scripts/run_scenario_lib.py, whose unparseable lines become 'unknown' steps that pause a run only at execution time; scenario-completeness-audit.py is a post-run .step_states auditor, not a pre-run linter. Wrap the parser in e.g. tools/lint-scenario.py <file> and report: header fields present (session/model/ponytail), zero 'unknown' steps, written step numbers matching parser order, Exit/Record present per agent, every Say @aN targeting a spawned (or implicit a1) agent, and Rewind payloads matching the '<N>[, code]' form with at least N prior Says on the target agent. Exit nonzero on any finding. Proven useful during the s87-demo-composite rewrite (2026-07-17), which was verified exactly this way by invoking the parser ad hoc."
   }
 ]
