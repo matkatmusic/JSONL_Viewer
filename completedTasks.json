@@ -1068,5 +1068,15 @@
     ],
     "completionDate": "2026-07-17",
     "closureNote": "Closed 2026-07-17. Scope EXPANDED from 3 named files to ALL 41 deep-nesting-flagged jfred TS files (user decision via full-repo sweep with filesize_check.py, the hook's own oracle): 14 src/, 25 webapp/, 2 tests/. Method: extraction-only into module-scope verb-named helpers (never flattening nested single-condition ifs), one subagent per file; two files (app-consent, timeline-render-selectbar) done in the main session after repeated spawn-classifier denials. Gate: re-sweep = ZERO Deep-nesting flags; npx tsc --noEmit = 0 errors (2 extraction typos fixed forward: orphans tip Uuid param, details-diff optional lineNumber). REMAINING (reported, not fixed \u2014 user decision): 3 files now over the 250-line cap from added helper signatures: reconstruction_script_stage.ts 252, app-router.ts 255, inspector.ts 256. Staged in jfred, uncommitted; test suites deliberately NOT run (user runs them). Plan: plans/task105-deep-nesting-restructure-plan.md; notes: plans/implementation-notes-task105-deep-nesting.md."
+  },
+  {
+    "taskNumber": 104,
+    "title": "Disable context-mode subagent-routing hook for this project?",
+    "description": "The permission classifier denied ~40% of subagent spawns until you confirmed the context-mode injected block was benign (mid-session). Consider disabling the context-mode plugin's subagent-routing hook for this project to avoid the same friction next session. (From implementation notes for task 92.)",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-task-92.md"
+    ],
+    "completionDate": "2026-07-17",
+    "closureNote": "Closed as done-via-issue: root cause reported upstream at https://github.com/mksglu/context-mode/issues/967 (auto-mode classifier denies ~40% of subagent spawns due to the injected <context_window_protection> block; in-transcript user confirmation is the session workaround). Local hook-disable NOT done \u2014 reopen if spawn denials recur next session."
   }
 ]
