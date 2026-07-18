@@ -1113,5 +1113,19 @@
     "description": "Add a linter tool for scenario files so a .txt scenario can be validated before run-all-scenarios.py / the run-scenario skill processes it. No standalone linter exists today (2026-07-17): the de-facto validator is runScenario_convertTxtToJson in jfredToolsPlugin/common/scripts/run_scenario_lib.py, whose unparseable lines become 'unknown' steps that pause a run only at execution time; scenario-completeness-audit.py is a post-run .step_states auditor, not a pre-run linter. Wrap the parser in e.g. tools/lint-scenario.py <file> and report: header fields present (session/model/ponytail), zero 'unknown' steps, written step numbers matching parser order, Exit/Record present per agent, every Say @aN targeting a spawned (or implicit a1) agent, and Rewind payloads matching the '<N>[, code]' form with at least N prior Says on the target agent. Exit nonzero on any finding. Proven useful during the s87-demo-composite rewrite (2026-07-17), which was verified exactly this way by invoking the parser ad hoc.",
     "completionDate": "2026-07-17",
     "closureNote": "tools/lint-scenario.py added to jfredToolsPlugin wrapping runScenario_convertTxtToJson: 6 pre-run checks incl. executor-faithful agent simulation (spawn rebinds, only spawnconcurrent registers names) + 9 pytest tests, green per user 2026-07-17. Staged, uncommitted at closure."
+  },
+  {
+    "taskNumber": 60,
+    "title": "Bundle a sanitized sample session (demo data)",
+    "description": "60. Bundle a sanitized sample session (demo data)** \u2014 the JFRED public repo needs one\n  committed, clean-room JSONL session (plus its file-history sidecar blobs) so\n  `npm run app` shows a populated timeline out-of-the-box and JFReD has a demo file. Cheapest\n  path: generate a fresh capture with the existing scenario runner (`/run-scenario`) against\n  a toy project in a temp dir, then verify zero personal paths inside (the transcript records\n  cwd \u2014 use a neutral temp cwd or post-process). This is also the data every screenshot in\n  item 61 uses.",
+    "completionDate": "2026-07-17",
+    "closureNote": "Implemented (staged, commit pending): sanitized s87-demo-composite bundle committed under jfred/demo/ \u2014 16 username-scrubbed JSONLs, 14 file-history sidecar dirs, repo.git.tar (baseline commit + staged-blob evidence), served by new `npm run demo`. Sanitized copies verified 118/118 via a throwaway coverage run."
+  },
+  {
+    "taskNumber": 62,
+    "title": "Capture JFRED README screenshots + stepper GIF",
+    "description": "Capture JFRED README screenshots + GIF (reframed 2026-07-15: public repo = JFRED static debugger only \u2014 the webapp timeline / Diff-vs-Base / Details drawer are Engine-B private surfaces, dropped). Against the item-60 sample session, open `jfred/jfred.html` in the headless browse daemon and capture: (a) HERO: the three-pane PREVIOUS/COMPUTED/NEXT stepper mid-session; (b) the load screen with a JSONL loaded (line list populated); (c) a step showing a reconstructed file diff between panes. Plus one animated GIF stepping through revisions \u2014 worth more than all stills; record via screenshot sequence \u2192 `ffmpeg`/`gifski`. Light theme, consistent window size, no personal paths visible in any frame (the sample session's temp cwd will show \u2014 item 60 must make it neutral).",
+    "completionDate": "2026-07-17",
+    "closureNote": "Implemented (staged, commit pending): four README assets captured against the item-60 demo bundle via headless browser \u2014 hero-timeline.png, timeline-filterbar.png, inspector.png, revision-stepper.gif (12 revisions of core_inventory.py, ffmpeg palettegen). Light theme, 1440x900, no personal paths. README placeholders activated + 'npm run demo' blurb added."
   }
 ]

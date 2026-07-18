@@ -21,16 +21,6 @@
     "description": "56. Pre-baseline reconstruction question UI (engine efficiency)** \u2014 when a project has\n  a supplied base commit (item 46), the WebApp asks BEFORE rendering the timeline: \"Do you\n  want to reconstruct file states that precede the supplied baseline git commit?\" If the user\n  chooses No, the timeline's first shown step is the baseline commit (the engine may skip the\n  work the beacon supersedes); otherwise reconstruct as we currently do. User-specified\n  2026-07-09; deferred out of item 46's scope."
   },
   {
-    "taskNumber": 60,
-    "title": "Bundle a sanitized sample session (demo data)",
-    "description": "60. Bundle a sanitized sample session (demo data)** \u2014 the JFRED public repo needs one\n  committed, clean-room JSONL session (plus its file-history sidecar blobs) so\n  `npm run app` shows a populated timeline out-of-the-box and JFReD has a demo file. Cheapest\n  path: generate a fresh capture with the existing scenario runner (`/run-scenario`) against\n  a toy project in a temp dir, then verify zero personal paths inside (the transcript records\n  cwd \u2014 use a neutral temp cwd or post-process). This is also the data every screenshot in\n  item 61 uses."
-  },
-  {
-    "taskNumber": 62,
-    "title": "Capture JFRED README screenshots + stepper GIF",
-    "description": "Capture JFRED README screenshots + GIF (reframed 2026-07-15: public repo = JFRED static debugger only \u2014 the webapp timeline / Diff-vs-Base / Details drawer are Engine-B private surfaces, dropped). Against the item-60 sample session, open `jfred/jfred.html` in the headless browse daemon and capture: (a) HERO: the three-pane PREVIOUS/COMPUTED/NEXT stepper mid-session; (b) the load screen with a JSONL loaded (line list populated); (c) a step showing a reconstructed file diff between panes. Plus one animated GIF stepping through revisions \u2014 worth more than all stills; record via screenshot sequence \u2192 `ffmpeg`/`gifski`. Light theme, consistent window size, no personal paths visible in any frame (the sample session's temp cwd will show \u2014 item 60 must make it neutral)."
-  },
-  {
     "taskNumber": 63,
     "title": "GitHub Pages demo tier",
     "description": "63. GitHub Pages demo tier \u2014 publish JFReD static (cheap path)** \u2014 supersedes the\n  approach in item 17 for the FIRST public demo: `jfred/` + `api/` + `web-shared/` is\n  ALREADY a zero-server browser app (client-side JSONL load + legacy-engine reconstruction,\n  `jfred/jfred-load.js`), so Pages can host it as-is with the item-60 sample JSONL\n  preloaded. Label it honestly as the debugger demo running the frozen legacy `api/`\n  engine, not Engine B. Item 17 (canned ReconstructionDocument JSON + `webapp/` static-data\n  shim replacing `/api/*` \u2014 the full-fidelity Engine-B demo) stays open as the later,\n  bigger tier; do NOT build the shim for launch \u2014 the README GIF (item 62) covers what the\n  live webapp looks like."
