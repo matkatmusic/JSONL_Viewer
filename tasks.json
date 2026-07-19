@@ -38,19 +38,48 @@
   {
     "taskNumber": 96,
     "title": "Deferred browser verifications: items 78, 80, 84 and the unified-reconstruction fix",
-    "description": "Browser checks deferred to the user's post-session pass, bundled: (a) item 78 — visual/headless verification of the timeline-build progress overlay against `#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline`; threshold 500 / batch 100 are first-cut constants, tunable if the overlay feels too eager or the bar too coarse. (b) item 80 — confirm at the repro that a long console line wraps, and re-wraps after dragging `#split-lr` to narrow the console; if long lines STILL overflow, the cause is elsewhere and the item reopens. (c) item 84 — the `☐`/`☑` range toggle is a `<button>` inside `.rev-head`, which otherwise holds `<span>`s; may need a CSS nudge — visual verify. (d) unified-juggling-conway — glance that the file-history revision-content pane still looks right (`computeContentAtTime` now renders from the revision's own `lines`); click a chip → drawer shows the fetched file, pick a range + chip → diff renders; measure the cold-load timing win on the real `jot-backup` project via the `--resetSandboxMemo` run. (e) task 93 — the bare `/file/<path>` route (no /rev anchor) now opens revision #1 in DIFF mode instead of the old collapsed all-revisions list; if the collapsed-list overview mattered, say so — the rev-card list on the left is the intended replacement. (f) task 103 — a failed compound git command still produces a (badged) commit node resolving to the same instant as the retry (badge-don't-suppress decision); flag if the duplicate marker ever shows up as a visible artifact in the viewer.",
+    "description": "Browser checks deferred to the user's post-session pass, bundled: (a) item 78 — visual/headless verification of the timeline-build progress overlay against `#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline`; threshold 500 / batch 100 are first-cut constants, tunable if the overlay feels too eager or the bar too coarse. (b) item 80 — confirm at the repro that a long console line wraps, and re-wraps after dragging `#split-lr` to narrow the console; if long lines STILL overflow, the cause is elsewhere and the item reopens. (c) item 84 — the `☐`/`☑` range toggle is a `<button>` inside `.rev-head`, which otherwise holds `<span>`s; may need a CSS nudge — visual verify. (d) unified-juggling-conway — glance that the file-history revision-content pane still looks right (`computeContentAtTime` now renders from the revision's own `lines`); click a chip → drawer shows the fetched file, pick a range + chip → diff renders; measure the cold-load timing win on the real `jot-backup` project via the `--resetSandboxMemo` run. (e) task 93 — the bare `/file/<path>` route (no /rev anchor) now opens revision #1 in DIFF mode instead of the old collapsed all-revisions list; if the collapsed-list overview mattered, say so — the rev-card list on the left is the intended replacement. (f) task 103 — a failed compound git command still produces a (badged) commit node resolving to the same instant as the retry (badge-don't-suppress decision); flag if the duplicate marker ever shows up as a visible artifact in the viewer. (g) task 112 — engine-pipeline-diagrams.html: the interactive drill-jump (tab 1 S4 → tab 2 highlight incl. P9b) was verified statically, not by a real browser click, because of a browse-daemon crash; a manual click-through when you next open the file would close that last gap.",
     "handoffFilePaths": [
       "plans/archived/implementation-notes-item78-timeline-build-progress.md",
       "plans/archived/implementation-notes-item80-console-word-wrap.md",
       "plans/archived/implementation-notes-item84-unify-bottom-pane.md",
       "plans/archived/implementation-notes-unified-juggling-conway.md",
       "plans/archived/implementation-notes-task93-retire-file-history-view.md",
-      "plans/archived/implementation-notes-tasks-103-91-94.md"
+      "plans/archived/implementation-notes-tasks-103-91-94.md",
+      "plans/archived/implementation-notes-task112-pipeline-diagrams.md"
     ]
   },
   {
     "taskNumber": 119,
     "title": "Partial reconstruction: surface recoverable file states even when full reconstruction fails",
     "description": "Add \"reconstruct up to...\" functionality even if the full reconstruction fails. The reconstruction engine should be able to provide at least SOME reconstructed file states from the JSONL files it finds, even if the entire session cannot be reconstructed. The engine and webapp need a way to reflect this reconstruction state so the user knows what file states were recoverable and what were not.\n\nScope (refined with user):\n- Failure modes to survive (all three): (1) parser-level crashes — unknown record types/keys in newer-CC JSONLs must not abort the load; skip the bad record, keep parsing, reconstruct from what loaded (today an unknown record type crashes the viewer before the consent dialog); (2) engine-stage failures — a reconstruction stage throwing mid-session keeps all file states computed up to that point; (3) missing-evidence gaps — sidecar backups / git repo / recorded tmpdir gone: reconstruct the revisions that don't need the missing evidence, mark the rest unrecoverable.\n- Granularity: per-revision. Each revision of each file is marked recovered or unrecoverable, with a reason (matches the per-step coverage-ledger mindset).\n- Webapp UI (chosen A+C from mockups in plans/partial-reconstruction-ui-mockups.html): session-level partial-reconstruction banner with counts; inline dashed gap rows in the timeline; dashed/grayed missing rev-cards in the revision stepper; plus a per-file coverage strip in the file list (one segment per revision, red = unrecoverable, click a red segment for a reason popover). Same engine output feeds both treatments."
+  },
+  {
+    "taskNumber": 120,
+    "title": "Publish chain: push scenarios → JFRED → jfredToolsPlugin, verify clean-room + marketplace, sync wrapper clone",
+    "description": "Consolidated go-public checklist from four implementation-notes files:\n(1) User must push the scenarios repo (1 unpushed commit 075ef56 \"added S86, updated S41\") BEFORE JFRED is pushed — JFRED's pin was fetched from the local clone and dangles for cloners until then.\n(2) JFRED is staged but uncommitted; first commit + push still needs the privacy gate re-run at push time. Commit ordering: commit inside jfred/jfredToolsPlugin first, push, then re-stage the gitlink in JFRED (it currently records the license-only commit 70ad1b6), commit JFRED, then RevEng.\n(3) Consider switching the GitHub default branch for matkatmusic/jfred from master (empty initial commit — a plain git clone gets an empty tool) to develop: `gh repo edit matkatmusic/jfred --default-branch develop`.\n(4) After pushing jfredToolsPlugin to https://github.com/matkatmusic/jfredToolsPlugin, verify the install flow with a real `claude plugin marketplace add matkatmusic/jfredToolsPlugin` + `claude plugin install`, then decide whether the zshrc --plugin-dir wrapper (task 108's interim enablement) should be retired.\n(5) ~/Programming/jfredToolsPlugin (the clone the claude() wrapper actually loads) does NOT yet have the two new scenario skills — pull/push the canonical $REVENG/jfred/jfredToolsPlugin changes into it after committing, or /impl-scenario and /plan-scenario won't resolve at the next launch (their RevEng copies are now archived).\n(6) Deferred verifications left for the user from task 111: RevEng `npm test` (5 task-workflow tests + 2 python tests remain), `npm run typecheck`, clean-room `npm test`, and the interactive /run-scenario check under `command claude`.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-task58-step1-jfred.md",
+      "plans/archived/implementation-notes-task113-marketplace-entry.md",
+      "plans/archived/implementation-notes-tasks98-118-skill-plugin-ports.md",
+      "plans/archived/implementation-notes-task111-jfred-submodule-cutover.md",
+      "plans/archived/implementation-notes-task108-jfredtoolsplugin.md"
+    ]
+  },
+  {
+    "taskNumber": 121,
+    "title": "Decide: should the git-baseline synthetic turn match the Git timeline filter?",
+    "description": "Should the git-baseline synthetic turn (role pill \"git-derived baseline\") match the Git mode as well? Today it matches Conversation (it is a TurnNode) and usually Files (it carries baseline file changes), but not Git — Git shows only commit hard-stop rows. Flag if you want it in Git too.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-task114-timeline-filter-buttons.md"
+    ]
+  },
+  {
+    "taskNumber": 122,
+    "title": "Decide: per-file test files the jot hook wants, or accept the convention gap",
+    "description": "The jot hook wants per-file test files named tests/app-header.test.ts, tests/inspector-snapshots.test.ts, tests/reconstruction_script_beaconless.test.ts, and tests/test_lint-scenario.py. The first three match the pre-existing convention gap (app-router.ts / inspector.ts had no per-file tests either; behavior stays covered by reconstruction_script_stage.test.ts and the viewmodel tests), and the hyphenated pytest name is not importable — the linter's tests live in tests/test_lint_scenario.py. Confirm this is acceptable or say the word and per-file DOM smoke tests get added.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-tasks116-117-115-61.md"
+    ]
   }
 ]
