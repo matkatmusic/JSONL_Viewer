@@ -55,5 +55,10 @@
     "handoffFilePaths": [
       "plans/archived/handoff-develop-20260714-1530.md"
     ]
+  },
+  {
+    "taskNumber": 118,
+    "title": "Move /impl-scenario and /plan-scenario skills + templates into jfredToolsPlugin",
+    "description": "The '/impl-scenario' and '/plan-scenario' skills and their templates should be moved to the jfredToolsPlugin. Sources: `.claude/skills/impl-scenario/SKILL.md`, `.claude/skills/plan-scenario/SKILL.md`, and the templates they reference in `plans/templates/` (`Impl_template.md`, `Plan_template.md`, likely `Plan_Impl_template.md`). Destination: `jfred/jfredToolsPlugin` skills (alongside run-scenario and sync-jsonl-projects). Update the SKILL.md template paths to their new plugin-relative locations, and archive (don't delete) the superseded root copies per the archive-preserve convention."
   }
 ]
