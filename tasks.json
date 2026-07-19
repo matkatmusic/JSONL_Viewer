@@ -2,12 +2,12 @@
   {
     "taskNumber": 7,
     "title": "jot repo: `terminal_windowSizeBlocks(s)` enum refactor",
-    "description": "7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** \u2014 DEFERRED UNTIL ALL other tasks are done.`/Users/matkatmusicllc/Programming/jot`\n  (separate repo); `grep -rn \"windowSizeBlocks\"`. Not a RevEng change."
+    "description": "7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** — DEFERRED UNTIL ALL other tasks are done.`/Users/matkatmusicllc/Programming/jot`\n  (separate repo); `grep -rn \"windowSizeBlocks\"`. Not a RevEng change."
   },
   {
     "taskNumber": 17,
     "title": "GitHub Pages demo tier",
-    "description": "17. GitHub Pages demo tier** \u2014 canned ReconstructionDocument JSON + `webapp/` with a\n  static-data shim replacing `/api/*`. Deliberately deferred \"Phase 4, planned separately when\n  reached\" (handoffs 20260702-1434/1639, 20260703-1010/2144); needs its own plan when reached.",
+    "description": "17. GitHub Pages demo tier** — canned ReconstructionDocument JSON + `webapp/` with a\n  static-data shim replacing `/api/*`. Deliberately deferred \"Phase 4, planned separately when\n  reached\" (handoffs 20260702-1434/1639, 20260703-1010/2144); needs its own plan when reached.",
     "handoffFilePaths": [
       "plans/archived/handoff-develop-20260702-1434.md",
       "plans/archived/handoff-develop-20260702-1639.md",
@@ -18,17 +18,17 @@
   {
     "taskNumber": 56,
     "title": "Pre-baseline reconstruction question UI (engine efficiency)",
-    "description": "56. Pre-baseline reconstruction question UI (engine efficiency)** \u2014 when a project has\n  a supplied base commit (item 46), the WebApp asks BEFORE rendering the timeline: \"Do you\n  want to reconstruct file states that precede the supplied baseline git commit?\" If the user\n  chooses No, the timeline's first shown step is the baseline commit (the engine may skip the\n  work the beacon supersedes); otherwise reconstruct as we currently do. User-specified\n  2026-07-09; deferred out of item 46's scope."
+    "description": "56. Pre-baseline reconstruction question UI (engine efficiency)** — when a project has\n  a supplied base commit (item 46), the WebApp asks BEFORE rendering the timeline: \"Do you\n  want to reconstruct file states that precede the supplied baseline git commit?\" If the user\n  chooses No, the timeline's first shown step is the baseline commit (the engine may skip the\n  work the beacon supersedes); otherwise reconstruct as we currently do. User-specified\n  2026-07-09; deferred out of item 46's scope."
   },
   {
     "taskNumber": 63,
     "title": "GitHub Pages demo tier",
-    "description": "63. GitHub Pages demo tier \u2014 publish JFReD static (cheap path)** \u2014 supersedes the\n  approach in item 17 for the FIRST public demo: `jfred/` + `api/` + `web-shared/` is\n  ALREADY a zero-server browser app (client-side JSONL load + legacy-engine reconstruction,\n  `jfred/jfred-load.js`), so Pages can host it as-is with the item-60 sample JSONL\n  preloaded. Label it honestly as the debugger demo running the frozen legacy `api/`\n  engine, not Engine B. Item 17 (canned ReconstructionDocument JSON + `webapp/` static-data\n  shim replacing `/api/*` \u2014 the full-fidelity Engine-B demo) stays open as the later,\n  bigger tier; do NOT build the shim for launch \u2014 the README GIF (item 62) covers what the\n  live webapp looks like."
+    "description": "63. GitHub Pages demo tier — publish JFReD static (cheap path)** — supersedes the\n  approach in item 17 for the FIRST public demo: `jfred/` + `api/` + `web-shared/` is\n  ALREADY a zero-server browser app (client-side JSONL load + legacy-engine reconstruction,\n  `jfred/jfred-load.js`), so Pages can host it as-is with the item-60 sample JSONL\n  preloaded. Label it honestly as the debugger demo running the frozen legacy `api/`\n  engine, not Engine B. Item 17 (canned ReconstructionDocument JSON + `webapp/` static-data\n  shim replacing `/api/*` — the full-fidelity Engine-B demo) stays open as the later,\n  bigger tier; do NOT build the shim for launch — the README GIF (item 62) covers what the\n  live webapp looks like."
   },
   {
     "taskNumber": 64,
     "title": "Public-repo CI workflow",
-    "description": "64. Public-repo CI workflow** \u2014 no `.github/` exists anywhere today. One workflow in\n  the public repo: `npm ci`, `tsc --noEmit` (`npm run typecheck`), `npm test` \u2014 viable on a\n  bare clone only after item 59 makes the suite scenario-submodule-optional. Add\n  `npm run build:webapp` to catch webapp tsconfig breakage. Nothing else (no matrix, no\n  release automation) until the repo has users."
+    "description": "64. Public-repo CI workflow** — no `.github/` exists anywhere today. One workflow in\n  the public repo: `npm ci`, `tsc --noEmit` (`npm run typecheck`), `npm test` — viable on a\n  bare clone only after item 59 makes the suite scenario-submodule-optional. Add\n  `npm run build:webapp` to catch webapp tsconfig breakage. Nothing else (no matrix, no\n  release automation) until the repo has users."
   },
   {
     "taskNumber": 83,
@@ -38,7 +38,7 @@
   {
     "taskNumber": 96,
     "title": "Deferred browser verifications: items 78, 80, 84 and the unified-reconstruction fix",
-    "description": "Browser checks deferred to the user's post-session pass, bundled: (a) item 78 \u2014 visual/headless verification of the timeline-build progress overlay against `#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline`; threshold 500 / batch 100 are first-cut constants, tunable if the overlay feels too eager or the bar too coarse. (b) item 80 \u2014 confirm at the repro that a long console line wraps, and re-wraps after dragging `#split-lr` to narrow the console; if long lines STILL overflow, the cause is elsewhere and the item reopens. (c) item 84 \u2014 the `\u2610`/`\u2611` range toggle is a `<button>` inside `.rev-head`, which otherwise holds `<span>`s; may need a CSS nudge \u2014 visual verify. (d) unified-juggling-conway \u2014 glance that the file-history revision-content pane still looks right (`computeContentAtTime` now renders from the revision's own `lines`); click a chip \u2192 drawer shows the fetched file, pick a range + chip \u2192 diff renders; measure the cold-load timing win on the real `jot-backup` project via the `--resetSandboxMemo` run. (e) task 93 \u2014 the bare `/file/<path>` route (no /rev anchor) now opens revision #1 in DIFF mode instead of the old collapsed all-revisions list; if the collapsed-list overview mattered, say so \u2014 the rev-card list on the left is the intended replacement. (f) task 103 \u2014 a failed compound git command still produces a (badged) commit node resolving to the same instant as the retry (badge-don't-suppress decision); flag if the duplicate marker ever shows up as a visible artifact in the viewer.",
+    "description": "Browser checks deferred to the user's post-session pass, bundled: (a) item 78 — visual/headless verification of the timeline-build progress overlay against `#/project/-Users-matkatmusicllc-Programming-jot-backup/timeline`; threshold 500 / batch 100 are first-cut constants, tunable if the overlay feels too eager or the bar too coarse. (b) item 80 — confirm at the repro that a long console line wraps, and re-wraps after dragging `#split-lr` to narrow the console; if long lines STILL overflow, the cause is elsewhere and the item reopens. (c) item 84 — the `☐`/`☑` range toggle is a `<button>` inside `.rev-head`, which otherwise holds `<span>`s; may need a CSS nudge — visual verify. (d) unified-juggling-conway — glance that the file-history revision-content pane still looks right (`computeContentAtTime` now renders from the revision's own `lines`); click a chip → drawer shows the fetched file, pick a range + chip → diff renders; measure the cold-load timing win on the real `jot-backup` project via the `--resetSandboxMemo` run. (e) task 93 — the bare `/file/<path>` route (no /rev anchor) now opens revision #1 in DIFF mode instead of the old collapsed all-revisions list; if the collapsed-list overview mattered, say so — the rev-card list on the left is the intended replacement. (f) task 103 — a failed compound git command still produces a (badged) commit node resolving to the same instant as the retry (badge-don't-suppress decision); flag if the duplicate marker ever shows up as a visible artifact in the viewer.",
     "handoffFilePaths": [
       "plans/archived/implementation-notes-item78-timeline-build-progress.md",
       "plans/archived/implementation-notes-item80-console-word-wrap.md",
@@ -49,16 +49,8 @@
     ]
   },
   {
-    "taskNumber": 98,
-    "title": "Port the task-management skill suite into its own plugin",
-    "description": "Create a standalone plugin at `~/Programming/taskTools` (NOT part of jot) holding the five task* skills: `create-task`, `pick-a-task`, `tackle-tasks`, `update-tasks`, `view-task`. Scaffold `plugin.json` + `skills/` (mirror jfredToolsPlugin's layout), move each skill dir from `.claude/skills/` into the plugin, and carry along `.claude/skills/scripts/` plus any node scripts the SKILL.md files reference \u2014 fix relative paths after the move. Move `.claude/hooks/viewTaskHook.ts` into the plugin and register it as a UserPromptSubmit hook in the plugin's hooks config (it stays TypeScript \u2014 no Python translation needed since we're not adopting jot's orchestrator). Install via the local marketplace / `--plugin-dir`, verify each slash command still fires (`/view-task` hook included), then delete the `.claude/` copies. Gotcha from jfredToolsPlugin: `--plugin-dir` vs `--add-dir` behave differently \u2014 see its README. ADDITION (2026-07-17): the first time a task is created (e.g. via `/create-task`), the skill should generate `tasks.json` AND `completedTasks.json` if they don't exist yet; consider housing both files in a dotted folder instead of the project root \u2014 name TBD: `.tasks/` or `.taskTools/` (matching the plugin name). Open question: unclear how first-run generation could be enforced merely by the plugin being installed \u2014 likely has to live in the create-task skill logic itself (skills only run when invoked; a hook could also seed the files).",
-    "handoffFilePaths": [
-      "plans/archived/handoff-develop-20260714-1530.md"
-    ]
-  },
-  {
-    "taskNumber": 118,
-    "title": "Move /impl-scenario and /plan-scenario skills + templates into jfredToolsPlugin",
-    "description": "The '/impl-scenario' and '/plan-scenario' skills and their templates should be moved to the jfredToolsPlugin. Sources: `.claude/skills/impl-scenario/SKILL.md`, `.claude/skills/plan-scenario/SKILL.md`, and the templates they reference in `plans/templates/` (`Impl_template.md`, `Plan_template.md`, likely `Plan_Impl_template.md`). Destination: `jfred/jfredToolsPlugin` skills (alongside run-scenario and sync-jsonl-projects). Update the SKILL.md template paths to their new plugin-relative locations, and archive (don't delete) the superseded root copies per the archive-preserve convention."
+    "taskNumber": 119,
+    "title": "Partial reconstruction: surface recoverable file states even when full reconstruction fails",
+    "description": "Add \"reconstruct up to...\" functionality even if the full reconstruction fails. The reconstruction engine should be able to provide at least SOME reconstructed file states from the JSONL files it finds, even if the entire session cannot be reconstructed. The engine and webapp need a way to reflect this reconstruction state so the user knows what file states were recoverable and what were not.\n\nScope (refined with user):\n- Failure modes to survive (all three): (1) parser-level crashes — unknown record types/keys in newer-CC JSONLs must not abort the load; skip the bad record, keep parsing, reconstruct from what loaded (today an unknown record type crashes the viewer before the consent dialog); (2) engine-stage failures — a reconstruction stage throwing mid-session keeps all file states computed up to that point; (3) missing-evidence gaps — sidecar backups / git repo / recorded tmpdir gone: reconstruct the revisions that don't need the missing evidence, mark the rest unrecoverable.\n- Granularity: per-revision. Each revision of each file is marked recovered or unrecoverable, with a reason (matches the per-step coverage-ledger mindset).\n- Webapp UI (chosen A+C from mockups in plans/partial-reconstruction-ui-mockups.html): session-level partial-reconstruction banner with counts; inline dashed gap rows in the timeline; dashed/grayed missing rev-cards in the revision stepper; plus a per-file coverage strip in the file list (one segment per revision, red = unrecoverable, click a red segment for a reason popover). Same engine output feeds both treatments."
   }
 ]
