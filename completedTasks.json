@@ -1175,5 +1175,21 @@
       "RevEng@fa4ef2f"
     ],
     "closureNote": "Implemented same day, user-approved visually: sidebar.ts wraps each folder's children in one .file-folder-kids div; styles.css replaces the tree metrics with fixed-width chevron/icon columns (native details marker hidden, ▸/▾ + 📁 in a 34px column, 📄 in a 13px+21px column), bold --text folder names, a uniform 16px indent step, and a border-left vertical guide on each kids wrapper (old rules commented out per comment-out-don't-delete). Typecheck clean; committed by the user as jfred 5705a46, superproject fa4ef2f (plan + notes files included)."
+  },
+  {
+    "taskNumber": 119,
+    "title": "Partial reconstruction: surface recoverable file states even when full reconstruction fails",
+    "description": "Add \"reconstruct up to...\" functionality even if the full reconstruction fails. The reconstruction engine should be able to provide at least SOME reconstructed file states from the JSONL files it finds, even if the entire session cannot be reconstructed. The engine and webapp need a way to reflect this reconstruction state so the user knows what file states were recoverable and what were not.\n\nScope (refined with user):\n- Failure modes to survive (all three): (1) parser-level crashes — unknown record types/keys in newer-CC JSONLs must not abort the load; skip the bad record, keep parsing, reconstruct from what loaded (today an unknown record type crashes the viewer before the consent dialog); (2) engine-stage failures — a reconstruction stage throwing mid-session keeps all file states computed up to that point; (3) missing-evidence gaps — sidecar backups / git repo / recorded tmpdir gone: reconstruct the revisions that don't need the missing evidence, mark the rest unrecoverable.\n- Granularity: per-revision. Each revision of each file is marked recovered or unrecoverable, with a reason (matches the per-step coverage-ledger mindset).\n- Webapp UI (chosen A+C from mockups in plans/partial-reconstruction-ui-mockups.html): session-level partial-reconstruction banner with counts; inline dashed gap rows in the timeline; dashed/grayed missing rev-cards in the revision stepper; plus a per-file coverage strip in the file list (one segment per revision, red = unrecoverable, click a red segment for a reason popover). Same engine output feeds both treatments.",
+    "handoffFilePaths": [
+      "plans/partial-reconstruction-task119.md",
+      "plans/implementation-notes-partial-reconstruction-task119.md",
+      "plans/partial-reconstruction-ui-mockups.html"
+    ],
+    "completionDate": "2026-07-20",
+    "commitHashes": [
+      "jfred@3b01c62",
+      "RevEng@fa4ef2f"
+    ],
+    "closureNote": "Implemented 2026-07-19 across engine + webapp: tolerant parsing captures SkippedLines, a reconstruction_health failure sink survives per-stage/per-event/per-file/per-phase throws (unrecoverable placeholder revisions carry prior content forward), and the webapp renders the A+C treatments (banner, dashed gap rows, missing rev-cards, coverage strips with reason popovers). Both tsconfigs typecheck clean; committed by the user as jfred 3b01c62, superproject fa4ef2f. No failure-path fixture exists yet (task 83 not started), but the user verified s87 loads intact through the new tolerant/tolerance code paths and closed the task on that basis. Two open questions live in the implementation notes: a possible CLI --tolerant flag, and whether clicking a missing rev-card should show the reason instead of the carried-forward diff."
   }
 ]
