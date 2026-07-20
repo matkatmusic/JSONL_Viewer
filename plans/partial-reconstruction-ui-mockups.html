@@ -1,0 +1,140 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Partial reconstruction — 3 UI mockups</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  --ui: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --bg: #f5f6f8; --panel: #eceef3; --control: #e2e5ec; --control-hover: #d5d9e2;
+  --border: #c9cdd6; --border-strong: #b3b8c4; --text: #1c1e26; --muted: #666c78;
+  --accent: #0a66c2; --green: #1a7f37; --red: #c62828; --orange: #b45309;
+  --code-bg: #ffffff; --badge-accent-bg: rgba(10,102,194,.12); --error-bg: rgba(198,40,40,.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1a2e; --panel: #16213e; --control: #2a2a4e; --control-hover: #3a3a5e;
+    --border: #333; --border-strong: #444; --text: #e0e0e0; --muted: #888;
+    --accent: #7ecfff; --green: #7ee787; --red: #ff7b72; --orange: #ffb74d;
+    --code-bg: #10101f; --badge-accent-bg: rgba(126,207,255,.2); --error-bg: rgba(244,67,54,.12);
+  }
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background: var(--bg); color: var(--text); font-family: var(--ui); padding: 24px; }
+h1 { font-size: 20px; margin-bottom: 4px; }
+.sub { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+h2 { font-size: 15px; margin: 36px 0 4px; }
+h2 .opt { color: var(--accent); }
+.note { color: var(--muted); font-size: 12.5px; margin-bottom: 10px; max-width: 720px; }
+.app { border: 1px solid var(--border-strong); border-radius: 8px; background: var(--panel); max-width: 760px; overflow: hidden; font-size: 13px; }
+.appbar { padding: 8px 12px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 12px; color: var(--muted); background: var(--control); }
+.banner { display:flex; align-items:center; gap:8px; padding: 8px 12px; background: var(--error-bg); border-bottom: 1px solid var(--border); font-size: 12.5px; }
+.banner .warn { color: var(--orange); font-weight: 600; }
+.banner .detail { color: var(--muted); }
+.banner .link { color: var(--accent); margin-left:auto; cursor:pointer; font-size:12px; }
+.section-label { padding: 8px 12px 4px; font-size: 10.5px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+.row { display:flex; gap:12px; padding: 6px 12px; font-family: var(--mono); font-size: 12px; border-top: 1px solid var(--border); align-items:center; }
+.row .ts { color: var(--muted); width: 48px; }
+.row .verb { width: 44px; color: var(--accent); }
+.row .file { flex:1; }
+.row .rev { color: var(--muted); width: 52px; }
+.row .ok { color: var(--green); }
+.gap-row { background: var(--error-bg); border-top: 1px dashed var(--red); border-bottom: 1px dashed var(--red); }
+.gap-row .reason { color: var(--red); flex:1; font-family: var(--ui); font-size: 12px; }
+.gap-row .ts { color: var(--red); }
+.stepper { display:flex; gap:8px; padding: 10px 12px 14px; flex-wrap: wrap; }
+.rev-card { border: 1px solid var(--border-strong); background: var(--code-bg); border-radius: 6px; padding: 8px 10px; font-family: var(--mono); font-size: 11.5px; min-width: 96px; }
+.rev-card .rev-head { font-weight: 600; margin-bottom: 3px; }
+.rev-card .rev-ts { color: var(--muted); font-size: 10.5px; }
+.rev-card.ok .rev-head { color: var(--green); }
+.rev-card.missing { border-style: dashed; border-color: var(--red); background: transparent; opacity: .75; }
+.rev-card.missing .rev-head { color: var(--red); }
+.rev-card.missing .why { color: var(--muted); font-family: var(--ui); font-size: 10.5px; margin-top: 4px; max-width: 130px; }
+.filelist { border-top: 1px solid var(--border); }
+.file-item { display:flex; align-items:center; gap: 12px; padding: 7px 12px; border-top: 1px solid var(--border); font-family: var(--mono); font-size: 12px; }
+.file-item .name { width: 150px; }
+.covbar { display:flex; gap: 2px; }
+.covbar span { width: 26px; height: 12px; border-radius: 2px; background: var(--green); opacity:.85; }
+.covbar span.miss { background: var(--red); }
+.covbar span.miss.sel { outline: 2px solid var(--accent); }
+.file-item .frac { color: var(--muted); margin-left: auto; font-size: 11.5px; }
+.popover { margin: 6px 12px 12px 174px; max-width: 330px; border: 1px solid var(--border-strong); background: var(--code-bg); border-radius: 6px; padding: 10px 12px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.15); }
+.popover .t { font-family: var(--mono); font-weight: 600; margin-bottom: 4px; }
+.popover .bad { color: var(--red); }
+.popover .k { color: var(--muted); }
+.tip { color: var(--muted); font-size: 11px; padding: 0 12px 12px; }
+</style>
+</head>
+<body>
+
+<h1>Partial reconstruction — pick a treatment</h1>
+<div class="sub">All three assume the engine emits per-revision recovered / unrecoverable state with a reason. Palette + classes borrowed from the live webapp styles.css.</div>
+
+<!-- ============ OPTION A ============ -->
+<h2><span class="opt">Option A</span> — Banner + inline gap markers</h2>
+<div class="note">Session banner with counts; unrecoverable spans appear as dashed gap rows in the timeline, and missing revisions render as dashed grayed cards in the revision stepper.</div>
+<div class="app">
+  <div class="appbar">s87-demo-composite / timeline</div>
+  <div class="banner"><span class="warn">⚠ Partial reconstruction</span><span class="detail">92 / 118 steps recovered · 26 revisions unrecoverable</span><span class="link">show gaps</span></div>
+  <div class="section-label">Timeline</div>
+  <div class="row"><span class="ts">10:02</span><span class="verb">Write</span><span class="file">orders.py</span><span class="rev">rev 3</span><span class="ok">✓</span></div>
+  <div class="row"><span class="ts">10:04</span><span class="verb">Edit</span><span class="file">orders.py</span><span class="rev">rev 4</span><span class="ok">✓</span></div>
+  <div class="row gap-row"><span class="ts">✗</span><span class="reason">2 records skipped — unknown record type <code>file-history-delta</code>; revisions in this span unrecoverable</span></div>
+  <div class="row"><span class="ts">10:09</span><span class="verb">Edit</span><span class="file">inventory.py</span><span class="rev">rev 2</span><span class="ok">✓</span></div>
+  <div class="section-label">Revision stepper — orders.py</div>
+  <div class="stepper">
+    <div class="rev-card ok"><div class="rev-head">rev 1 ✓</div><div class="rev-ts">10:01:12</div></div>
+    <div class="rev-card ok"><div class="rev-head">rev 2 ✓</div><div class="rev-ts">10:01:58</div></div>
+    <div class="rev-card missing"><div class="rev-head">rev 3 ✗</div><div class="rev-ts">~10:06</div><div class="why">sidecar backup missing</div></div>
+    <div class="rev-card ok"><div class="rev-head">rev 4 ✓</div><div class="rev-ts">10:08:31</div></div>
+  </div>
+</div>
+
+<!-- ============ OPTION B ============ -->
+<h2><span class="opt">Option B</span> — Banner only</h2>
+<div class="note">One session-level warning with counts and a details tooltip; timeline and stepper show only what was recovered — gaps are not marked inline.</div>
+<div class="app">
+  <div class="appbar">s87-demo-composite / timeline</div>
+  <div class="banner"><span class="warn">⚠ Partial reconstruction</span><span class="detail">92 / 118 steps recovered</span><span class="link">details…</span></div>
+  <div class="section-label">Timeline (recovered steps only)</div>
+  <div class="row"><span class="ts">10:02</span><span class="verb">Write</span><span class="file">orders.py</span><span class="rev">rev 3</span></div>
+  <div class="row"><span class="ts">10:04</span><span class="verb">Edit</span><span class="file">orders.py</span><span class="rev">rev 4</span></div>
+  <div class="row"><span class="ts">10:09</span><span class="verb">Edit</span><span class="file">inventory.py</span><span class="rev">rev 2</span></div>
+  <div class="section-label">Revision stepper — orders.py</div>
+  <div class="stepper">
+    <div class="rev-card ok"><div class="rev-head">rev 1</div><div class="rev-ts">10:01:12</div></div>
+    <div class="rev-card ok"><div class="rev-head">rev 2</div><div class="rev-ts">10:01:58</div></div>
+    <div class="rev-card ok"><div class="rev-head">rev 4</div><div class="rev-ts">10:08:31</div></div>
+  </div>
+  <div class="tip">rev 3 silently absent — user only learns it existed from the banner count.</div>
+</div>
+
+<!-- ============ OPTION C ============ -->
+<h2><span class="opt">Option C</span> — Coverage strip per file</h2>
+<div class="note">Banner plus a per-file coverage bar in the file list — one segment per revision, red = unrecoverable. Clicking a red segment opens a popover with the reason.</div>
+<div class="app">
+  <div class="appbar">s87-demo-composite / files</div>
+  <div class="banner"><span class="warn">⚠ Partial reconstruction</span><span class="detail">92 / 118 steps recovered</span></div>
+  <div class="section-label">Files</div>
+  <div class="filelist">
+    <div class="file-item"><span class="name">orders.py</span>
+      <span class="covbar"><span></span><span></span><span class="miss sel"></span><span></span><span></span><span></span></span>
+      <span class="frac">5 / 6 revs</span></div>
+    <div class="file-item"><span class="name">inventory.py</span>
+      <span class="covbar"><span></span><span></span><span></span><span></span><span></span><span></span></span>
+      <span class="frac">6 / 6 revs</span></div>
+    <div class="file-item"><span class="name">ledger.py</span>
+      <span class="covbar"><span></span><span></span><span class="miss"></span><span class="miss"></span><span></span><span></span></span>
+      <span class="frac">4 / 6 revs</span></div>
+  </div>
+  <div class="popover">
+    <div class="t">orders.py — rev 3 <span class="bad">✗ unrecoverable</span></div>
+    <div><span class="k">reason:</span> sidecar backup missing; stage <code>completeElidedBeacons</code> threw</div>
+    <div><span class="k">window:</span> ~10:05 – 10:08</div>
+  </div>
+</div>
+
+</body>
+</html>
