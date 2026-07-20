@@ -67,10 +67,5 @@
     "handoffFilePaths": [
       "plans/archived/implementation-notes-tasks116-117-115-61.md"
     ]
-  },
-  {
-    "taskNumber": 123,
-    "title": "Files pane: Fork-style nesting indicators and folder hierarchy",
-    "description": "The timeline FILES sidebar reads as flat (see s87): folder membership is visually unclear. Root cause is render-side only — webapp/views/timeline-file-tree.ts already builds a correct nested tree. Three CSS decisions in webapp/styles.css (~185-198) break the hierarchy: (1) child rows get padding-left: 10px per level while the folder <summary>'s disclosure-triangle + \"\\ud83d\\udcc1\" prefix is ~30px wide, so a folder's NAME starts further right than its children's names — containment reads inverted (plans sits deeper than feature-plan.md); (2) file rows have no left icon/badge gutter, so left edges never align into depth columns; (3) folder headers are dimmer than file names, so containers recede instead of anchoring groups. Fix Fork-style: cumulative indent per depth larger than the row decorations (~20-24px/level measured from the parent's text start), chevron only on folder rows, fixed-width gutter so names at one depth share a left edge, folder rows at least as prominent as files. Optional: vertical indent guide lines. Keep the existing <details open> mechanism, rename badges, and revision counts. Reference screenshots: jfred file nav.png (current, s87) vs fork file nav.png (target look)."
   }
 ]

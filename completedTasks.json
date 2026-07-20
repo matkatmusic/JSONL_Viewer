@@ -1160,5 +1160,20 @@
     ],
     "completionDate": "2026-07-18",
     "closureNote": "All seven checks run headlessly (plain-node CDP driver + system Chrome, screenshots delivered): (b) xterm console never overflows and re-fits 1346px→731px on narrow; (c) ☐ toggle aligned, no CSS nudge needed; (d) rev-card click renders content, two-☐ range renders diff, chip→drawer works; (e) bare /file URL cold-load opens revision #1 in Columns diff mode; (f) s6 shows FAILED badges on both the compound add+commit Bash row and its commit node, retry commit separate, no duplicate-marker artifact; (g) real click S4→tab 2 highlights 10 nodes incl. P9b. (a) verified mechanism-only on a cold s84 load (phase labels shown) — the >500-step jot-backup repro no longer exists (transcript folder empty), so the rendering-phase-at-scale case has no live repro. (d)'s --resetSandboxMemo timing measurement skipped. Side find fixed same day: RevEng npm run app --projects-dir repointed to jfred/scenarios/executed."
+  },
+  {
+    "taskNumber": 123,
+    "title": "Files pane: Fork-style nesting indicators and folder hierarchy",
+    "description": "The timeline FILES sidebar reads as flat (see s87): folder membership is visually unclear. Root cause is render-side only — webapp/views/timeline-file-tree.ts already builds a correct nested tree. Three CSS decisions in webapp/styles.css (~185-198) break the hierarchy: (1) child rows get padding-left: 10px per level while the folder <summary>'s disclosure-triangle + \"\\ud83d\\udcc1\" prefix is ~30px wide, so a folder's NAME starts further right than its children's names — containment reads inverted (plans sits deeper than feature-plan.md); (2) file rows have no left icon/badge gutter, so left edges never align into depth columns; (3) folder headers are dimmer than file names, so containers recede instead of anchoring groups. Fix Fork-style: cumulative indent per depth larger than the row decorations (~20-24px/level measured from the parent's text start), chevron only on folder rows, fixed-width gutter so names at one depth share a left edge, folder rows at least as prominent as files. Optional: vertical indent guide lines. Keep the existing <details open> mechanism, rename badges, and revision counts. Reference screenshots: jfred file nav.png (current, s87) vs fork file nav.png (target look).",
+    "handoffFilePaths": [
+      "plans/task123-files-pane-indent-guides.md",
+      "plans/implementation-notes-task123-files-pane-indent-guides.md"
+    ],
+    "completionDate": "2026-07-20",
+    "commitHashes": [
+      "jfred@5705a46",
+      "RevEng@fa4ef2f"
+    ],
+    "closureNote": "Implemented same day, user-approved visually: sidebar.ts wraps each folder's children in one .file-folder-kids div; styles.css replaces the tree metrics with fixed-width chevron/icon columns (native details marker hidden, ▸/▾ + 📁 in a 34px column, 📄 in a 13px+21px column), bold --text folder names, a uniform 16px indent step, and a border-left vertical guide on each kids wrapper (old rules commented out per comment-out-don't-delete). Typecheck clean; committed by the user as jfred 5705a46, superproject fa4ef2f (plan + notes files included)."
   }
 ]
