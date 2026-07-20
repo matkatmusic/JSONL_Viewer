@@ -64,16 +64,13 @@
     ]
   },
   {
-    "taskNumber": 125,
-    "title": "Visually verify task-123 file-tree indent-guide pixel metrics in the real app",
-    "description": "Pixel tuning — emoji metrics vary by platform. If 📄/📁 columns look off in the real app, tune only the two `::before` widths (21px/34px) and the 16px step, keeping child-name = parent-name + one step. Verify visually with jfred's `npm run app` against s87 (both the FILES sidebar and the details \"Files touched\" tree share these classes).",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-task123-files-pane-indent-guides.md"
-    ]
-  },
-  {
     "taskNumber": 126,
     "title": "Build the task-119 failure-path fixture + launch.json entry, then exercise the missing-rev-card click (t124:Q2)",
     "description": "The task-119 failure UI (health banner, dashed gap rows, coverage strip, placeholder rev-cards) has never been exercised live — no failure fixture exists. Steps:\n(1) Copy the sanitized demo bundle jfred/demo/ (s87 session) into a REPO-LOCAL dir (e.g. jfred/demo-corrupt/, not a tmp scratch dir that gets cleaned) — do not touch the original.\n(2) In the copied JSONL, find a mid-session Edit on a file with several revisions and mangle its payload so REPLAY fails (e.g. change the edit's old_string so it no longer matches). Do NOT invent an unknown record type — that still crashes the viewer before the consent dialog (known s87 trap); use a valid record whose replay fails.\n(3) Add a new configuration to RevEng/.vscode/launch.json — clone the existing \"Debug viewer server (port 7343)\" entry (program jfred/src/viewer_server.ts, cwd jfred, preLaunchTask build:webapp) but name it \"Debug viewer server (failure fixture)\" and point --projects-dir at the corrupted-bundle dir.\n(4) Load the session, pass consent, open the affected file to see the failure UI; clicking the placeholder rev-card currently shows a carried-forward diff instead of the failure reason — that's the t124:Q2 problem to observe (and the fixture doubles as the failure-path test fixture task 119 never had)."
+  },
+  {
+    "taskNumber": 127,
+    "title": "Timeline keyword search + entry-time file names in detail inspector",
+    "description": "Add keyword search over a loaded timeline in the jfred viewer: a search box, positioned to the left of the filter chips in the timeline header with a width of two 8-10 letter words + the magnifying glass emoji, that filters timeline entries down to those matching the term (non-matching entries hidden). Example driving use case: load s87 and search \"inventory\" to find the entry where inventory.py was renamed to core_inventory.py.\nRelated observation to investigate as part of this task: the detail inspector for a selected timeline entry shows the file's FINAL name, not the name the file had at the time of the entry (e.g. an s87 entry from before the rename shows core_inventory.py instead of inventory.py). Decide whether this is a bug or a prior \"show final file name in timeline detail view\" decision that should now be corrected — entries should display the file name as it was at that point in the timeline."
   }
 ]

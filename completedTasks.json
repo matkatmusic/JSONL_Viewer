@@ -1201,5 +1201,14 @@
     ],
     "completionDate": "2026-07-20",
     "closureNote": "Decision-only closure, no code change. Q1: NO --tolerant CLI flag — the CLI stays strict on purpose (fog-of-war guard for scenario development); revisit only if a server-side/headless tier is ever scheduled, and the planned public path is the fully client-side GitHub Pages tier (tasks 63/17) where the already-tolerant browser viewer covers public users. Q2: superseded by task 126, which builds the failure-path fixture + launch.json entry and exercises the missing-rev-card click live."
+  },
+  {
+    "taskNumber": 125,
+    "title": "Visually verify task-123 file-tree indent-guide pixel metrics in the real app",
+    "description": "Pixel tuning — emoji metrics vary by platform. If 📄/📁 columns look off in the real app, tune only the two `::before` widths (21px/34px) and the 16px step, keeping child-name = parent-name + one step. Verify visually with jfred's `npm run app` against s87 (both the FILES sidebar and the details \"Files touched\" tree share these classes).",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-task123-files-pane-indent-guides.md"
+    ],
+    "closureNote": "Closed 2026-07-20 after user visual verification: emoji column metrics (21px/34px, 16px step) confirmed fine as-is — no pixel tuning needed. Follow-on fixes landed during verification: (1) indent guides were invisible in dark theme (--border #333 on #16213e panel) — new --guide var (#4d5a85 dark / #a9afbd light); (2) sidebar made resizable via the existing makeSplitter mechanism (#split-sd, same as details pane); (3) pre-existing test-suite crash fixed — task 119 coverage popover registered document.addEventListener at module top level in sidebar.ts, now guarded for DOM-free imports. 805/805 tests green."
   }
 ]
