@@ -62,5 +62,21 @@
     "handoffFilePaths": [
       "plans/archived/implementation-notes-tasks116-117-115-61.md"
     ]
+  },
+  {
+    "taskNumber": 124,
+    "title": "Decide: task-119 follow-ups — CLI --tolerant flag + missing rev-card click behavior",
+    "description": "Two open questions from task 119 (partial reconstruction):\n(1) Should the CLI (`--json`) also expose a tolerant mode flag? Strict parsing was deliberately kept (fog-of-war guard for scenario development); add a `--tolerant` CLI switch only if wanted.\n(2) Missing rev-cards still respond to a click by showing the (carried-forward) diff — harmless but arguably should show the reason instead. Confirm or leave as-is.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-partial-reconstruction-task119.md"
+    ]
+  },
+  {
+    "taskNumber": 125,
+    "title": "Visually verify task-123 file-tree indent-guide pixel metrics in the real app",
+    "description": "Pixel tuning — emoji metrics vary by platform. If 📄/📁 columns look off in the real app, tune only the two `::before` widths (21px/34px) and the 16px step, keeping child-name = parent-name + one step. Verify visually with jfred's `npm run app` against s87 (both the FILES sidebar and the details \"Files touched\" tree share these classes).",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-task123-files-pane-indent-guides.md"
+    ]
   }
 ]
