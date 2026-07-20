@@ -29,6 +29,20 @@
         {
             "type": "node",
             "request": "launch",
+            "name": "Debug viewer server (failure fixture)",
+            "preLaunchTask": "prep:demo-corrupt",
+            "runtimeExecutable": "node",
+            "runtimeArgs": ["--import", "tsx"],
+            "program": "${workspaceFolder}/jfred/src/viewer_server.ts",
+            "args": ["--port", "7343", "--projects-dir", "demo-corrupt/projects", "--file-history-dir", "demo-corrupt/file-history", "--resetDocumentCache"],
+            "cwd": "${workspaceFolder}/jfred",
+            "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
+            "smartStep": true,
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "node",
+            "request": "launch",
             "name": "Debug TS file (current file)",
             "runtimeExecutable": "node",
             "runtimeArgs": ["--import", "tsx"],

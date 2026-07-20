@@ -19,6 +19,20 @@
             "console": "integratedTerminal"
         },
         {
+            "type": "node",
+            "request": "launch",
+            "name": "Debug viewer server (failure fixture)",
+            "preLaunchTask": "prep:demo-corrupt",
+            "runtimeExecutable": "node",
+            "runtimeArgs": ["--import", "tsx"],
+            "program": "${workspaceFolder}/RevEng/jfred/src/viewer_server.ts",
+            "args": ["--port", "7343", "--projects-dir", "${workspaceFolder}/RevEng/jfred/demo-corrupt/projects", "--file-history-dir", "${workspaceFolder}/RevEng/jfred/demo-corrupt/file-history", "--resetDocumentCache"],
+            "cwd": "${workspaceFolder}/RevEng/jfred",
+            "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
+            "smartStep": true,
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Open JSONL Tree Viewer",
             "type": "chrome",
             "request": "launch",

@@ -7,6 +7,15 @@
             "script": "build:webapp",
             "problemMatcher": ["$tsc"],
             "presentation": { "reveal": "silent", "clear": true }
+        },
+        {
+            "label": "prep:demo-corrupt",
+            "type": "shell",
+            "command": "tar -xf demo/repo.git.tar -C demo-corrupt/projects/s87-demo-composite",
+            "options": { "cwd": "${workspaceFolder}/jfred" },
+            "dependsOn": ["build:webapp"],
+            "problemMatcher": [],
+            "presentation": { "reveal": "silent", "clear": true }
         }
     ]
 }
