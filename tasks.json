@@ -44,8 +44,8 @@
   },
   {
     "taskNumber": 121,
-    "title": "Decide: should the git-baseline synthetic turn match the Git timeline filter?",
-    "description": "Should the git-baseline synthetic turn (role pill \"git-derived baseline\") match the Git mode as well? Today it matches Conversation (it is a TurnNode) and usually Files (it carries baseline file changes), but not Git \u2014 Git shows only commit hard-stop rows. Flag if you want it in Git too.",
+    "title": "Merge the git-derived baseline turn into its base-commit row (decision made)",
+    "description": "DECIDED 2026-07-20 (compromise): when the timeline's base-commit row exists, absorb the git-derived baseline turn into it \u2014 ONE row reading '<ts> [GIT-DERIVED BASELINE] [<hash>] Files seeded from git base commit <hash>\u2026 [<file chips>]' (green baseline pill replaces the 'git commit' label; orange hash pill kept; other commits keep the plain dress). Implementation: timeline-nodes.ts \u2014 when a commit node's resultHash equals the configured baseCommit, attach the baseline snapshots/file chips to that commit node and skip creating the separate baseline TurnNode; timeline-render-rows.ts appendCommitRowContent \u2014 render the baseline dress on that node. Filter model unchanged: the merged row is still a commit node so Git mode matches natively, and it now carries fileChanges so Files mode matches too; accepted trade \u2014 Conversation mode no longer shows it (not a turn). FALLBACK REQUIRED: if the session never recorded the base commit (e.g. demo-baseline's back-dated commit), there is no commit row to absorb it \u2014 keep the standalone green baseline turn for that case. Demo scenario for verification: scenarios/executed/s85-git-commit-csv-and-move-scripts with a reveng-paths.json of { \"repo\": \"scenarios/executed/s85-git-commit-csv-and-move-scripts\", \"baseCommit\": \"14e26eced65bfc384a65a533e87a0da11221726c\" } \u2014 the session records that commit ('baseline', 14e26ec), so the merge fires; demo-baseline exercises the fallback.",
     "handoffFilePaths": [
       "plans/archived/implementation-notes-task114-timeline-filter-buttons.md"
     ]
