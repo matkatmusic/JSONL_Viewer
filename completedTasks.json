@@ -1224,5 +1224,20 @@
       "jfred@693e4e4"
     ],
     "closureNote": "Implemented same day (jfred@693e4e4), iterated live with the user. (1) Timeline keyword search: input left of the filter chips, Fork-style chrome \u2014 entering a term jumps to and SELECTS result #1 (details pane renders via selectTimelineRow), n/N = current result / results found, \u25b2/\u25bc + Enter/Shift+Enter walk results with wraparound, \u2715 clears; non-matching rows hidden (incl. session-ends). Pure tested model in timeline-filter-model.ts (checkNodeMatchesSearchTerm/checkNodePassesFilters/computeMatchingNodeIndexes). (2) Entry-time file names: confirmed a BUG (recordHistoryRevisions stamped history.target on every revision) \u2014 fixed with display-only FileChange.displayPath via backward rename walk; path stays the lookup/fetch key everywhere. (3) Bonus user additions: details right-pane find widget (n/N, < >, \u2715, CSS Custom Highlight API, reset via clearRightPaneBody choke point). Known ceiling: find matches cannot span two text nodes (ponytail comment in details-find-model.ts)."
+  },
+  {
+    "taskNumber": 56,
+    "title": "Pre-baseline reconstruction question UI (engine efficiency)",
+    "description": "56. Pre-baseline reconstruction question UI (engine efficiency)** — when a project has\n  a supplied base commit (item 46), the WebApp asks BEFORE rendering the timeline: \"Do you\n  want to reconstruct file states that precede the supplied baseline git commit?\" If the user\n  chooses No, the timeline's first shown step is the baseline commit (the engine may skip the\n  work the beacon supersedes); otherwise reconstruct as we currently do. User-specified\n  2026-07-09; deferred out of item 46's scope.",
+    "planFilePaths": [
+      "plans/task56-pre-baseline-question-ui.md",
+      "plans/implementation-notes-task56-pre-baseline-question.md"
+    ],
+    "completionDate": "2026-07-20",
+    "commitHashes": [
+      "ad8beb8",
+      "jfred@55df4b9"
+    ],
+    "closureNote": "Implemented 2026-07-20, user-tested via the new 'Debug viewer server (pre-baseline demo)' launch config, committed as RevEng@ad8beb8 + jfred@55df4b9. Mirrors the script-consent gate end to end: DocumentResponseKind.baselineQuestionRequired → decideBaselineQuestion gates both /api/document paths BEFORE the consent gate → dialog (app-baseline-question.ts) → sessionStorage baseline:<project> → preBaseline=1|0 param. 'No' makes seedBaseCommitBeacon drop the events its beacon supersedes (setPreBaselineReconstructionAllowed, exec-gate lifecycle, cache-keyed) and filterPreBaselineNodes starts the timeline at the git-baseline node (document.preBaselineSkipped stamp). Clone-ready demo-baseline/ bundle (session ee3482f5, inventory.py rev 2 committed back-dated as 3802acb; repo path in reveng-paths.json is jfred-root-relative) + npm run demo:baseline. Same-day follow-up: git-derived baseline entries render the task-126-style banner + committed content (details-baseline.ts) instead of '(no content change in this revision)'. 9 new TDD tests; reconstructPreBaseline is a TRAILING defaulted param of build*WithConsent (positional insert breaks ~25 test call sites)."
   }
 ]

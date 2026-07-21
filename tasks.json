@@ -16,11 +16,6 @@
     ]
   },
   {
-    "taskNumber": 56,
-    "title": "Pre-baseline reconstruction question UI (engine efficiency)",
-    "description": "56. Pre-baseline reconstruction question UI (engine efficiency)** \u2014 when a project has\n  a supplied base commit (item 46), the WebApp asks BEFORE rendering the timeline: \"Do you\n  want to reconstruct file states that precede the supplied baseline git commit?\" If the user\n  chooses No, the timeline's first shown step is the baseline commit (the engine may skip the\n  work the beacon supersedes); otherwise reconstruct as we currently do. User-specified\n  2026-07-09; deferred out of item 46's scope."
-  },
-  {
     "taskNumber": 63,
     "title": "GitHub Pages demo tier",
     "description": "63. GitHub Pages demo tier \u2014 publish JFReD static (cheap path)** \u2014 supersedes the\n  approach in item 17 for the FIRST public demo: `jfred/` + `api/` + `web-shared/` is\n  ALREADY a zero-server browser app (client-side JSONL load + legacy-engine reconstruction,\n  `jfred/jfred-load.js`), so Pages can host it as-is with the item-60 sample JSONL\n  preloaded. Label it honestly as the debugger demo running the frozen legacy `api/`\n  engine, not Engine B. Item 17 (canned ReconstructionDocument JSON + `webapp/` static-data\n  shim replacing `/api/*` \u2014 the full-fidelity Engine-B demo) stays open as the later,\n  bigger tier; do NOT build the shim for launch \u2014 the README GIF (item 62) covers what the\n  live webapp looks like."
