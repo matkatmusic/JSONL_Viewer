@@ -68,3 +68,81 @@ would have invalidated pre-existing cached documents regardless.
 
 - Task 156's yes/no verdict (did the task-150 garbage-target fix shrink the 500+ second
   phase-4 stall on the 451-target RevEng project?) now comes from the user's direct app run.
+
+## 2026-07-21:13:05:00 — Task 64: public-repo CI workflow
+Chat title: tackle-tasks 156 154 160 (same conversation, second invocation: tackle-tasks 64)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Desktop-claude-code-src-RevEng/b748e433-4c99-470d-a00f-ee74f5949a90.jsonl
+
+### References
+
+/Users/matkatmusicllc/Desktop/claude code src/RevEng/plans/plan-task-64-ci-workflow.md
+
+### Design decisions
+
+- One workflow file only (`jfred/.github/workflows/ci.yml`): checkout WITHOUT submodules on
+  purpose — the suite is scenario-submodule-optional (task 59), so CI proves the bare-clone
+  path a fresh contributor hits.
+- Node 22 pinned (what `@types/node ^22` promises), `cache: npm` via setup-node, push CI on
+  master + develop plus unfiltered pull_request. Step order: npm ci → typecheck → test →
+  build:webapp (the task text's list).
+
+### Deviations
+
+- None from the plan. No local test exists for a workflow file (its only oracle is a real
+  Actions run); local sanity = YAML parse check via `npx js-yaml` (6 steps parsed OK).
+
+### Tradeoffs
+
+- No matrix / release automation / README badge — task text defers all of it until the repo
+  has users.
+
+### Open questions
+
+- Task 64 stays OPEN until the user pushes and a green Actions run confirms the workflow —
+  the file's existence is not the closure gate.
+
+## 2026-07-21:13:45:00 — Task 64 CI failure fix + task 156 root-cause diagnosis (task 162 filed)
+Chat title: tackle-tasks 156 154 160 (same conversation, continued)
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Desktop-claude-code-src-RevEng/b748e433-4c99-470d-a00f-ee74f5949a90.jsonl
+
+### References
+
+/Users/matkatmusicllc/Desktop/claude code src/RevEng/jfred/jfred-server.log (the user's piped phase-4 run; evidence for task 162)
+
+### Design decisions
+
+- CI run 29865002100 failed: 56 test files die at module load in tests/fixtures.ts:40
+  ("scenario <name>: no .jsonl found under known roots") — task 59 (scenario-optional suite)
+  was closed WITHOUT code, so the bare-clone premise in ci.yml was false. Fix: initialize
+  ONLY the scenarios submodule (`git submodule update --init scenarios`; the repo is public,
+  verified via ls-remote; the other three submodules aren't needed by the suite), and bump
+  checkout/setup-node to @v5 to silence the runner's Node-20 deprecation warning.
+- Reader-dependent tests synthesize their own temp file-history trees
+  (tests/reconstruction_sidecar_reader.test.ts, overrides-test-helpers.ts), so no HOME
+  dependency is expected on the runner; the next Actions run is the oracle.
+- Task 156 diagnosis from jfred-server.log (user question: is
+  plans/items29-30-31-32-close.md reconstructed multiple times? YES): 3 full
+  reconstructions in the 70s window (13:20:05 / 13:20:27 / 13:20:52 — the ~9 stage lines per
+  pass are stages, not extra passes), and project-wide 473 "replaying lineage of" headers
+  over 140 distinct targets. Root cause: replayLineageContentBefore
+  (src/reconstruction_branches.ts:199) replays the full per-target pipeline once per
+  (target, before-timestamp) and its memo skips nested replays (enteredWithCleanStack gate).
+  Filed as task 162 with fix directions; no engine change made in this session.
+- The user's new mid-run tasks reused numbers 160/161 (already completed); renumbered to
+  163/164 per the duplicate-159 precedent.
+
+### Deviations
+
+- None.
+
+### Tradeoffs
+
+- CI initializes the scenarios submodule instead of making the suite scenario-optional
+  (task 59's original idea): one line vs. touching 56 test files' import-time behavior —
+  and the user's decision record on task 59 says this repo goes private later anyway.
+
+### Open questions
+
+- Tasks 64 and 156 remain OPEN: 64 closes on a green Actions run after the user pushes the
+  amended workflow; 156's verdict is now subsumed by task 162 (the stall is real and
+  root-caused, not fixed).
