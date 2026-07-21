@@ -1274,5 +1274,16 @@
     "planFilePaths": [
       "plans/task122-per-file-test-files-plan.md"
     ]
+  },
+  {
+    "taskNumber": 126,
+    "title": "Build the task-119 failure-path fixture + launch.json entry, then exercise the missing-rev-card click (t124:Q2)",
+    "description": "The task-119 failure UI (health banner, dashed gap rows, coverage strip, placeholder rev-cards) has never been exercised live \u2014 no failure fixture exists. Steps:\n(1) Copy the sanitized demo bundle jfred/demo/ (s87 session) into a REPO-LOCAL dir (e.g. jfred/demo-corrupt/, not a tmp scratch dir that gets cleaned) \u2014 do not touch the original.\n(2) In the copied JSONL, find a mid-session Edit on a file with several revisions and mangle its payload so REPLAY fails (e.g. change the edit's old_string so it no longer matches). Do NOT invent an unknown record type \u2014 that still crashes the viewer before the consent dialog (known s87 trap); use a valid record whose replay fails.\n(3) Add a new configuration to RevEng/.vscode/launch.json \u2014 clone the existing \"Debug viewer server (port 7343)\" entry (program jfred/src/viewer_server.ts, cwd jfred, preLaunchTask build:webapp) but name it \"Debug viewer server (failure fixture)\" and point --projects-dir at the corrupted-bundle dir.\n(4) Load the session, pass consent, open the affected file to see the failure UI; clicking the placeholder rev-card currently shows a carried-forward diff instead of the failure reason \u2014 that's the t124:Q2 problem to observe (and the fixture doubles as the failure-path test fixture task 119 never had).",
+    "completionDate": "2026-07-20",
+    "commitHashes": [
+      "5c9aa22",
+      "jfred@347e4c0"
+    ],
+    "closureNote": "All deliverables already landed: demo-corrupt fixture + failure-fixture launch config committed (jfred@347e4c0, RevEng@5c9aa22), and the t124:Q2 rev-card click behavior was decided and fixed when task 124 closed, so nothing remains to exercise."
   }
 ]
