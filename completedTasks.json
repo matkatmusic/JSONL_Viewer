@@ -1239,5 +1239,23 @@
       "jfred@55df4b9"
     ],
     "closureNote": "Implemented 2026-07-20, user-tested via the new 'Debug viewer server (pre-baseline demo)' launch config, committed as RevEng@ad8beb8 + jfred@55df4b9. Mirrors the script-consent gate end to end: DocumentResponseKind.baselineQuestionRequired → decideBaselineQuestion gates both /api/document paths BEFORE the consent gate → dialog (app-baseline-question.ts) → sessionStorage baseline:<project> → preBaseline=1|0 param. 'No' makes seedBaseCommitBeacon drop the events its beacon supersedes (setPreBaselineReconstructionAllowed, exec-gate lifecycle, cache-keyed) and filterPreBaselineNodes starts the timeline at the git-baseline node (document.preBaselineSkipped stamp). Clone-ready demo-baseline/ bundle (session ee3482f5, inventory.py rev 2 committed back-dated as 3802acb; repo path in reveng-paths.json is jfred-root-relative) + npm run demo:baseline. Same-day follow-up: git-derived baseline entries render the task-126-style banner + committed content (details-baseline.ts) instead of '(no content change in this revision)'. 9 new TDD tests; reconstructPreBaseline is a TRAILING defaulted param of build*WithConsent (positional insert breaks ~25 test call sites)."
+  },
+  {
+    "taskNumber": 121,
+    "title": "Merge the git-derived baseline turn into its base-commit row (decision made)",
+    "description": "DECIDED 2026-07-20 (compromise): when the timeline's base-commit row exists, absorb the git-derived baseline turn into it — ONE row reading '<ts> [GIT-DERIVED BASELINE] [<hash>] Files seeded from git base commit <hash>… [<file chips>]' (green baseline pill replaces the 'git commit' label; orange hash pill kept; other commits keep the plain dress). Implementation: timeline-nodes.ts — when a commit node's resultHash equals the configured baseCommit, attach the baseline snapshots/file chips to that commit node and skip creating the separate baseline TurnNode; timeline-render-rows.ts appendCommitRowContent — render the baseline dress on that node. Filter model unchanged: the merged row is still a commit node so Git mode matches natively, and it now carries fileChanges so Files mode matches too; accepted trade — Conversation mode no longer shows it (not a turn). FALLBACK REQUIRED: if the session never recorded the base commit (e.g. demo-baseline's back-dated commit), there is no commit row to absorb it — keep the standalone green baseline turn for that case. Demo scenario for verification: scenarios/executed/s85-git-commit-csv-and-move-scripts with a reveng-paths.json of { \"repo\": \"scenarios/executed/s85-git-commit-csv-and-move-scripts\", \"baseCommit\": \"14e26eced65bfc384a65a533e87a0da11221726c\" } — the session records that commit ('baseline', 14e26ec), so the merge fires; demo-baseline exercises the fallback.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-task114-timeline-filter-buttons.md"
+    ],
+    "planFilePaths": [
+      "plans/plan-task121-merge-baseline-into-base-commit-row.md",
+      "plans/implementation-notes-task121-merge-baseline-into-base-commit-row.md"
+    ],
+    "completionDate": "2026-07-20",
+    "commitHashes": [
+      "4a02937",
+      "jfred@0880991"
+    ],
+    "closureNote": "Implemented 2026-07-20 via TDD (8 new tests, hook-verified RED) and user-verified same day on both paths — s85 shows the ONE merged commit row (green git-derived baseline pill, orange 14e26ec hash pill, baseline text, expandable file chips; Git + Files filters match, Conversation hides it by design) and demo:baseline keeps the standalone baseline turn — committed as RevEng@4a02937 + jfred@0880991; merge lives in new timeline-baseline-host.ts (full baseline hash startsWith the commit's short resultHash), with 250-line-cap splits timeline-render-row-cells.ts + archived orphan-proxy comments, and extractGitBaseCommitHash moved to timeline-changes.ts."
   }
 ]
