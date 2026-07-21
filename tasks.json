@@ -1,147 +1,131 @@
 [
-  {
-    "taskNumber": 7,
-    "title": "jot repo: `terminal_windowSizeBlocks(s)` enum refactor",
-    "description": "7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** \u2014 DEFERRED UNTIL ALL other tasks are done.`/Users/matkatmusicllc/Programming/jot`\n  (separate repo); `grep -rn \"windowSizeBlocks\"`. Not a RevEng change."
-  },
-  {
-    "taskNumber": 17,
-    "title": "GitHub Pages demo tier",
-    "description": "17. GitHub Pages demo tier** \u2014 canned ReconstructionDocument JSON + `webapp/` with a\n  static-data shim replacing `/api/*`. Deliberately deferred \"Phase 4, planned separately when\n  reached\" (handoffs 20260702-1434/1639, 20260703-1010/2144); needs its own plan when reached.",
-    "handoffFilePaths": [
-      "plans/archived/handoff-develop-20260702-1434.md",
-      "plans/archived/handoff-develop-20260702-1639.md",
-      "plans/archived/handoff-develop-20260703-1010.md",
-      "plans/archived/handoff-develop-20260703-2144.md"
-    ]
-  },
-  {
-    "taskNumber": 63,
-    "title": "GitHub Pages demo tier",
-    "description": "63. GitHub Pages demo tier \u2014 publish JFReD static (cheap path)** \u2014 supersedes the\n  approach in item 17 for the FIRST public demo: `jfred/` + `api/` + `web-shared/` is\n  ALREADY a zero-server browser app (client-side JSONL load + legacy-engine reconstruction,\n  `jfred/jfred-load.js`), so Pages can host it as-is with the item-60 sample JSONL\n  preloaded. Label it honestly as the debugger demo running the frozen legacy `api/`\n  engine, not Engine B. Item 17 (canned ReconstructionDocument JSON + `webapp/` static-data\n  shim replacing `/api/*` \u2014 the full-fidelity Engine-B demo) stays open as the later,\n  bigger tier; do NOT build the shim for launch \u2014 the README GIF (item 62) covers what the\n  live webapp looks like."
-  },
-  {
-    "taskNumber": 64,
-    "title": "Public-repo CI workflow",
-    "description": "64. Public-repo CI workflow** \u2014 no `.github/` exists anywhere today. One workflow in\n  the public repo: `npm ci`, `tsc --noEmit` (`npm run typecheck`), `npm test` \u2014 viable on a\n  bare clone only after item 59 makes the suite scenario-submodule-optional. Add\n  `npm run build:webapp` to catch webapp tsconfig breakage. Nothing else (no matrix, no\n  release automation) until the repo has users."
-  },
-  {
-    "taskNumber": 83,
-    "title": "See if actual /jot folder can be reconstructed",
-    "description": "83. See if actual /jot folder can be reconstructed."
-  },
-  {
-    "taskNumber": 120,
-    "title": "Publish chain: push scenarios \u2192 JFRED \u2192 jfredToolsPlugin, verify clean-room + marketplace, sync wrapper clone",
-    "description": "Consolidated go-public checklist from four implementation-notes files:\n(1) User must push the scenarios repo (1 unpushed commit 075ef56 \"added S86, updated S41\") BEFORE JFRED is pushed \u2014 JFRED's pin was fetched from the local clone and dangles for cloners until then.\n(2) JFRED is staged but uncommitted; first commit + push still needs the privacy gate re-run at push time. Commit ordering: commit inside jfred/jfredToolsPlugin first, push, then re-stage the gitlink in JFRED (it currently records the license-only commit 70ad1b6), commit JFRED, then RevEng.\n(3) Consider switching the GitHub default branch for matkatmusic/jfred from master (empty initial commit \u2014 a plain git clone gets an empty tool) to develop: `gh repo edit matkatmusic/jfred --default-branch develop`.\n(4) After pushing jfredToolsPlugin to https://github.com/matkatmusic/jfredToolsPlugin, verify the install flow with a real `claude plugin marketplace add matkatmusic/jfredToolsPlugin` + `claude plugin install`, then decide whether the zshrc --plugin-dir wrapper (task 108's interim enablement) should be retired.\n(5) ~/Programming/jfredToolsPlugin (the clone the claude() wrapper actually loads) does NOT yet have the two new scenario skills \u2014 pull/push the canonical $REVENG/jfred/jfredToolsPlugin changes into it after committing, or /impl-scenario and /plan-scenario won't resolve at the next launch (their RevEng copies are now archived).\n(6) Deferred verifications left for the user from task 111: RevEng `npm test` (5 task-workflow tests + 2 python tests remain), `npm run typecheck`, clean-room `npm test`, and the interactive /run-scenario check under `command claude`.",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-task58-step1-jfred.md",
-      "plans/archived/implementation-notes-task113-marketplace-entry.md",
-      "plans/archived/implementation-notes-tasks98-118-skill-plugin-ports.md",
-      "plans/archived/implementation-notes-task111-jfred-submodule-cutover.md",
-      "plans/archived/implementation-notes-task108-jfredtoolsplugin.md"
-    ]
-  },
-  {
-    "taskNumber": 131,
-    "title": "Timeline header prev/next: restore stepping through every step, not just file-touching turns",
-    "description": "The timeline header's prev/next buttons (#files-prev/#files-next) jump only between timeline events that touch files \u2014 the ability to step through each JSONL line from the timeline is lost. The rev-card detail view's [{ }] prev/next stepper still walks every JSONL line one-by-one. Mechanism: wireFileNavButtons (jfred/webapp/views/timeline-render-selection.ts:91) calls findAdjacentFileTouchedIndex (timeline-sessions.ts:92), which walks the TimelineNode[] list and only stops on AGENT_TURN_NODE_KIND nodes with non-empty fileChanges (task-85 behavior). The line-by-line stepper is buildInspectorNavigationRow in jfred/webapp/inspector.ts:121, which iterates rawLines directly. NOTE: even stepping over ALL nodes is not per-JSONL-line \u2014 non-turn/non-tool/non-git records are never turned into nodes (see task 134); decide whether header prev/next steps over visible rows or truly per line."
-  },
-  {
-    "taskNumber": 133,
-    "title": "Investigate: agent edit near JSONL line 77 has no timeline entry \u2014 pre-baseline trim drops the edit's event (baseline-demo)",
-    "description": "In baseline-demo, the agent message at JSONL line 77 ('added least_valuable(store) ...') has no matching tool-result/edit entry in the timeline, so the JSONL line where the edit occurred can't be navigated to from the timeline. Confirmed mechanism candidate: when pre-baseline reconstruction is declined, seedBaseCommitBeacon (jfred/src/reconstruction_base_commit.ts:132) drops every FileEvent at-or-before the beacon insertion point ('dropped N superseded pre-baseline event(s)') \u2014 the edit's WriteEvent never survives, so no revision, no fileChanges chip, no timeline entry; the git-derived baseline synthetic turn (recordGitBaselineSnapshot, jfred/webapp/views/timeline-nodes.ts:69) absorbs only the gitBase snapshot, it does not literally merge the edit. Verify against the baseline-demo session (was preBaseline declined? does the entry appear when accepted?), then decide the fix: even when trimmed, the turn should probably still be navigable to its JSONL line even if its file event is superseded."
-  },
-  {
-    "taskNumber": 135,
-    "title": "Hide the [{ }] button on git-derived baseline timeline rows",
-    "description": "'git-derived baseline' timeline rows show a [{ }] button, but the synthetic baseline turn has no transcript line behind it (openTurnInspector already early-returns 'no transcript line for this step' because node.uuid is undefined) \u2014 the button should not render on that row. TWO render sites, same disease:\n(1) Row-level button: appendJsonRecordButton (jfred/webapp/views/timeline-render-row-cells.ts:119, called from timeline-render-rows.ts:113); the only exclusion today is COMMIT_NODE_KIND at the call site, and the baseline node is AGENT_TURN_NODE_KIND with isGitBaseline: true and no uuid (built by recordGitBaselineSnapshot, timeline-nodes.ts:69). Fix: extend the guard with node.uuid !== undefined (covers any future synthetic node, not just baseline).\n(2) Per-file chip button (s85, expanding the baseline row's file-touched rows): renderFileButtonRow (jfred/webapp/views/timeline-render-chips.ts:181) renders [{ }] whenever change.changeId is defined \u2014 baseline files carry a SYNTHETIC gitbase: changeId, causingLocation resolves undefined, and the click falls back to openTurnInspector showing 'no transcript line for this step (synthetic change id)' (showCausingRecordForChip, timeline-render-chips.ts:129). Fix: skip the [{ }] chip when causingLocation === undefined (or checkChangeIdIsGitBaseline, details-model.ts:25) \u2014 the +/- and \ud83d\udcf7 chips stay, they resolve fine.\nNOTE task-121 (decided) merges the baseline turn into its base-commit row where one exists \u2014 the commit row already suppresses the row-level button, but the per-file chips ride along, so site (2) matters in both shapes."
-  },
-  {
-    "taskNumber": 136,
-    "title": "Paths... popover: 'Set File History Snapshots' button toggles visibility of the File History field",
-    "description": "The Paths... popover should get a 'Set File History Snapshots' button that shows/hides the File History text field and its open... button. Hiding them by default visually implies the file-history snapshots dir will be DERIVED from the projects folder path \u2014 which is already the server behavior: an unedited field posts \"\" and the server re-derives from the projects folder (jfred/webapp/app-header.ts:83, the reportedFileHistoryDir convention from item 46). Markup: #paths-popover / #file-history-dir-input / #file-history-dir-open in jfred/webapp/index.html; wiring in initializeHeader (jfred/webapp/app-header.ts:67,119). Natural pairing: while the field is hidden, always post \"\" (derive); showing it is the explicit-override gesture."
-  },
-  {
-    "taskNumber": 137,
-    "title": "Paths... popover: add git repo picker + visual commit picker (engine inputs unreachable from the webapp)",
-    "description": "There is no way to specify the git repo and base commit hash engine inputs from the webapp \u2014 today they only come from <projectsDir>/reveng-paths.json (PROJECT_PATHS_CONFIG_NAME, jfred/src/reconstruction_overrides.ts:50; wire shape WireProjectPaths { cwd?, repo?, baseCommit? } at :53), applied per-request in viewer_api_projects.ts:86 and consumed by seedBaseCommitBeacon (reconstruction_base_commit.ts). Add to the Paths... picker (#paths-popover in jfred/webapp/index.html, wiring in app-header.ts initializeHeader):\n(1) Repo path input \u2014 reuse the existing /api/pick-folder native-picker pattern (pickFolderInto, app-header.ts:106).\n(2) COMMIT PICKER (decided 2026-07-20): once the repo path is chosen, show the repo's commit list visually and let the user pick the base commit from it \u2014 a new server route (e.g. /api/repo-commits?repo=\u2026) runs `git log --format=<hash|date|subject>` and the popover renders a scrollable pick list; the picked hash fills baseCommit. No free-text-only hash entry.\nMATCHING CAVEAT (decided 2026-07-20): the repo need NOT be the project's own folder \u2014 e.g. the ~/Programming/jot project will use the ~/Programming/jot-recovery/ repo. File paths RELATIVE to each root are what 'match': JSONL-recorded absolute paths under the project root must map to the same relative paths under the chosen repo root, even though the roots differ. The engine already remaps cwd (WireProjectPaths.cwd / s87 cwd-remap mechanism) \u2014 the commit-content lookup (readCommitFileContent, reconstruction_base_commit.ts:66, keyed by relativePath) relies on that relative-path agreement; surface a soft warning in the picker when few JSONL file paths resolve inside the picked commit's tree.\nPERSISTENCE PROMPT (added 2026-07-20): when the user picks a CUSTOM repo path or file-history-snapshot path, ask whether to store the custom path(s) \u2014 on yes, write them into the project's reveng-paths.json entry (repo/baseCommit; decide whether an explicit file-history override belongs there too or stays server-session-only). No silent writes: picking a path applies it to the session either way, storing is the opt-in step. Same prompt applies to the file-history field in task 136's show/hide flow.\nDesign decision still open: projectsDir/fileHistoryDir are GLOBAL config (POST /api/config) but repo/baseCommit are PER-PROJECT overrides in reveng-paths.json \u2014 the UI likely needs to write the current project's entry in that file (new server route) rather than extend /api/config; the persistence prompt above is the natural trigger for that route. TRAP (task 56): the repo path in reveng-paths.json is jfred-root-relative, not absolute \u2014 decide which form the input accepts and normalize server-side."
-  },
-  {
-    "taskNumber": 138,
-    "title": "Bug: projects listed twice on the #/ landing page (overlapping renderRoute race)",
-    "description": "Visiting http://127.0.0.1:7343/#/ shows every project row twice \u2014 INTERMITTENT: with a small/fast projects folder (jfred/scenarios/executed) the list appears once; duplication shows with slower folders. That timing dependence fits the race: if the second renderRoute starts after the first finished, its replaceChildren wipes the first's rows (no dupes); only when the /api/projects fetch is slow enough for the two runs to overlap do both appends land. The server scan is dupe-free (scanProjects, jfred/src/viewer_api_projects.ts:118 \u2014 one listing per readdir directory entry), so the duplication is client-side: renderRoute (jfred/webapp/app-router.ts:47) clears the view synchronously (view.replaceChildren() at :50) then AWAITS renderProjectsView (jfred/webapp/views/projects.ts), which appends \u2014 two overlapping renderRoute calls each clear-then-append, and both appends land. Known double-trigger: the folder-change handler in app-header.ts:101-102 sets location.hash = '#/' (fires hashchange \u2192 renderRoute via app.ts:66) AND calls renderRoute() explicitly; boot also has initializeHeader().then(renderRoute) at app.ts:81. Fix at the shared spot, not per trigger: make renderRoute latest-wins (generation counter checked after each await; stale runs bail before touching the DOM) \u2014 that also covers slow /api/projects responses racing a fast navigation."
-  },
-  {
-    "taskNumber": 139,
-    "title": "Bug: shell `mv` script run classified read-only (item-68 gate is Python-only)",
-    "description": "In s2-move-file, the JSONL line-74 run `mv <tmp>/s2_original.py <tmp>/s2_moved.py` is shown as read-only, but it modifies files. Cause: the item-68 static gate scriptCodeMayWriteFiles (jfred/src/reconstruction_script_prestate.ts:94) only detects PYTHON write constructs \u2014 pythonWritePrimitive (jfred/src/regex_script_detection.ts) matches `.rename(`/`.write_text(`/etc., and a bare shell command has no matching token, safe imports, no open() calls \u2192 classified read-only. The wire flag comes from viewer_api.ts:92 (ConsentScript.readOnly, item 69); the engine side also skips the sandbox for such runs (reconstruction_script_runs.ts:88, PROGRESS_LABEL_READ_ONLY_SKIP_PREFIX). Correctness of reconstruction is unaffected (plain mv renames come from the dedicated rename extraction, and a shell script would crash the python3 sandbox anyway \u2014 see the prestate.ts:89 comment), but the read-only LABEL is wrong and misleading in the UI. Fix per the item-68 rule (narrow read-only, never widen): add a shell write-verb check (\\b(?:mv|cp|rm|mkdir|touch|tee|ln|sed -i)\\b, plus > / >> redirects) so shell mutation commands classify may-write; cost is only a wasted sandbox attempt on those runs."
-  },
-  {
-    "taskNumber": 140,
-    "title": "Bug: timeline header shows on the #/ project-picker view (no session loaded)",
-    "description": "The timeline pane header \u2014 'Timeline' title, #timeline-summary, \u25c0 Prev / Next \u25b6, Expand All \u2014 is visible on the #/ projects-list view where no session is loaded. Cause: #timeline-pane-header is static markup in jfred/webapp/index.html (~:32-38) and nothing ever hides it; renderRoute (jfred/webapp/app-router.ts:47) only resets #toggle-all and re-hides #timeline-filter-bar. Fix by copying the task-114 filter-bar pattern one element up: hidden by default in the markup, every renderRoute navigation re-hides #timeline-pane-header (next to the existing timeline-filter-bar!.hidden = true at app-router.ts:57), and the timeline render unhides it (same place renderTimelineFilterBar unhides the filter bar). Check the projects view still keeps its own 'Projects' pane title (views/projects.ts filter-bar) so the pane isn't title-less."
-  },
-  {
-    "taskNumber": 141,
-    "title": "JSON details view: 'line 0/98' counter is ambiguous (0-based index over max-index)",
-    "description": "The record inspector's nav row shows '[\u25c0 Prev] line 0/98 [Next \u25b6]' \u2014 ambiguous: the reader can't tell whether 98 is the line COUNT or the maximum 0-BASED index (it's the latter: buildInspectorNavigationRow in jfred/webapp/inspector.ts:121 renders `line <clamped> / rawLines.length - 1`). Make it unambiguous, e.g. 1-based 'line 1 of 99'. NOTE before choosing: JSONL line numbers appear elsewhere in the app and in bug reports (timeline anchors #/\u2026/at/<line>, unrecoverable rev-cards' 'L:n', user-reported line numbers) \u2014 keep the displayed convention consistent with those (they are 0-based raw-line indexes today); if 0-based display stays, label it explicitly, e.g. 'line index 0 of 0\u201398 (99 lines)'. Cosmetic one-liner either way; the decision is the convention, not the code."
-  },
-  {
-    "taskNumber": 142,
-    "title": "Prev/Next buttons should disable at the ends instead of clamping silently",
-    "description": "Prev/Next enablement should reflect whether there is anywhere to jump: at line 0, [\u25c0 Prev] must be disabled; at the last line (index length-1), [Next \u25b6] must be disabled. Today the inspector's record stepper (buildInspectorNavigationRow, jfred/webapp/inspector.ts:121) keeps both buttons enabled and clamps out-of-range steps to a no-op. Fix: set button.disabled on render from the clamped index (prev: index === 0; next: index === rawLines.length - 1). Apply the same rule to the OTHER prev/next pair \u2014 the timeline header's #files-prev/#files-next (wireFileNavButtons, jfred/webapp/views/timeline-render-selection.ts:91): disable when findAdjacentFileTouchedIndex (timeline-sessions.ts:92) returns no hit in that direction (also covers the zero-file-touching-rows case). Pairs with task 131 (what the header buttons step over) \u2014 if 131 changes the step granularity, the enablement predicate follows whatever collection it lands on."
-  },
-  {
-    "taskNumber": 143,
-    "title": "Script-run row: 'modified 6 files' pill counts paths, not files (rename pairs double-counted)",
-    "description": "In s85-git-commit-csv-and-move-scripts (timeline row for JSONL line 103), the pill says 'modified 6 file(s)' but only 3 files were modified \u2014 the script's shutil.move() calls operate on filename PAIRS, and the sandbox reports both the deleted source and the created destination as changed paths. Render site: timeline-render-rows.ts:215 \u2014 `modified ${node.scriptRun.changedPaths.length} file(s)` (task-67 badge); changedPaths is the sandbox's changed-path list. Fix: collapse rename pairs when counting (a delete whose content reappears at a created path = one move), or reword the badge to what it truly counts (e.g. 'touched 6 path(s)'). Prefer collapsing \u2014 'modified 3 files' matches what the user sees in the diff pane."
-  },
-  {
-    "taskNumber": 144,
-    "title": "Script-run detail pane: no per-file view of the run's changes (unlike rev-card rows)",
-    "description": "Selecting a script-run timeline row (e.g. s85 line 103) shows the executed script in the left column and one aggregate before/after of the whole run in the right column (task-67 mode, timeline-render-selection.ts:59) \u2014 there is no easy way to see the changes made to an INDIVIDUAL file, like rev-card rows give. Add per-file selection to the script-run detail pane: a file list (the run's changedPaths, rename pairs collapsed per task 143) where clicking a file shows just that file's before/after diff \u2014 reuse the existing rev-card diff machinery (details-revision-view.ts / details-diff.ts) rather than building a new diff renderer."
-  },
-  {
-    "taskNumber": 145,
-    "title": "Investigate: s85 script renames missing from the Files nav ('core_one.py <- one.py (renamed)' badge absent)",
-    "description": "In s85-git-commit-csv-and-move-scripts, files renamed by the script (one.py -> core_one.py etc. via shutil.move) do not show the rename representation in the Files nav column that other projects get (rename badge: renameBadgeLabel stamped by applyRenameBadgeLabels, jfred/webapp/views/timeline-file-tree.ts:45, fed by each history revision's rename?.from \u2014 see also renamedFrom in details.ts:56). Likely engine-side: the file tree only shows a badge when the file's history contains a rename REVISION; s85's evidence flows through beaconlessScriptExecutions + the git-commit BLOB channel (reconstruction_git_evidence.ts, placeGitCommitEvidence \u2014 see s85 ground truth), which may seed the renamed file's history at its final path with no rename revision. CHECK FIRST (known s85 HAZARD): the s85 repo is resolved via the recorded TEMP cwd (/var/folders/.../run-scenario.*) \u2014 if that tmpdir was cleaned, s85 reconstruction regresses wholesale and this symptom (plus task 146) may just be that regression, not a new gap. Run the CLI sweep on s85 before touching the webapp."
-  },
-  {
-    "taskNumber": 146,
-    "title": "Investigate: two.py absent from the Files nav in s85 (write at L48 confirmed in transcript)",
-    "description": "In s85-git-commit-csv-and-move-scripts, two.py never appears in the Files nav: JSONL L48 indicates the write happened, L41 is the tool result, L37 contains two.py's contents \u2014 yet no file entry renders. Could be a reconstruction gap (no history built for two.py), a timeline-rendering gap, a rev-card gap, or a Files-nav gap; needs narrowing. Triage order: (1) the known s85 tmpdir HAZARD \u2014 reconstruction resolves the repo via the recorded TEMP cwd, and a cleaned /var/folders/.../run-scenario.* tmpdir regresses s85 (same check as task 145; do it once for both); (2) does the wire document contain a history for two.py at all (hit /api/document and grep \u2014 engine gap if absent); (3) if present, walk webapp/views/timeline-file-tree.ts / details.ts to find where the entry drops out (rendering gap). File the concrete fix as a follow-up once attributed."
-  },
-  {
-    "taskNumber": 147,
-    "title": "Details pane: pin the inspector nav row (prev/next/hook/result/format buttons) above the scrollable JSON",
-    "description": "The JSON inspector's header row \u2014 [\u25c0 Prev] [Next \u25b6] / go to preToolUse hook / go to tool result / show as formatted text \u2014 scrolls away with the record content in the details pane's right column; it should stay always visible. The row is built by buildInspectorNavigationRow (jfred/webapp/inspector.ts:121) and appended into the same scrollable container as the JSON body (#details-right / .inspector-json, markup in jfred/webapp/index.html ~:44-60). Fix is layout-only: keep the nav row a non-scrolling sibling of the scroll container (or position: sticky; top: 0 with an opaque background inside it) \u2014 note #details-right already has a fixed #details-right-header (JSON label + find widget), so the cleanest shape is nav row joining that fixed header region rather than a second sticky layer."
-  },
-  {
-    "taskNumber": 148,
-    "title": "Filter/find by conversation name in multi-JSONL projects (session custom titles)",
-    "description": "Add a way to filter or find conversations by their user-given name in multi-JSONL projects. Motivating use case: locate the 'tackle 121' conversation in the RevEng projects dir to inspect the tool-result JSON from the agent's close-tasks 121 invocation. The data plumbing ALREADY exists end-to-end: custom-title records ({type:'custom-title', customTitle, sessionId}) are parsed into document.sessionTitles (findSessionTitles, jfred/src/reconstruction_json.ts:131/:241; wire field :149) and the webapp reads them (timeline-types.ts:92; session-header rows + timeline-labels.ts / timeline-render-row-cells.ts consumers). Behavior is UNDECIDED \u2014 candidate shapes, cheapest first: (1) include session titles in the existing task-127 timeline search index so typing 'tackle 121' jumps to that session's header row (zero new UI); (2) a session dropdown in the timeline header listing sessionTitles, jump-to-session-header on pick; (3) a filter chip that hides rows whose node.sessionId belongs to non-matching sessions (nodes already carry sessionId). Note the original 'chip for JSONL lines that have customTitle' framing would only match the title records themselves \u2014 the useful unit is the SESSION the title names, so filter/jump by sessionId. Decide the shape when picking this up; (1) likely satisfies the motivating search on its own."
-  },
-  {
-    "taskNumber": 149,
-    "title": "Progress UI goes silent for minutes inside 'Phase 4 of 6' on large real sessions",
-    "description": "Loading the real RevEng project (#/project/-Users-matkatmusicllc-Desktop-claude-code-src-RevEng/timeline) sat in 'Phase 4 of 6' for 500+ seconds with the progress line frozen at '451/451 reconstructing <target>' \u2014 the counter reaches N/N and then nothing updates while the long tail runs. Emitter: reportReconstructionProgress fires once per target BEFORE its reconstructFileOver call (jfred/src/reconstruction_renderable.ts:44), so the last label sticks while the final target (and any per-target inner work \u2014 replay, sandbox script executions via executeRunOnce) grinds silently; later same-phase stages may emit nothing at all. Fix: finer-grained progress inside the silent stretch \u2014 per-target inner-stage labels (e.g. 'reconstructing <target> \u2014 replaying run k/n') and/or a heartbeat ('still reconstructing <target>, Ns') so the console visibly advances; audit which Phase-4 stages emit no reportReconstructionProgress at all and give each at least one label. Reproduce with the real ~/.claude/projects RevEng dir (451 targets)."
-  },
-  {
-    "taskNumber": 150,
-    "title": "Bogus reconstruction targets from Bash command text ('x.taskNumber).join(',')\u2026' reconstructed as a file)",
-    "description": "During the task-149 stall the progress line read: reconstructing x.taskNumber).join(','))\" \u2014 i.e. a FRAGMENT OF A BASH COMMAND (a node -e one-liner from a session transcript) became a reconstruction target 'path'. Likely source: discoverScriptCreatedPaths (called in buildRenderableFiles, jfred/src/reconstruction_renderable.ts:36) or the script-run extraction mining paths out of arbitrary Bash command text and admitting garbage tokens as script-created files. On a real messy session this inflates the target list (451 targets for RevEng) and burns reconstruction time on nonsense \u2014 possibly the bulk of the 500+ second Phase-4 stall, so fix this BEFORE tuning task-149's progress cosmetics. Fix direction: tighten path candidate validation (must look like a path: no quotes/parens/JS punctuation, plausible separator/extension, or verify existence in evidence channels) at the discovery site, not per caller."
-  },
-  {
-    "taskNumber": 151,
-    "title": "Pre-baseline 'No' answer: extend the skip into the script-execution stages",
-    "description": "Choosing \"No\" in the pre-baseline reconstruction question still runs the script-execution stages over pre-baseline records — the task-56 text granted \"may skip\", so only the per-target replay is trimmed today. Extend the skip into the script stage if pre-baseline script runs ever cost noticeable time.",
-    "handoffFilePaths": ["plans/archived/implementation-notes-task56-pre-baseline-question.md"]
-  },
-  {
-    "taskNumber": 152,
-    "title": "Pre-baseline consent: add a 're-ask' control on the timeline header",
-    "description": "There is no UI to revisit a stored pre-baseline answer short of a new tab / server relaunch (exactly the consent dialog's existing limitation — the answer is stored under a `baseline:` sessionStorage key). Add a \"re-ask\" control on the timeline header that clears the stored answer and re-poses the pre-baseline question.",
-    "handoffFilePaths": ["plans/archived/implementation-notes-task56-pre-baseline-question.md"]
-  }
+    {
+        "taskNumber": 7,
+        "title": "jot repo: `terminal_windowSizeBlocks(s)` enum refactor",
+        "description": "7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** \u2014 DEFERRED UNTIL ALL other tasks are done.`/Users/matkatmusicllc/Programming/jot`\n  (separate repo); `grep -rn \"windowSizeBlocks\"`. Not a RevEng change."
+    },
+    {
+        "taskNumber": 17,
+        "title": "GitHub Pages demo tier",
+        "description": "17. GitHub Pages demo tier** \u2014 canned ReconstructionDocument JSON + `webapp/` with a\n  static-data shim replacing `/api/*`. Deliberately deferred \"Phase 4, planned separately when\n  reached\" (handoffs 20260702-1434/1639, 20260703-1010/2144); needs its own plan when reached.",
+        "handoffFilePaths": [
+            "plans/archived/handoff-develop-20260702-1434.md",
+            "plans/archived/handoff-develop-20260702-1639.md",
+            "plans/archived/handoff-develop-20260703-1010.md",
+            "plans/archived/handoff-develop-20260703-2144.md"
+        ]
+    },
+    {
+        "taskNumber": 63,
+        "title": "GitHub Pages demo tier",
+        "description": "63. GitHub Pages demo tier \u2014 publish JFReD static (cheap path)** \u2014 supersedes the\n  approach in item 17 for the FIRST public demo: `jfred/` + `api/` + `web-shared/` is\n  ALREADY a zero-server browser app (client-side JSONL load + legacy-engine reconstruction,\n  `jfred/jfred-load.js`), so Pages can host it as-is with the item-60 sample JSONL\n  preloaded. Label it honestly as the debugger demo running the frozen legacy `api/`\n  engine, not Engine B. Item 17 (canned ReconstructionDocument JSON + `webapp/` static-data\n  shim replacing `/api/*` \u2014 the full-fidelity Engine-B demo) stays open as the later,\n  bigger tier; do NOT build the shim for launch \u2014 the README GIF (item 62) covers what the\n  live webapp looks like."
+    },
+    {
+        "taskNumber": 64,
+        "title": "Public-repo CI workflow",
+        "description": "64. Public-repo CI workflow** \u2014 no `.github/` exists anywhere today. One workflow in\n  the public repo: `npm ci`, `tsc --noEmit` (`npm run typecheck`), `npm test` \u2014 viable on a\n  bare clone only after item 59 makes the suite scenario-submodule-optional. Add\n  `npm run build:webapp` to catch webapp tsconfig breakage. Nothing else (no matrix, no\n  release automation) until the repo has users."
+    },
+    {
+        "taskNumber": 83,
+        "title": "See if actual /jot folder can be reconstructed",
+        "description": "83. See if actual /jot folder can be reconstructed."
+    },
+    {
+        "taskNumber": 120,
+        "title": "Publish chain: push scenarios \u2192 JFRED \u2192 jfredToolsPlugin, verify clean-room + marketplace, sync wrapper clone",
+        "description": "Consolidated go-public checklist from four implementation-notes files:\n(1) User must push the scenarios repo (1 unpushed commit 075ef56 \"added S86, updated S41\") BEFORE JFRED is pushed \u2014 JFRED's pin was fetched from the local clone and dangles for cloners until then.\n(2) JFRED is staged but uncommitted; first commit + push still needs the privacy gate re-run at push time. Commit ordering: commit inside jfred/jfredToolsPlugin first, push, then re-stage the gitlink in JFRED (it currently records the license-only commit 70ad1b6), commit JFRED, then RevEng.\n(3) Consider switching the GitHub default branch for matkatmusic/jfred from master (empty initial commit \u2014 a plain git clone gets an empty tool) to develop: `gh repo edit matkatmusic/jfred --default-branch develop`.\n(4) After pushing jfredToolsPlugin to https://github.com/matkatmusic/jfredToolsPlugin, verify the install flow with a real `claude plugin marketplace add matkatmusic/jfredToolsPlugin` + `claude plugin install`, then decide whether the zshrc --plugin-dir wrapper (task 108's interim enablement) should be retired.\n(5) ~/Programming/jfredToolsPlugin (the clone the claude() wrapper actually loads) does NOT yet have the two new scenario skills \u2014 pull/push the canonical $REVENG/jfred/jfredToolsPlugin changes into it after committing, or /impl-scenario and /plan-scenario won't resolve at the next launch (their RevEng copies are now archived).\n(6) Deferred verifications left for the user from task 111: RevEng `npm test` (5 task-workflow tests + 2 python tests remain), `npm run typecheck`, clean-room `npm test`, and the interactive /run-scenario check under `command claude`.",
+        "handoffFilePaths": [
+            "plans/archived/implementation-notes-task58-step1-jfred.md",
+            "plans/archived/implementation-notes-task113-marketplace-entry.md",
+            "plans/archived/implementation-notes-tasks98-118-skill-plugin-ports.md",
+            "plans/archived/implementation-notes-task111-jfred-submodule-cutover.md",
+            "plans/archived/implementation-notes-task108-jfredtoolsplugin.md"
+        ]
+    },
+    {
+        "taskNumber": 133,
+        "title": "Investigate: agent edit near JSONL line 77 has no timeline entry \u2014 pre-baseline trim drops the edit's event (baseline-demo)",
+        "description": "In baseline-demo, the agent message at JSONL line 77 ('added least_valuable(store) ...') has no matching tool-result/edit entry in the timeline, so the JSONL line where the edit occurred can't be navigated to from the timeline. Confirmed mechanism candidate: when pre-baseline reconstruction is declined, seedBaseCommitBeacon (jfred/src/reconstruction_base_commit.ts:132) drops every FileEvent at-or-before the beacon insertion point ('dropped N superseded pre-baseline event(s)') \u2014 the edit's WriteEvent never survives, so no revision, no fileChanges chip, no timeline entry; the git-derived baseline synthetic turn (recordGitBaselineSnapshot, jfred/webapp/views/timeline-nodes.ts:69) absorbs only the gitBase snapshot, it does not literally merge the edit. Verify against the baseline-demo session (was preBaseline declined? does the entry appear when accepted?), then decide the fix: even when trimmed, the turn should probably still be navigable to its JSONL line even if its file event is superseded."
+    },
+    {
+        "taskNumber": 138,
+        "title": "Bug: projects listed twice on the #/ landing page (overlapping renderRoute race)",
+        "description": "Visiting http://127.0.0.1:7343/#/ shows every project row twice \u2014 INTERMITTENT: with a small/fast projects folder (jfred/scenarios/executed) the list appears once; duplication shows with slower folders. That timing dependence fits the race: if the second renderRoute starts after the first finished, its replaceChildren wipes the first's rows (no dupes); only when the /api/projects fetch is slow enough for the two runs to overlap do both appends land. The server scan is dupe-free (scanProjects, jfred/src/viewer_api_projects.ts:118 \u2014 one listing per readdir directory entry), so the duplication is client-side: renderRoute (jfred/webapp/app-router.ts:47) clears the view synchronously (view.replaceChildren() at :50) then AWAITS renderProjectsView (jfred/webapp/views/projects.ts), which appends \u2014 two overlapping renderRoute calls each clear-then-append, and both appends land. Known double-trigger: the folder-change handler in app-header.ts:101-102 sets location.hash = '#/' (fires hashchange \u2192 renderRoute via app.ts:66) AND calls renderRoute() explicitly; boot also has initializeHeader().then(renderRoute) at app.ts:81. Fix at the shared spot, not per trigger: make renderRoute latest-wins (generation counter checked after each await; stale runs bail before touching the DOM) \u2014 that also covers slow /api/projects responses racing a fast navigation."
+    },
+    {
+        "taskNumber": 139,
+        "title": "Bug: shell `mv` script run classified read-only (item-68 gate is Python-only)",
+        "description": "In s2-move-file, the JSONL line-74 run `mv <tmp>/s2_original.py <tmp>/s2_moved.py` is shown as read-only, but it modifies files. Cause: the item-68 static gate scriptCodeMayWriteFiles (jfred/src/reconstruction_script_prestate.ts:94) only detects PYTHON write constructs \u2014 pythonWritePrimitive (jfred/src/regex_script_detection.ts) matches `.rename(`/`.write_text(`/etc., and a bare shell command has no matching token, safe imports, no open() calls \u2192 classified read-only. The wire flag comes from viewer_api.ts:92 (ConsentScript.readOnly, item 69); the engine side also skips the sandbox for such runs (reconstruction_script_runs.ts:88, PROGRESS_LABEL_READ_ONLY_SKIP_PREFIX). Correctness of reconstruction is unaffected (plain mv renames come from the dedicated rename extraction, and a shell script would crash the python3 sandbox anyway \u2014 see the prestate.ts:89 comment), but the read-only LABEL is wrong and misleading in the UI. Fix per the item-68 rule (narrow read-only, never widen): add a shell write-verb check (\\b(?:mv|cp|rm|mkdir|touch|tee|ln|sed -i)\\b, plus > / >> redirects) so shell mutation commands classify may-write; cost is only a wasted sandbox attempt on those runs."
+    },
+    {
+        "taskNumber": 140,
+        "title": "Bug: timeline header shows on the #/ project-picker view (no session loaded)",
+        "description": "The timeline pane header \u2014 'Timeline' title, #timeline-summary, \u25c0 Prev / Next \u25b6, Expand All \u2014 is visible on the #/ projects-list view where no session is loaded. Cause: #timeline-pane-header is static markup in jfred/webapp/index.html (~:32-38) and nothing ever hides it; renderRoute (jfred/webapp/app-router.ts:47) only resets #toggle-all and re-hides #timeline-filter-bar. Fix by copying the task-114 filter-bar pattern one element up: hidden by default in the markup, every renderRoute navigation re-hides #timeline-pane-header (next to the existing timeline-filter-bar!.hidden = true at app-router.ts:57), and the timeline render unhides it (same place renderTimelineFilterBar unhides the filter bar). Check the projects view still keeps its own 'Projects' pane title (views/projects.ts filter-bar) so the pane isn't title-less."
+    },
+    {
+        "taskNumber": 141,
+        "title": "JSON details view: 'line 0/98' counter is ambiguous (0-based index over max-index)",
+        "description": "The record inspector's nav row shows '[\u25c0 Prev] line 0/98 [Next \u25b6]' \u2014 ambiguous: the reader can't tell whether 98 is the line COUNT or the maximum 0-BASED index (it's the latter: buildInspectorNavigationRow in jfred/webapp/inspector.ts:121 renders `line <clamped> / rawLines.length - 1`). Make it unambiguous, e.g. 1-based 'line 1 of 99'. NOTE before choosing: JSONL line numbers appear elsewhere in the app and in bug reports (timeline anchors #/\u2026/at/<line>, unrecoverable rev-cards' 'L:n', user-reported line numbers) \u2014 keep the displayed convention consistent with those (they are 0-based raw-line indexes today); if 0-based display stays, label it explicitly, e.g. 'line index 0 of 0\u201398 (99 lines)'. Cosmetic one-liner either way; the decision is the convention, not the code."
+    },
+    {
+        "taskNumber": 142,
+        "title": "Prev/Next buttons should disable at the ends instead of clamping silently",
+        "description": "Prev/Next enablement should reflect whether there is anywhere to jump: at line 0, [\u25c0 Prev] must be disabled; at the last line (index length-1), [Next \u25b6] must be disabled. Today the inspector's record stepper (buildInspectorNavigationRow, jfred/webapp/inspector.ts:121) keeps both buttons enabled and clamps out-of-range steps to a no-op. Fix: set button.disabled on render from the clamped index (prev: index === 0; next: index === rawLines.length - 1). Apply the same rule to the OTHER prev/next pair \u2014 the timeline header's #files-prev/#files-next (wireFileNavButtons, jfred/webapp/views/timeline-render-selection.ts:91): disable when findAdjacentFileTouchedIndex (timeline-sessions.ts:92) returns no hit in that direction (also covers the zero-file-touching-rows case). Pairs with task 131 (what the header buttons step over) \u2014 if 131 changes the step granularity, the enablement predicate follows whatever collection it lands on."
+    },
+    {
+        "taskNumber": 143,
+        "title": "Script-run row: 'modified 6 files' pill counts paths, not files (rename pairs double-counted)",
+        "description": "In s85-git-commit-csv-and-move-scripts (timeline row for JSONL line 103), the pill says 'modified 6 file(s)' but only 3 files were modified \u2014 the script's shutil.move() calls operate on filename PAIRS, and the sandbox reports both the deleted source and the created destination as changed paths. Render site: timeline-render-rows.ts:215 \u2014 `modified ${node.scriptRun.changedPaths.length} file(s)` (task-67 badge); changedPaths is the sandbox's changed-path list. Fix: collapse rename pairs when counting (a delete whose content reappears at a created path = one move), or reword the badge to what it truly counts (e.g. 'touched 6 path(s)'). Prefer collapsing \u2014 'modified 3 files' matches what the user sees in the diff pane."
+    },
+    {
+        "taskNumber": 144,
+        "title": "Script-run detail pane: no per-file view of the run's changes (unlike rev-card rows)",
+        "description": "Selecting a script-run timeline row (e.g. s85 line 103) shows the executed script in the left column and one aggregate before/after of the whole run in the right column (task-67 mode, timeline-render-selection.ts:59) \u2014 there is no easy way to see the changes made to an INDIVIDUAL file, like rev-card rows give. Add per-file selection to the script-run detail pane: a file list (the run's changedPaths, rename pairs collapsed per task 143) where clicking a file shows just that file's before/after diff \u2014 reuse the existing rev-card diff machinery (details-revision-view.ts / details-diff.ts) rather than building a new diff renderer."
+    },
+    {
+        "taskNumber": 145,
+        "title": "Investigate: s85 script renames missing from the Files nav ('core_one.py <- one.py (renamed)' badge absent)",
+        "description": "In s85-git-commit-csv-and-move-scripts, files renamed by the script (one.py -> core_one.py etc. via shutil.move) do not show the rename representation in the Files nav column that other projects get (rename badge: renameBadgeLabel stamped by applyRenameBadgeLabels, jfred/webapp/views/timeline-file-tree.ts:45, fed by each history revision's rename?.from \u2014 see also renamedFrom in details.ts:56). Likely engine-side: the file tree only shows a badge when the file's history contains a rename REVISION; s85's evidence flows through beaconlessScriptExecutions + the git-commit BLOB channel (reconstruction_git_evidence.ts, placeGitCommitEvidence \u2014 see s85 ground truth), which may seed the renamed file's history at its final path with no rename revision. CHECK FIRST (known s85 HAZARD): the s85 repo is resolved via the recorded TEMP cwd (/var/folders/.../run-scenario.*) \u2014 if that tmpdir was cleaned, s85 reconstruction regresses wholesale and this symptom (plus task 146) may just be that regression, not a new gap. Run the CLI sweep on s85 before touching the webapp."
+    },
+    {
+        "taskNumber": 146,
+        "title": "Investigate: two.py absent from the Files nav in s85 (write at L48 confirmed in transcript)",
+        "description": "In s85-git-commit-csv-and-move-scripts, two.py never appears in the Files nav: JSONL L48 indicates the write happened, L41 is the tool result, L37 contains two.py's contents \u2014 yet no file entry renders. Could be a reconstruction gap (no history built for two.py), a timeline-rendering gap, a rev-card gap, or a Files-nav gap; needs narrowing. Triage order: (1) the known s85 tmpdir HAZARD \u2014 reconstruction resolves the repo via the recorded TEMP cwd, and a cleaned /var/folders/.../run-scenario.* tmpdir regresses s85 (same check as task 145; do it once for both); (2) does the wire document contain a history for two.py at all (hit /api/document and grep \u2014 engine gap if absent); (3) if present, walk webapp/views/timeline-file-tree.ts / details.ts to find where the entry drops out (rendering gap). File the concrete fix as a follow-up once attributed."
+    },
+    {
+        "taskNumber": 147,
+        "title": "Details pane: pin the inspector nav row (prev/next/hook/result/format buttons) above the scrollable JSON",
+        "description": "The JSON inspector's header row \u2014 [\u25c0 Prev] [Next \u25b6] / go to preToolUse hook / go to tool result / show as formatted text \u2014 scrolls away with the record content in the details pane's right column; it should stay always visible. The row is built by buildInspectorNavigationRow (jfred/webapp/inspector.ts:121) and appended into the same scrollable container as the JSON body (#details-right / .inspector-json, markup in jfred/webapp/index.html ~:44-60). Fix is layout-only: keep the nav row a non-scrolling sibling of the scroll container (or position: sticky; top: 0 with an opaque background inside it) \u2014 note #details-right already has a fixed #details-right-header (JSON label + find widget), so the cleanest shape is nav row joining that fixed header region rather than a second sticky layer."
+    },
+    {
+        "taskNumber": 148,
+        "title": "Filter/find by conversation name in multi-JSONL projects (session custom titles)",
+        "description": "Add a way to filter or find conversations by their user-given name in multi-JSONL projects. Motivating use case: locate the 'tackle 121' conversation in the RevEng projects dir to inspect the tool-result JSON from the agent's close-tasks 121 invocation. The data plumbing ALREADY exists end-to-end: custom-title records ({type:'custom-title', customTitle, sessionId}) are parsed into document.sessionTitles (findSessionTitles, jfred/src/reconstruction_json.ts:131/:241; wire field :149) and the webapp reads them (timeline-types.ts:92; session-header rows + timeline-labels.ts / timeline-render-row-cells.ts consumers). Behavior is UNDECIDED \u2014 candidate shapes, cheapest first: (1) include session titles in the existing task-127 timeline search index so typing 'tackle 121' jumps to that session's header row (zero new UI); (2) a session dropdown in the timeline header listing sessionTitles, jump-to-session-header on pick; (3) a filter chip that hides rows whose node.sessionId belongs to non-matching sessions (nodes already carry sessionId). Note the original 'chip for JSONL lines that have customTitle' framing would only match the title records themselves \u2014 the useful unit is the SESSION the title names, so filter/jump by sessionId. Decide the shape when picking this up; (1) likely satisfies the motivating search on its own."
+    },
+    {
+        "taskNumber": 149,
+        "title": "Progress UI goes silent for minutes inside 'Phase 4 of 6' on large real sessions",
+        "description": "Loading the real RevEng project (#/project/-Users-matkatmusicllc-Desktop-claude-code-src-RevEng/timeline) sat in 'Phase 4 of 6' for 500+ seconds with the progress line frozen at '451/451 reconstructing <target>' \u2014 the counter reaches N/N and then nothing updates while the long tail runs. Emitter: reportReconstructionProgress fires once per target BEFORE its reconstructFileOver call (jfred/src/reconstruction_renderable.ts:44), so the last label sticks while the final target (and any per-target inner work \u2014 replay, sandbox script executions via executeRunOnce) grinds silently; later same-phase stages may emit nothing at all. Fix: finer-grained progress inside the silent stretch \u2014 per-target inner-stage labels (e.g. 'reconstructing <target> \u2014 replaying run k/n') and/or a heartbeat ('still reconstructing <target>, Ns') so the console visibly advances; audit which Phase-4 stages emit no reportReconstructionProgress at all and give each at least one label. Reproduce with the real ~/.claude/projects RevEng dir (451 targets)."
+    },
+    {
+        "taskNumber": 150,
+        "title": "Bogus reconstruction targets from Bash command text ('x.taskNumber).join(',')\u2026' reconstructed as a file)",
+        "description": "During the task-149 stall the progress line read: reconstructing x.taskNumber).join(','))\" \u2014 i.e. a FRAGMENT OF A BASH COMMAND (a node -e one-liner from a session transcript) became a reconstruction target 'path'. Likely source: discoverScriptCreatedPaths (called in buildRenderableFiles, jfred/src/reconstruction_renderable.ts:36) or the script-run extraction mining paths out of arbitrary Bash command text and admitting garbage tokens as script-created files. On a real messy session this inflates the target list (451 targets for RevEng) and burns reconstruction time on nonsense \u2014 possibly the bulk of the 500+ second Phase-4 stall, so fix this BEFORE tuning task-149's progress cosmetics. Fix direction: tighten path candidate validation (must look like a path: no quotes/parens/JS punctuation, plausible separator/extension, or verify existence in evidence channels) at the discovery site, not per caller."
+    },
+    {
+        "taskNumber": 151,
+        "title": "Pre-baseline 'No' answer: extend the skip into the script-execution stages",
+        "description": "Choosing \"No\" in the pre-baseline reconstruction question still runs the script-execution stages over pre-baseline records \u2014 the task-56 text granted \"may skip\", so only the per-target replay is trimmed today. Extend the skip into the script stage if pre-baseline script runs ever cost noticeable time.",
+        "handoffFilePaths": [
+            "plans/archived/implementation-notes-task56-pre-baseline-question.md"
+        ]
+    },
+    {
+        "taskNumber": 152,
+        "title": "Pre-baseline consent: add a 're-ask' control on the timeline header",
+        "description": "There is no UI to revisit a stored pre-baseline answer short of a new tab / server relaunch (exactly the consent dialog's existing limitation \u2014 the answer is stored under a `baseline:` sessionStorage key). Add a \"re-ask\" control on the timeline header that clears the stored answer and re-poses the pre-baseline question.",
+        "handoffFilePaths": [
+            "plans/archived/implementation-notes-task56-pre-baseline-question.md"
+        ]
+    }
 ]
