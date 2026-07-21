@@ -1293,5 +1293,37 @@
     "completionDate": "2026-07-20",
     "commitHashes": [],
     "closureNote": "Implemented: jfred/.vscode/launch.json (demo-bundle and ~/.claude/projects viewer-server configs, port 7343) + tasks.json (build:webapp, prep:demo tar-extract) created and staged in the jfred submodule; .gitignore verified not to exclude .vscode/."
+  },
+  {
+    "taskNumber": 129,
+    "title": "Unrecoverable rev-card: replace the raw engine error with a user-useful message",
+    "description": "Change the unrecoverable rev-card's message to \"L:n (of N) failed to <whatever> [{ }]\" — the current message (the raw replay error, e.g. \"TypeError: hunk.lines is not iterable\") is not providing useful information to the end user, whereas the preferred message does: which line/revision failed, out of how many, and what operation failed to apply. Render site: buildMissingRevisionCard in jfred/webapp/views/details-revision-cards.ts (the .why div carries card.unrecoverableReason verbatim; the reason string originates in unrecoverableRevision, jfred/src/reconstruction_replay.ts). Exercise with the task-126 failure fixture (\"Debug viewer server (failure fixture)\" launch config, session ee3482f5, inventory.py rev 8).",
+    "completionDate": "2026-07-21",
+    "commitHashes": ["jfred@7516aa9"],
+    "closureNote": "Implemented with tasks 130/132/134 and committed as jfred@7516aa9: unrecoverable cards now show plain-English \"rev N of TOTAL failed to apply <op>\" text instead of the raw engine error."
+  },
+  {
+    "taskNumber": 130,
+    "title": "Unrecoverable rev-card: add [Jump to timeline step] and [{ }] buttons",
+    "description": "The unrecoverable rev-card needs '[Jump to timeline step]' and '[{ }]' buttons so the user can inspect the JSONL line and see where in the timeline the failed reconstruction occurred. Healthy cards get both via buildRevisionActionsElement (jfred/webapp/views/details-revision-cards.ts); buildMissingRevisionCard deliberately omits the whole action row because content/export/patch actions would lie for a carried-forward placeholder — add ONLY these two buttons (the card carries the changeId both need: jumpToOwningTimelineStep + context.openRecordForChangeId). Exercise with the task-126 failure fixture.",
+    "completionDate": "2026-07-21",
+    "commitHashes": ["jfred@7516aa9"],
+    "closureNote": "Implemented with tasks 129/132/134 and committed as jfred@7516aa9: unrecoverable cards gained the [Jump to timeline step] and [{ }] buttons."
+  },
+  {
+    "taskNumber": 132,
+    "title": "Details view: [View in File Revisions] button wraps onto its own line after backupFileName",
+    "description": "In the record inspector, 'backupFileName: <path>' renders the [View in File Revisions] button on a new line instead of inline after the path. Cause: appendViewInRevisionsButton (jfred/webapp/inspector-json.ts:66, called from appendSnapshotToken ~:103) appends a button with class .snapshot-history-btn, and jfred/webapp/styles.css:920 sets .snapshot-history-btn { display: block; margin: 8px 0 4px } — the display:block forces the wrap inside the pre-wrap .inspector-json block. Fix is CSS: render it inline (display: inline-block, trim margins) so it sits on the same line as the path.",
+    "completionDate": "2026-07-21",
+    "commitHashes": ["jfred@7516aa9"],
+    "closureNote": "Implemented with tasks 129/130/134 and committed as jfred@7516aa9: .snapshot-history-btn now renders inline (inline-block, margin 0 0 0 8px) after the backupFileName path; single render site verified."
+  },
+  {
+    "taskNumber": 134,
+    "title": "Timeline: toggle to show every JSONL line as a row (restore the pre-filter-chips view)",
+    "description": "Add a way to toggle visibility of every JSONL line in the timeline — the original jfred view that showed each transcript line as a row disappeared when filter chips/filtering were added. The current filter (jfred/webapp/views/timeline-filter-model.ts, checkNodeMatchesFilterMode; DOM in timeline-render-filterbar.ts) is a display filter over already-built nodes, and 'All' already shows every NODE — but nodes are derived from structured wire collections (buildTurnTimelineViewModel in timeline-nodes.ts, deriveCommitNodes/deriveToolCallNodes in timeline-node-derive.ts), so non-turn/non-tool/non-git JSONL lines are never nodes at all; a new filter mode alone does nothing. The toggle must hook into node DERIVATION: emit a node per JSONL record (document.lineVerdicts — buildLineVerdicts in jfred/src/reconstruction_json.ts:226 — already covers every line) or route the toggle to the existing raw-lines view (jfred/webapp/views/raw-lines.ts, #/project/<name>/jsonl/<file>/lines). Related: task 131 (header prev/next granularity).",
+    "completionDate": "2026-07-21",
+    "commitHashes": ["jfred@7516aa9"],
+    "closureNote": "Implemented with tasks 129/130/132 and committed as jfred@7516aa9: every-JSONL-line rows restored behind a timeline toggle."
   }
 ]

@@ -43,34 +43,14 @@
     ]
   },
   {
-    "taskNumber": 129,
-    "title": "Unrecoverable rev-card: replace the raw engine error with a user-useful message",
-    "description": "Change the unrecoverable rev-card's message to \"L:n (of N) failed to <whatever> [{ }]\" \u2014 the current message (the raw replay error, e.g. \"TypeError: hunk.lines is not iterable\") is not providing useful information to the end user, whereas the preferred message does: which line/revision failed, out of how many, and what operation failed to apply. Render site: buildMissingRevisionCard in jfred/webapp/views/details-revision-cards.ts (the .why div carries card.unrecoverableReason verbatim; the reason string originates in unrecoverableRevision, jfred/src/reconstruction_replay.ts). Exercise with the task-126 failure fixture (\"Debug viewer server (failure fixture)\" launch config, session ee3482f5, inventory.py rev 8)."
-  },
-  {
-    "taskNumber": 130,
-    "title": "Unrecoverable rev-card: add [Jump to timeline step] and [{ }] buttons",
-    "description": "The unrecoverable rev-card needs '[Jump to timeline step]' and '[{ }]' buttons so the user can inspect the JSONL line and see where in the timeline the failed reconstruction occurred. Healthy cards get both via buildRevisionActionsElement (jfred/webapp/views/details-revision-cards.ts); buildMissingRevisionCard deliberately omits the whole action row because content/export/patch actions would lie for a carried-forward placeholder \u2014 add ONLY these two buttons (the card carries the changeId both need: jumpToOwningTimelineStep + context.openRecordForChangeId). Exercise with the task-126 failure fixture."
-  },
-  {
     "taskNumber": 131,
     "title": "Timeline header prev/next: restore stepping through every step, not just file-touching turns",
     "description": "The timeline header's prev/next buttons (#files-prev/#files-next) jump only between timeline events that touch files \u2014 the ability to step through each JSONL line from the timeline is lost. The rev-card detail view's [{ }] prev/next stepper still walks every JSONL line one-by-one. Mechanism: wireFileNavButtons (jfred/webapp/views/timeline-render-selection.ts:91) calls findAdjacentFileTouchedIndex (timeline-sessions.ts:92), which walks the TimelineNode[] list and only stops on AGENT_TURN_NODE_KIND nodes with non-empty fileChanges (task-85 behavior). The line-by-line stepper is buildInspectorNavigationRow in jfred/webapp/inspector.ts:121, which iterates rawLines directly. NOTE: even stepping over ALL nodes is not per-JSONL-line \u2014 non-turn/non-tool/non-git records are never turned into nodes (see task 134); decide whether header prev/next steps over visible rows or truly per line."
   },
   {
-    "taskNumber": 132,
-    "title": "Details view: [View in File Revisions] button wraps onto its own line after backupFileName",
-    "description": "In the record inspector, 'backupFileName: <path>' renders the [View in File Revisions] button on a new line instead of inline after the path. Cause: appendViewInRevisionsButton (jfred/webapp/inspector-json.ts:66, called from appendSnapshotToken ~:103) appends a button with class .snapshot-history-btn, and jfred/webapp/styles.css:920 sets .snapshot-history-btn { display: block; margin: 8px 0 4px } \u2014 the display:block forces the wrap inside the pre-wrap .inspector-json block. Fix is CSS: render it inline (display: inline-block, trim margins) so it sits on the same line as the path."
-  },
-  {
     "taskNumber": 133,
     "title": "Investigate: agent edit near JSONL line 77 has no timeline entry \u2014 pre-baseline trim drops the edit's event (baseline-demo)",
     "description": "In baseline-demo, the agent message at JSONL line 77 ('added least_valuable(store) ...') has no matching tool-result/edit entry in the timeline, so the JSONL line where the edit occurred can't be navigated to from the timeline. Confirmed mechanism candidate: when pre-baseline reconstruction is declined, seedBaseCommitBeacon (jfred/src/reconstruction_base_commit.ts:132) drops every FileEvent at-or-before the beacon insertion point ('dropped N superseded pre-baseline event(s)') \u2014 the edit's WriteEvent never survives, so no revision, no fileChanges chip, no timeline entry; the git-derived baseline synthetic turn (recordGitBaselineSnapshot, jfred/webapp/views/timeline-nodes.ts:69) absorbs only the gitBase snapshot, it does not literally merge the edit. Verify against the baseline-demo session (was preBaseline declined? does the entry appear when accepted?), then decide the fix: even when trimmed, the turn should probably still be navigable to its JSONL line even if its file event is superseded."
-  },
-  {
-    "taskNumber": 134,
-    "title": "Timeline: toggle to show every JSONL line as a row (restore the pre-filter-chips view)",
-    "description": "Add a way to toggle visibility of every JSONL line in the timeline \u2014 the original jfred view that showed each transcript line as a row disappeared when filter chips/filtering were added. The current filter (jfred/webapp/views/timeline-filter-model.ts, checkNodeMatchesFilterMode; DOM in timeline-render-filterbar.ts) is a display filter over already-built nodes, and 'All' already shows every NODE \u2014 but nodes are derived from structured wire collections (buildTurnTimelineViewModel in timeline-nodes.ts, deriveCommitNodes/deriveToolCallNodes in timeline-node-derive.ts), so non-turn/non-tool/non-git JSONL lines are never nodes at all; a new filter mode alone does nothing. The toggle must hook into node DERIVATION: emit a node per JSONL record (document.lineVerdicts \u2014 buildLineVerdicts in jfred/src/reconstruction_json.ts:226 \u2014 already covers every line) or route the toggle to the existing raw-lines view (jfred/webapp/views/raw-lines.ts, #/project/<name>/jsonl/<file>/lines). Related: task 131 (header prev/next granularity)."
   },
   {
     "taskNumber": 135,
@@ -151,5 +131,17 @@
     "taskNumber": 150,
     "title": "Bogus reconstruction targets from Bash command text ('x.taskNumber).join(',')\u2026' reconstructed as a file)",
     "description": "During the task-149 stall the progress line read: reconstructing x.taskNumber).join(','))\" \u2014 i.e. a FRAGMENT OF A BASH COMMAND (a node -e one-liner from a session transcript) became a reconstruction target 'path'. Likely source: discoverScriptCreatedPaths (called in buildRenderableFiles, jfred/src/reconstruction_renderable.ts:36) or the script-run extraction mining paths out of arbitrary Bash command text and admitting garbage tokens as script-created files. On a real messy session this inflates the target list (451 targets for RevEng) and burns reconstruction time on nonsense \u2014 possibly the bulk of the 500+ second Phase-4 stall, so fix this BEFORE tuning task-149's progress cosmetics. Fix direction: tighten path candidate validation (must look like a path: no quotes/parens/JS punctuation, plausible separator/extension, or verify existence in evidence channels) at the discovery site, not per caller."
+  },
+  {
+    "taskNumber": 151,
+    "title": "Pre-baseline 'No' answer: extend the skip into the script-execution stages",
+    "description": "Choosing \"No\" in the pre-baseline reconstruction question still runs the script-execution stages over pre-baseline records — the task-56 text granted \"may skip\", so only the per-target replay is trimmed today. Extend the skip into the script stage if pre-baseline script runs ever cost noticeable time.",
+    "handoffFilePaths": ["plans/archived/implementation-notes-task56-pre-baseline-question.md"]
+  },
+  {
+    "taskNumber": 152,
+    "title": "Pre-baseline consent: add a 're-ask' control on the timeline header",
+    "description": "There is no UI to revisit a stored pre-baseline answer short of a new tab / server relaunch (exactly the consent dialog's existing limitation — the answer is stored under a `baseline:` sessionStorage key). Add a \"re-ask\" control on the timeline header that clears the stored answer and re-poses the pre-baseline question.",
+    "handoffFilePaths": ["plans/archived/implementation-notes-task56-pre-baseline-question.md"]
   }
 ]
