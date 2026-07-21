@@ -46,31 +46,5 @@
     "taskNumber": 133,
     "title": "Investigate: agent edit near JSONL line 77 has no timeline entry — pre-baseline trim drops the edit's event (baseline-demo)",
     "description": "In baseline-demo, the agent message at JSONL line 77 ('added least_valuable(store) ...') has no matching tool-result/edit entry in the timeline, so the JSONL line where the edit occurred can't be navigated to from the timeline. Confirmed mechanism candidate: when pre-baseline reconstruction is declined, seedBaseCommitBeacon (jfred/src/reconstruction_base_commit.ts:132) drops every FileEvent at-or-before the beacon insertion point ('dropped N superseded pre-baseline event(s)') — the edit's WriteEvent never survives, so no revision, no fileChanges chip, no timeline entry; the git-derived baseline synthetic turn (recordGitBaselineSnapshot, jfred/webapp/views/timeline-nodes.ts:69) absorbs only the gitBase snapshot, it does not literally merge the edit. Verify against the baseline-demo session (was preBaseline declined? does the entry appear when accepted?), then decide the fix: even when trimmed, the turn should probably still be navigable to its JSONL line even if its file event is superseded."
-  },
-  {
-    "taskNumber": 149,
-    "title": "Progress UI goes silent for minutes inside 'Phase 4 of 6' on large real sessions",
-    "description": "Loading the real RevEng project (#/project/-Users-matkatmusicllc-Desktop-claude-code-src-RevEng/timeline) sat in 'Phase 4 of 6' for 500+ seconds with the progress line frozen at '451/451 reconstructing <target>' — the counter reaches N/N and then nothing updates while the long tail runs. Emitter: reportReconstructionProgress fires once per target BEFORE its reconstructFileOver call (jfred/src/reconstruction_renderable.ts:44), so the last label sticks while the final target (and any per-target inner work — replay, sandbox script executions via executeRunOnce) grinds silently; later same-phase stages may emit nothing at all. Fix: finer-grained progress inside the silent stretch — per-target inner-stage labels (e.g. 'reconstructing <target> — replaying run k/n') and/or a heartbeat ('still reconstructing <target>, Ns') so the console visibly advances; audit which Phase-4 stages emit no reportReconstructionProgress at all and give each at least one label. Reproduce with the real ~/.claude/projects RevEng dir (451 targets)."
-  },
-  {
-    "taskNumber": 150,
-    "title": "Bogus reconstruction targets from Bash command text ('x.taskNumber).join(',')…' reconstructed as a file)",
-    "description": "During the task-149 stall the progress line read: reconstructing x.taskNumber).join(','))\" — i.e. a FRAGMENT OF A BASH COMMAND (a node -e one-liner from a session transcript) became a reconstruction target 'path'. Likely source: discoverScriptCreatedPaths (called in buildRenderableFiles, jfred/src/reconstruction_renderable.ts:36) or the script-run extraction mining paths out of arbitrary Bash command text and admitting garbage tokens as script-created files. On a real messy session this inflates the target list (451 targets for RevEng) and burns reconstruction time on nonsense — possibly the bulk of the 500+ second Phase-4 stall, so fix this BEFORE tuning task-149's progress cosmetics. Fix direction: tighten path candidate validation (must look like a path: no quotes/parens/JS punctuation, plausible separator/extension, or verify existence in evidence channels) at the discovery site, not per caller."
-  },
-  {
-    "taskNumber": 151,
-    "title": "Pre-baseline 'No' answer: extend the skip into the script-execution stages",
-    "description": "Choosing \"No\" in the pre-baseline reconstruction question still runs the script-execution stages over pre-baseline records — the task-56 text granted \"may skip\", so only the per-target replay is trimmed today. Extend the skip into the script stage if pre-baseline script runs ever cost noticeable time.",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-task56-pre-baseline-question.md"
-    ]
-  },
-  {
-    "taskNumber": 152,
-    "title": "Pre-baseline consent: add a 're-ask' control on the timeline header",
-    "description": "There is no UI to revisit a stored pre-baseline answer short of a new tab / server relaunch (exactly the consent dialog's existing limitation — the answer is stored under a `baseline:` sessionStorage key). Add a \"re-ask\" control on the timeline header that clears the stored answer and re-poses the pre-baseline question.",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-task56-pre-baseline-question.md"
-    ]
   }
 ]

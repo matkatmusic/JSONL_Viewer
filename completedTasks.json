@@ -1463,5 +1463,43 @@
     "completionDate": "2026-07-21",
     "commitHashes": [],
     "closureNote": "Implemented shape (1): session custom titles joined the task-127 timeline search. computeSessionTitleByNodeIndex maps each titled session to its FIRST node via findSessionStartIndexes; the search predicates take an optional sessionTitle so typing a title jumps to (and keeps visible) the row directly under that session-start marker. Five red-first tests in tests/timeline-filter-model-session-titles.test.ts (new file — the old test file sits at the 250-line cap). Staged in jfred, awaiting commit."
+  },
+  {
+    "taskNumber": 149,
+    "title": "Progress UI goes silent for minutes inside 'Phase 4 of 6' on large real sessions",
+    "description": "Loading the real RevEng project (#/project/-Users-matkatmusicllc-Desktop-claude-code-src-RevEng/timeline) sat in 'Phase 4 of 6' for 500+ seconds with the progress line frozen at '451/451 reconstructing <target>' — the counter reaches N/N and then nothing updates while the long tail runs. Emitter: reportReconstructionProgress fires once per target BEFORE its reconstructFileOver call (jfred/src/reconstruction_renderable.ts:44), so the last label sticks while the final target (and any per-target inner work — replay, sandbox script executions via executeRunOnce) grinds silently; later same-phase stages may emit nothing at all. Fix: finer-grained progress inside the silent stretch — per-target inner-stage labels (e.g. 'reconstructing <target> — replaying run k/n') and/or a heartbeat ('still reconstructing <target>, Ns') so the console visibly advances; audit which Phase-4 stages emit no reportReconstructionProgress at all and give each at least one label. Reproduce with the real ~/.claude/projects RevEng dir (451 targets).",
+    "completionDate": "2026-07-21",
+    "commitHashes": [],
+    "closureNote": "Implemented in jfred (staged, uncommitted): every per-target chain stage announces through runStageTolerantly (reconstructing <target> — <stage>) and collectAcceptedUserEditIds labels each branch pass, so the Phase-4 stretch never goes silent; a sync-engine heartbeat is impossible so labels-at-work-boundaries is the fix."
+  },
+  {
+    "taskNumber": 150,
+    "title": "Bogus reconstruction targets from Bash command text ('x.taskNumber).join(',')…' reconstructed as a file)",
+    "description": "During the task-149 stall the progress line read: reconstructing x.taskNumber).join(','))\" — i.e. a FRAGMENT OF A BASH COMMAND (a node -e one-liner from a session transcript) became a reconstruction target 'path'. Likely source: discoverScriptCreatedPaths (called in buildRenderableFiles, jfred/src/reconstruction_renderable.ts:36) or the script-run extraction mining paths out of arbitrary Bash command text and admitting garbage tokens as script-created files. On a real messy session this inflates the target list (451 targets for RevEng) and burns reconstruction time on nonsense — possibly the bulk of the 500+ second Phase-4 stall, so fix this BEFORE tuning task-149's progress cosmetics. Fix direction: tighten path candidate validation (must look like a path: no quotes/parens/JS punctuation, plausible separator/extension, or verify existence in evidence channels) at the discovery site, not per caller.",
+    "completionDate": "2026-07-21",
+    "commitHashes": [],
+    "closureNote": "Root cause fixed in jfred (staged, uncommitted): bashOverwriteRedirect matched the > inside JS arrows (=>), so parseRedirect minted command-text fragments as redirect targets; a checkCandidateLooksLikePath deny-list at the parseRedirect choke point now rejects non-path candidates."
+  },
+  {
+    "taskNumber": 151,
+    "title": "Pre-baseline 'No' answer: extend the skip into the script-execution stages",
+    "description": "Choosing \"No\" in the pre-baseline reconstruction question still runs the script-execution stages over pre-baseline records — the task-56 text granted \"may skip\", so only the per-target replay is trimmed today. Extend the skip into the script stage if pre-baseline script runs ever cost noticeable time.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-task56-pre-baseline-question.md"
+    ],
+    "completionDate": "2026-07-21",
+    "commitHashes": [],
+    "closureNote": "Implemented in jfred (staged, uncommitted): executeRunOnce now skips runs at-or-before a declined baseline commit timestamp (checkTimestampPrecedesSkippedBaseline in reconstruction_base_commit.ts), covering discovery, the script stage, and run summaries in one gate; DerivedCaches also stamps the pre-baseline flag so No/Yes builds never share caches."
+  },
+  {
+    "taskNumber": 152,
+    "title": "Pre-baseline consent: add a 're-ask' control on the timeline header",
+    "description": "There is no UI to revisit a stored pre-baseline answer short of a new tab / server relaunch (exactly the consent dialog's existing limitation — the answer is stored under a `baseline:` sessionStorage key). Add a \"re-ask\" control on the timeline header that clears the stored answer and re-poses the pre-baseline question.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-task56-pre-baseline-question.md"
+    ],
+    "completionDate": "2026-07-21",
+    "commitHashes": [],
+    "closureNote": "Implemented in jfred (staged, uncommitted): a Re-ask baseline button on the timeline filter bar clears the baseline: sessionStorage answer and the project document cache then re-renders, making the server re-pose the pre-baseline question; choice helpers moved to new webapp/app-choices.ts for the 250-line cap."
   }
 ]
