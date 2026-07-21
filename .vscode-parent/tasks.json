@@ -10,6 +10,15 @@
             "presentation": { "reveal": "silent", "clear": true }
         },
         {
+            "label": "prep:demo-baseline",
+            "type": "shell",
+            "command": "tar -xf demo-baseline/repo.git.tar -C demo-baseline/projects/baseline-demo",
+            "options": { "cwd": "${workspaceFolder}/RevEng/jfred" },
+            "dependsOn": ["build:webapp"],
+            "problemMatcher": [],
+            "presentation": { "reveal": "silent", "clear": true }
+        },
+        {
             "label": "prep:demo-corrupt",
             "type": "shell",
             "command": "tar -xf demo/repo.git.tar -C demo-corrupt/projects/s87-demo-composite",
