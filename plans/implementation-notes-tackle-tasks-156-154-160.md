@@ -146,3 +146,30 @@ Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-
 - Tasks 64 and 156 remain OPEN: 64 closes on a green Actions run after the user pushes the
   amended workflow; 156's verdict is now subsumed by task 162 (the stall is real and
   root-caused, not fixed).
+
+## 2026-07-21 (later) — Task 64: CI still red; root cause was unpublishable captures, not submodule init
+
+- CI run 29866226801 (after the submodule-init fix) still failed 56 test files with
+  "scenario s1-delete-file: no .jsonl found under known roots". Root cause: `executed/` is in the
+  scenarios repo's `.gitignore` — the 109MB of executed captures exist only on this machine and can
+  never come from any checkout. They are also not publishable raw: nested `.git` dirs (s6, s41, s42,
+  s44, s58, s62, s71, s72, s85, s87...), the user's email in git logs, home paths in 790 files.
+- Decision: implement the item-59 route task 64's own text prescribes ("viable on a bare clone only
+  after item 59 makes the suite scenario-submodule-optional"; 59 was closed without code).
+- Design: capture-dependence = a test file's relative-import closure reaches `tests/fixtures.ts`
+  (throws at import on a captureless clone), OR the file directly imports
+  `scripts/coverage_scenarios.ts` (its scan is lazy, so transitive reachability via
+  check_scenario_coverage helpers is harmless — proven by the CI run where those files passed).
+- Moves: `jsonlPathsForScenario`, `resolveScenarioDir`, `listScenarioJsonlPaths` moved from
+  tests/utilities.ts → tests/fixtures.ts so utilities.ts (and its ~29 capture-free importers) stays
+  runnable; six test files re-import `jsonlPathsForScenario` from fixtures. Old bodies left
+  commented in utilities.ts per comment-out-don't-delete; delete after a green run.
+- New: `scripts/list_capture_free_tests.ts` (BFS + direct-import check, exports testable functions)
+  and `tests/list_capture_free_tests.test.ts` (5 classifier pins). `npm run test:ci` feeds the list
+  to the runner; ci.yml runs it and drops the now-useless `git submodule update --init scenarios`.
+- Verified: excluded set == the 55 CI-failing files + reconstruction_script_stage.test.ts (its s37
+  subtest needs captures at runtime) — nothing over- or under-excluded; typecheck green.
+  Gotcha: JS `.sort()` and shell `sort` disagree on `-` vs `_`, which made an earlier `comm` diff
+  fabricate 29 phantom over-exclusions; re-sort both sides with the same tool before comm.
+- Open: task 64 closes on the next green pushed run. If the full suite should ever run in CI, the
+  captures need a sanitized publish (separate task — not filed, user to decide).
