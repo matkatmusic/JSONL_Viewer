@@ -26,6 +26,11 @@
     "description": "83. See if actual /jot folder can be reconstructed."
   },
   {
+    "taskNumber": 166,
+    "title": "Multi-source reconstruction: multiple conversation-log folders + multiple file-history folders feeding one file's history (in service of task 83)",
+    "description": "The jot codebase's revision history \u2014 THE reconstruction this whole tool exists for (task 83) \u2014 is scattered across at least four conversation-log sources (the original jot project's folder in ~/.claude/projects, the jot-recovery project's folder, this RevEng project, and one or two other projects whose sessions edited the jot plugin from other cwds) and at least two file-history snapshot locations (some under jot-recovery, some under the original jot project's .claude location). Today one reconstruction takes ONE projects folder + ONE file-history dir. Three parts, in this order:\n(1) FILE IDENTITY ACROSS SOURCES (investigate FIRST \u2014 parts 2 and 3 are only as correct as this answer): how to establish that records/snapshots from different sources refer to the SAME file when sessions ran under different roots (~/Programming/jot vs ~/Programming/jot-recovery vs other cwds) \u2014 absolute paths won't match; identity likely = root-relative path agreement (the task-137 repo-matching rule) + content agreement; decide how each source declares its root (per-source cwd remap config, extending the s87 cwd-remap mechanism).\n(2) MULTI-SOURCE INPUTS: engine accepts multiple conversation-log folders and multiple file-history snapshot folders for a single reconstruction. Existing seams to extend, not a rewrite: buildProjectReconstruction already merges a LIST of JSONL paths (jfred/src/viewer_api.ts:56 \u2014 today all from one folder); snapshots already arrive via the injectable BackupReader (file-history sidecar is a second input; cross-session @vN blob reads already resolve to the OWNING session); config shape probably reveng-paths.json growing source lists.\n(3) MERGED PER-FILE RECONSTRUCTION: define how one file's revision timeline is built when its events come from several session logs and snapshots from several folders \u2014 cross-source interleaving by timestamp (wall-clock skew between machines/sessions?), what wins when sources disagree, and how branch/rewind structure from different logs composes.\n(4) NEW SCENARIO REQUIRED: create a new scenario that covers what is being built \u2014 a multi-source capture (run via /run-scenario like the sNN suite) where MULTIPLE files are edited across MULTIPLE sessions run from different project roots, producing multiple conversation-log folders and multiple file-history snapshot folders, with ground-truth revision ladders spanning the sources (cross-source interleaves and root-relative identity matches across differing absolute paths). Coverage bar: exercise essentially everything scenario s87 exercises \u2014 the newer-CC wire format and its four mechanisms (cwd remap, time-aware indirection, result-instant rename stamping, git-INDEX staged-blob evidence) \u2014 just split up across the multiple sessions. The scenario joins the executed sweep and becomes the acceptance gate for parts 1-3.\n(4a) RUN-SCENARIO TOOLING PREREQUISITE: today /run-scenario (jfredToolsPlugin:run-scenario) executes each scenario in a random temp directory \u2014 a multi-session scenario needs the ability to SPECIFY where the modifications happen (named/fixed workspace roots reused across the scenario's sessions), so add that capability to the run-scenario skill + scripts first.\nScope note: this is engine-architecture work \u2014 plan it (design doc first) before touching code; the 87-scenario sweep must stay green since single-source is the degenerate case."
+  },
+  {
     "taskNumber": 159,
     "title": "Paths... popover -> settings WIZARD: design the flow (mockup first), then implement",
     "description": "DIRECTION CHANGE 2026-07-21 (supersedes the earlier two-section-popover mockup): the Paths... popover should become a settings WIZARD:\n- screen 1: set the project path\n- screen 2: 'do you wish to set a custom file history snapshot path or auto-derive the path?'\n- screen 3: 'do you wish to set a Git Repo path?'\n- screen 4: 'do you wish to pick a git repo commit? (default: master branch tip)'\nDELIVERABLE ORDER: (a) define the wizard's flow logic via UI/UX MOCKUP first, (b) define how values are CHANGED for a session after it loads (re-enter the wizard? jump to a single screen? a compact summary panel with per-row edit?), (c) only then implement. The user says ambiguities must be flushed out first \u2014 resolve these in the mockup step:\n(1) TRIGGER: when does the wizard run \u2014 first launch with no config? every folder switch? on demand from the Paths... button? (screen 1 is GLOBAL config, screens 2-4 are effectively per-project \u2014 reveng-paths.json entries \u2014 so does the wizard rerun per project?)\n(2) Screen-2 default: auto-derive (today's behavior \u2014 empty posts '' and the server re-derives, app-header.ts computeFileHistoryDirToPost).\n(3) Screen-4 default 'master branch tip': which ref when the repo's default branch isn't master, and should the default instead be the commit the SESSION records (the s85-style recorded baseline) when one exists?\n(4) Skip semantics: declining screens 3/4 must leave the project reconstructing exactly as with no reveng-paths entry.\n(5) Persistence: where each screen's answer lands (screen 1 -> /api/config global; screens 2-4 -> /api/project-paths, persist flag) and whether the wizard's finish step is the 137-style 'store?' prompt.\n(6) The task-56 pre-baseline question ('reconstruct file states preceding the baseline commit?') fires at project load \u2014 decide whether it becomes a wizard screen or stays a load-time dialog.\nCARRY-OVERS still wanted from the pre-wizard design: picker-button naming 'Set Projects Folder location' / 'Set Git Repo location'; Store subsumes Apply (postProjectPaths(true) applies AND persists, app-paths-project.ts:122-123); commit pick list = task 154's 500-newest list (search box open there). Existing code sites: #paths-popover jfred/webapp/index.html:17-40, app-header.ts, app-paths-project.ts, /api/project-paths route."
@@ -43,12 +48,108 @@
     "title": "Phase-4 blowup: nested lineage replays re-run the full per-target pipeline once per (target, timestamp)",
     "description": "ROOT CAUSE of the task-156 stall (2252s+ observed on the 451-target RevEng project, 2026-07-21; task 150's garbage-target fix addressed a different symptom). Evidence from jfred-server.log (70s window): 473 'replaying lineage of' headers over only 140 distinct targets \u2014 one target replayed 27x, another 56x (sic, from the script-stage tally); plans/items29-30-31-32-close.md replayed 3x in 47s. Mechanism: replayLineageContentBefore (src/reconstruction_branches.ts:199) replays a target's ENTIRE reconstruction pipeline once per (target, before-timestamp) cycleKey, and each replay re-runs every stage including injectScriptExecutions over ALL 1447 discovered runs ('script stage: 1447 runs for <target>' x473). The lineageSeedsByKey memo only caches replays entered on a CLEAN seeding stack (enteredWithCleanStack, lines 207-225) \u2014 nested replays recompute fresh every time and are never cached. Also observed: placeGitCommitEvidence is the slowest per-replay stage (0.16-0.37s each; the logged run's last line sat there). Fix directions to evaluate in planning: (a) safely memoize nested replays (the current guard exists because a nested replay's result can be degraded by outer cycle guards \u2014 cache only proven-undegraded results, or key the cache by the active seeding stack); (b) compute a target's full revision list ONCE and slice per `before` \u2014 CAUTION: enterLineageReplayWindow(before) sets a time cutoff that changes reconstruction (the s87 time-aware indirection), so slicing is only valid where the cutoff provably doesn't alter the prefix; (c) hoist the 1447-run script-run discovery/filtering out of the per-replay path. Reproduce: load project -Users-matkatmusicllc-Desktop-claude-code-src-RevEng with script consent, pipe server stdout to a log, count 'replaying lineage of' repeats per target.",
     "handoffFilePaths": [
-      "plans/implementation-notes-tackle-tasks-156-154-160.md"
+      "plans/archived/implementation-notes-tackle-tasks-156-154-160.md"
     ]
   },
   {
     "taskNumber": 165,
     "title": "Publish executed scenario captures; run the full suite in CI",
     "description": "165. Publish the executed scenario captures and run the full test suite in CI. Exposure surface reviewed and accepted by the user on 2026-07-21 (email, home-dir layout under Desktop/Programming/.claude, hook/plugin filenames, Anthropic session/request ids; zero credentials found in a full string scan). Work: (1) in the scenarios repo, remove `executed/` from .gitignore but keep `.plate/` ignored; (2) the ~10 scenario dirs with nested `.git` repos (s6, s41, s42, s44, s58, s62, s71, s72, s85, s87...) cannot be committed directly \u2014 git turns a nested .git into a gitlink and silently drops contents (demo-bundle trap); tar each as repo.git.tar like demo/ does and add an extraction step (pretest script or CI step) that restores them before tests run; (3) commit + push the captures to jfred-claude-scenarios (109MB, no file near GitHub's 100MB limit); (4) in jfred ci.yml, restore `git submodule update --init scenarios`, add the .git-tar extraction, and switch `npm run test:ci` back to `npm test`; (5) expect a residual set of machine-bound tests on the first full CI run \u2014 s85 resolves its repo via a recorded live tmpdir cwd, and reader-dependent scenarios read ~/.claude/file-history sidecars; verify whether tests resolve file-history from inside scenario dirs or the live machine, capture missing inputs into the scenario dirs where feasible, and keep genuinely machine-bound files excluded via scripts/list_capture_free_tests.ts. Optional belt-and-braces before pushing: zlib-decompress the git pack objects and rescan for secrets (text scan already clean)."
+  },
+  {
+    "taskNumber": 167,
+    "title": "S1a: Probe the real jot sources for cross-source file overlaps and disagreements",
+    "description": "First step of task 166 (spec S1). Enumerate the real jot evidence: at least four conversation-log source folders (the original jot project's folder in ~/.claude/projects, the jot-recovery project's folder, this RevEng project's folder, and any other project whose sessions edited the jot plugin from other cwds) and at least two file-history snapshot locations (some under jot-recovery, some under the original jot project's .claude location). For files edited in MORE THAN ONE source, collect: the differing absolute paths, the root-relative paths, timestamps, and any cases where two sources give conflicting content for the same file in an overlapping timeframe. Write raw findings to plans/166-source-probe-notes.md. This probe is the real-world data that validates (or refutes) the planned conflict policy (timestamp interleave + health-note conflicts) before it is locked in the design doc."
+  },
+  {
+    "taskNumber": 168,
+    "title": "S1b: Design doc plans/166-multi-source-design.md (identity, roots, merge semantics, branch composition)",
+    "description": "Spec S1 of specs/SPEC.md (task 166). Using the probe findings in plans/166-source-probe-notes.md, write plans/166-multi-source-design.md answering: (a) the file-identity rule across sources \u2014 root-relative path agreement (task-137 repo-matching rule) + content agreement \u2014 with concrete examples from the real jot sources; (b) how each source's root is resolved: config-first (root declared per source entry in reveng-paths.json), auto-detect fallback from JSONL cwd fields (extending the s87 cwd-remap mechanism), explicit config always wins; (c) merge/conflict semantics \u2014 strict timestamp interleave, contradictions become health-sink conflict notes (task-119 style) not errors \u2014 validated against the actual disagreements the probe found; (d) how branch/rewind structure from different session logs composes in one merged per-file timeline. Each of (a)-(d) must cite at least one real-data example or state none was found.",
+    "blockedBy": [
+      167
+    ]
+  },
+  {
+    "taskNumber": 169,
+    "title": "S2: /run-scenario named fixed workspace roots",
+    "description": "Spec S2 of specs/SPEC.md (task 166 sub-problem 4a). Today the jfredToolsPlugin:run-scenario skill executes each scenario in a random temp directory. Add the ability for a scenario file to declare named/fixed workspace roots that are created at specified locations and REUSED across the scenario's multiple sessions, so a multi-session scenario can run session A in root 1 and session B in root 2 deterministically. Change the run-scenario skill + its scripts (in the taskTools plugin repo at ~/Programming/taskTools per the plugin-port memory \u2014 verify current home first). Existing single-root scenario files must keep running unchanged (random temp dir remains the default when no roots are declared)."
+  },
+  {
+    "taskNumber": 170,
+    "title": "S7a: Author the multi-source scenario file (2 sessions, 2 roots, s87 mechanism parity)",
+    "description": "Spec S7 of specs/SPEC.md (task 166 sub-problem 4). Write the new scenario file (next sNN slot) for /run-scenario: TWO sessions run from TWO different named workspace roots (needs task 169's fixed-roots capability), editing MULTIPLE files, at least one file edited in BOTH sessions so its revision ladder spans the sources with cross-source interleaves and root-relative identity matches across differing absolute paths. Coverage bar: split the four s87 mechanisms across the sessions \u2014 cwd remap, time-aware indirection, result-instant rename stamping, git-INDEX staged-blob evidence (see s87 ground-truth memory). Design the intended ground-truth revision ladders as part of authoring. Follow the scenario-linter conventions (task 116).",
+    "blockedBy": [
+      168,
+      169
+    ]
+  },
+  {
+    "taskNumber": 171,
+    "title": "S7b: Capture the multi-source scenario and record ground truth",
+    "description": "Spec S7 of specs/SPEC.md (task 166). Execute the new multi-source scenario (task 170) via /run-scenario using the named-roots capability, producing two conversation-log folders and two file-history snapshot folders. Verify the capture contains the expected cross-source structure (same file under differing absolute roots, interleaved timestamps, all four s87 mechanisms present), then record the ground-truth revision ladders for the edited files. The capture joins scenarios/executed (gitignored per task 64 \u2014 captures are unpublishable; CI stays capture-free).",
+    "blockedBy": [
+      170
+    ]
+  },
+  {
+    "taskNumber": 172,
+    "title": "S3: reveng-paths.json per-project `sources` lists",
+    "description": "Spec S3 of specs/SPEC.md (task 166). Extend reveng-paths.json config parsing: each project entry may declare `sources`: a list of {projectsDir, fileHistoryDir?, root?} entries. Legacy single-source entries must parse exactly as before (single source = one-entry degenerate case). Root semantics per the design doc plans/166-multi-source-design.md (config-first, auto-detect fallback). Unit tests cover: new multi-source shape, legacy shape unchanged, and root omission triggering auto-detect. Note the task-56 trap: repo paths in reveng-paths.json are jfred-root-relative.",
+    "blockedBy": [
+      168
+    ]
+  },
+  {
+    "taskNumber": 173,
+    "title": "S4a: buildProjectReconstruction accepts multiple sources",
+    "description": "Spec S4 of specs/SPEC.md (task 166 sub-problem 2). Extend the engine so one reconstruction accepts MULTIPLE conversation-log folders and MULTIPLE file-history snapshot folders. Existing seams, not a rewrite: buildProjectReconstruction already merges a LIST of JSONL paths (jfred/src/viewer_api.ts:56 \u2014 today all from one folder); snapshots arrive via the injectable BackupReader (file-history sidecar is the second input; cross-session @vN blob reads already resolve to the OWNING session \u2014 extend that to per-source resolution). Each source carries its resolved root (task 172 config / cwd auto-detect). Single source must behave identically to today: full 87-scenario sweep stays green. Work in RevEng/jfred, never the ~/Programming clones.",
+    "blockedBy": [
+      168
+    ]
+  },
+  {
+    "taskNumber": 174,
+    "title": "S4b: CLI accepts multiple sources",
+    "description": "Spec S4 of specs/SPEC.md (task 166). Extend the CLI entrypoint to accept multiple conversation-log folders and multiple file-history dirs (repeatable flags or config-file driven, matching the reveng-paths.json `sources` shape from task 172) and pass them through to the multi-source buildProjectReconstruction (task 173). CLI stays strict on parse errors (task-119 decision). Existing single-source invocations unchanged.",
+    "blockedBy": [
+      173
+    ]
+  },
+  {
+    "taskNumber": 175,
+    "title": "S5a: Merged per-file timeline across sources (identity + timestamp interleave)",
+    "description": "Spec S5 of specs/SPEC.md (task 166 sub-problem 3). Build one file's revision timeline from events across ALL sources: establish identity via the design-doc rule (root-relative path agreement + content agreement), interleave events strictly by wall-clock timestamp (trusted as-is \u2014 same-machine decision), and compose branch/rewind structure from different logs per the design doc. Engine test: a fixture where the same file (differing absolute paths, same root-relative path) is edited in two sources; the merged ladder must match ground truth.",
+    "blockedBy": [
+      173
+    ]
+  },
+  {
+    "taskNumber": 176,
+    "title": "S5b: Cross-source contradictions become health-sink conflict notes",
+    "description": "Spec S5 of specs/SPEC.md (task 166). When merging per-file timelines across sources, a record/snapshot that contradicts the reconstructed state at that instant must NOT abort: emit a conflict note through the task-119 health sink and continue, producing a complete timeline. Engine test: a contradiction fixture (two sources disagreeing on the same file in an overlapping timeframe, shaped like whatever the task-167 probe found in real data) yields both a conflict note and a complete timeline.",
+    "blockedBy": [
+      175
+    ]
+  },
+  {
+    "taskNumber": 177,
+    "title": "S6: Webapp multi-source projects (Paths popover + merged serving)",
+    "description": "Spec S6 of specs/SPEC.md (task 166). The webapp supports multi-source projects end to end: the Paths popover / reveng-paths.json flow lets a project list multiple sources ({projectsDir, fileHistoryDir?, root?} per task 172), and the reconstruction the app serves/fetches is the merged multi-source result (task 173/175 engine). Webapp DOM tests following the app-header.test.ts / app-paths-project.test.ts patterns (initializeHeaderInFreshDom + recordFetchCalls; task-153 memory): entering multiple sources, and the merged reconstruction being fetched. Mind the task-159 wizard redesign direction when touching the popover.",
+    "blockedBy": [
+      172,
+      173
+    ]
+  },
+  {
+    "taskNumber": 178,
+    "title": "S7c: Acceptance gate \u2014 multi-source scenario green + full sweep green",
+    "description": "Spec S7 of specs/SPEC.md (task 166). Run the multi-source scenario capture (task 171) through the finished multi-source engine (tasks 172-177): per-step coverage (.step_states oracle) must be fully green for the new scenario, and the full sweep \u2014 now 88 scenarios \u2014 must stay green (single-source is the degenerate case and must not regress). Close any engine gaps the scenario exposes (each gap closure follows the established ground-truth workflow). This task is the acceptance gate for task 166; when it closes, 166 closes with it.",
+    "blockedBy": [
+      171,
+      174,
+      175,
+      176,
+      177
+    ]
   }
 ]
