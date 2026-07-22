@@ -44,8 +44,8 @@ of only a random temp dir per run.
 Config parsing accepts `sources: [{projectsDir, fileHistoryDir?, root?}, …]`
 per project entry; legacy single-source entries parse exactly as before.
 - Verify: config-parsing unit tests covering new shape, legacy shape, and root omission.
-- Tasks: #172
-- Status: open
+- Tasks: #172 (done 2026-07-22)
+- Status: done — hydrateProjectSources in jfred/src/reconstruction_overrides.ts (jfred@3ba6ab5)
 
 ### S4. Engine accepts multiple sources per reconstruction
 `buildProjectReconstruction` (and the CLI) take a list of source entries —
@@ -53,8 +53,8 @@ multiple conversation-log folders and multiple file-history dirs; per-source
 BackupReaders resolve snapshots to the owning source; single source is the
 degenerate case.
 - Verify: engine unit tests with a two-source fixture; full 87-scenario sweep stays green.
-- Tasks: #173, #174
-- Status: open
+- Tasks: #173 (done 2026-07-22), #174
+- Status: open — engine seams done (jfred@3ba6ab5); #174 (CLI + corpus-load dedupe) remains
 
 ### S5. Merged per-file timeline across sources
 One file's revision timeline is built from events across all sources:
