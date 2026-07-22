@@ -29,8 +29,8 @@ conversation-log sources and two file-history dirs enumerating actual
 cross-source disagreements found; (d) how branch/rewind structure from
 different logs composes.
 - Verify: doc exists and each of (a)–(d) cites at least one real-data example or states none was found.
-- Tasks: #167 (done 2026-07-21 — probe + plans/166-source-probe-notes.md), #168
-- Status: open (probe done; design doc remains)
+- Tasks: #167 (done 2026-07-21 — probe + plans/166-source-probe-notes.md), #168 (done 2026-07-22 — plans/166-multi-source-design.md)
+- Status: done — identity/roots/merge/branch design locked from real probe data
 
 ### S2. /run-scenario supports named, fixed workspace roots
 The run-scenario skill + scripts can execute a scenario's sessions in

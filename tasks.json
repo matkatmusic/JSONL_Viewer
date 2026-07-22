@@ -44,17 +44,9 @@
     "description": "165. Publish the executed scenario captures and run the full test suite in CI. Exposure surface reviewed and accepted by the user on 2026-07-21 (email, home-dir layout under Desktop/Programming/.claude, hook/plugin filenames, Anthropic session/request ids; zero credentials found in a full string scan). Work: (1) in the scenarios repo, remove `executed/` from .gitignore but keep `.plate/` ignored; (2) the ~10 scenario dirs with nested `.git` repos (s6, s41, s42, s44, s58, s62, s71, s72, s85, s87...) cannot be committed directly — git turns a nested .git into a gitlink and silently drops contents (demo-bundle trap); tar each as repo.git.tar like demo/ does and add an extraction step (pretest script or CI step) that restores them before tests run; (3) commit + push the captures to jfred-claude-scenarios (109MB, no file near GitHub's 100MB limit); (4) in jfred ci.yml, restore `git submodule update --init scenarios`, add the .git-tar extraction, and switch `npm run test:ci` back to `npm test`; (5) expect a residual set of machine-bound tests on the first full CI run — s85 resolves its repo via a recorded live tmpdir cwd, and reader-dependent scenarios read ~/.claude/file-history sidecars; verify whether tests resolve file-history from inside scenario dirs or the live machine, capture missing inputs into the scenario dirs where feasible, and keep genuinely machine-bound files excluded via scripts/list_capture_free_tests.ts. Optional belt-and-braces before pushing: zlib-decompress the git pack objects and rescan for secrets (text scan already clean)."
   },
   {
-    "taskNumber": 168,
-    "title": "S1b: Design doc plans/166-multi-source-design.md (identity, roots, merge semantics, branch composition)",
-    "description": "Spec S1 of specs/SPEC.md (task 166). Using the probe findings in plans/166-source-probe-notes.md, write plans/166-multi-source-design.md answering: (a) the file-identity rule across sources — root-relative path agreement (task-137 repo-matching rule) + content agreement — with concrete examples from the real jot sources; (b) how each source's root is resolved: config-first (root declared per source entry in reveng-paths.json), auto-detect fallback from JSONL cwd fields (extending the s87 cwd-remap mechanism), explicit config always wins; (c) merge/conflict semantics — strict timestamp interleave, contradictions become health-sink conflict notes (task-119 style) not errors — validated against the actual disagreements the probe found; (d) how branch/rewind structure from different session logs composes in one merged per-file timeline. Each of (a)-(d) must cite at least one real-data example or state none was found."
-  },
-  {
     "taskNumber": 170,
     "title": "S7a: Author the multi-source scenario file (2 sessions, 2 roots, s87 mechanism parity)",
-    "description": "Spec S7 of specs/SPEC.md (task 166 sub-problem 4). Write the new scenario file (next sNN slot) for /run-scenario: TWO sessions run from TWO different named workspace roots (needs task 169's fixed-roots capability), editing MULTIPLE files, at least one file edited in BOTH sessions so its revision ladder spans the sources with cross-source interleaves and root-relative identity matches across differing absolute paths. Coverage bar: split the four s87 mechanisms across the sessions — cwd remap, time-aware indirection, result-instant rename stamping, git-INDEX staged-blob evidence (see s87 ground-truth memory). Design the intended ground-truth revision ladders as part of authoring. Follow the scenario-linter conventions (task 116).",
-    "blockedBy": [
-      168
-    ]
+    "description": "Spec S7 of specs/SPEC.md (task 166 sub-problem 4). Write the new scenario file (next sNN slot) for /run-scenario: TWO sessions run from TWO different named workspace roots (needs task 169's fixed-roots capability), editing MULTIPLE files, at least one file edited in BOTH sessions so its revision ladder spans the sources with cross-source interleaves and root-relative identity matches across differing absolute paths. Coverage bar: split the four s87 mechanisms across the sessions — cwd remap, time-aware indirection, result-instant rename stamping, git-INDEX staged-blob evidence (see s87 ground-truth memory). Design the intended ground-truth revision ladders as part of authoring. Follow the scenario-linter conventions (task 116)."
   },
   {
     "taskNumber": 171,
@@ -67,18 +59,12 @@
   {
     "taskNumber": 172,
     "title": "S3: reveng-paths.json per-project `sources` lists",
-    "description": "Spec S3 of specs/SPEC.md (task 166). Extend reveng-paths.json config parsing: each project entry may declare `sources`: a list of {projectsDir, fileHistoryDir?, root?} entries. Legacy single-source entries must parse exactly as before (single source = one-entry degenerate case). Root semantics per the design doc plans/166-multi-source-design.md (config-first, auto-detect fallback). Unit tests cover: new multi-source shape, legacy shape unchanged, and root omission triggering auto-detect. Note the task-56 trap: repo paths in reveng-paths.json are jfred-root-relative.",
-    "blockedBy": [
-      168
-    ]
+    "description": "Spec S3 of specs/SPEC.md (task 166). Extend reveng-paths.json config parsing: each project entry may declare `sources`: a list of {projectsDir, fileHistoryDir?, root?} entries. Legacy single-source entries must parse exactly as before (single source = one-entry degenerate case). Root semantics per the design doc plans/166-multi-source-design.md (config-first, auto-detect fallback). Unit tests cover: new multi-source shape, legacy shape unchanged, and root omission triggering auto-detect. Note the task-56 trap: repo paths in reveng-paths.json are jfred-root-relative."
   },
   {
     "taskNumber": 173,
     "title": "S4a: buildProjectReconstruction accepts multiple sources",
-    "description": "Spec S4 of specs/SPEC.md (task 166 sub-problem 2). Extend the engine so one reconstruction accepts MULTIPLE conversation-log folders and MULTIPLE file-history snapshot folders. Existing seams, not a rewrite: buildProjectReconstruction already merges a LIST of JSONL paths (jfred/src/viewer_api.ts:56 — today all from one folder); snapshots arrive via the injectable BackupReader (file-history sidecar is the second input; cross-session @vN blob reads already resolve to the OWNING session — extend that to per-source resolution). Each source carries its resolved root (task 172 config / cwd auto-detect). Single source must behave identically to today: full 87-scenario sweep stays green. Work in RevEng/jfred, never the ~/Programming clones.",
-    "blockedBy": [
-      168
-    ]
+    "description": "Spec S4 of specs/SPEC.md (task 166 sub-problem 2). Extend the engine so one reconstruction accepts MULTIPLE conversation-log folders and MULTIPLE file-history snapshot folders. Existing seams, not a rewrite: buildProjectReconstruction already merges a LIST of JSONL paths (jfred/src/viewer_api.ts:56 — today all from one folder); snapshots arrive via the injectable BackupReader (file-history sidecar is the second input; cross-session @vN blob reads already resolve to the OWNING session — extend that to per-source resolution). Each source carries its resolved root (task 172 config / cwd auto-detect). Single source must behave identically to today: full 87-scenario sweep stays green. Work in RevEng/jfred, never the ~/Programming clones."
   },
   {
     "taskNumber": 174,
