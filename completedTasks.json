@@ -1559,5 +1559,40 @@
       "jfred@f3e2bb5"
     ],
     "closureNote": "Closed: CI run 29867842092 is green \u2014 ci.yml runs typecheck, the 74 capture-free tests (scripts/list_capture_free_tests.ts + npm run test:ci), and build:webapp on a bare clone."
+  },
+  {
+    "taskNumber": 156,
+    "title": "Verify the task-150 garbage-target fix shrinks the phase-4 stall on the real RevEng project",
+    "description": "Task 149's original report described a 500+ second stall; the expectation is that task 150's garbage-target fix removes most of it and the new labels make the rest visible. Worth re-loading the real RevEng project (451 targets) to confirm the stall shrinks \u2014 not done in the tasks-149-152 batch since suites/app runs were left to the user.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-tasks-149-152.md"
+    ],
+    "completionDate": "2026-07-21",
+    "commitHashes": [],
+    "closureNote": "Verification result recorded as NO per user: the task-150 garbage-target fix does not shrink the phase-4 stall on the real 451-target RevEng project; log analysis showed the stall's root cause is nested lineage replays, tracked as task 162."
+  },
+  {
+    "taskNumber": 163,
+    "title": "'constructing branches' progress: show an incrementing record counter, not just the static graphic",
+    "description": "The 'constructing branches' stage shows only the stage label/graphic on the progress bar; the user wants visible forward motion \u2014 a counter that increments as records are processed (which record k of N is being handled). Mechanism today: buildProjectReconstruction (jfred/src/viewer_api.ts:65) emits the single stage label PROGRESS_LABEL_CONSTRUCTING_BRANCHES (viewer_api.ts:38, listed in webapp/app-progress.ts:38), then reconstructBranches (jfred/src/reconstruction_engine.ts:212) runs silently: findConversationBranches walks all records, reconstructAll covers the surviving branch (its per-target 'reconstructing <target> n/N' counter exists \u2014 task 149 family), and each rewound branch goes through buildRewoundBranchHistory with NO progress emission at all. Fix: thread the existing deep-engine progress channel (reportReconstructionProgress \u2014 it already reaches the UI progress line) into the silent parts: a records-walked counter for the branch enumeration ('scanning records k/N') and a per-branch counter for the rewound pass ('rewound branch k of n \u2014 <m> records'). Counter granularity: update every ~100 records, not every record \u2014 the sink funnels into DOM text and per-record updates would throttle the build it's reporting on.",
+    "completionDate": "2026-07-21",
+    "commitHashes": [],
+    "closureNote": "Implemented (staged, not committed): findConversationBranches emits 'scanning branch tips k/N' per abandoned tip and reconstructBranches emits 'reconstructing rewound branch k/N' per rewound branch through reportReconstructionProgress, with 'scanning branch tips' added to the webapp phase-4 classifier."
+  },
+  {
+    "taskNumber": 164,
+    "title": "Progress overlay: scope it to the timeline pane (console stays usable) + Cancel-with-confirm back to project picker",
+    "description": "The loading-progress popup currently overlays the whole GUI including the console (the cancel/copy/hide-console buttons remain interactive underneath, but visually everything is covered). Change: attach the progress box to the TIMELINE AREA only, so only the timeline is blocked while the rest of the GUI stays enabled. Mechanism: buildLoadingProgressElements creates .timeline-progress-overlay and appends it to document.body (jfred/webapp/app-progress.ts:79 and :102) \u2014 reparent it into the timeline pane (#timeline-pane / #view) with position:absolute over that pane instead of a body-level overlay; adjust .timeline-progress-overlay in webapp/styles.css accordingly.\nCANCEL: add a 'Cancel' button ON the progress box that stops reconstruction mid-stream. Abort machinery exists \u2014 inflightLoadController (app-fetch.ts:104), already wired to the console's #console-cancel button (index.html:92) and to navigation teardown (app-router.ts:60). Flow: click Cancel -> ask the user to confirm ('cancel this reconstruction?') -> on yes, abort the controller and navigate to the pick-project screen (location.hash = '#/'). Confirm must be an in-DOM dialog, NOT window.confirm \u2014 the codebase convention bans native dialogs because they block headless automation (comment at app-header.ts folder-switch handler). Note the navigation to '#/' itself aborts the in-flight load, so 'yes' can simply be: location.hash = '#/' (+ renderRoute if already on #/) \u2014 one code path, no separate abort call needed. Also decide whether #console-cancel stays or is retired in favor of the progress-box Cancel (one cancel affordance is enough).",
+    "completionDate": "2026-07-21",
+    "commitHashes": [],
+    "closureNote": "Implemented (staged, not committed): the loading overlay is position:absolute inside #timeline-pane so the console stays usable, and the progress box carries a Cancel button with an in-DOM confirm whose 'Yes, cancel' navigates to '#/' (renderRoute aborts the load); #console-cancel retired."
+  },
+  {
+    "taskNumber": 120,
+    "title": "jfred publish residue: switch GitHub default branch to develop",
+    "description": "TRIMMED 2026-07-21 (items 1,2,5,6 verified done against live git state; former item B \u2014 marketplace-install verification and --plugin-dir wrapper retirement \u2014 removed per user 2026-07-21). One item remains: matkatmusic/jfred's GitHub default branch is still master, which is the bare 'Initial commit' (0eabc4c: .gitignore + LICENSE only) \u2014 a plain git clone gets an empty tool. Fix: `gh repo edit matkatmusic/jfred --default-branch develop`.",
+    "completionDate": "2026-07-21",
+    "commitHashes": [],
+    "closureNote": "Ran the sole remaining item at user request: matkatmusic/jfred's GitHub default branch switched from master (bare initial commit) to develop via the GitHub API; verified the API now reports develop."
   }
 ]
