@@ -29,16 +29,16 @@ conversation-log sources and two file-history dirs enumerating actual
 cross-source disagreements found; (d) how branch/rewind structure from
 different logs composes.
 - Verify: doc exists and each of (a)–(d) cites at least one real-data example or states none was found.
-- Tasks: #167, #168
-- Status: open
+- Tasks: #167 (done 2026-07-21 — probe + plans/166-source-probe-notes.md), #168
+- Status: open (probe done; design doc remains)
 
 ### S2. /run-scenario supports named, fixed workspace roots
 The run-scenario skill + scripts can execute a scenario's sessions in
 caller-specified (named/fixed) workspace roots reused across sessions, instead
 of only a random temp dir per run.
 - Verify: a scenario file declaring two named roots runs both sessions in those exact dirs; existing single-root scenarios still run unchanged.
-- Tasks: #169
-- Status: open
+- Tasks: #169 (done 2026-07-21)
+- Status: done — staged in jfredToolsPlugin (header `root:` lines + spawn `in <name>`)
 
 ### S3. reveng-paths.json grows per-project `sources` lists
 Config parsing accepts `sources: [{projectsDir, fileHistoryDir?, root?}, …]`

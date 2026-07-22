@@ -1613,5 +1613,40 @@
     "completionDate": "2026-07-21",
     "commitHashes": [],
     "closureNote": "Investigated and fixed (staged, not committed): the described pre-baseline-trim mechanism was REFUTED — the Edit (23:44:09Z) postdates the baseline instant (23:44:05Z), survives the trim, and its revision exists in both consent modes; the real cause was mergeSnapshotFileChanges deduping a turn's merged chips by path (first wins), so the earlier external user-edit chip swallowed the Edit's chip — dedupe key widened to path+changeId in timeline-changes.ts."
+  },
+  {
+    "taskNumber": 167,
+    "title": "S1a: Probe the real jot sources for cross-source file overlaps and disagreements",
+    "description": "First step of task 166 (spec S1). Enumerate the real jot evidence: at least four conversation-log source folders (the original jot project's folder in ~/.claude/projects, the jot-recovery project's folder, this RevEng project's folder, and any other project whose sessions edited the jot plugin from other cwds) and at least two file-history snapshot locations (some under jot-recovery, some under the original jot project's .claude location). For files edited in MORE THAN ONE source, collect: the differing absolute paths, the root-relative paths, timestamps, and any cases where two sources give conflicting content for the same file in an overlapping timeframe. Write raw findings to plans/166-source-probe-notes.md. This probe is the real-world data that validates (or refutes) the planned conflict policy (timestamp interleave + health-note conflicts) before it is locked in the design doc.",
+    "completionDate": "2026-07-21",
+    "commitHashes": [],
+    "closureNote": "Probe implemented (staged) as re-runnable tools/probe_166_sources.ts (+_scan/_analyze/_report modules, unit tests) writing plans/166-source-probe-notes.md with a hand-written S1 verdict: 10 jot-editing source folders across three roots (the real logs live in jot-recovery/claude-data, NOT live ~/.claude), 49% of events are sync replicas (dedupe by sessionId+recordUuid must precede conflict logic), rel-path-only identity is refuted by the diverged jot/jot-backup sibling repos, and no true same-instant contradictions were found — the interleave+health-note policy survives amended."
+  },
+  {
+    "taskNumber": 63,
+    "title": "GitHub Pages demo tier",
+    "description": "63. GitHub Pages demo tier — publish JFReD static (cheap path)** — supersedes the\n  approach in item 17 for the FIRST public demo: `jfred/` + `api/` + `web-shared/` is\n  ALREADY a zero-server browser app (client-side JSONL load + legacy-engine reconstruction,\n  `jfred/jfred-load.js`), so Pages can host it as-is with the item-60 sample JSONL\n  preloaded. Label it honestly as the debugger demo running the frozen legacy `api/`\n  engine, not Engine B. Item 17 (canned ReconstructionDocument JSON + `webapp/` static-data\n  shim replacing `/api/*` — the full-fidelity Engine-B demo) stays open as the later,\n  bigger tier; do NOT build the shim for launch — the README GIF (item 62) covers what the\n  live webapp looks like.",
+    "completionDate": "2026-07-21",
+    "commitHashes": [],
+    "closureNote": "Pages site assembled and staged in the jfred repo under docs/ (frozen copies of the archived api/+web-shared/+jfred viewer, all 16 s87-demo-composite JSONLs, honest legacy-engine labeling, ?file= auto-load links); the outward-facing publish (commit+push+`gh api .../pages` enable, commands in docs/README.md) is handed to the user."
+  },
+  {
+    "taskNumber": 169,
+    "title": "S2: /run-scenario named fixed workspace roots",
+    "description": "Spec S2 of specs/SPEC.md (task 166 sub-problem 4a). Today the jfredToolsPlugin:run-scenario skill executes each scenario in a random temp directory. Add the ability for a scenario file to declare named/fixed workspace roots that are created at specified locations and REUSED across the scenario's multiple sessions, so a multi-session scenario can run session A in root 1 and session B in root 2 deterministically. Change the run-scenario skill + its scripts (in the taskTools plugin repo at ~/Programming/taskTools per the plugin-port memory — verify current home first). Existing single-root scenario files must keep running unchanged (random temp dir remains the default when no roots are declared).",
+    "completionDate": "2026-07-21",
+    "commitHashes": [],
+    "closureNote": "Implemented (staged in ~/Programming/jfredToolsPlugin — verified home; NOT taskTools): scenario headers declare `root: <name> = <path>` (first = primary, marker-guarded fresh create, reused across the run's sessions), spawn steps opt in via trailing `in <name>`, all agents share the primary root's settings/signal dir, Edit steps use the active agent's root, linter flags undeclared root names; no-roots scenarios keep the random tmpdir path byte-for-byte."
+  },
+  {
+    "taskNumber": 162,
+    "title": "Phase-4 blowup: nested lineage replays re-run the full per-target pipeline once per (target, timestamp)",
+    "description": "ROOT CAUSE of the task-156 stall (2252s+ observed on the 451-target RevEng project, 2026-07-21; task 150's garbage-target fix addressed a different symptom). Evidence from jfred-server.log (70s window): 473 'replaying lineage of' headers over only 140 distinct targets — one target replayed 27x, another 56x (sic, from the script-stage tally); plans/items29-30-31-32-close.md replayed 3x in 47s. Mechanism: replayLineageContentBefore (src/reconstruction_branches.ts:199) replays a target's ENTIRE reconstruction pipeline once per (target, before-timestamp) cycleKey, and each replay re-runs every stage including injectScriptExecutions over ALL 1447 discovered runs ('script stage: 1447 runs for <target>' x473). The lineageSeedsByKey memo only caches replays entered on a CLEAN seeding stack (enteredWithCleanStack, lines 207-225) — nested replays recompute fresh every time and are never cached. Also observed: placeGitCommitEvidence is the slowest per-replay stage (0.16-0.37s each; the logged run's last line sat there). Fix directions to evaluate in planning: (a) safely memoize nested replays (the current guard exists because a nested replay's result can be degraded by outer cycle guards — cache only proven-undegraded results, or key the cache by the active seeding stack); (b) compute a target's full revision list ONCE and slice per `before` — CAUTION: enterLineageReplayWindow(before) sets a time cutoff that changes reconstruction (the s87 time-aware indirection), so slicing is only valid where the cutoff provably doesn't alter the prefix; (c) hoist the 1447-run script-run discovery/filtering out of the per-replay path. Reproduce: load project -Users-matkatmusicllc-Desktop-claude-code-src-RevEng with script consent, pipe server stdout to a log, count 'replaying lineage of' repeats per target.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-tackle-tasks-156-154-160.md"
+    ],
+    "completionDate": "2026-07-21",
+    "commitHashes": [],
+    "closureNote": "Fixed via direction (a), staged in jfred: new reconstruction_lineage_memo.ts tracks per-frame queried cycleKeys and guard-hit poisoning so nested replays are cached only when proven stack-independent and served only when a fresh compute would take the identical path (window-narrowed replays bypass the cache both ways) — provably zero behavior change; direction (c) was found already done (findScriptExecutionRuns is corpus-cached), direction (b) rejected per the task's own cutoff caution."
   }
 ]
