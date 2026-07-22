@@ -1,33 +1,38 @@
 [
-  {
-    "taskNumber": 7,
-    "title": "jot repo: `terminal_windowSizeBlocks(s)` enum refactor",
-    "description": "7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** — DEFERRED UNTIL ALL other tasks are done.`/Users/matkatmusicllc/Programming/jot`\n  (separate repo); `grep -rn \"windowSizeBlocks\"`. Not a RevEng change."
-  },
-  {
-    "taskNumber": 17,
-    "title": "GitHub Pages demo tier",
-    "description": "17. GitHub Pages demo tier** — canned ReconstructionDocument JSON + `webapp/` with a\n  static-data shim replacing `/api/*`. Deliberately deferred \"Phase 4, planned separately when\n  reached\" (handoffs 20260702-1434/1639, 20260703-1010/2144); needs its own plan when reached.",
-    "handoffFilePaths": [
-      "plans/archived/handoff-develop-20260702-1434.md",
-      "plans/archived/handoff-develop-20260702-1639.md",
-      "plans/archived/handoff-develop-20260703-1010.md",
-      "plans/archived/handoff-develop-20260703-2144.md"
-    ]
-  },
-  {
-    "taskNumber": 83,
-    "title": "See if actual /jot folder can be reconstructed",
-    "description": "83. See if actual /jot folder can be reconstructed."
-  },
-  {
-    "taskNumber": 166,
-    "title": "Multi-source reconstruction: multiple conversation-log folders + multiple file-history folders feeding one file's history (in service of task 83)",
-    "description": "The jot codebase's revision history — THE reconstruction this whole tool exists for (task 83) — is scattered across at least four conversation-log sources (the original jot project's folder in ~/.claude/projects, the jot-recovery project's folder, this RevEng project, and one or two other projects whose sessions edited the jot plugin from other cwds) and at least two file-history snapshot locations (some under jot-recovery, some under the original jot project's .claude location). Today one reconstruction takes ONE projects folder + ONE file-history dir. Three parts, in this order:\n(1) FILE IDENTITY ACROSS SOURCES (investigate FIRST — parts 2 and 3 are only as correct as this answer): how to establish that records/snapshots from different sources refer to the SAME file when sessions ran under different roots (~/Programming/jot vs ~/Programming/jot-recovery vs other cwds) — absolute paths won't match; identity likely = root-relative path agreement (the task-137 repo-matching rule) + content agreement; decide how each source declares its root (per-source cwd remap config, extending the s87 cwd-remap mechanism).\n(2) MULTI-SOURCE INPUTS: engine accepts multiple conversation-log folders and multiple file-history snapshot folders for a single reconstruction. Existing seams to extend, not a rewrite: buildProjectReconstruction already merges a LIST of JSONL paths (jfred/src/viewer_api.ts:56 — today all from one folder); snapshots already arrive via the injectable BackupReader (file-history sidecar is a second input; cross-session @vN blob reads already resolve to the OWNING session); config shape probably reveng-paths.json growing source lists.\n(3) MERGED PER-FILE RECONSTRUCTION: define how one file's revision timeline is built when its events come from several session logs and snapshots from several folders — cross-source interleaving by timestamp (wall-clock skew between machines/sessions?), what wins when sources disagree, and how branch/rewind structure from different logs composes.\n(4) NEW SCENARIO REQUIRED: create a new scenario that covers what is being built — a multi-source capture (run via /run-scenario like the sNN suite) where MULTIPLE files are edited across MULTIPLE sessions run from different project roots, producing multiple conversation-log folders and multiple file-history snapshot folders, with ground-truth revision ladders spanning the sources (cross-source interleaves and root-relative identity matches across differing absolute paths). Coverage bar: exercise essentially everything scenario s87 exercises — the newer-CC wire format and its four mechanisms (cwd remap, time-aware indirection, result-instant rename stamping, git-INDEX staged-blob evidence) — just split up across the multiple sessions. The scenario joins the executed sweep and becomes the acceptance gate for parts 1-3.\n(4a) RUN-SCENARIO TOOLING PREREQUISITE: today /run-scenario (jfredToolsPlugin:run-scenario) executes each scenario in a random temp directory — a multi-session scenario needs the ability to SPECIFY where the modifications happen (named/fixed workspace roots reused across the scenario's sessions), so add that capability to the run-scenario skill + scripts first.\nScope note: this is engine-architecture work — plan it (design doc first) before touching code; the 87-scenario sweep must stay green since single-source is the degenerate case."
-  },
-  {
-    "taskNumber": 178,
-    "title": "S7c: Acceptance gate — multi-source scenario green + full sweep green",
-    "description": "Spec S7 of specs/SPEC.md (task 166). Run the multi-source scenario capture (task 171) through the finished multi-source engine (tasks 172-177): per-step coverage (.step_states oracle) must be fully green for the new scenario, and the full sweep — now 88 scenarios — must stay green (single-source is the degenerate case and must not regress). Close any engine gaps the scenario exposes (each gap closure follows the established ground-truth workflow). This task is the acceptance gate for task 166; when it closes, 166 closes with it."
-  }
+    {
+        "taskNumber": 7,
+        "title": "jot repo: `terminal_windowSizeBlocks(s)` enum refactor",
+        "description": "7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** \u2014 DEFERRED UNTIL ALL other tasks are done.`/Users/matkatmusicllc/Programming/jot`\n  (separate repo); `grep -rn \"windowSizeBlocks\"`. Not a RevEng change."
+    },
+    {
+        "taskNumber": 17,
+        "title": "GitHub Pages demo tier",
+        "description": "17. GitHub Pages demo tier** \u2014 canned ReconstructionDocument JSON + `webapp/` with a\n  static-data shim replacing `/api/*`. Deliberately deferred \"Phase 4, planned separately when\n  reached\" (handoffs 20260702-1434/1639, 20260703-1010/2144); needs its own plan when reached.",
+        "handoffFilePaths": [
+            "plans/archived/handoff-develop-20260702-1434.md",
+            "plans/archived/handoff-develop-20260702-1639.md",
+            "plans/archived/handoff-develop-20260703-1010.md",
+            "plans/archived/handoff-develop-20260703-2144.md"
+        ]
+    },
+    {
+        "taskNumber": 83,
+        "title": "See if actual /jot folder can be reconstructed",
+        "description": "83. See if actual /jot folder can be reconstructed."
+    },
+    {
+        "taskNumber": 166,
+        "title": "Multi-source reconstruction: multiple conversation-log folders + multiple file-history folders feeding one file's history (in service of task 83)",
+        "description": "The jot codebase's revision history \u2014 THE reconstruction this whole tool exists for (task 83) \u2014 is scattered across at least four conversation-log sources (the original jot project's folder in ~/.claude/projects, the jot-recovery project's folder, this RevEng project, and one or two other projects whose sessions edited the jot plugin from other cwds) and at least two file-history snapshot locations (some under jot-recovery, some under the original jot project's .claude location). Today one reconstruction takes ONE projects folder + ONE file-history dir. Three parts, in this order:\n(1) FILE IDENTITY ACROSS SOURCES (investigate FIRST \u2014 parts 2 and 3 are only as correct as this answer): how to establish that records/snapshots from different sources refer to the SAME file when sessions ran under different roots (~/Programming/jot vs ~/Programming/jot-recovery vs other cwds) \u2014 absolute paths won't match; identity likely = root-relative path agreement (the task-137 repo-matching rule) + content agreement; decide how each source declares its root (per-source cwd remap config, extending the s87 cwd-remap mechanism).\n(2) MULTI-SOURCE INPUTS: engine accepts multiple conversation-log folders and multiple file-history snapshot folders for a single reconstruction. Existing seams to extend, not a rewrite: buildProjectReconstruction already merges a LIST of JSONL paths (jfred/src/viewer_api.ts:56 \u2014 today all from one folder); snapshots already arrive via the injectable BackupReader (file-history sidecar is a second input; cross-session @vN blob reads already resolve to the OWNING session); config shape probably reveng-paths.json growing source lists.\n(3) MERGED PER-FILE RECONSTRUCTION: define how one file's revision timeline is built when its events come from several session logs and snapshots from several folders \u2014 cross-source interleaving by timestamp (wall-clock skew between machines/sessions?), what wins when sources disagree, and how branch/rewind structure from different logs composes.\n(4) NEW SCENARIO REQUIRED: create a new scenario that covers what is being built \u2014 a multi-source capture (run via /run-scenario like the sNN suite) where MULTIPLE files are edited across MULTIPLE sessions run from different project roots, producing multiple conversation-log folders and multiple file-history snapshot folders, with ground-truth revision ladders spanning the sources (cross-source interleaves and root-relative identity matches across differing absolute paths). Coverage bar: exercise essentially everything scenario s87 exercises \u2014 the newer-CC wire format and its four mechanisms (cwd remap, time-aware indirection, result-instant rename stamping, git-INDEX staged-blob evidence) \u2014 just split up across the multiple sessions. The scenario joins the executed sweep and becomes the acceptance gate for parts 1-3.\n(4a) RUN-SCENARIO TOOLING PREREQUISITE: today /run-scenario (jfredToolsPlugin:run-scenario) executes each scenario in a random temp directory \u2014 a multi-session scenario needs the ability to SPECIFY where the modifications happen (named/fixed workspace roots reused across the scenario's sessions), so add that capability to the run-scenario skill + scripts first.\nScope note: this is engine-architecture work \u2014 plan it (design doc first) before touching code; the 87-scenario sweep must stay green since single-source is the degenerate case."
+    },
+    {
+        "taskNumber": 178,
+        "title": "S7c: Acceptance gate \u2014 multi-source scenario green + full sweep green",
+        "description": "Spec S7 of specs/SPEC.md (task 166). Run the multi-source scenario capture (task 171) through the finished multi-source engine (tasks 172-177): per-step coverage (.step_states oracle) must be fully green for the new scenario, and the full sweep \u2014 now 88 scenarios \u2014 must stay green (single-source is the degenerate case and must not regress). Close any engine gaps the scenario exposes (each gap closure follows the established ground-truth workflow). This task is the acceptance gate for task 166; when it closes, 166 closes with it."
+    },
+    {
+        "taskNumber": 179,
+        "title": "s89: nested-root sessions (<proj> + <proj>/tests) \u2014 runner support, scenario, capture",
+        "description": "USER INSIGHT 2026-07-22: spawning both s88 agents in the same root does the same thing all other multi-agent scenarios do \u2014 it does NOT replicate sessions spawned inside DIFFERENT folders. The correct test: create a project with a repo, spawn an agent there to do work; then (tests being mandatory due to the jot plugin's hooks) spawn a second agent in the project's 'tests/' folder. That produces two separate Claude session project paths: <temp-project> and <temp-project>/tests (e.g. ~/.claude/projects/-private-tmp-scen89-proj and -private-tmp-scen89-proj-tests).\n\nPieces:\n1. RUNNER (jfredToolsPlugin common/scripts/run_scenario_lib.py): support a NESTED declared root (header 'root: tests = /tmp/scen89-proj/tests'). runScenario_launch creates declared roots fresh at launch \u2014 nested roots must be created parent-first, and creating/wiping the nested root must not clobber the parent project's content (re-run cleanup wipes the PARENT which contains the nested root \u2014 decide create-at-spawn-time vs create-at-launch). Spawn 'SpawnNewAgent: a2 in tests' semantics unchanged; signals stay in the PRIMARY root (existing task-169 behavior).\n2. CAPTURE (jfred/run-all-scenarios.py scenario_capture_lib.py): captureCompletedScenario copies JSONLs only from the FIRST jsonl_path's parent project dir \u2014 s89 spans TWO project dirs, so the capture must collect every project dir appearing in jsonl_paths, ideally into per-source trees (source-a1/, source-a2/ with projects/ + file-history/ siblings \u2014 the layout recorded in jfred/scenarios/executed/s88-multi-source-two-roots/capture-notes.md).\n3. SCENARIO s89 (author like task 170, design doc first): a1 in <proj> writes module + tests/ + git repo; a2 spawns in <proj>/tests and edits test files there (paths relative to tests/); interleaved a1/a2 edits on the SAME test file from the two roots; ground-truth ladders; capture + verify like task 171 (prompt approvals via the tmux watcher recipe in memory tasks176-171-159-batch).\n4. ENGINE NOTE: nested roots give the SAME file different rel-paths per root (tests/test_x.py under <proj> vs test_x.py under <proj>/tests) \u2014 the S5a rel-path identity join (reconstruction_multi_source_join.ts) does not model nested-root absolute-path identity; expect a gap, add the engine test + fix if the merged ladder splits."
+    }
 ]
