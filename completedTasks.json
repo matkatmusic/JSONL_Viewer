@@ -1706,5 +1706,37 @@
             "jfred@05f5426"
         ],
         "closureNote": "Captures published (scenarios@9c44354: executed/ un-gitignored, per-session file-history sidecars, 14 nested repos tarred as repo.git.tar) and CI switched to the full suite with submodule checkout + tar extraction; all 4 first-run residuals fixed (stale s85 expectation, s37 source-stamped loading, 2 machine-bound blob tests skip when live input absent); CI run 29943247005 green."
+    },
+    {
+        "taskNumber": 170,
+        "title": "S7a: Author the multi-source scenario file (2 sessions, 2 roots, s87 mechanism parity)",
+        "description": "Spec S7 of specs/SPEC.md (task 166 sub-problem 4). Write the new scenario file (next sNN slot) for /run-scenario: TWO sessions run from TWO different named workspace roots (needs task 169's fixed-roots capability), editing MULTIPLE files, at least one file edited in BOTH sessions so its revision ladder spans the sources with cross-source interleaves and root-relative identity matches across differing absolute paths. Coverage bar: split the four s87 mechanisms across the sessions \u2014 cwd remap, time-aware indirection, result-instant rename stamping, git-INDEX staged-blob evidence (see s87 ground-truth memory). Design the intended ground-truth revision ladders as part of authoring. Follow the scenario-linter conventions (task 116).",
+        "completionDate": "2026-07-22",
+        "commitHashes": [],
+        "closureNote": "Authored s88-multi-source-two-roots.txt (26 steps, roots alpha/beta, four s87 mechanisms split across two agents, linter-clean in both scenarios clones) with ground-truth ladders in plans/170-s88-ground-truth-design.md."
+    },
+    {
+        "taskNumber": 174,
+        "title": "S4b: CLI accepts multiple sources",
+        "description": "Spec S4 of specs/SPEC.md (task 166). Extend the CLI entrypoint to accept multiple conversation-log folders and multiple file-history dirs (repeatable flags or config-file driven, matching the reveng-paths.json `sources` shape from task 172) and pass them through to the multi-source buildProjectReconstruction (task 173). CLI stays strict on parse errors (task-119 decision). Existing single-source invocations unchanged.",
+        "completionDate": "2026-07-22",
+        "commitHashes": [],
+        "closureNote": "CLI accepts multiple positional transcripts with config/derived sources plus corpus-load (sessionId,uuid) dedupe (reconstruction_cli_args.ts, reconstruction_cli.ts, reconstruction_multi_source.ts; staged in jfred)."
+    },
+    {
+        "taskNumber": 175,
+        "title": "S5a: Merged per-file timeline across sources (identity + timestamp interleave)",
+        "description": "Spec S5 of specs/SPEC.md (task 166 sub-problem 3). Build one file's revision timeline from events across ALL sources: establish identity via the design-doc rule (root-relative path agreement + content agreement), interleave events strictly by wall-clock timestamp (trusted as-is \u2014 same-machine decision), and compose branch/rewind structure from different logs per the design doc. Engine test: a fixture where the same file (differing absolute paths, same root-relative path) is edited in two sources; the merged ladder must match ground truth.",
+        "completionDate": "2026-07-22",
+        "commitHashes": [],
+        "closureNote": "Merged per-file timeline shipped: root-relative identity + content gate + wall-clock interleave in reconstruction_multi_source{,_join,_gate}.ts with the two-source fixture ladder tests green (staged in jfred)."
+    },
+    {
+        "taskNumber": 177,
+        "title": "S6: Webapp multi-source projects (Paths popover + merged serving)",
+        "description": "Spec S6 of specs/SPEC.md (task 166). The webapp supports multi-source projects end to end: the Paths popover / reveng-paths.json flow lets a project list multiple sources ({projectsDir, fileHistoryDir?, root?} per task 172), and the reconstruction the app serves/fetches is the merged multi-source result (task 173/175 engine). Webapp DOM tests following the app-header.test.ts / app-paths-project.test.ts patterns (initializeHeaderInFreshDom + recordFetchCalls; task-153 memory): entering multiple sources, and the merged reconstruction being fetched. Mind the task-159 wizard redesign direction when touching the popover.",
+        "completionDate": "2026-07-22",
+        "commitHashes": [],
+        "closureNote": "Webapp multi-source end to end: Paths popover sources list (app-paths-sources.ts) and merged serving via viewer_api_sources.ts + overrides sources, DOM/server tests green (staged in jfred)."
     }
 ]

@@ -53,8 +53,8 @@ multiple conversation-log folders and multiple file-history dirs; per-source
 BackupReaders resolve snapshots to the owning source; single source is the
 degenerate case.
 - Verify: engine unit tests with a two-source fixture; full 87-scenario sweep stays green.
-- Tasks: #173 (done 2026-07-22), #174
-- Status: open — engine seams done (jfred@3ba6ab5); #174 (CLI + corpus-load dedupe) remains
+- Tasks: #173 (done 2026-07-22), #174 (done 2026-07-22)
+- Status: done — engine seams (jfred@3ba6ab5) + CLI multi-positional sources and corpus-load dedupe (reconstruction_cli_args.ts / reconstruction_multi_source.ts, staged)
 
 ### S5. Merged per-file timeline across sources
 One file's revision timeline is built from events across all sources:
@@ -62,15 +62,15 @@ identity per S1's rule, interleave by timestamp, contradictions emitted as
 health-sink conflict notes (not errors), branch/rewind structure composed per
 the S1 design.
 - Verify: engine tests where the same file (differing absolute paths, same root-relative path) is edited in two sources and the merged ladder matches ground truth; a contradiction fixture yields a conflict note and a complete timeline.
-- Tasks: #175, #176
-- Status: open
+- Tasks: #175 (done 2026-07-22), #176
+- Status: partially done — identity join + timestamp interleave shipped (reconstruction_multi_source{,_join,_gate}.ts, staged); #176 (conflict-note fixture) remains
 
 ### S6. Webapp supports multi-source projects
 The Paths popover / reveng-paths.json flow lets a project list multiple
 sources, and the served reconstruction is the merged multi-source result.
 - Verify: webapp DOM tests (app-header / app-paths patterns) for entering multiple sources and for the merged reconstruction being fetched.
-- Tasks: #177
-- Status: open
+- Tasks: #177 (done 2026-07-22)
+- Status: done — popover sources list (webapp/app-paths-sources.ts) + merged multi-source serving (viewer_api_sources.ts), DOM + server tests green (staged)
 
 ### S7. Multi-source acceptance scenario at s87 parity
 A new scenario (2 sessions, 2 named workspace roots via S2) edits multiple
@@ -80,5 +80,5 @@ It exercises the four s87 mechanisms (cwd remap, time-aware indirection,
 result-instant rename stamping, git-INDEX staged-blob evidence) split across
 the sessions, joins the executed sweep, and is the acceptance gate for S3–S6.
 - Verify: /run-scenario capture completes; per-step coverage green for the new scenario; full sweep (now 88 scenarios) green.
-- Tasks: #170, #171, #178
-- Status: open
+- Tasks: #170 (done 2026-07-22), #171, #178
+- Status: partially done — s88-multi-source-two-roots.txt authored (linter-clean, both scenarios clones) with ground-truth ladders in plans/170-s88-ground-truth-design.md; #171 capture and #178 gate remain
