@@ -1,5 +1,21 @@
 # s88-multi-source-two-roots — ground-truth design (task 170)
 
+> **RESTRUCTURED 2026-07-22 (user directive, task 171):** the scenario now
+> spawns BOTH agents in the ONE root `alpha` (`SpawnNewAgent: a2 in alpha`) —
+> the goal is replicating multiple agents working in the SAME folder. The
+> `beta` root and the two `cp` sync steps (old 6/11) are gone; those steps are
+> now read-only confirmations. The two-root ladders below describe the
+> superseded shape: the per-file ladders must be RE-DERIVED at capture time
+> (task 171) — one shared `inventory.py` stream (write → perl rename →
+> user-edit stamp → sandbox rename r1 → restock edit → sandbox rename r2),
+> two sessions interleaved in one projects folder. Multi-source-ness now
+> comes from capturing the two session logs as separate source trees (the
+> real replica-sync shape), not from differing absolute roots.
+>
+> CAPTURED 2026-07-22 (task 171, run 20260722-142525, ACCEPTED): re-derived
+> ladders + mechanism verification live in
+> `jfred/scenarios/executed/s88-multi-source-two-roots/capture-notes.md`.
+
 Acceptance reference for tasks 171 (capture) and 178 (coverage gate). The
 scenario lives at `scenarios/s88-multi-source-two-roots.txt` (identical copy at
 `jfred/scenarios/s88-multi-source-two-roots.txt`), 26 steps, two agents:

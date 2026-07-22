@@ -1738,5 +1738,29 @@
         "completionDate": "2026-07-22",
         "commitHashes": [],
         "closureNote": "Webapp multi-source end to end: Paths popover sources list (app-paths-sources.ts) and merged serving via viewer_api_sources.ts + overrides sources, DOM/server tests green (staged in jfred)."
+    },
+    {
+        "taskNumber": 176,
+        "title": "S5b: Cross-source contradictions become health-sink conflict notes",
+        "description": "Spec S5 of specs/SPEC.md (task 166). When merging per-file timelines across sources, a record/snapshot that contradicts the reconstructed state at that instant must NOT abort: emit a conflict note through the task-119 health sink and continue, producing a complete timeline. Engine test: a contradiction fixture (two sources disagreeing on the same file in an overlapping timeframe, shaped like whatever the task-167 probe found in real data) yields both a conflict note and a complete timeline.",
+        "completionDate": "2026-07-22",
+        "commitHashes": [],
+        "closureNote": "Cross-source contradictions now emit health-sink conflict notes and reconstruction continues: noteJoinedPathConflicts scans each joined path post-join (reconstruction_multi_source_gate.ts); contradiction + agreeing-stream fixtures green in tests/reconstruction_multi_source_gate.test.ts (staged in jfred)."
+    },
+    {
+        "taskNumber": 159,
+        "title": "Paths... popover -> settings WIZARD: design the flow (mockup first), then implement",
+        "description": "DIRECTION CHANGE 2026-07-21 (supersedes the earlier two-section-popover mockup): the Paths... popover should become a settings WIZARD:\n- screen 1: set the project path\n- screen 2: 'do you wish to set a custom file history snapshot path or auto-derive the path?'\n- screen 3: 'do you wish to set a Git Repo path?'\n- screen 4: 'do you wish to pick a git repo commit? (default: master branch tip)'\nDELIVERABLE ORDER: (a) define the wizard's flow logic via UI/UX MOCKUP first, (b) define how values are CHANGED for a session after it loads (re-enter the wizard? jump to a single screen? a compact summary panel with per-row edit?), (c) only then implement. The user says ambiguities must be flushed out first \u2014 resolve these in the mockup step:\n(1) TRIGGER: when does the wizard run \u2014 first launch with no config? every folder switch? on demand from the Paths... button? (screen 1 is GLOBAL config, screens 2-4 are effectively per-project \u2014 reveng-paths.json entries \u2014 so does the wizard rerun per project?)\n(2) Screen-2 default: auto-derive (today's behavior \u2014 empty posts '' and the server re-derives, app-header.ts computeFileHistoryDirToPost).\n(3) Screen-4 default 'master branch tip': which ref when the repo's default branch isn't master, and should the default instead be the commit the SESSION records (the s85-style recorded baseline) when one exists?\n(4) Skip semantics: declining screens 3/4 must leave the project reconstructing exactly as with no reveng-paths entry.\n(5) Persistence: where each screen's answer lands (screen 1 -> /api/config global; screens 2-4 -> /api/project-paths, persist flag) and whether the wizard's finish step is the 137-style 'store?' prompt.\n(6) The task-56 pre-baseline question ('reconstruct file states preceding the baseline commit?') fires at project load \u2014 decide whether it becomes a wizard screen or stays a load-time dialog.\nCARRY-OVERS still wanted from the pre-wizard design: picker-button naming 'Set Projects Folder location' / 'Set Git Repo location'; Store subsumes Apply (postProjectPaths(true) applies AND persists, app-paths-project.ts:122-123); commit pick list = task 154's 500-newest list (search box open there). Existing code sites: #paths-popover jfred/webapp/index.html:17-40, app-header.ts, app-paths-project.ts, /api/project-paths route.",
+        "completionDate": "2026-07-22",
+        "commitHashes": [],
+        "closureNote": "Wizard implemented per the locked mockup (plans/159-paths-wizard-mockup.md): summary-panel default face + screens 1-5 + finish store prompt in new app-paths-wizard.ts/app-paths-summary.ts, ids preserved, screen-4 session-baseline default, preBaseline persisted; all wizard/summary/project/header/router DOM tests green (staged in jfred)."
+    },
+    {
+        "taskNumber": 171,
+        "title": "S7b: Capture the multi-source scenario and record ground truth",
+        "description": "Spec S7 of specs/SPEC.md (task 166). Execute the new multi-source scenario (task 170) via /run-scenario using the named-roots capability, producing two conversation-log folders and two file-history snapshot folders. Verify the capture contains the expected cross-source structure (same file under differing absolute roots, interleaved timestamps, all four s87 mechanisms present), then record the ground-truth revision ladders for the edited files. The capture joins scenarios/executed (gitignored per task 64 \u2014 captures are unpublishable; CI stays capture-free).",
+        "completionDate": "2026-07-22",
+        "commitHashes": [],
+        "closureNote": "s88 captured and verified on the same-folder restructured scenario (user directive 2026-07-22): 26/26 steps, all four s87 mechanisms present, two sessions interleaved in one root, per-source replica trees + ground-truth ladders recorded in jfred/scenarios/executed/s88-multi-source-two-roots/capture-notes.md."
     }
 ]
