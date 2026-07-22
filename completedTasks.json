@@ -1594,5 +1594,24 @@
     "completionDate": "2026-07-21",
     "commitHashes": [],
     "closureNote": "Ran the sole remaining item at user request: matkatmusic/jfred's GitHub default branch switched from master (bare initial commit) to develop via the GitHub API; verified the API now reports develop."
+  },
+  {
+    "taskNumber": 153,
+    "title": "Paths popover: prefill per-project file-history field from stored override",
+    "description": "Should the Paths popover's per-project section also prefill the task-136 file-history field from a stored per-project `fileHistory` entry when the popover opens? Today the global field only shows the server-effective dir; a stored per-project override is applied by the engine but not surfaced in the field.",
+    "handoffFilePaths": [
+      "plans/archived/implementation-notes-tackle-tasks-131-135-136-137.md"
+    ],
+    "completionDate": "2026-07-21",
+    "commitHashes": [],
+    "closureNote": "Implemented (staged, not committed): refreshProjectPathsSection prefills the task-136 field via new prefillFileHistoryOverrideField (app-header.ts) — stored override unhides+fills the field, no-override restores the derived state, and computeFileHistoryDirToPost treats an unedited prefill as '' so it never becomes a global override."
+  },
+  {
+    "taskNumber": 133,
+    "title": "Investigate: agent edit near JSONL line 77 has no timeline entry — pre-baseline trim drops the edit's event (baseline-demo)",
+    "description": "In baseline-demo, the agent message at JSONL line 77 ('added least_valuable(store) ...') has no matching tool-result/edit entry in the timeline, so the JSONL line where the edit occurred can't be navigated to from the timeline. Confirmed mechanism candidate: when pre-baseline reconstruction is declined, seedBaseCommitBeacon (jfred/src/reconstruction_base_commit.ts:132) drops every FileEvent at-or-before the beacon insertion point ('dropped N superseded pre-baseline event(s)') — the edit's WriteEvent never survives, so no revision, no fileChanges chip, no timeline entry; the git-derived baseline synthetic turn (recordGitBaselineSnapshot, jfred/webapp/views/timeline-nodes.ts:69) absorbs only the gitBase snapshot, it does not literally merge the edit. Verify against the baseline-demo session (was preBaseline declined? does the entry appear when accepted?), then decide the fix: even when trimmed, the turn should probably still be navigable to its JSONL line even if its file event is superseded.",
+    "completionDate": "2026-07-21",
+    "commitHashes": [],
+    "closureNote": "Investigated and fixed (staged, not committed): the described pre-baseline-trim mechanism was REFUTED — the Edit (23:44:09Z) postdates the baseline instant (23:44:05Z), survives the trim, and its revision exists in both consent modes; the real cause was mergeSnapshotFileChanges deduping a turn's merged chips by path (first wins), so the earlier external user-edit chip swallowed the Edit's chip — dedupe key widened to path+changeId in timeline-changes.ts."
   }
 ]

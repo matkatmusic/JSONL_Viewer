@@ -26,22 +26,9 @@
     "description": "83. See if actual /jot folder can be reconstructed."
   },
   {
-    "taskNumber": 133,
-    "title": "Investigate: agent edit near JSONL line 77 has no timeline entry \u2014 pre-baseline trim drops the edit's event (baseline-demo)",
-    "description": "In baseline-demo, the agent message at JSONL line 77 ('added least_valuable(store) ...') has no matching tool-result/edit entry in the timeline, so the JSONL line where the edit occurred can't be navigated to from the timeline. Confirmed mechanism candidate: when pre-baseline reconstruction is declined, seedBaseCommitBeacon (jfred/src/reconstruction_base_commit.ts:132) drops every FileEvent at-or-before the beacon insertion point ('dropped N superseded pre-baseline event(s)') \u2014 the edit's WriteEvent never survives, so no revision, no fileChanges chip, no timeline entry; the git-derived baseline synthetic turn (recordGitBaselineSnapshot, jfred/webapp/views/timeline-nodes.ts:69) absorbs only the gitBase snapshot, it does not literally merge the edit. Verify against the baseline-demo session (was preBaseline declined? does the entry appear when accepted?), then decide the fix: even when trimmed, the turn should probably still be navigable to its JSONL line even if its file event is superseded."
-  },
-  {
     "taskNumber": 159,
     "title": "Paths... popover -> settings WIZARD: design the flow (mockup first), then implement",
     "description": "DIRECTION CHANGE 2026-07-21 (supersedes the earlier two-section-popover mockup): the Paths... popover should become a settings WIZARD:\n- screen 1: set the project path\n- screen 2: 'do you wish to set a custom file history snapshot path or auto-derive the path?'\n- screen 3: 'do you wish to set a Git Repo path?'\n- screen 4: 'do you wish to pick a git repo commit? (default: master branch tip)'\nDELIVERABLE ORDER: (a) define the wizard's flow logic via UI/UX MOCKUP first, (b) define how values are CHANGED for a session after it loads (re-enter the wizard? jump to a single screen? a compact summary panel with per-row edit?), (c) only then implement. The user says ambiguities must be flushed out first \u2014 resolve these in the mockup step:\n(1) TRIGGER: when does the wizard run \u2014 first launch with no config? every folder switch? on demand from the Paths... button? (screen 1 is GLOBAL config, screens 2-4 are effectively per-project \u2014 reveng-paths.json entries \u2014 so does the wizard rerun per project?)\n(2) Screen-2 default: auto-derive (today's behavior \u2014 empty posts '' and the server re-derives, app-header.ts computeFileHistoryDirToPost).\n(3) Screen-4 default 'master branch tip': which ref when the repo's default branch isn't master, and should the default instead be the commit the SESSION records (the s85-style recorded baseline) when one exists?\n(4) Skip semantics: declining screens 3/4 must leave the project reconstructing exactly as with no reveng-paths entry.\n(5) Persistence: where each screen's answer lands (screen 1 -> /api/config global; screens 2-4 -> /api/project-paths, persist flag) and whether the wizard's finish step is the 137-style 'store?' prompt.\n(6) The task-56 pre-baseline question ('reconstruct file states preceding the baseline commit?') fires at project load \u2014 decide whether it becomes a wizard screen or stays a load-time dialog.\nCARRY-OVERS still wanted from the pre-wizard design: picker-button naming 'Set Projects Folder location' / 'Set Git Repo location'; Store subsumes Apply (postProjectPaths(true) applies AND persists, app-paths-project.ts:122-123); commit pick list = task 154's 500-newest list (search box open there). Existing code sites: #paths-popover jfred/webapp/index.html:17-40, app-header.ts, app-paths-project.ts, /api/project-paths route."
-  },
-  {
-    "taskNumber": 153,
-    "title": "Paths popover: prefill per-project file-history field from stored override",
-    "description": "Should the Paths popover's per-project section also prefill the task-136 file-history field from a stored per-project `fileHistory` entry when the popover opens? Today the global field only shows the server-effective dir; a stored per-project override is applied by the engine but not surfaced in the field.",
-    "handoffFilePaths": [
-      "plans/archived/implementation-notes-tackle-tasks-131-135-136-137.md"
-    ]
   },
   {
     "taskNumber": 155,
