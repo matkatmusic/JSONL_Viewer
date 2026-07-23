@@ -1,38 +1,91 @@
 [
-    {
-        "taskNumber": 7,
-        "title": "jot repo: `terminal_windowSizeBlocks(s)` enum refactor",
-        "description": "7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** \u2014 DEFERRED UNTIL ALL other tasks are done.`/Users/matkatmusicllc/Programming/jot`\n  (separate repo); `grep -rn \"windowSizeBlocks\"`. Not a RevEng change."
-    },
-    {
-        "taskNumber": 17,
-        "title": "GitHub Pages demo tier",
-        "description": "17. GitHub Pages demo tier** \u2014 canned ReconstructionDocument JSON + `webapp/` with a\n  static-data shim replacing `/api/*`. Deliberately deferred \"Phase 4, planned separately when\n  reached\" (handoffs 20260702-1434/1639, 20260703-1010/2144); needs its own plan when reached.",
-        "handoffFilePaths": [
-            "plans/archived/handoff-develop-20260702-1434.md",
-            "plans/archived/handoff-develop-20260702-1639.md",
-            "plans/archived/handoff-develop-20260703-1010.md",
-            "plans/archived/handoff-develop-20260703-2144.md"
-        ]
-    },
-    {
-        "taskNumber": 83,
-        "title": "See if actual /jot folder can be reconstructed",
-        "description": "83. See if actual /jot folder can be reconstructed."
-    },
-    {
-        "taskNumber": 166,
-        "title": "Multi-source reconstruction: multiple conversation-log folders + multiple file-history folders feeding one file's history (in service of task 83)",
-        "description": "The jot codebase's revision history \u2014 THE reconstruction this whole tool exists for (task 83) \u2014 is scattered across at least four conversation-log sources (the original jot project's folder in ~/.claude/projects, the jot-recovery project's folder, this RevEng project, and one or two other projects whose sessions edited the jot plugin from other cwds) and at least two file-history snapshot locations (some under jot-recovery, some under the original jot project's .claude location). Today one reconstruction takes ONE projects folder + ONE file-history dir. Three parts, in this order:\n(1) FILE IDENTITY ACROSS SOURCES (investigate FIRST \u2014 parts 2 and 3 are only as correct as this answer): how to establish that records/snapshots from different sources refer to the SAME file when sessions ran under different roots (~/Programming/jot vs ~/Programming/jot-recovery vs other cwds) \u2014 absolute paths won't match; identity likely = root-relative path agreement (the task-137 repo-matching rule) + content agreement; decide how each source declares its root (per-source cwd remap config, extending the s87 cwd-remap mechanism).\n(2) MULTI-SOURCE INPUTS: engine accepts multiple conversation-log folders and multiple file-history snapshot folders for a single reconstruction. Existing seams to extend, not a rewrite: buildProjectReconstruction already merges a LIST of JSONL paths (jfred/src/viewer_api.ts:56 \u2014 today all from one folder); snapshots already arrive via the injectable BackupReader (file-history sidecar is a second input; cross-session @vN blob reads already resolve to the OWNING session); config shape probably reveng-paths.json growing source lists.\n(3) MERGED PER-FILE RECONSTRUCTION: define how one file's revision timeline is built when its events come from several session logs and snapshots from several folders \u2014 cross-source interleaving by timestamp (wall-clock skew between machines/sessions?), what wins when sources disagree, and how branch/rewind structure from different logs composes.\n(4) NEW SCENARIO REQUIRED: create a new scenario that covers what is being built \u2014 a multi-source capture (run via /run-scenario like the sNN suite) where MULTIPLE files are edited across MULTIPLE sessions run from different project roots, producing multiple conversation-log folders and multiple file-history snapshot folders, with ground-truth revision ladders spanning the sources (cross-source interleaves and root-relative identity matches across differing absolute paths). Coverage bar: exercise essentially everything scenario s87 exercises \u2014 the newer-CC wire format and its four mechanisms (cwd remap, time-aware indirection, result-instant rename stamping, git-INDEX staged-blob evidence) \u2014 just split up across the multiple sessions. The scenario joins the executed sweep and becomes the acceptance gate for parts 1-3.\n(4a) RUN-SCENARIO TOOLING PREREQUISITE: today /run-scenario (jfredToolsPlugin:run-scenario) executes each scenario in a random temp directory \u2014 a multi-session scenario needs the ability to SPECIFY where the modifications happen (named/fixed workspace roots reused across the scenario's sessions), so add that capability to the run-scenario skill + scripts first.\nScope note: this is engine-architecture work \u2014 plan it (design doc first) before touching code; the 87-scenario sweep must stay green since single-source is the degenerate case."
-    },
-    {
-        "taskNumber": 178,
-        "title": "S7c: Acceptance gate \u2014 multi-source scenario green + full sweep green",
-        "description": "Spec S7 of specs/SPEC.md (task 166). Run the multi-source scenario capture (task 171) through the finished multi-source engine (tasks 172-177): per-step coverage (.step_states oracle) must be fully green for the new scenario, and the full sweep \u2014 now 88 scenarios \u2014 must stay green (single-source is the degenerate case and must not regress). Close any engine gaps the scenario exposes (each gap closure follows the established ground-truth workflow). This task is the acceptance gate for task 166; when it closes, 166 closes with it."
-    },
-    {
-        "taskNumber": 179,
-        "title": "s89: nested-root sessions (<proj> + <proj>/tests) \u2014 runner support, scenario, capture",
-        "description": "USER INSIGHT 2026-07-22: spawning both s88 agents in the same root does the same thing all other multi-agent scenarios do \u2014 it does NOT replicate sessions spawned inside DIFFERENT folders. The correct test: create a project with a repo, spawn an agent there to do work; then (tests being mandatory due to the jot plugin's hooks) spawn a second agent in the project's 'tests/' folder. That produces two separate Claude session project paths: <temp-project> and <temp-project>/tests (e.g. ~/.claude/projects/-private-tmp-scen89-proj and -private-tmp-scen89-proj-tests).\n\nPieces:\n1. RUNNER (jfredToolsPlugin common/scripts/run_scenario_lib.py): support a NESTED declared root (header 'root: tests = /tmp/scen89-proj/tests'). runScenario_launch creates declared roots fresh at launch \u2014 nested roots must be created parent-first, and creating/wiping the nested root must not clobber the parent project's content (re-run cleanup wipes the PARENT which contains the nested root \u2014 decide create-at-spawn-time vs create-at-launch). Spawn 'SpawnNewAgent: a2 in tests' semantics unchanged; signals stay in the PRIMARY root (existing task-169 behavior).\n2. CAPTURE (jfred/run-all-scenarios.py scenario_capture_lib.py): captureCompletedScenario copies JSONLs only from the FIRST jsonl_path's parent project dir \u2014 s89 spans TWO project dirs, so the capture must collect every project dir appearing in jsonl_paths, ideally into per-source trees (source-a1/, source-a2/ with projects/ + file-history/ siblings \u2014 the layout recorded in jfred/scenarios/executed/s88-multi-source-two-roots/capture-notes.md).\n3. SCENARIO s89 (author like task 170, design doc first): a1 in <proj> writes module + tests/ + git repo; a2 spawns in <proj>/tests and edits test files there (paths relative to tests/); interleaved a1/a2 edits on the SAME test file from the two roots; ground-truth ladders; capture + verify like task 171 (prompt approvals via the tmux watcher recipe in memory tasks176-171-159-batch).\n4. ENGINE NOTE: nested roots give the SAME file different rel-paths per root (tests/test_x.py under <proj> vs test_x.py under <proj>/tests) \u2014 the S5a rel-path identity join (reconstruction_multi_source_join.ts) does not model nested-root absolute-path identity; expect a gap, add the engine test + fix if the merged ladder splits."
-    }
+  {
+    "taskNumber": 7,
+    "title": "jot repo: `terminal_windowSizeBlocks(s)` enum refactor",
+    "description": "7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** — DEFERRED UNTIL ALL other tasks are done.`/Users/matkatmusicllc/Programming/jot`\n  (separate repo); `grep -rn \"windowSizeBlocks\"`. Not a RevEng change."
+  },
+  {
+    "taskNumber": 17,
+    "title": "GitHub Pages demo tier",
+    "description": "17. GitHub Pages demo tier** — canned ReconstructionDocument JSON + `webapp/` with a\n  static-data shim replacing `/api/*`. Deliberately deferred \"Phase 4, planned separately when\n  reached\" (handoffs 20260702-1434/1639, 20260703-1010/2144); needs its own plan when reached.",
+    "handoffFilePaths": [
+      "plans/archived/handoff-develop-20260702-1434.md",
+      "plans/archived/handoff-develop-20260702-1639.md",
+      "plans/archived/handoff-develop-20260703-1010.md",
+      "plans/archived/handoff-develop-20260703-2144.md"
+    ]
+  },
+  {
+    "taskNumber": 83,
+    "title": "See if actual /jot folder can be reconstructed",
+    "description": "83. See if actual /jot folder can be reconstructed."
+  },
+  {
+    "taskNumber": 179,
+    "title": "s89: nested-root sessions (<proj> + <proj>/tests) — runner support, scenario, capture",
+    "description": "USER INSIGHT 2026-07-22: spawning both s88 agents in the same root does the same thing all other multi-agent scenarios do — it does NOT replicate sessions spawned inside DIFFERENT folders. The correct test: create a project with a repo, spawn an agent there to do work; then (tests being mandatory due to the jot plugin's hooks) spawn a second agent in the project's 'tests/' folder. That produces two separate Claude session project paths: <temp-project> and <temp-project>/tests (e.g. ~/.claude/projects/-private-tmp-scen89-proj and -private-tmp-scen89-proj-tests).\n\nPieces:\n1. RUNNER (jfredToolsPlugin common/scripts/run_scenario_lib.py): support a NESTED declared root (header 'root: tests = /tmp/scen89-proj/tests'). runScenario_launch creates declared roots fresh at launch — nested roots must be created parent-first, and creating/wiping the nested root must not clobber the parent project's content (re-run cleanup wipes the PARENT which contains the nested root — decide create-at-spawn-time vs create-at-launch). Spawn 'SpawnNewAgent: a2 in tests' semantics unchanged; signals stay in the PRIMARY root (existing task-169 behavior).\n2. CAPTURE (jfred/run-all-scenarios.py scenario_capture_lib.py): captureCompletedScenario copies JSONLs only from the FIRST jsonl_path's parent project dir — s89 spans TWO project dirs, so the capture must collect every project dir appearing in jsonl_paths, ideally into per-source trees (source-a1/, source-a2/ with projects/ + file-history/ siblings — the layout recorded in jfred/scenarios/executed/s88-multi-source-two-roots/capture-notes.md).\n3. SCENARIO s89 (author like task 170, design doc first): a1 in <proj> writes module + tests/ + git repo; a2 spawns in <proj>/tests and edits test files there (paths relative to tests/); interleaved a1/a2 edits on the SAME test file from the two roots; ground-truth ladders; capture + verify like task 171 (prompt approvals via the tmux watcher recipe in memory tasks176-171-159-batch).\n4. ENGINE NOTE: nested roots give the SAME file different rel-paths per root (tests/test_x.py under <proj> vs test_x.py under <proj>/tests) — the S5a rel-path identity join (reconstruction_multi_source_join.ts) does not model nested-root absolute-path identity; expect a gap, add the engine test + fix if the merged ladder splits."
+  },
+  {
+    "taskNumber": 180,
+    "title": "S8: per-file candidate set + ground truth doc (plans/166-per-file-target.md)",
+    "description": "Write plans/166-per-file-target.md recording: baseline commit 793e65241902f276caf5f5c28d539269e7d36d11 in ~/Programming/jot; the candidate enumeration from `git diff --name-status <baseline>` (68 M / 11 A / 52 D as of 2026-07-22) as per-status file lists; the phase order M -> A -> D (user directive: M files were never renamed/moved since the baseline, only modified); and the first target common/scripts/plate/plate_cli.py (blob 9d14d60df7aebcba8455bdea7d6b817bca572fe6 at baseline) with its git provenance — created at 7a7ea11a25e5a29ca68924de5e561e98d95cf191 (2026-05-01), renamed at dcb25ce14140fa48d6acf313c0bbb022fd511abe (2026-05-08), both verified pre-baseline ancestors, so modify-only since the baseline. Sources for all per-file work: ~/Programming/jot-recovery/claude-data/ only (its projects/ JSONL folders + file-history/ snapshot dirs)."
+  },
+  {
+    "taskNumber": 181,
+    "title": "S9: unit test — existing --file/--target filters the ladder on a multi-source fixture",
+    "description": "The --target/--file CLI arg already exists (jfred/src/reconstruction_cli_args.ts, verified 2026-07-22), as do --repo/--base-commit git-baseline seeding. User: '--file CLI arg might already exist, verify.' Add a unit test proving that on a multi-source fixture the arg restricts CLI output to the named file's revision ladder end-to-end through the multi-source merge path. Extend the CLI only where a real gap surfaces — no new reconstruction algorithm (per-file mode is a projection over the existing multi-source reconstruction)."
+  },
+  {
+    "taskNumber": 182,
+    "title": "S9: real-data viability run — plate_cli.py ladder from claude-data sources",
+    "description": "Step-1 viability proof of the per-file approach (user request): run the CLI with ~/Programming/jot-recovery/claude-data/ (projects/ JSONLs + file-history/ snapshots) as the source, --file common/scripts/plate/plate_cli.py, seeded via --repo ~/Programming/jot --base-commit 793e65241902f276caf5f5c28d539269e7d36d11. The run must complete and emit the file's revision ladder; verify a revision byte-identical to blob 9d14d60d is present and that intermediate revisions the sources evidence are emitted (report the revision count). Document results — including any mismatch, which is a finding not a silent pass — in plans/166-per-file-target.md.",
+    "blockedBy": [180, 181]
+  },
+  {
+    "taskNumber": 183,
+    "title": "S10: per-file debug viewer — server endpoint + page skeleton",
+    "description": "User decision 2026-07-22: the per-file revision view is a DEDICATED debug viewer page, not a 'Filename' filter on the main webapp — free to expose engine internals (source attribution, conflict notes, seed hashes). This task: a server endpoint serving one file's revision ladder from the merged multi-source reconstruction (viewer_api_* patterns) plus the debug page skeleton with file selection / deep-link.",
+    "blockedBy": [182]
+  },
+  {
+    "taskNumber": 184,
+    "title": "S10: debug viewer — revision-ladder rendering + DOM tests",
+    "description": "Render the selected file's revision ladder in the dedicated debug viewer (revision list with source attribution, conflict notes, seed hash where present). DOM tests per existing webapp test patterns for selecting a file and rendering its revision list; manual check against plate_cli.py on the real claude-data sources.",
+    "blockedBy": [183]
+  },
+  {
+    "taskNumber": 185,
+    "title": "S14: File Nav — cap JSONL list at 50% of column height",
+    "description": "User: 'JSONL list in File Nav column should only occupy at most 50% height of File Nav column. The JSONL list currently is as long as the number of JSONL files in a session, which makes the File tree very short for projects with lots of JSONL files.' Cap the JSONL list at 50% of the column height, scrolling within itself; the file tree gets the remaining space. DOM/CSS test that with many JSONLs the list is <=50% of the column and scrolls while the file tree stays visible."
+  },
+  {
+    "taskNumber": 186,
+    "title": "S11: per-file sweep harness — run all candidates, emit results table",
+    "description": "Build the harness that runs the S9 per-file reconstruction for a list of candidate files against the claude-data sources and emits a results table (per file: endpoints matched — baseline blob present and final revision vs current ~/Programming/jot content — plus recovered revision count and gaps). Table lands in plans/166-per-file-target.md. Success bar (user-corrected): all or most revisions recovered, to recreate the commit history lost when the plate branch became corrupted; endpoint matches are necessary, not sufficient.",
+    "blockedBy": [182]
+  },
+  {
+    "taskNumber": 187,
+    "title": "S11: run the M-file sweep (68 files) and triage results",
+    "description": "Run the task-186 harness over all 68 'modified' files from the S8 enumeration. Record the results table in plans/166-per-file-target.md; itemize every failure/gap as a finding, not an omission. Phase gate: S11 must be complete before the S12 'added' phase starts.",
+    "blockedBy": [186]
+  },
+  {
+    "taskNumber": 188,
+    "title": "S12 prep: prove the iterative reconstruct -> commit -> re-seed loop",
+    "description": "User workflow: 'start reconstruction from point A (a git hash) up until some chunk of revisions (like 5 or 10 steps), then commit those. Re-attempt reconstruction from this new commit hash, and more revision history will be reconstructed and committed. Repeat until the entire history is restored.' Prove this loop end-to-end on one file (plate_cli.py or a fixture): seed via --repo/--base-commit, reconstruct a chunk, commit it (in a scratch clone, never the real ~/Programming/jot), re-seed from the new hash, and show the second iteration recovers history the first did not. Document the recipe in plans/166-per-file-target.md.",
+    "blockedBy": [182]
+  },
+  {
+    "taskNumber": 189,
+    "title": "S12: 'added' files sweep (11 files, rename/move-aware)",
+    "description": "Run per-file reconstruction for the 11 'A' files. User: these are probably the result of script executions (rename-file/move-file events); each ladder must start at its rename/move (or born-fresh) origin and include all modifications AFTER the move. Where history is only partially recoverable, apply the task-188 iterative commit-and-re-seed workflow. Results recorded as in S11. Phase gate: after S11, before S13.",
+    "blockedBy": [187, 188]
+  },
+  {
+    "taskNumber": 190,
+    "title": "S13: 'removed' files sweep (52 files, paired with S12 moves)",
+    "description": "Run per-file reconstruction for the 52 'D' files. Each ladder ends in a true deletion or a move-away; classify each file as true-delete or move-source and name its S12 pair (the A file the content moved to) where applicable — the associated delete events from moves fold into this phase. Results recorded as in S11.",
+    "blockedBy": [189]
+  }
 ]
