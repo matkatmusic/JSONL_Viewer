@@ -25,3 +25,25 @@
 
 ## Open questions
 - None blocking. `src/reconstruction_cli.ts` is now exactly AT the 250-line cap — the next addition to that file must split something out.
+
+## Follow-up (2026-07-22T22:40:00-07:00) — cover the silence after "building sidecar backup reader"
+User report: that step "hangs" before branches appear. Root cause: `buildSidecarReader` is
+instant (blob reads are lazy); the dead air belongs to the NEXT stages, whose only events are
+counted (tip scans, per-target counters) and therefore filtered at stage-level `--progress`.
+Three uncounted announcements added:
+- `sidecar reader ready: <n> session(s), root <root>` (`reconstruction_sidecar_reader.ts`) — closes out the build stage.
+- `finding conversation branches across <n> records` (`reconstruction_engine.ts`, now 249/250 lines).
+- `extracting file events from <n> records` (`reconstruction_renderable.ts`, fires once per branch pass).
+The task-191 tests moved to `tests/reconstruction_progress.test.ts` (the CLI test file hit the
+250-line cap) and now assert all three new labels. 24/24 across both files, typecheck clean.
+
+## Follow-up 2 (2026-07-23T00:10:00-07:00) — `script stage: N of M runs`, attempt-2 blowup evidence
+- The script-stage label now shows the windowed count against the full pool
+  (`formatScriptStageLabel` in `reconstruction_script_stage.ts`, unit-tested) so the
+  replay-window ceiling is visible: `script stage: 2559 of 2871 runs for <file>`.
+- Task-182 attempt 2 (run with `--progress`) confirmed a real blowup — one script run
+  sandbox-executed 11,980 times. Evidence preserved at
+  `~/Programming/jot-recovery/run-evidence/plate_cli_progress-attempt2-2026-07-23.log.gz`;
+  findings in `plans/166-per-file-target.md` attempt-2 section; fix is task 192 (blocks 182).
+- Task 193 created: bounded reconstruction up to a file's first revision
+  (user-requested mode; `--step <N>` does NOT early-stop — it computes all step states then slices).

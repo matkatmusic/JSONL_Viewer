@@ -25,6 +25,32 @@ Task 182 is blocked on task 191 (per-stage logging) and stays open; rerun with
 logging to determine whether the >24-min silence is progress or a blowup
 (cf. the task-162 lineage-replay memo — a similar real-data blowup class).
 
+## Task 182 viability run — attempt 2 (2026-07-23, KILLED — blowup CONFIRMED)
+
+Rerun of the same invocation with task-191 `--progress` logging
+(stderr → `/tmp/plate_cli_progress.log`, preserved at
+`~/Programming/jot-recovery/run-evidence/plate_cli_progress-attempt2-2026-07-23.log.gz`
+with a plain-text tail alongside). Killed by the user after ~1.5h;
+`plate_cli_ladder.json` still 0 bytes.
+
+Findings (now task 192, which blocks 182):
+
+- The silence is a **blowup, not progress**: `executing script run` appeared
+  12,101 times across only 122 distinct runs — the single run at
+  `684c147c-375f-449f-8e32-3847c8cb94ab.jsonl:605` (2026-04-25T01:50:53.814Z,
+  compound chmod+bash of `skills/todo/tests/hook-mktemp-pending-test.sh`)
+  accounts for 11,980 sandbox executions.
+- Target discovery stalled while executions doubled: distinct lineage targets
+  42 → 156 → 165 across log quarters, executing-lines 64 → 6,006 → 6,031.
+- Suspected mechanism: `executeRunOnce` memoizes on `timestamp|code` inside
+  `getDerivedCaches(records, reader)` — keyed by records-ARRAY identity, which
+  churns across per-branch passes and lineage replays, so the memo never
+  serves across passes. See task 192 for the fix direction.
+- The task-191 logging did its job: the `script stage: N runs` climb
+  (43 → 2559+) reflects the replay cutoff advancing through ~3 months of
+  session time — that pool size is real (thousands of `&&`-split bash runs
+  across 156 sessions), not itself the pathology.
+
 Ground truth for the per-file reconstruction sprint (S8–S13, tasks 180–190):
 which files the engine must recover, in what order, and the first target's git
 provenance. All facts below re-verified live against the repo on 2026-07-22.
