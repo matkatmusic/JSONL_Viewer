@@ -1810,5 +1810,13 @@
     "completionDate": "2026-07-22",
     "commitHashes": [],
     "closureNote": "Live s89 run completed by the user (20/20 steps, both sessions in distinct project dirs), captured via captureCompletedScenario into executed/s89-nested-roots/ with two source-* trees + repo.git.tar; task-178 coverage gate FULLY GREEN (20/20 through the multi-source engine); nested-root engine-gap prediction stayed refuted on real data; capture-notes.md records ladders and benign deviations."
+  },
+  {
+    "taskNumber": 191,
+    "title": "CLI mode: per-stage logging with verbosity levels",
+    "description": "In CLI mode, add per-stage logging with various verbosity levels. Motivation (task-182 real-data run): loadTranscript prints one 'Loading transcript from <path>' line per JSONL to stdout, then the engine goes completely silent through the reconstruction stages until the final output dump — on a 156-JSONL/292MB run there is no way to tell crunching from hung, and the progress lines pollute the stdout JSON (--json consumers must strip leading lines before parsing). Add stage-level progress (load, merge, sidecar reader, branch reconstruction, render) behind a verbosity flag, emitted to stderr so stdout stays pure JSON.",
+    "completionDate": "2026-07-22",
+    "commitHashes": [],
+    "closureNote": "Implemented --progress/--progress-all stderr verbosity flags in reconstruction_cli (reusing the existing reportReconstructionProgress engine sink), retired the stdout Loading-transcript line so --json stdout is pure, and added merge + sidecar-reader stage announcements; 4 new TDD tests, 24/24 reconstruction_cli tests green, staged not committed."
   }
 ]

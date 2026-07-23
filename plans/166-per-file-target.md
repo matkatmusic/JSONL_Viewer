@@ -1,5 +1,30 @@
 # Per-file reconstruction — candidate set + first target (task 180 / spec S8)
 
+## Task 182 viability run — attempt 1 (2026-07-22, INCOMPLETE)
+
+Invocation: all 156 top-level JSONLs from
+`~/Programming/jot-recovery/claude-data/projects/-Users-matkatmusicllc-Programming-jot/`
+(292MB; the session-id subdirs hold only `tool-results/` sidecars, not
+transcripts) + `--file /Users/matkatmusicllc/Programming/jot/common/scripts/plate/plate_cli.py
+--repo ~/Programming/jot --base-commit 793e6524…
+--fhsLoc ~/Programming/jot-recovery/claude-data/file-history --branch surviving --json`.
+
+Findings:
+
+- Load phase completed: all 156 transcripts loaded (strict parser accepted all
+  real-data records — no unknown-record-type crash).
+- Reconstruction phase ran **>24 minutes with zero output**, was killed by the
+  user before emitting the ladder. No JSON was produced, so the 9d14d60d blob
+  check and revision count are still unverified.
+- Two CLI observability gaps surfaced (now task 191): per-transcript
+  `Loading transcript from …` lines go to **stdout**, polluting the `--json`
+  document; and the reconstruction stages emit nothing, making crunching
+  indistinguishable from hung.
+
+Task 182 is blocked on task 191 (per-stage logging) and stays open; rerun with
+logging to determine whether the >24-min silence is progress or a blowup
+(cf. the task-162 lineage-replay memo — a similar real-data blowup class).
+
 Ground truth for the per-file reconstruction sprint (S8–S13, tasks 180–190):
 which files the engine must recover, in what order, and the first target's git
 provenance. All facts below re-verified live against the repo on 2026-07-22.

@@ -23,7 +23,7 @@
   {
     "taskNumber": 182,
     "title": "S9: real-data viability run — plate_cli.py ladder from claude-data sources",
-    "description": "Step-1 viability proof of the per-file approach (user request): run the CLI with ~/Programming/jot-recovery/claude-data/ (projects/ JSONLs + file-history/ snapshots) as the source, --file common/scripts/plate/plate_cli.py, seeded via --repo ~/Programming/jot --base-commit 793e65241902f276caf5f5c28d539269e7d36d11. The run must complete and emit the file's revision ladder; verify a revision byte-identical to blob 9d14d60d is present and that intermediate revisions the sources evidence are emitted (report the revision count). Document results — including any mismatch, which is a finding not a silent pass — in plans/166-per-file-target.md."
+    "description": "Step-1 viability proof of the per-file approach (user request): run the CLI with ~/Programming/jot-recovery/claude-data/ (projects/ JSONLs + file-history/ snapshots) as the source, --file common/scripts/plate/plate_cli.py, seeded via --repo ~/Programming/jot --base-commit 793e65241902f276caf5f5c28d539269e7d36d11. The run must complete and emit the file's revision ladder; verify a revision byte-identical to blob 9d14d60d is present and that intermediate revisions the sources evidence are emitted (report the revision count). Document results — including any mismatch, which is a finding not a silent pass — in plans/166-per-file-target.md. Attempt 1 (2026-07-22) documented there: loaded 156/156 JSONLs then >24 min silent in reconstruction, killed before emitting the ladder."
   },
   {
     "taskNumber": 183,
