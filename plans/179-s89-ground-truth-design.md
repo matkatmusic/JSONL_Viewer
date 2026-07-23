@@ -1,5 +1,13 @@
 # s89-nested-roots — ground-truth design (task 179)
 
+> **STATUS 2026-07-22: CAPTURED + VERIFIED, task 179 closed.** Live run
+> completed (user-driven), captured via `captureCompletedScenario` into
+> `jfred/scenarios/executed/s89-nested-roots/` (two `source-*` trees with
+> DIFFERENT project dir names), coverage gate 20/20 GREEN through the
+> multi-source engine. Engine-gap prediction refuted on real data. Observed
+> deviations (benign — dup runner appends, one snapshot-timing lag) are in the
+> capture's `capture-notes.md`.
+
 Acceptance reference for the task-179 capture (run + verify like task 171 was
 for s88). The scenario lives at `scenarios/s89-nested-roots.txt` (identical
 copy at `jfred/scenarios/s89-nested-roots.txt`), 20 steps, two agents:

@@ -99,8 +99,8 @@ candidate enumeration from `git diff --name-status <commit>` (68 M / 11 A /
 provenance: created at `7a7ea11a`, renamed at `dcb25ce1`, both pre-baseline —
 modify-only since the baseline.
 - Verify: doc exists with commit, per-status file lists, first-target blob sha, and the provenance commits confirmed as baseline ancestors.
-- Tasks: #180
-- Status: open
+- Tasks: #180 (done 2026-07-22)
+- Status: done — plans/166-per-file-target.md written with all facts re-verified live against ~/Programming/jot.
 
 ### S9. CLI per-file reconstruction — viability proof on plate_cli.py
 The existing `--target`/`--file` CLI arg, combined with the multi-source
@@ -111,8 +111,8 @@ ladder for `common/scripts/plate/plate_cli.py`. Verify the existing arg does
 this end-to-end; extend only where a real gap surfaces. This is the step-1
 viability proof for the per-file approach.
 - Verify: unit test proving `--file` filters the ladder to the named file on a multi-source fixture; a real-data run completes, contains a revision byte-identical to blob `9d14d60d`, and emits the intermediate revisions the sources evidence (revision count reported; mismatches documented in the S8 doc — a finding, not a silent pass).
-- Tasks: #181, #182
-- Status: open
+- Tasks: #181 (done 2026-07-22), #182
+- Status: open — #181 unit test landed (it surfaced and fixed a real gap: the JSON document's steps array wasn't narrowed by --target); the #182 real-data viability run remains.
 
 ### S10. Dedicated per-file debug viewer
 A dedicated debug viewer page (user decision 2026-07-22: NOT a filter on the
@@ -161,5 +161,5 @@ The JSONL list in the File Nav column currently grows with the number of JSONL
 files in a session, squeezing the file tree. Cap the JSONL list at 50% of the
 column height (scrolling within itself); the file tree gets the rest.
 - Verify: DOM/CSS test that with many JSONLs the list's height is ≤50% of the column and the list scrolls; file tree remains visible.
-- Tasks: #185
-- Status: open
+- Tasks: #185 (done 2026-07-22)
+- Status: done — .drawer-jsonl-list container (max-height 50%, own scroll) + tests/project.test.ts DOM/CSS test.

@@ -1778,5 +1778,37 @@
     "completionDate": "2026-07-22",
     "commitHashes": [],
     "closureNote": "Closed with its acceptance gate task 178 per the task description: identity join, multi-source inputs, merged reconstruction (tasks 168/172-177) all shipped, s88 scenario captured (171) and green through the multi-source engine path."
+  },
+  {
+    "taskNumber": 180,
+    "title": "S8: per-file candidate set + ground truth doc (plans/166-per-file-target.md)",
+    "description": "Write plans/166-per-file-target.md recording: baseline commit 793e65241902f276caf5f5c28d539269e7d36d11 in ~/Programming/jot; the candidate enumeration from `git diff --name-status <baseline>` (68 M / 11 A / 52 D as of 2026-07-22) as per-status file lists; the phase order M -> A -> D (user directive: M files were never renamed/moved since the baseline, only modified); and the first target common/scripts/plate/plate_cli.py (blob 9d14d60df7aebcba8455bdea7d6b817bca572fe6 at baseline) with its git provenance — created at 7a7ea11a25e5a29ca68924de5e561e98d95cf191 (2026-05-01), renamed at dcb25ce14140fa48d6acf313c0bbb022fd511abe (2026-05-08), both verified pre-baseline ancestors, so modify-only since the baseline. Sources for all per-file work: ~/Programming/jot-recovery/claude-data/ only (its projects/ JSONL folders + file-history/ snapshot dirs).",
+    "completionDate": "2026-07-22",
+    "commitHashes": [],
+    "closureNote": "plans/166-per-file-target.md written (staged, not committed) with all facts re-verified live: 68M/11A/52D per-status lists, M->A->D phase order, plate_cli.py blob 9d14d60 and pre-baseline provenance commits confirmed via git merge-base --is-ancestor."
+  },
+  {
+    "taskNumber": 185,
+    "title": "S14: File Nav — cap JSONL list at 50% of column height",
+    "description": "User: 'JSONL list in File Nav column should only occupy at most 50% height of File Nav column. The JSONL list currently is as long as the number of JSONL files in a session, which makes the File tree very short for projects with lots of JSONL files.' Cap the JSONL list at 50% of the column height, scrolling within itself; the file tree gets the remaining space. DOM/CSS test that with many JSONLs the list is <=50% of the column and scrolls while the file tree stays visible.",
+    "completionDate": "2026-07-22",
+    "commitHashes": [],
+    "closureNote": "renderProjectDrawer now wraps the JSONL links in .drawer-jsonl-list (max-height: 50%; overflow-y: auto in styles.css); new tests/project.test.ts DOM test asserts the links live in the capped container, the tree files stay outside it, and the stylesheet rule carries the cap — staged, not committed."
+  },
+  {
+    "taskNumber": 181,
+    "title": "S9: unit test — existing --file/--target filters the ladder on a multi-source fixture",
+    "description": "The --target/--file CLI arg already exists (jfred/src/reconstruction_cli_args.ts, verified 2026-07-22), as do --repo/--base-commit git-baseline seeding. User: '--file CLI arg might already exist, verify.' Add a unit test proving that on a multi-source fixture the arg restricts CLI output to the named file's revision ladder end-to-end through the multi-source merge path. Extend the CLI only where a real gap surfaces — no new reconstruction algorithm (per-file mode is a projection over the existing multi-source reconstruction).",
+    "completionDate": "2026-07-22",
+    "commitHashes": [],
+    "closureNote": "Test added to tests/reconstruction_cli.test.ts; it surfaced a real gap — the JSON document's steps array leaked the other source's step — fixed by narrowing steps by target in buildReconstructionDocument (the same place filesTouched narrows); CLI/json/diff/artifact-cache test files all green. Staged, not committed."
+  },
+  {
+    "taskNumber": 179,
+    "title": "s89: nested-root sessions (<proj> + <proj>/tests) — runner support, scenario, capture",
+    "description": "USER INSIGHT 2026-07-22: spawning both s88 agents in the same root does the same thing all other multi-agent scenarios do — it does NOT replicate sessions spawned inside DIFFERENT folders. The correct test: create a project with a repo, spawn an agent there to do work; then (tests being mandatory due to the jot plugin's hooks) spawn a second agent in the project's 'tests/' folder. That produces two separate Claude session project paths: <temp-project> and <temp-project>/tests. Pieces: runner nested-root support, multi-project-dir capture, scenario s89 with interleaved cross-root edits on the same file, engine check on the merged ladder.",
+    "completionDate": "2026-07-22",
+    "commitHashes": [],
+    "closureNote": "Live s89 run completed by the user (20/20 steps, both sessions in distinct project dirs), captured via captureCompletedScenario into executed/s89-nested-roots/ with two source-* trees + repo.git.tar; task-178 coverage gate FULLY GREEN (20/20 through the multi-source engine); nested-root engine-gap prediction stayed refuted on real data; capture-notes.md records ladders and benign deviations."
   }
 ]

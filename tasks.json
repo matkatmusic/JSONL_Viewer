@@ -21,71 +21,65 @@
     "description": "83. See if actual /jot folder can be reconstructed."
   },
   {
-    "taskNumber": 179,
-    "title": "s89: nested-root sessions (<proj> + <proj>/tests) — runner support, scenario, capture",
-    "description": "USER INSIGHT 2026-07-22: spawning both s88 agents in the same root does the same thing all other multi-agent scenarios do — it does NOT replicate sessions spawned inside DIFFERENT folders. The correct test: create a project with a repo, spawn an agent there to do work; then (tests being mandatory due to the jot plugin's hooks) spawn a second agent in the project's 'tests/' folder. That produces two separate Claude session project paths: <temp-project> and <temp-project>/tests (e.g. ~/.claude/projects/-private-tmp-scen89-proj and -private-tmp-scen89-proj-tests).\n\nPieces:\n1. RUNNER (jfredToolsPlugin common/scripts/run_scenario_lib.py): support a NESTED declared root (header 'root: tests = /tmp/scen89-proj/tests'). runScenario_launch creates declared roots fresh at launch — nested roots must be created parent-first, and creating/wiping the nested root must not clobber the parent project's content (re-run cleanup wipes the PARENT which contains the nested root — decide create-at-spawn-time vs create-at-launch). Spawn 'SpawnNewAgent: a2 in tests' semantics unchanged; signals stay in the PRIMARY root (existing task-169 behavior).\n2. CAPTURE (jfred/run-all-scenarios.py scenario_capture_lib.py): captureCompletedScenario copies JSONLs only from the FIRST jsonl_path's parent project dir — s89 spans TWO project dirs, so the capture must collect every project dir appearing in jsonl_paths, ideally into per-source trees (source-a1/, source-a2/ with projects/ + file-history/ siblings — the layout recorded in jfred/scenarios/executed/s88-multi-source-two-roots/capture-notes.md).\n3. SCENARIO s89 (author like task 170, design doc first): a1 in <proj> writes module + tests/ + git repo; a2 spawns in <proj>/tests and edits test files there (paths relative to tests/); interleaved a1/a2 edits on the SAME test file from the two roots; ground-truth ladders; capture + verify like task 171 (prompt approvals via the tmux watcher recipe in memory tasks176-171-159-batch).\n4. ENGINE NOTE: nested roots give the SAME file different rel-paths per root (tests/test_x.py under <proj> vs test_x.py under <proj>/tests) — the S5a rel-path identity join (reconstruction_multi_source_join.ts) does not model nested-root absolute-path identity; expect a gap, add the engine test + fix if the merged ladder splits."
-  },
-  {
-    "taskNumber": 180,
-    "title": "S8: per-file candidate set + ground truth doc (plans/166-per-file-target.md)",
-    "description": "Write plans/166-per-file-target.md recording: baseline commit 793e65241902f276caf5f5c28d539269e7d36d11 in ~/Programming/jot; the candidate enumeration from `git diff --name-status <baseline>` (68 M / 11 A / 52 D as of 2026-07-22) as per-status file lists; the phase order M -> A -> D (user directive: M files were never renamed/moved since the baseline, only modified); and the first target common/scripts/plate/plate_cli.py (blob 9d14d60df7aebcba8455bdea7d6b817bca572fe6 at baseline) with its git provenance — created at 7a7ea11a25e5a29ca68924de5e561e98d95cf191 (2026-05-01), renamed at dcb25ce14140fa48d6acf313c0bbb022fd511abe (2026-05-08), both verified pre-baseline ancestors, so modify-only since the baseline. Sources for all per-file work: ~/Programming/jot-recovery/claude-data/ only (its projects/ JSONL folders + file-history/ snapshot dirs)."
-  },
-  {
-    "taskNumber": 181,
-    "title": "S9: unit test — existing --file/--target filters the ladder on a multi-source fixture",
-    "description": "The --target/--file CLI arg already exists (jfred/src/reconstruction_cli_args.ts, verified 2026-07-22), as do --repo/--base-commit git-baseline seeding. User: '--file CLI arg might already exist, verify.' Add a unit test proving that on a multi-source fixture the arg restricts CLI output to the named file's revision ladder end-to-end through the multi-source merge path. Extend the CLI only where a real gap surfaces — no new reconstruction algorithm (per-file mode is a projection over the existing multi-source reconstruction)."
-  },
-  {
     "taskNumber": 182,
     "title": "S9: real-data viability run — plate_cli.py ladder from claude-data sources",
-    "description": "Step-1 viability proof of the per-file approach (user request): run the CLI with ~/Programming/jot-recovery/claude-data/ (projects/ JSONLs + file-history/ snapshots) as the source, --file common/scripts/plate/plate_cli.py, seeded via --repo ~/Programming/jot --base-commit 793e65241902f276caf5f5c28d539269e7d36d11. The run must complete and emit the file's revision ladder; verify a revision byte-identical to blob 9d14d60d is present and that intermediate revisions the sources evidence are emitted (report the revision count). Document results — including any mismatch, which is a finding not a silent pass — in plans/166-per-file-target.md.",
-    "blockedBy": [180, 181]
+    "description": "Step-1 viability proof of the per-file approach (user request): run the CLI with ~/Programming/jot-recovery/claude-data/ (projects/ JSONLs + file-history/ snapshots) as the source, --file common/scripts/plate/plate_cli.py, seeded via --repo ~/Programming/jot --base-commit 793e65241902f276caf5f5c28d539269e7d36d11. The run must complete and emit the file's revision ladder; verify a revision byte-identical to blob 9d14d60d is present and that intermediate revisions the sources evidence are emitted (report the revision count). Document results — including any mismatch, which is a finding not a silent pass — in plans/166-per-file-target.md."
   },
   {
     "taskNumber": 183,
     "title": "S10: per-file debug viewer — server endpoint + page skeleton",
     "description": "User decision 2026-07-22: the per-file revision view is a DEDICATED debug viewer page, not a 'Filename' filter on the main webapp — free to expose engine internals (source attribution, conflict notes, seed hashes). This task: a server endpoint serving one file's revision ladder from the merged multi-source reconstruction (viewer_api_* patterns) plus the debug page skeleton with file selection / deep-link.",
-    "blockedBy": [182]
+    "blockedBy": [
+      182
+    ]
   },
   {
     "taskNumber": 184,
     "title": "S10: debug viewer — revision-ladder rendering + DOM tests",
     "description": "Render the selected file's revision ladder in the dedicated debug viewer (revision list with source attribution, conflict notes, seed hash where present). DOM tests per existing webapp test patterns for selecting a file and rendering its revision list; manual check against plate_cli.py on the real claude-data sources.",
-    "blockedBy": [183]
-  },
-  {
-    "taskNumber": 185,
-    "title": "S14: File Nav — cap JSONL list at 50% of column height",
-    "description": "User: 'JSONL list in File Nav column should only occupy at most 50% height of File Nav column. The JSONL list currently is as long as the number of JSONL files in a session, which makes the File tree very short for projects with lots of JSONL files.' Cap the JSONL list at 50% of the column height, scrolling within itself; the file tree gets the remaining space. DOM/CSS test that with many JSONLs the list is <=50% of the column and scrolls while the file tree stays visible."
+    "blockedBy": [
+      183
+    ]
   },
   {
     "taskNumber": 186,
     "title": "S11: per-file sweep harness — run all candidates, emit results table",
     "description": "Build the harness that runs the S9 per-file reconstruction for a list of candidate files against the claude-data sources and emits a results table (per file: endpoints matched — baseline blob present and final revision vs current ~/Programming/jot content — plus recovered revision count and gaps). Table lands in plans/166-per-file-target.md. Success bar (user-corrected): all or most revisions recovered, to recreate the commit history lost when the plate branch became corrupted; endpoint matches are necessary, not sufficient.",
-    "blockedBy": [182]
+    "blockedBy": [
+      182
+    ]
   },
   {
     "taskNumber": 187,
     "title": "S11: run the M-file sweep (68 files) and triage results",
     "description": "Run the task-186 harness over all 68 'modified' files from the S8 enumeration. Record the results table in plans/166-per-file-target.md; itemize every failure/gap as a finding, not an omission. Phase gate: S11 must be complete before the S12 'added' phase starts.",
-    "blockedBy": [186]
+    "blockedBy": [
+      186
+    ]
   },
   {
     "taskNumber": 188,
     "title": "S12 prep: prove the iterative reconstruct -> commit -> re-seed loop",
     "description": "User workflow: 'start reconstruction from point A (a git hash) up until some chunk of revisions (like 5 or 10 steps), then commit those. Re-attempt reconstruction from this new commit hash, and more revision history will be reconstructed and committed. Repeat until the entire history is restored.' Prove this loop end-to-end on one file (plate_cli.py or a fixture): seed via --repo/--base-commit, reconstruct a chunk, commit it (in a scratch clone, never the real ~/Programming/jot), re-seed from the new hash, and show the second iteration recovers history the first did not. Document the recipe in plans/166-per-file-target.md.",
-    "blockedBy": [182]
+    "blockedBy": [
+      182
+    ]
   },
   {
     "taskNumber": 189,
     "title": "S12: 'added' files sweep (11 files, rename/move-aware)",
     "description": "Run per-file reconstruction for the 11 'A' files. User: these are probably the result of script executions (rename-file/move-file events); each ladder must start at its rename/move (or born-fresh) origin and include all modifications AFTER the move. Where history is only partially recoverable, apply the task-188 iterative commit-and-re-seed workflow. Results recorded as in S11. Phase gate: after S11, before S13.",
-    "blockedBy": [187, 188]
+    "blockedBy": [
+      187,
+      188
+    ]
   },
   {
     "taskNumber": 190,
     "title": "S13: 'removed' files sweep (52 files, paired with S12 moves)",
     "description": "Run per-file reconstruction for the 52 'D' files. Each ladder ends in a true deletion or a move-away; classify each file as true-delete or move-source and name its S12 pair (the A file the content moved to) where applicable — the associated delete events from moves fold into this phase. Results recorded as in S11.",
-    "blockedBy": [189]
+    "blockedBy": [
+      189
+    ]
   }
 ]
