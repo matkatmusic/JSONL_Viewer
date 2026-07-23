@@ -1,0 +1,43 @@
+cd "/Users/matkatmusicllc/Desktop/claude code src/RevEng" && npx tsx jfred/src/reconstruction_cli.ts \
+  ~/Programming/jot-recovery/claude-data/projects/-Users-matkatmusicllc-Programming-jot/*.jsonl \
+  --file /Users/matkatmusicllc/Programming/jot/common/scripts/plate/plate_cli.py \
+  --repo /Users/matkatmusicllc/Programming/jot \
+  --base-commit 793e65241902f276caf5f5c28d539269e7d36d11 \
+  --fhsLoc ~/Programming/jot-recovery/claude-data/file-history \
+  --branch surviving --json --progress-all \
+  > /tmp/plate_cli_ladder.json 2> /tmp/plate_cli_progress.log
+
+  --------------------
+  Single-file reconstruction until n'th agent turn
+  --------------------
+  Terminal 1:
+  npx tsx jfred/src/reconstruction_cli.ts \
+  ~/Programming/jot-recovery/claude-data/projects/-Users-matkatmusicllc-Programming-jot/*.jsonl \
+  --until-revision /Users/matkatmusicllc/Programming/jot/common/scripts/plate/plate_cli.py \
+  --file /Users/matkatmusicllc/Programming/jot/common/scripts/plate/plate_cli.py \
+  --repo ~/Programming/jot \
+  --base-commit 793e65241902f276caf5f5c28d539269e7d36d11 \
+  --fhsLoc ~/Programming/jot-recovery/claude-data/file-history \
+  --branch surviving --json --progress \
+  > /tmp/plate_cli_bounded.json 2> /tmp/plate_cli_bounded_progress.log 
+
+Terminal 2:
+tail -f /tmp/plate_cli_bounded_progress.log
+----------------------------
+  Timed variant of the Terminal 1 command (captures start/end instants + peak RSS;
+  time's summary is appended to the progress log):
+
+  date +"start %Y-%m-%dT%H:%M:%S%z" && \
+  /usr/bin/time -l npx tsx jfred/src/reconstruction_cli.ts \
+  ~/Programming/jot-recovery/claude-data/projects/-Users-matkatmusicllc-Programming-jot/*.jsonl \
+  --until-revision /Users/matkatmusicllc/Programming/jot/common/scripts/plate/plate_cli.py \
+  --file /Users/matkatmusicllc/Programming/jot/common/scripts/plate/plate_cli.py \
+  --repo ~/Programming/jot \
+  --base-commit 793e65241902f276caf5f5c28d539269e7d36d11 \
+  --fhsLoc ~/Programming/jot-recovery/claude-data/file-history \
+  --branch surviving --json --progress \
+  > /tmp/plate_cli_bounded.json 2>> /tmp/plate_cli_bounded_progress.log ; \
+  date +"end %Y-%m-%dT%H:%M:%S%z"
+
+  (JSON-report alternative: ./jfred/bench/bench_bounded.sh writes /tmp/plate_cli_bounded_report.json)
+----------------------------
