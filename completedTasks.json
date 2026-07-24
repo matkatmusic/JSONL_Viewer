@@ -1836,5 +1836,13 @@
       "jfred@cdeef5b"
     ],
     "closureNote": "Fixed by the target-scoped surviving fast path + Bash-executor sandbox skip gate (jfred@cdeef5b); user ran the real bounded plate_cli.py benchmark 2026-07-24 and reconstruction was very fast."
+  },
+  {
+    "taskNumber": 214,
+    "title": "Mockup: script-run node detail (script body + before/after diffs)",
+    "description": "S14. HTML mockup in plans/ (peer of mvp-app-mockup.html) showing how a clicked script-run node presents the script body AND the before/after diff of affected files in the detail pane. Needs user sign-off before task 215 is implemented. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-24",
+    "commitHashes": [],
+    "closureNote": "Mockup delivered at plans/script-run-detail-mockup.html (staged, not yet committed) and the user signed off on the layout 2026-07-24 ('Mockup looks good'), satisfying S14's verify condition."
   }
 ]

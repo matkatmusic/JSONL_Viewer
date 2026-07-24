@@ -205,7 +205,7 @@ diff of affected files in the detail pane. Produced and user-approved before
 S15 is implemented.
 - Verify: mockup file exists and the user has signed off on the layout.
 - Tasks: #214
-- Status: open
+- Status: done (plans/script-run-detail-mockup.html; user signed off 2026-07-24)
 
 ### S15. Script-run node click shows before/after diffs
 Clicking a script-run node shows the before/after state of each affected

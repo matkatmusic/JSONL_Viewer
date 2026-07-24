@@ -245,17 +245,11 @@
     ]
   },
   {
-    "taskNumber": 214,
-    "title": "Mockup: script-run node detail (script body + before/after diffs)",
-    "description": "S14. HTML mockup in plans/ (peer of mvp-app-mockup.html) showing how a clicked script-run node presents the script body AND the before/after diff of affected files in the detail pane. Needs user sign-off before task 215 is implemented. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
     "taskNumber": 215,
     "title": "Script-run node click shows per-file before/after diffs + script body",
     "description": "S15. Clicking a script-run node shows the before/after state of each affected file as a diff in the detail pane (same diff mechanism as segment selection) alongside the script body, laid out per the approved task-214 mockup. DOM test with a fixture containing a script-run node. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
     "blockedBy": [
-      213,
-      214
+      213
     ]
   },
   {
