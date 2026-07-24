@@ -1826,5 +1826,15 @@
     "completionDate": "2026-07-23",
     "commitHashes": [],
     "closureNote": "Implemented --until-revision <path> [--nth <n>]: locates the nth revision via extractFileEvents, truncates the merged record stream at the containing turn end (next genuine main-chain user prompt) before the sidecar reader/engine run, and reports the total revision count on stderr; work staged in jfred, not committed."
+  },
+  {
+    "taskNumber": 192,
+    "title": "executeRunOnce re-execution blowup on real data: one run sandbox-executed ~12,000 times",
+    "description": "Task-182 attempt 2 (2026-07-23, run KILLED after ~1.5h with ladder.json still empty) hit a task-162-class blowup one layer down: the sandbox-execution memo does not hold across passes. Evidence (log preserved at ~/Programming/jot-recovery/run-evidence/plate_cli_progress-attempt2-2026-07-23.log.gz, plain-text tail alongside): `executing script run` appeared 12,101 times but only 122 distinct run timestamps — the single run at 684c147c-375f-449f-8e32-3847c8cb94ab.jsonl:605 (2026-04-25T01:50:53.814Z, a compound chmod+bash of skills/todo/tests/hook-mktemp-pending-test.sh) accounts for 11,980 executions; every other run executed once. Target discovery stalled (distinct lineage targets 42/156/165 across log quarters while executing-lines went 64/6006/6031). Mechanism to investigate: executeRunOnce memoizes on `timestamp|code` but the cache lives in getDerivedCaches(records, reader), keyed by records-ARRAY identity — per-branch passes (selectBranchRecords, collectAcceptedUserEditIds) and lineage replays hand the engine fresh filtered arrays, each getting a fresh executionsByRun, so runForTarget/runTouchesTarget execution probes re-run the same script per (target x window x records-identity). Fix direction: make the execution memo survive records-identity churn (e.g. key the corpus caches on the underlying session set, or hoist executionsByRun to a run-identity-keyed store like the task-162 lineage memo), WITHOUT breaking the s85 range-patch semantics (see tasks172-173 memory: s85 CI failure was task-155 semantics, not machine-boundness). Blocks task 182 (S9 real-data viability rerun).",
+    "completionDate": "2026-07-24",
+    "commitHashes": [
+      "jfred@cdeef5b"
+    ],
+    "closureNote": "Fixed by the target-scoped surviving fast path + Bash-executor sandbox skip gate (jfred@cdeef5b); user ran the real bounded plate_cli.py benchmark 2026-07-24 and reconstruction was very fast."
   }
 ]
