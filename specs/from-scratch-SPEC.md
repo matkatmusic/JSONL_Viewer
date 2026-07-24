@@ -86,7 +86,7 @@ placed by its `Instant` on the one UTC-ms axis: JSONL timestamps as-is, git
 committer seconds widened ×1000, same-second ties broken by content order.
 - Verify: unit test on a fixture folder — returned entities match the files the fixture evidences; explicit-path override respected; a commit and a JSONL record in the same second order by content.
 - Tasks: #195, #196, #197
-- Status: open (#195 done 2026-07-24, jfred@462e075)
+- Status: done (#195 done 2026-07-24, jfred@462e075; #196 + #197 done 2026-07-24, staged — layered_load.ts + layered_instants.ts)
 
 ### S2. Layer 1 — anchors, pre-anchor stubs, end state, presumption gaps
 Per file: anchor = first full-content evidence (commit blob, snapshot, Write
@@ -144,7 +144,7 @@ Changes pane hidden until a segment is selected. Clicking a file in the
 drawer scrolls to its widget.
 - Verify: DOM test — regions present, drawer collapses, file click scrolls, Changes pane hidden with no selection; server test — `webapp_old.html` serves the pre-existing page.
 - Tasks: #204, #205, #206
-- Status: open (#204 done 2026-07-24, jfred@462e075)
+- Status: open (#204 done 2026-07-24, jfred@462e075; #205 done 2026-07-24, staged — index.html + layered-app.ts, root serving flipped; #206 open)
 
 ### S8. Per-file widgets on one shared vertical axis
 Each file renders as a rounded widget offset to its history's start on the

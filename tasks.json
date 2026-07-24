@@ -12,10 +12,7 @@
   {
     "taskNumber": 182,
     "title": "S9: real-data viability run — plate_cli.py ladder from claude-data sources",
-    "description": "Step-1 viability proof of the per-file approach (user request): run the CLI with ~/Programming/jot-recovery/claude-data/ (projects/ JSONLs + file-history/ snapshots) as the source, --file common/scripts/plate/plate_cli.py, seeded via --repo ~/Programming/jot --base-commit 793e65241902f276caf5f5c28d539269e7d36d11. The run must complete and emit the file's revision ladder; verify a revision byte-identical to blob 9d14d60d is present and that intermediate revisions the sources evidence are emitted (report the revision count). Document results — including any mismatch, which is a finding not a silent pass — in plans/166-per-file-target.md. Attempt 1 (2026-07-22) documented there: loaded 156/156 JSONLs then >24 min silent in reconstruction, killed before emitting the ladder.",
-    "blockedBy": [
-      220
-    ]
+    "description": "Step-1 viability proof of the per-file approach (user request): run the CLI with ~/Programming/jot-recovery/claude-data/ (projects/ JSONLs + file-history/ snapshots) as the source, --file common/scripts/plate/plate_cli.py, seeded via --repo ~/Programming/jot --base-commit 793e65241902f276caf5f5c28d539269e7d36d11. The run must complete and emit the file's revision ladder; verify a revision byte-identical to blob 9d14d60d is present and that intermediate revisions the sources evidence are emitted (report the revision count). Document results — including any mismatch, which is a finding not a silent pass — in plans/166-per-file-target.md. Attempt 1 (2026-07-22) documented there: loaded 156/156 JSONLs then >24 min silent in reconstruction, killed before emitting the ladder."
   },
   {
     "taskNumber": 183,
@@ -75,23 +72,9 @@
     ]
   },
   {
-    "taskNumber": 196,
-    "title": "loadLayeredProject: source discovery + per-file entities from JSONL rows",
-    "description": "S1. In jfred/src/layered_load.ts, loadLayeredProject(projectFolder, {repoPath?, jsonlPaths?, snapshotPaths?}): explicit paths win, otherwise discover from the folder (reuse existing JSONL/sidecar/repo discovery + the merged sorted file-touching row list); returns a ReconstructionGraph of per-file ReconstructionEntitys holding per-session SessionTimelines. Unit test: fixture folder yields the evidenced entities; explicit-path override respected. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
-    "taskNumber": 197,
-    "title": "Instant axis placement: committer-second widening + content-order tiebreak",
-    "description": "S1. Helper placing every node by its Instant on the one UTC-ms axis: JSONL ms as-is, git committer seconds widened x1000 (never author time), same-second ties broken by content order. Unit test: a commit and a JSONL record in the same second order by content. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
     "taskNumber": 198,
     "title": "Layer 1: anchor selection + pre-anchor stubs with byte-op refusal",
-    "description": "S2. Per file: anchor = first full-content evidence (commit blob, snapshot, Write body, complete Read echo, populated originalFile); earlier byteless mentions become pre-anchor stub nodes that refuse byte-consuming operations (display/placement only). Unit tests: anchor chosen correctly per evidence class; stub byte-op refusal. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      196,
-      197
-    ]
+    "description": "S2. Per file: anchor = first full-content evidence (commit blob, snapshot, Write body, complete Read echo, populated originalFile); earlier byteless mentions become pre-anchor stub nodes that refuse byte-consuming operations (display/placement only). Unit tests: anchor chosen correctly per evidence class; stub byte-op refusal. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 199,
@@ -104,19 +87,12 @@
   {
     "taskNumber": 200,
     "title": "Layer 2: commit beacon nodes at committer instants",
-    "description": "S3. Given repoPath, each commit touching a file contributes a verified beacon node carrying blob bytes at its committer Instant (reuse existing git evidence code, e.g. reconstruction_git_evidence.ts). Unit test with a fixture repo; author time never used. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      196,
-      197
-    ]
+    "description": "S3. Given repoPath, each commit touching a file contributes a verified beacon node carrying blob bytes at its committer Instant (reuse existing git evidence code, e.g. reconstruction_git_evidence.ts). Unit test with a fixture repo; author time never used. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 201,
     "title": "Layer 3: snapshot beacon nodes via owning-session sidecar",
-    "description": "S4. File-history snapshots become verified beacon nodes; a snapshot reference (abc123@vN) resolves through the OWNING session's sidecar, never a global lookup (reuse the per-source BackupReader). Unit test: two sessions using the same @vN name for different bytes each get their own session's bytes. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      196
-    ]
+    "description": "S4. File-history snapshots become verified beacon nodes; a snapshot reference (abc123@vN) resolves through the OWNING session's sidecar, never a global lookup (reuse the per-source BackupReader). Unit test: two sessions using the same @vN name for different bytes each get their own session's bytes. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 202,
@@ -137,18 +113,9 @@
     ]
   },
   {
-    "taskNumber": 205,
-    "title": "Layered page skeleton: drawer, timeline canvas, split right panes",
-    "description": "S7. New main page (jfred/webapp, layered- prefix): left collapsing drawer (JSONL session list + file nav), timeline canvas in the left half, right half split top/bottom — top Details pane, bottom Changes pane hidden until a segment is selected; clicking a file in the drawer scrolls to its widget. DOM tests per S7. Layout per plans/mvp-app-mockup.html. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
     "taskNumber": 206,
     "title": "Viewer API endpoint serving the layered reconstruction",
-    "description": "S7/S8 plumbing. Serve loadLayeredProject's graph to the layered page (follow the existing viewer_api_* route patterns); the page fetches it on load. Server test: endpoint returns the fixture graph JSON. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      196,
-      205
-    ]
+    "description": "S7/S8 plumbing. Serve loadLayeredProject's graph to the layered page (follow the existing viewer_api_* route patterns); the page fetches it on load. Server test: endpoint returns the fixture graph JSON. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 207,
@@ -156,7 +123,6 @@
     "description": "S8. Each file renders as a rounded widget offset to its history's start on the shared vertical axis, per-session lanes inside. DOM test on a two-file two-session fixture: widget offsets ordered by start Instant; lanes per session. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
     "blockedBy": [
       202,
-      205,
       206
     ]
   },
@@ -195,10 +161,7 @@
   {
     "taskNumber": 212,
     "title": "Always-visible timeline legend above the scrolled area",
-    "description": "S12. Legend renders at the top of the timeline area and stays visible while the timeline scrolls (not part of the scrolled content). DOM/CSS test per S12. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      205
-    ]
+    "description": "S12. Legend renders at the top of the timeline area and stays visible while the timeline scrolls (not part of the scrolled content). DOM/CSS test per S12. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 213,
@@ -246,20 +209,17 @@
     "title": "Webapp: segment selection shows its patch in the reused Changes view",
     "description": "S17. Selecting a segment computes its task-218 patch and shows it in the reused webapp Changes view (Fork-style tree + diff) in the bottom-right pane, visible only while a segment is selected. DOM test per S17. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
     "blockedBy": [
-      205,
       217,
       218
     ]
   },
   {
-    "taskNumber": 220,
-    "title": "Per-run nested-replay blowup: incremental closure replay for injectScriptExecutions",
-    "description": "Task-182 attempt 3 (2026-07-24, jfred@cdeef5b) showed a residual real-data blowup PAST the task-192 fixes: with the --branch surviving --file fast path correctly engaged (isTargetedSurvivingRequest, reconstruction_target.ts), the run advanced the 3,992-run script pool at ~3 runs/min (linear ETA ~22h) and never reached the target. Mechanism: injectScriptExecutions replays the lineage of every closure script file (~32 files, ~9x re-replay each by run 60) at EACH run instant; the task-162 memo cannot serve across cutoffs by its never-widening-window rule, so cost = runs x closure-size x per-replay cost. Fix direction: incremental per-file replay state that advances WITH the run cutoff (reconstruct each closure file once, forward through time) instead of a fresh bounded replay per run — cf. optimizations.md Phases 4/5 deferred from task 192. Evidence: ~/Programming/jot-recovery/run-evidence/plate_cli_progress-attempt3-2026-07-24.log.gz; findings in plans/166-per-file-target.md attempt-3 section. Blocks task 182."
-  },
-  {
     "taskNumber": 221,
     "title": "Timeline bubble for files with no snapshots/beacons: \"no snapshots available\"",
-    "description": "User request (2026-07-24): if a file has no file-history snapshots and is not referenced in any git commit, the webapp timeline should still render the file's bubble like the others in the currently selected layer's view, but with the text \"no snapshots available\" — indicating to the user that no beacons exist for the file."
+    "description": "User request (2026-07-24): if a file has no file-history snapshots and is not referenced in any git commit, the webapp timeline should still render the file's bubble like the others in the currently selected layer's view, but with the text \"no snapshots available\" — indicating to the user that no beacons exist for the file.",
+    "blockedBy": [
+      207
+    ]
   },
   {
     "taskNumber": 222,

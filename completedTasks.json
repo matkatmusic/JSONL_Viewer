@@ -1890,5 +1890,39 @@
       "jfred@beac114"
     ],
     "closureNote": "Completed in jfred@beac114: static Pages demo under docs/engineb/ (canned document.json + fetch shim over webapp_old.html); user verified the page loads in a browser via local http.server. Pages account setup tracked as task 222."
+  },
+  {
+    "taskNumber": 196,
+    "title": "loadLayeredProject: source discovery + per-file entities from JSONL rows",
+    "description": "S1. In jfred/src/layered_load.ts, loadLayeredProject(projectFolder, {repoPath?, jsonlPaths?, snapshotPaths?}): explicit paths win, otherwise discover from the folder (reuse existing JSONL/sidecar/repo discovery + the merged sorted file-touching row list); returns a ReconstructionGraph of per-file ReconstructionEntitys holding per-session SessionTimelines. Unit test: fixture folder yields the evidenced entities; explicit-path override respected. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-24",
+    "commitHashes": [],
+    "closureNote": "Implemented + staged 2026-07-24: jfred/src/layered_load.ts (discoverJsonlPaths, resolveEvidenceRoots, loadLayeredProject building per-file ReconstructionEntitys with per-session SessionTimelines) + 7 unit tests green; suite run pending user."
+  },
+  {
+    "taskNumber": 197,
+    "title": "Instant axis placement: committer-second widening + content-order tiebreak",
+    "description": "S1. Helper placing every node by its Instant on the one UTC-ms axis: JSONL ms as-is, git committer seconds widened x1000 (never author time), same-second ties broken by content order. Unit test: a commit and a JSONL record in the same second order by content. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-24",
+    "commitHashes": [],
+    "closureNote": "Implemented + staged 2026-07-24: jfred/src/layered_instants.ts (widenCommitterSecondsToInstant, compareAxisPlacements with same-second content-order tiebreak) + 6 unit tests green; suite run pending user."
+  },
+  {
+    "taskNumber": 205,
+    "title": "Layered page skeleton: drawer, timeline canvas, split right panes",
+    "description": "S7. New main page (jfred/webapp, layered- prefix): left collapsing drawer (JSONL session list + file nav), timeline canvas in the left half, right half split top/bottom — top Details pane, bottom Changes pane hidden until a segment is selected; clicking a file in the drawer scrolls to its widget. DOM tests per S7. Layout per plans/mvp-app-mockup.html. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-24",
+    "commitHashes": [],
+    "closureNote": "Implemented + staged 2026-07-24: webapp/index.html + layered-app.ts + layered-styles.css skeleton (collapsing drawer, canvas, Details/Changes split, file-click scroll), root serving flipped to index.html, 6 DOM tests + 2 serving tests green; suite run pending user."
+  },
+  {
+    "taskNumber": 220,
+    "title": "Per-run nested-replay blowup: incremental closure replay for injectScriptExecutions",
+    "description": "Task-182 attempt 3 (2026-07-24, jfred@cdeef5b) showed a residual real-data blowup PAST the task-192 fixes: with the --branch surviving --file fast path correctly engaged (isTargetedSurvivingRequest, reconstruction_target.ts), the run advanced the 3,992-run script pool at ~3 runs/min (linear ETA ~22h) and never reached the target. Mechanism: injectScriptExecutions replays the lineage of every closure script file (~32 files, ~9x re-replay each by run 60) at EACH run instant; the task-162 memo cannot serve across cutoffs by its never-widening-window rule, so cost = runs x closure-size x per-replay cost. Fix direction: incremental per-file replay state that advances WITH the run cutoff (reconstruct each closure file once, forward through time) instead of a fresh bounded replay per run — cf. optimizations.md Phases 4/5 deferred from task 192. Evidence: ~/Programming/jot-recovery/run-evidence/plate_cli_progress-attempt3-2026-07-24.log.gz; findings in plans/166-per-file-target.md attempt-3 section. Blocks task 182.",
+    "completionDate": "2026-07-24",
+    "commitHashes": [
+      "jfred@beac114"
+    ],
+    "closureNote": "Horizon-keyed lineage-seed memo (jfred@beac114) verified by task-182 attempt-4 rerun 2026-07-24: full 3,992-run pool completed in ~11 min (vs ~22h ETA), 96.4% lineage-cache serves, 34-revision plate_cli.py ladder produced; evidence in jot-recovery/run-evidence attempt4 files."
   }
 ]

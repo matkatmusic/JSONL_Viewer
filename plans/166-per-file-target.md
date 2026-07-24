@@ -88,7 +88,20 @@ lineage-seed memo is now keyed by relevant-input horizon instead of raw
 instant, so unchanged closure files serve from cache across run cutoffs —
 pending a task-182 rerun to measure the real-corpus rate.
 
-Task 182 stays open, blocked on that fix. Multi-source seeding was ruled OUT
+## Task 182 viability run — attempt 4 (2026-07-24, COMPLETED — blowup FIXED)
+
+Same invocation as attempt 3's correct-flag run, on jfred@beac114 (task-220
+horizon memo committed). The FULL run completed in ~11 minutes, exit 0 —
+vs the ~22h linear ETA measured in attempt 3. Final counters:
+executionRequests 1,864,979 (99.8% cache hits), preStateBuilds 136,
+sandboxSpawns 311, lineageReplayRequests 18,639 with 17,965 cache serves
+(96.4%). Output: a valid `--json` document for `plate_cli.py` with a
+**34-revision ladder**. Evidence preserved at
+`~/Programming/jot-recovery/run-evidence/plate_cli_progress-attempt4-2026-07-24.log.gz`
+and `plate_cli_ladder-attempt4-2026-07-24.json`. Task 220 closed; the
+9d14d60d blob check and per-revision validation are task 182's remaining work.
+
+Task 182 is now unblocked. Multi-source seeding was ruled OUT
 as a factor: writes to the target's absolute path exist only in the
 `-Users-matkatmusicllc-Programming-jot` project folder (11 JSONLs); the
 engine's multi-source machinery (specs S3–S6) is present and unused here.
