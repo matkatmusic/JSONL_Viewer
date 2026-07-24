@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Script-Run Node Detail — Mockup (S14)</title>
+<style>
+  /* Peer of mvp-app-mockup.html — same palette. */
+  .viz-root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb;
+    --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,.10);
+    --c-commit: #2a78d6; --c-snap: #1baf7a; --c-user: #eb6834;
+    --c-script: #4a3aa7; --c-anchor: #e87ba4; --c-disk: #0b0b0b;
+    --seg-a: rgba(27,175,122,.12); --sel-edge: #1baf7a;
+    --add: #0ca30c; --del: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19;
+      --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,.10);
+      --c-commit: #3987e5; --c-snap: #199e70; --c-user: #d95926;
+      --c-script: #9085e9; --c-anchor: #d55181; --c-disk: #ffffff;
+      --seg-a: rgba(25,158,112,.15); --sel-edge: #199e70;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19;
+    --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,.10);
+    --c-commit: #3987e5; --c-snap: #199e70; --c-user: #d95926;
+    --c-script: #9085e9; --c-anchor: #d55181; --c-disk: #ffffff;
+    --seg-a: rgba(25,158,112,.15); --sel-edge: #199e70;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body { background: var(--page); }
+  .viz-root { font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--page); height: 100vh; display: flex; flex-direction: column; }
+
+  header { display: flex; align-items: center; gap: 12px; padding: 8px 16px;
+    border-bottom: 1px solid var(--border); background: var(--surface); }
+  header h1 { font-size: 14px; }
+  header .crumb { font-size: 11.5px; color: var(--muted); }
+
+  .app { flex: 1; display: flex; min-height: 0; }
+
+  /* left: minimal timeline context — one file, script node active */
+  .timelines { flex: 1; min-width: 0; overflow: auto; position: relative; padding: 30px 12px 40px 56px; }
+  .filebox { position: relative; width: 200px; border: 2px solid #d98a2b; border-radius: 14px;
+    background: color-mix(in srgb, var(--surface) 88%, transparent); padding: 30px 10px 14px; height: 380px; }
+  .filebox .fname { position: absolute; top: -22px; left: 12px; font: 600 14px ui-monospace, Menlo, monospace;
+    color: var(--c-snap); }
+  .lane { position: relative; width: 64px; margin: 0 auto; height: 100%; }
+  .lane .lrail { position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1.5px solid var(--baseline); }
+  .node { position: absolute; left: 50%; transform: translate(-50%, -50%);
+    width: 15px; height: 15px; border-radius: 50%; cursor: pointer;
+    box-shadow: 0 0 0 2.5px var(--surface); }
+  .node.active { outline: 2.5px solid var(--ink); }
+  .n-anchor { background: var(--c-anchor); }
+  .n-snap   { background: var(--c-snap); }
+  .n-commit { border-radius: 4px; background: var(--c-commit); }
+  .n-script { background: transparent; border: 3.5px solid var(--c-script); }
+  .n-disk   { background: transparent; border: 3px double var(--c-disk); }
+  .caption { margin-top: 18px; max-width: 240px; font-size: 11.5px; color: var(--muted); }
+
+  /* right half: the DETAIL pane is the subject of this mockup.
+     Script-run click fills the TOP pane (Details) — the bottom Changes pane
+     stays reserved for segment selection, unchanged. */
+  .right { width: 52%; min-width: 420px; flex: none; border-left: 1px solid var(--border);
+    background: var(--surface); display: flex; flex-direction: column; min-height: 0; }
+  .details { flex: 1; overflow-y: auto; padding: 14px 18px; min-height: 0; }
+  .details h2 { font-size: 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .details h2 .jsonbtn { font: 600 11px ui-monospace, Menlo, monospace; padding: 2px 7px; border-radius: 5px;
+    border: 1px solid var(--border); background: transparent; color: var(--ink2); cursor: pointer; }
+  .details dl { display: grid; grid-template-columns: 96px 1fr; gap: 5px 10px; font-size: 12.5px; }
+  .details dt { color: var(--muted); }
+  .details dd { word-break: break-all; }
+
+  /* 1. script body block */
+  .scriptbody { margin-top: 12px; border: 1px solid var(--grid); border-radius: 8px; overflow: hidden; }
+  .scriptbody .sbhead { display: flex; align-items: center; gap: 10px; padding: 6px 12px;
+    background: color-mix(in srgb, var(--c-script) 8%, transparent);
+    border-bottom: 1px solid var(--grid); font-size: 11.5px; }
+  .scriptbody .sbhead b { font: 600 12px ui-monospace, Menlo, monospace; color: var(--c-script); }
+  .scriptbody .sbhead .prov { color: var(--muted); margin-left: auto; }
+  .scriptbody pre { padding: 10px 12px; font: 11.5px/1.55 ui-monospace, Menlo, monospace;
+    color: var(--ink2); white-space: pre; overflow-x: auto; max-height: 180px; }
+
+  /* 2. affected files: Fork-style tree + before/after diff (same mechanism
+        as the segment Changes view, embedded in the detail pane) */
+  .affected { margin-top: 14px; border: 1px solid var(--grid); border-radius: 8px;
+    display: flex; flex-direction: column; overflow: hidden; }
+  .affected .ahead { padding: 6px 12px; border-bottom: 1px solid var(--grid);
+    font-size: 11.5px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .affected .ahead b { font-size: 12px; }
+  .affected .anote { font-size: 10.5px; color: var(--muted); }
+  .abody { display: flex; min-height: 0; }
+  .atree { width: 170px; flex: none; border-right: 1px solid var(--grid); padding: 8px 0; }
+  .atree .f { padding: 4px 12px; font: 12px ui-monospace, Menlo, monospace; cursor: pointer;
+    display: flex; justify-content: space-between; gap: 6px; color: var(--ink2); }
+  .atree .f.on { background: var(--seg-a); color: var(--ink); }
+  .atree .counts { font-size: 10.5px; }
+  .atree .counts .a { color: var(--add); } .atree .counts .d { color: var(--del); }
+  .apane { flex: 1; overflow: auto; font: 11.5px/1.6 ui-monospace, Menlo, monospace; padding: 8px 0; max-height: 260px; }
+  .apane .statesrc { color: var(--muted); padding: 2px 14px; font-size: 10.5px; }
+  .apane .hunk { color: var(--muted); padding: 2px 14px; }
+  .apane .ln { white-space: pre; padding: 0 14px; }
+  .apane .add { background: color-mix(in srgb, var(--add) 14%, transparent); color: var(--ink); }
+  .apane .del { background: color-mix(in srgb, var(--del) 14%, transparent); color: var(--ink); }
+
+  .diffview { flex: none; border-top: 1px solid var(--border); padding: 10px 14px;
+    font-size: 11.5px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <header>
+    <h1>Script-run node detail — mockup (S14)</h1>
+    <span class="crumb">clicked: python3 fix.py · a234.jsonl:L113</span>
+  </header>
+  <div class="app">
+    <main class="timelines">
+      <div class="filebox">
+        <div class="fname">c.py</div>
+        <div class="lane">
+          <div class="lrail"></div>
+          <div class="node n-anchor" style="top:8%"  title="anchor"></div>
+          <div class="node n-snap"   style="top:26%" title="abc9@v1"></div>
+          <div class="node n-commit" style="top:44%" title="17dj38sd"></div>
+          <div class="node n-script active" style="top:62%" title="python3 fix.py — clicked"></div>
+          <div class="node n-snap"   style="top:80%" title="abc9@v2"></div>
+          <div class="node n-disk"   style="top:96%" title="disk"></div>
+        </div>
+      </div>
+      <p class="caption">Clicking the script-run ring (◯) fills the top-right Details
+        pane with the script body and the before/after diff of every affected file.
+        The bottom Changes pane stays reserved for segment selection.</p>
+    </main>
+    <aside class="right">
+      <div class="details">
+        <h2>Script run — python3 fix.py <button class="jsonbtn" title="show raw JSON of this node">[{ }]</button></h2>
+        <dl>
+          <dt>kind</dt><dd>script run (layer 7)</dd>
+          <dt>instant</dt><dd>2026-07-23 09:21:00.000 UTC</dd>
+          <dt>session</dt><dd>a234.jsonl</dd>
+          <dt>evidence</dt><dd>a234.jsonl:L113 · Bash: python3 fix.py</dd>
+          <dt>files read</dt><dd>fix.py, c.py</dd>
+          <dt>files written</dt><dd>c.py, report.txt</dd>
+          <dt>verified</dt><dd>no — speculative (layer-10 replay pending)</dd>
+        </dl>
+
+        <div class="scriptbody">
+          <div class="sbhead">
+            <b>fix.py</b> <span>script body</span>
+            <span class="prov">recovered from transcript — itself a reconstructed entity (a234.jsonl:L98)</span>
+          </div>
+          <pre>import csv
+
+def patch_save():
+    rows = list(csv.reader(open("data.csv")))
+    with open("c.py", "a") as f:
+        f.write("    write_csv()  # patched\n")
+
+patch_save()
+print("patched c.py")</pre>
+        </div>
+
+        <div class="affected">
+          <div class="ahead">
+            <b>Affected files — before → after</b>
+            <span>before = nearest verified state at-or-before the run · after = next verified state</span>
+            <span class="anote">same diff mechanism as segment selection (Fork-style tree + diff) — reuse, don't reinvent</span>
+          </div>
+          <div class="abody">
+            <div class="atree">
+              <div class="f on"><span>c.py</span><span class="counts"><span class="a">+2</span> <span class="d">−0</span></span></div>
+              <div class="f"><span>report.txt</span><span class="counts"><span class="a">+1</span> <span class="d">−0</span></span></div>
+            </div>
+            <div class="apane">
+              <div class="statesrc">before: abc9@v1 (ww455.jsonl:L88) → after: abc9@v2 (ww455.jsonl:L212)</div>
+              <div class="hunk">@@ -20,3 +20,5 @@ def save():</div>
+              <div class="ln"> def save():</div>
+              <div class="ln add">+    validate()</div>
+              <div class="ln add">+    write_csv()  # patched</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="diffview">Changes pane (segment diff) — unchanged, hidden unless a segment is selected.</div>
+    </aside>
+  </div>
+</div>
+<script>
+  // Static mockup: tree rows toggle which affected file's diff shows.
+  const panes = {
+    "c.py": '<div class="statesrc">before: abc9@v1 (ww455.jsonl:L88) → after: abc9@v2 (ww455.jsonl:L212)</div>' +
+      '<div class="hunk">@@ -20,3 +20,5 @@ def save():</div>' +
+      '<div class="ln"> def save():</div><div class="ln add">+    validate()</div>' +
+      '<div class="ln add">+    write_csv()  # patched</div>',
+    "report.txt": '<div class="statesrc">before: (absent — born by this run) → after: on-disk end state</div>' +
+      '<div class="hunk">@@ -0,0 +1 @@</div><div class="ln add">+patched c.py</div>',
+  };
+  document.querySelectorAll(".atree .f").forEach((row) => {
+    row.onclick = () => {
+      document.querySelectorAll(".atree .f").forEach((x) => x.classList.remove("on"));
+      row.classList.add("on");
+      document.querySelector(".apane").innerHTML = panes[row.querySelector("span").textContent];
+    };
+  });
+</script>
+</body>
+</html>
