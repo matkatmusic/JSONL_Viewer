@@ -33,8 +33,8 @@ filled in."
   (position known, content unknown), display-only — byte-consuming
   operations refuse unpromoted stubs.
 - Identity (Q11/Q12): one `ReconstructionEntity` per file; typed directed
-  edges (Rename / Copy / ScriptDependsOn); lineage derived by walking rename
-  edges, never stored as a group.
+  edges (`RenameEdge` / `CopyEdge` / `ScriptDependsOn`); lineage derived by
+  `lineageOf` walking `RenameEdge`s, never stored as a group.
 - Hunk discipline (Q15, governs deferred layer 5+): partial-content records
   content-verified at their recorded line position; mismatch means the base
   is wrong → repair the base from evidence.
@@ -42,10 +42,16 @@ filled in."
   on verified states only; per file,
   `patch = diff(endStateOfPreviousSelection, rightmostStateInThisSelection)`;
   first segment's base is the anchor; emitted as git-diff. Overlap is
-  impossible by construction (the ruler is fully partitioned).
+  impossible by construction (the ruler is fully partitioned). Per Q17(a)/(b):
+  a cut mark is one global instant that snaps PER FILE, AT-OR-BEFORE, to that
+  file's nearest verified state — never pulling future content backward;
+  files born after a cut are absent from that segment.
 - Orientation: vertical (decided; horizontal rejected for MVP), with a
   Condense button squashing per-session lanes to one column per file.
-- Reuse, don't rebuild (Q20 + goal): script-run identification chain, hunk
+- Reuse, don't rebuild (Q20 + goal; user-reinforced 2026-07-24): reuse as
+  much existing engine code as possible — before writing any new module,
+  check whether an existing engine piece covers it. Named reuse: merged
+  sorted file-touching row list, script-run identification chain, hunk
   application discipline, kept/ignored row classification, rewind
   kept-vs-reverted snapshot comparison, the webapp Details view (including
   its `[{ }]` raw-JSON node buttons), and the webapp Changes view
@@ -57,7 +63,11 @@ filled in."
   (same mechanism as segment diffs), with the script body displayed per a
   mockup to be produced before implementation.
 - Deferred (not MVP): layers 4+ computation, commit creation from selections
-  (Q17 parked), `edited_text_file` positive beacons, horizontal orientation.
+  (Q17 SETTLED 2026-07-24, still post-MVP: one commit per segment via
+  apply-and-commit from the baseline; per-file at-or-before snap with
+  manifest lines; author date = cut instant, committer date = export time
+  — full closure in from-scratch-reconstruction.hpp), `edited_text_file`
+  positive beacons, horizontal orientation.
 - Spec file (2026-07-24): this file, alongside the still-live task-166
   `SPEC.md` — the per-file jot-recovery items continue in parallel.
 - Code home (2026-07-24): in place in `jfred/src` (engine) and
@@ -70,10 +80,10 @@ filled in."
 ### S1. Loader entry point and shared instant axis
 `loadLayeredProject(projectFolder, {repoPath?, jsonlPaths?, snapshotPaths?})`
 discovers the sources (explicit paths win; otherwise discovered from the
-folder) and returns a reconstruction graph of per-file entities holding
-per-session timelines, all evidence on one UTC-ms axis: JSONL timestamps
-as-is, git committer seconds widened ×1000, same-second ties broken by
-content order.
+folder) and returns a `ReconstructionGraph` of per-file
+`ReconstructionEntity`s holding per-session `SessionTimeline`s, every node
+placed by its `Instant` on the one UTC-ms axis: JSONL timestamps as-is, git
+committer seconds widened ×1000, same-second ties broken by content order.
 - Verify: unit test on a fixture folder — returned entities match the files the fixture evidences; explicit-path override respected; a commit and a JSONL record in the same second order by content.
 - Tasks:
 - Status: open
@@ -104,28 +114,35 @@ name lookup.
 - Status: open
 
 ### S5. Multi-session merge and corroboration
-Per-session timelines merge into one derived view per file, ordered by
-instant; when multiple sessions observed the same bytes, the nodes are
-marked as corroborating (input for the dashed cross-lane lines).
-- Verify: unit test — two sessions' nodes interleave by instant; same-bytes nodes carry the corroboration mark; single-session is the degenerate case.
+Per-session `SessionTimeline`s merge into one derived view per
+`ReconstructionEntity`, nodes ordered by their `Instant` (the shared UTC-ms
+axis point, per the hpp); when multiple sessions observed the same bytes,
+the nodes are marked as corroborating (input for the dashed cross-lane
+lines).
+- Verify: unit test — two sessions' nodes interleave by `Instant`; same-bytes nodes carry the corroboration mark; single-session is the degenerate case.
 - Tasks:
 - Status: open
 
 ### S6. Typed edges and derived lineage
-Rename and copy evidence from layers 1–3 produce typed directed edges;
-`lineageOf` walks rename edges to derive one continuous history; copies fork
-(both entities alive; copy's born content = source state at copy instant).
+Rename and copy evidence from layers 1–3 produce typed directed edges
+(`RenameEdge` with `timestampOfRename`, `CopyEdge` with `timestampOfCopy`,
+each carrying its `JsonlRef` evidence); `lineageOf` walks `RenameEdge`s to
+derive one continuous history; copies fork (both entities alive; `bornCopy`'s
+first content = `copiedFrom`'s reconstructed state at `timestampOfCopy`).
 No stored lineage groups.
 - Verify: unit test — rename chain walks end-to-end; copy fork leaves both lineages independent afterward.
 - Tasks:
 - Status: open
 
 ### S7. App page skeleton
-A new webapp page: left collapsing drawer (JSONL session list + file nav),
-timeline canvas in the left half, right half split top/bottom — top the
-Details pane, bottom the Changes pane hidden until a segment is selected.
-Clicking a file in the drawer scrolls to its widget.
-- Verify: DOM test — regions present, drawer collapses, file click scrolls, Changes pane hidden with no selection.
+The new layered page becomes the webapp's main page; the current webapp page
+is NOT replaced — it is renamed to `webapp_old.html` and stays served, so
+its features can be compared against the new design. New page layout: left
+collapsing drawer (JSONL session list + file nav), timeline canvas in the
+left half, right half split top/bottom — top the Details pane, bottom the
+Changes pane hidden until a segment is selected. Clicking a file in the
+drawer scrolls to its widget.
+- Verify: DOM test — regions present, drawer collapses, file click scrolls, Changes pane hidden with no selection; server test — `webapp_old.html` serves the pre-existing page.
 - Tasks:
 - Status: open
 
@@ -139,18 +156,21 @@ where S5 marked corroboration.
 
 ### S9. Layer switcher with per-layer tooltips
 A `Layer: [1]..[12]` control above the timeline; 1–3 selectable (switching
-re-renders at that layer's detail), 4+ visible but disabled in MVP. Every
-layer button carries a tooltip naming what that layer adds (1 start/end,
-2 commits, 3 snapshots, 5 derived edits, 7 script runs, 8/9 branches,
-10 verified replay, 12 decoration).
-- Verify: DOM test — selecting a layer changes the rendered node set; layers 4+ disabled; each button exposes its what-it-adds tooltip text.
+re-renders at that layer's detail); buttons for layers 5 and up are disabled
+until the functionality each enables becomes unlocked to work with this new
+engine mode. Every layer button carries a tooltip naming what that layer
+adds (1 start/end, 2 commits, 3 snapshots, 5 derived edits, 7 script runs,
+8/9 branches, 10 verified replay, 12 decoration).
+- Verify: DOM test — selecting a layer changes the rendered node set; layer-5+ buttons disabled while their functionality is unlocked-false; each button exposes its what-it-adds tooltip text.
 - Tasks:
 - Status: open
 
 ### S10. Condense button
-Toggles per-session lanes into a single all-nodes column per file (the
-current webapp timeline's shape) and back.
-- Verify: DOM test — condensed mode shows one column with all nodes; toggle restores lanes.
+Toggles per-session lanes into a single all-nodes column per file and back;
+the condensed column looks like the current webapp's timeline — each row
+shows the node's classification plus a truncated version of the original
+message.
+- Verify: DOM test — condensed mode shows one column with all nodes, rows carrying classification and truncated original-message text; toggle restores lanes.
 - Tasks:
 - Status: open
 
@@ -197,18 +217,23 @@ selection uses — alongside the script body, laid out per the S14 mockup.
 
 ### S16. Ruler, marks, and segment partition
 "Create segments for patch extraction" arms the global left ruler; the user
-adds cut marks (triangles) that snap to verified states only (unverified or
-mid-residual cuts refused); the entire ruler length partitions into segments
-P1..Pn spanning every file's lanes.
-- Verify: DOM test — arming enables marks; a mark attempt on an unverified node is refused; n marks yield n+1 contiguous segments covering the full ruler.
+adds cut marks (triangles); a mark is one global instant that snaps per file,
+at-or-before, to that file's nearest verified state (Q17a/b — never pulling
+future content backward; unverified or mid-residual cut states refused); the
+entire ruler length partitions into segments P1..Pn spanning every file's
+lanes.
+- Verify: DOM test — arming enables marks; a mark attempt on an unverified node is refused; a mark between two files' beacons snaps to each file's own at-or-before verified state; n marks yield n+1 contiguous segments covering the full ruler.
 - Tasks:
 - Status: open
 
 ### S17. Segment patch generation as git-diff
 Selecting a segment computes, per file,
 `patch = diff(endStateOfPreviousSelection, rightmostStateInThisSelection)`
-(first segment's base = anchor), concatenated into one git-diff shown in the
+where each state is the file's at-or-before snapped verified state at the
+segment's cut (first segment's base = anchor; a file born after the cut is
+absent from that segment's patch and first appears — as a creation — in the
+segment containing its birth), concatenated into one git-diff shown in the
 reused Changes view; the emitted patch applies cleanly.
-- Verify: unit test — on a fixture, each segment's emitted git-diff `git apply`s in sequence to reproduce the final state; DOM test — segment selection shows the patch in the Changes pane.
+- Verify: unit test — on a fixture, each segment's emitted git-diff `git apply`s in sequence to reproduce the final state, including a file born after cut 1 (absent from segment 1's patch, created by segment 2's); DOM test — segment selection shows the patch in the Changes pane.
 - Tasks:
 - Status: open
