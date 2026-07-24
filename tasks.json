@@ -86,30 +86,14 @@
     ]
   },
   {
-    "taskNumber": 194,
-    "title": "Webapp: reconstruction-mode selection view (full vs bounded-to-file)",
-    "description": "User request (2026-07-23, extends task 193 to the webapp): the webapp should offer 2 modes — (1) full reconstruction of every file (what the app does now, which takes a really long time to process before rendering the timeline), and (2) bounded reconstruction of <file>: reconstruct all files touched until the bound file's end of agent turn (task 193 semantics — nth-revision ordinal, end-of-turn instant). The option must be chosen on ITS OWN VIEW after the paths are set (the task-159 Paths settings wizard) and BEFORE reconstruction begins — i.e., before the console overlay, empty timeline, and empty file-nav column are shown. DESIGN DECIDED (user, 2026-07-23): cheap pre-scan — find all touched files and show each file name + the timestamp of its FIRST modifying event, which could be a script execution, not just an Edit(file)/Update(file) event. Implementation note: extraction-level events (Write/Edit/rename/copy/append/overwrite/user-edit beacons) are cheap and exact; script-execution touches are only PROVABLE via sandbox replay (expensive — task-192 territory), so the pre-scan should attribute script touches statically (findScriptExecutionRuns is parse-only; use the runForTarget basename-mention channel) and mark those first-event timestamps as script-run candidates rather than replay-proven. Wire the choice through the existing document-request flow so the server runs the task-193 bounded engine path; the mode (and bound file + ordinal) likely belongs alongside the consent/baseline sessionStorage decisions (see task-56 preBaseline pattern in webapp/app-choices.ts)."
-  },
-  {
-    "taskNumber": 195,
-    "title": "layered_types.ts: TS domain types from from-scratch-reconstruction.hpp",
-    "description": "S1 groundwork. In jfred/src/layered_types.ts, port the hpp data model to TypeScript per the project's strict-typing rules: Instant (UTC-ms axis point), JsonlRef, TimelineNode union skeleton (beacon/stub/end-state/presumed-user-edit/script-run), Timeline, SessionTimeline, ReconstructionEntity, ReconstructionGraph, RenameEdge (timestampOfRename), CopyEdge (timestampOfCopy), ScriptDependsOn. Unit test exercises construction. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
     "taskNumber": 196,
     "title": "loadLayeredProject: source discovery + per-file entities from JSONL rows",
-    "description": "S1. In jfred/src/layered_load.ts, loadLayeredProject(projectFolder, {repoPath?, jsonlPaths?, snapshotPaths?}): explicit paths win, otherwise discover from the folder (reuse existing JSONL/sidecar/repo discovery + the merged sorted file-touching row list); returns a ReconstructionGraph of per-file ReconstructionEntitys holding per-session SessionTimelines. Unit test: fixture folder yields the evidenced entities; explicit-path override respected. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      195
-    ]
+    "description": "S1. In jfred/src/layered_load.ts, loadLayeredProject(projectFolder, {repoPath?, jsonlPaths?, snapshotPaths?}): explicit paths win, otherwise discover from the folder (reuse existing JSONL/sidecar/repo discovery + the merged sorted file-touching row list); returns a ReconstructionGraph of per-file ReconstructionEntitys holding per-session SessionTimelines. Unit test: fixture folder yields the evidenced entities; explicit-path override respected. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 197,
     "title": "Instant axis placement: committer-second widening + content-order tiebreak",
-    "description": "S1. Helper placing every node by its Instant on the one UTC-ms axis: JSONL ms as-is, git committer seconds widened x1000 (never author time), same-second ties broken by content order. Unit test: a commit and a JSONL record in the same second order by content. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      195
-    ]
+    "description": "S1. Helper placing every node by its Instant on the one UTC-ms axis: JSONL ms as-is, git committer seconds widened x1000 (never author time), same-second ties broken by content order. Unit test: a commit and a JSONL record in the same second order by content. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 198,
@@ -164,17 +148,9 @@
     ]
   },
   {
-    "taskNumber": 204,
-    "title": "Rename current webapp page to webapp_old.html, keep it served",
-    "description": "S7. Do NOT replace the current webapp page: rename it to webapp_old.html and keep it served so its features can be compared against the new design; the new layered page will take the main slot. Server test: webapp_old.html serves the pre-existing page. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
     "taskNumber": 205,
     "title": "Layered page skeleton: drawer, timeline canvas, split right panes",
-    "description": "S7. New main page (jfred/webapp, layered- prefix): left collapsing drawer (JSONL session list + file nav), timeline canvas in the left half, right half split top/bottom — top Details pane, bottom Changes pane hidden until a segment is selected; clicking a file in the drawer scrolls to its widget. DOM tests per S7. Layout per plans/mvp-app-mockup.html. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      204
-    ]
+    "description": "S7. New main page (jfred/webapp, layered- prefix): left collapsing drawer (JSONL session list + file nav), timeline canvas in the left half, right half split top/bottom — top Details pane, bottom Changes pane hidden until a segment is selected; clicking a file in the drawer scrolls to its widget. DOM tests per S7. Layout per plans/mvp-app-mockup.html. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 206,
@@ -290,5 +266,10 @@
     "taskNumber": 220,
     "title": "Per-run nested-replay blowup: incremental closure replay for injectScriptExecutions",
     "description": "Task-182 attempt 3 (2026-07-24, jfred@cdeef5b) showed a residual real-data blowup PAST the task-192 fixes: with the --branch surviving --file fast path correctly engaged (isTargetedSurvivingRequest, reconstruction_target.ts), the run advanced the 3,992-run script pool at ~3 runs/min (linear ETA ~22h) and never reached the target. Mechanism: injectScriptExecutions replays the lineage of every closure script file (~32 files, ~9x re-replay each by run 60) at EACH run instant; the task-162 memo cannot serve across cutoffs by its never-widening-window rule, so cost = runs x closure-size x per-replay cost. Fix direction: incremental per-file replay state that advances WITH the run cutoff (reconstruct each closure file once, forward through time) instead of a fresh bounded replay per run — cf. optimizations.md Phases 4/5 deferred from task 192. Evidence: ~/Programming/jot-recovery/run-evidence/plate_cli_progress-attempt3-2026-07-24.log.gz; findings in plans/166-per-file-target.md attempt-3 section. Blocks task 182."
+  },
+  {
+    "taskNumber": 221,
+    "title": "Timeline bubble for files with no snapshots/beacons: \"no snapshots available\"",
+    "description": "User request (2026-07-24): if a file has no file-history snapshots and is not referenced in any git commit, the webapp timeline should still render the file's bubble like the others in the currently selected layer's view, but with the text \"no snapshots available\" — indicating to the user that no beacons exist for the file."
   }
 ]

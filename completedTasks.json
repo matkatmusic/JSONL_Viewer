@@ -1844,5 +1844,35 @@
     "completionDate": "2026-07-24",
     "commitHashes": [],
     "closureNote": "Mockup delivered at plans/script-run-detail-mockup.html (staged, not yet committed) and the user signed off on the layout 2026-07-24 ('Mockup looks good'), satisfying S14's verify condition."
+  },
+  {
+    "taskNumber": 204,
+    "title": "Rename current webapp page to webapp_old.html, keep it served",
+    "description": "S7. Do NOT replace the current webapp page: rename it to webapp_old.html and keep it served so its features can be compared against the new design; the new layered page will take the main slot. Server test: webapp_old.html serves the pre-existing page. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-24",
+    "commitHashes": [
+      "jfred@462e075"
+    ],
+    "closureNote": "Completed in jfred@462e075: webapp page renamed to webapp_old.html and kept served via extracted static-file routing helper, with unit and end-to-end server tests."
+  },
+  {
+    "taskNumber": 195,
+    "title": "layered_types.ts: TS domain types from from-scratch-reconstruction.hpp",
+    "description": "S1 groundwork. In jfred/src/layered_types.ts, port the hpp data model to TypeScript per the project's strict-typing rules: Instant (UTC-ms axis point), JsonlRef, TimelineNode union skeleton (beacon/stub/end-state/presumed-user-edit/script-run), Timeline, SessionTimeline, ReconstructionEntity, ReconstructionGraph, RenameEdge (timestampOfRename), CopyEdge (timestampOfCopy), ScriptDependsOn. Unit test exercises construction. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-24",
+    "commitHashes": [
+      "jfred@462e075"
+    ],
+    "closureNote": "Completed in jfred@462e075: layered_types.ts ports the from-scratch-reconstruction.hpp data model to strict TS domain types with construction tests."
+  },
+  {
+    "taskNumber": 194,
+    "title": "Webapp: reconstruction-mode selection view (full vs bounded-to-file)",
+    "description": "User request (2026-07-23, extends task 193 to the webapp): the webapp should offer 2 modes — (1) full reconstruction of every file (what the app does now, which takes a really long time to process before rendering the timeline), and (2) bounded reconstruction of <file>: reconstruct all files touched until the bound file's end of agent turn (task 193 semantics — nth-revision ordinal, end-of-turn instant). The option must be chosen on ITS OWN VIEW after the paths are set (the task-159 Paths settings wizard) and BEFORE reconstruction begins — i.e., before the console overlay, empty timeline, and empty file-nav column are shown. DESIGN DECIDED (user, 2026-07-23): cheap pre-scan — find all touched files and show each file name + the timestamp of its FIRST modifying event, which could be a script execution, not just an Edit(file)/Update(file) event. Implementation note: extraction-level events (Write/Edit/rename/copy/append/overwrite/user-edit beacons) are cheap and exact; script-execution touches are only PROVABLE via sandbox replay (expensive — task-192 territory), so the pre-scan should attribute script touches statically (findScriptExecutionRuns is parse-only; use the runForTarget basename-mention channel) and mark those first-event timestamps as script-run candidates rather than replay-proven. Wire the choice through the existing document-request flow so the server runs the task-193 bounded engine path; the mode (and bound file + ordinal) likely belongs alongside the consent/baseline sessionStorage decisions (see task-56 preBaseline pattern in webapp/app-choices.ts).",
+    "completionDate": "2026-07-24",
+    "commitHashes": [
+      "jfred@462e075"
+    ],
+    "closureNote": "Completed in jfred@462e075: reconstruction-mode selection view (app-mode-select.ts) with /api/prescan endpoint (viewer_api_prescan.ts) and bounded document builds wired through the document-request flow and app-choices.ts."
   }
 ]

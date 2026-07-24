@@ -83,6 +83,11 @@ cutoff (reconstruct each closure file once, forward through time) instead of
 a fresh bounded replay per run — cf. optimizations.md Phases 4/5 deferred from
 task 192.
 
+Task-220 fix implemented 2026-07-24 (plans/220-lineage-horizon-memo.md): the
+lineage-seed memo is now keyed by relevant-input horizon instead of raw
+instant, so unchanged closure files serve from cache across run cutoffs —
+pending a task-182 rerun to measure the real-corpus rate.
+
 Task 182 stays open, blocked on that fix. Multi-source seeding was ruled OUT
 as a factor: writes to the target's absolute path exist only in the
 `-Users-matkatmusicllc-Programming-jot` project folder (11 JSONLs); the
