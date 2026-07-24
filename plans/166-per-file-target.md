@@ -51,6 +51,43 @@ Findings (now task 192, which blocks 182):
   session time — that pool size is real (thousands of `&&`-split bash runs
   across 156 sessions), not itself the pathology.
 
+## Task 182 viability run — attempt 3 (2026-07-24, KILLED — residual blowup past task 192)
+
+Same invocation as attempt 2, run twice on jfred@cdeef5b (task-192 fix committed):
+
+- **Wrong-flag run (02:39–09:41, ~7h, killed)**: passed `--surviving` (boolean)
+  instead of `--branch surviving` — the task-192 fast path gates on
+  `options.branch === "surviving"` (`isTargetedSurvivingRequest`,
+  `reconstruction_target.ts:70`), so the run fell into the all-branch
+  `reconstructBranches` path: 1,568 lineage replays over 90 distinct files,
+  script-stage highwater 957/3,992, target never reached. Operator error, not
+  an engine finding — but a trap worth recording: **`--surviving` and
+  `--branch surviving` select the same view at very different cost.**
+- **Correct-flag run (09:42, killed after ~6 min once the rate was measured)**:
+  fast path ENGAGED (no corpus-wide pass; work went straight to the target's
+  dependency closure). Task-192 fixes held: only 11 sandbox executions (vs
+  12,101 in attempt 2). But the run advanced the script-run pool at
+  **~3 runs/minute** — 60 of 3,992 runs after 6 min, linear ETA ~22h, and the
+  per-run cost GROWS: 291 nested lineage replays over 32 distinct script files
+  (~9× re-replay each) by run 60. Progress log preserved at
+  `~/Programming/jot-recovery/run-evidence/plate_cli_progress-attempt3-2026-07-24.log.gz`.
+
+Mechanism (the residual blowup, distinct from tasks 162/192): even
+target-scoped, `injectScriptExecutions` walks all 3,992 script runs, and each
+run's sandbox precondition replays the lineage of every script file in the
+closure **at that run's instant**. The task-162 memo cannot serve these — each
+run needs content at a different cutoff (the never-widening-window rule), so
+cost ≈ runs × closure-size × per-replay cost, superlinear in session count.
+Fix direction: incremental per-file replay state that advances WITH the run
+cutoff (reconstruct each closure file once, forward through time) instead of
+a fresh bounded replay per run — cf. optimizations.md Phases 4/5 deferred from
+task 192.
+
+Task 182 stays open, blocked on that fix. Multi-source seeding was ruled OUT
+as a factor: writes to the target's absolute path exist only in the
+`-Users-matkatmusicllc-Programming-jot` project folder (11 JSONLs); the
+engine's multi-source machinery (specs S3–S6) is present and unused here.
+
 Ground truth for the per-file reconstruction sprint (S8–S13, tasks 180–190):
 which files the engine must recover, in what order, and the first target's git
 provenance. All facts below re-verified live against the repo on 2026-07-22.

@@ -23,7 +23,10 @@
   {
     "taskNumber": 182,
     "title": "S9: real-data viability run — plate_cli.py ladder from claude-data sources",
-    "description": "Step-1 viability proof of the per-file approach (user request): run the CLI with ~/Programming/jot-recovery/claude-data/ (projects/ JSONLs + file-history/ snapshots) as the source, --file common/scripts/plate/plate_cli.py, seeded via --repo ~/Programming/jot --base-commit 793e65241902f276caf5f5c28d539269e7d36d11. The run must complete and emit the file's revision ladder; verify a revision byte-identical to blob 9d14d60d is present and that intermediate revisions the sources evidence are emitted (report the revision count). Document results — including any mismatch, which is a finding not a silent pass — in plans/166-per-file-target.md. Attempt 1 (2026-07-22) documented there: loaded 156/156 JSONLs then >24 min silent in reconstruction, killed before emitting the ladder."
+    "description": "Step-1 viability proof of the per-file approach (user request): run the CLI with ~/Programming/jot-recovery/claude-data/ (projects/ JSONLs + file-history/ snapshots) as the source, --file common/scripts/plate/plate_cli.py, seeded via --repo ~/Programming/jot --base-commit 793e65241902f276caf5f5c28d539269e7d36d11. The run must complete and emit the file's revision ladder; verify a revision byte-identical to blob 9d14d60d is present and that intermediate revisions the sources evidence are emitted (report the revision count). Document results — including any mismatch, which is a finding not a silent pass — in plans/166-per-file-target.md. Attempt 1 (2026-07-22) documented there: loaded 156/156 JSONLs then >24 min silent in reconstruction, killed before emitting the ladder.",
+    "blockedBy": [
+      220
+    ]
   },
   {
     "taskNumber": 183,
@@ -288,5 +291,10 @@
       217,
       218
     ]
+  },
+  {
+    "taskNumber": 220,
+    "title": "Per-run nested-replay blowup: incremental closure replay for injectScriptExecutions",
+    "description": "Task-182 attempt 3 (2026-07-24, jfred@cdeef5b) showed a residual real-data blowup PAST the task-192 fixes: with the --branch surviving --file fast path correctly engaged (isTargetedSurvivingRequest, reconstruction_target.ts), the run advanced the 3,992-run script pool at ~3 runs/min (linear ETA ~22h) and never reached the target. Mechanism: injectScriptExecutions replays the lineage of every closure script file (~32 files, ~9x re-replay each by run 60) at EACH run instant; the task-162 memo cannot serve across cutoffs by its never-widening-window rule, so cost = runs x closure-size x per-replay cost. Fix direction: incremental per-file replay state that advances WITH the run cutoff (reconstruct each closure file once, forward through time) instead of a fresh bounded replay per run — cf. optimizations.md Phases 4/5 deferred from task 192. Evidence: ~/Programming/jot-recovery/run-evidence/plate_cli_progress-attempt3-2026-07-24.log.gz; findings in plans/166-per-file-target.md attempt-3 section. Blocks task 182."
   }
 ]
