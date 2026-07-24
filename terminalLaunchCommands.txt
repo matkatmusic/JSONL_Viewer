@@ -36,7 +36,7 @@ tail -f /tmp/plate_cli_bounded_progress.log
   --base-commit 793e65241902f276caf5f5c28d539269e7d36d11 \
   --fhsLoc ~/Programming/jot-recovery/claude-data/file-history \
   --branch surviving --json --progress \
-  > /tmp/plate_cli_bounded.json 2>> /tmp/plate_cli_bounded_progress.log ; \
+  > /tmp/plate_cli_bounded.json 2> /tmp/plate_cli_bounded_progress.log ; \
   date +"end %Y-%m-%dT%H:%M:%S%z"
 
   (JSON-report alternative: ./jfred/bench/bench_bounded.sh writes /tmp/plate_cli_bounded_report.json)
