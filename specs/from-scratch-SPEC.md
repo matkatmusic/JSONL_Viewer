@@ -85,7 +85,7 @@ folder) and returns a `ReconstructionGraph` of per-file
 placed by its `Instant` on the one UTC-ms axis: JSONL timestamps as-is, git
 committer seconds widened ×1000, same-second ties broken by content order.
 - Verify: unit test on a fixture folder — returned entities match the files the fixture evidences; explicit-path override respected; a commit and a JSONL record in the same second order by content.
-- Tasks:
+- Tasks: #195, #196, #197
 - Status: open
 
 ### S2. Layer 1 — anchors, pre-anchor stubs, end state, presumption gaps
@@ -95,14 +95,14 @@ become pre-anchor stubs that refuse byte-consuming operations; the on-disk
 end state is the final node; every adjacent pair with unexplained differing
 content gets a presumed-user-edit gap node.
 - Verify: unit tests — anchor chosen correctly per evidence class; stub byte-op refusal; end-state node present; gap nodes appear only between differing verified states.
-- Tasks:
+- Tasks: #198, #199
 - Status: open
 
 ### S3. Layer 2 — commit beacons
 Given a repo path, each commit touching a file contributes a verified beacon
 node (blob content) at its committer instant on that file's timeline.
 - Verify: unit test with a fixture repo — beacon nodes carry blob bytes and committer instants; author time never used.
-- Tasks:
+- Tasks: #200
 - Status: open
 
 ### S4. Layer 3 — snapshot beacons via owning-session sidecar
@@ -110,7 +110,7 @@ File-history snapshots become verified beacon nodes; a snapshot reference
 (`abc123@vN`) resolves through the owning session's sidecar, never a global
 name lookup.
 - Verify: unit test with two sessions using the same `@vN` name for different bytes — each timeline gets its own session's bytes.
-- Tasks:
+- Tasks: #201
 - Status: open
 
 ### S5. Multi-session merge and corroboration
@@ -120,7 +120,7 @@ axis point, per the hpp); when multiple sessions observed the same bytes,
 the nodes are marked as corroborating (input for the dashed cross-lane
 lines).
 - Verify: unit test — two sessions' nodes interleave by `Instant`; same-bytes nodes carry the corroboration mark; single-session is the degenerate case.
-- Tasks:
+- Tasks: #202
 - Status: open
 
 ### S6. Typed edges and derived lineage
@@ -131,7 +131,7 @@ derive one continuous history; copies fork (both entities alive; `bornCopy`'s
 first content = `copiedFrom`'s reconstructed state at `timestampOfCopy`).
 No stored lineage groups.
 - Verify: unit test — rename chain walks end-to-end; copy fork leaves both lineages independent afterward.
-- Tasks:
+- Tasks: #203
 - Status: open
 
 ### S7. App page skeleton
@@ -143,7 +143,7 @@ left half, right half split top/bottom — top the Details pane, bottom the
 Changes pane hidden until a segment is selected. Clicking a file in the
 drawer scrolls to its widget.
 - Verify: DOM test — regions present, drawer collapses, file click scrolls, Changes pane hidden with no selection; server test — `webapp_old.html` serves the pre-existing page.
-- Tasks:
+- Tasks: #204, #205, #206
 - Status: open
 
 ### S8. Per-file widgets on one shared vertical axis
@@ -151,7 +151,7 @@ Each file renders as a rounded widget offset to its history's start on the
 shared vertical time axis, per-session lanes inside; dashed cross-lane lines
 where S5 marked corroboration.
 - Verify: DOM test on a two-file, two-session fixture — widget offsets ordered by start instant; lanes per session; dashed line present exactly at corroborated instants.
-- Tasks:
+- Tasks: #207, #208
 - Status: open
 
 ### S9. Layer switcher with per-layer tooltips
@@ -162,7 +162,7 @@ engine mode. Every layer button carries a tooltip naming what that layer
 adds (1 start/end, 2 commits, 3 snapshots, 5 derived edits, 7 script runs,
 8/9 branches, 10 verified replay, 12 decoration).
 - Verify: DOM test — selecting a layer changes the rendered node set; layer-5+ buttons disabled while their functionality is unlocked-false; each button exposes its what-it-adds tooltip text.
-- Tasks:
+- Tasks: #209
 - Status: open
 
 ### S10. Condense button
@@ -171,7 +171,7 @@ the condensed column looks like the current webapp's timeline — each row
 shows the node's classification plus a truncated version of the original
 message.
 - Verify: DOM test — condensed mode shows one column with all nodes, rows carrying classification and truncated original-message text; toggle restores lanes.
-- Tasks:
+- Tasks: #210
 - Status: open
 
 ### S11. Kept/ignored dimming and branch end-vs-rejoin rendering
@@ -180,14 +180,14 @@ a branch whose content did not carry forward visually ends, one whose
 content carried forward visually rejoins — so a selection rectangle
 contains exactly what its patch contains.
 - Verify: DOM test with a rewind fixture — dimming classes match classification; reverted branch terminates, kept branch rejoins.
-- Tasks:
+- Tasks: #211
 - Status: open
 
 ### S12. Always-visible timeline legend
 The timeline legend renders at the top of the timeline area and stays
 visible while the timeline scrolls (it is not part of the scrolled content).
 - Verify: DOM/CSS test — legend present above the timeline; scrolling the timeline leaves the legend in view.
-- Tasks:
+- Tasks: #212
 - Status: open
 
 ### S13. Details on node click, with raw-JSON button
@@ -195,7 +195,7 @@ Clicking a timeline node fills the top-right pane with the existing webapp
 Details view for that node (reused, not reimplemented), retaining the
 existing `[{ }]` button that shows the node's raw JSON.
 - Verify: DOM test — node click renders the Details view with that node's data; the `[{ }]` button reveals the node's JSON.
-- Tasks:
+- Tasks: #213
 - Status: open
 
 ### S14. Script-run node detail mockup
@@ -204,7 +204,7 @@ clicked script-run node presents both the script body and the before/after
 diff of affected files in the detail pane. Produced and user-approved before
 S15 is implemented.
 - Verify: mockup file exists and the user has signed off on the layout.
-- Tasks:
+- Tasks: #214
 - Status: open
 
 ### S15. Script-run node click shows before/after diffs
@@ -212,7 +212,7 @@ Clicking a script-run node shows the before/after state of each affected
 file as a diff in the detail pane — the same diff mechanism the segment
 selection uses — alongside the script body, laid out per the S14 mockup.
 - Verify: DOM test with a fixture containing a script-run node — clicking it renders per-file before/after diffs and the script body in the detail pane.
-- Tasks:
+- Tasks: #215
 - Status: open
 
 ### S16. Ruler, marks, and segment partition
@@ -223,7 +223,7 @@ future content backward; unverified or mid-residual cut states refused); the
 entire ruler length partitions into segments P1..Pn spanning every file's
 lanes.
 - Verify: DOM test — arming enables marks; a mark attempt on an unverified node is refused; a mark between two files' beacons snaps to each file's own at-or-before verified state; n marks yield n+1 contiguous segments covering the full ruler.
-- Tasks:
+- Tasks: #216, #217
 - Status: open
 
 ### S17. Segment patch generation as git-diff
@@ -235,5 +235,5 @@ absent from that segment's patch and first appears — as a creation — in the
 segment containing its birth), concatenated into one git-diff shown in the
 reused Changes view; the emitted patch applies cleanly.
 - Verify: unit test — on a fixture, each segment's emitted git-diff `git apply`s in sequence to reproduce the final state, including a file born after cut 1 (absent from segment 1's patch, created by segment 2's); DOM test — segment selection shows the patch in the Changes pane.
-- Tasks:
+- Tasks: #218, #219
 - Status: open
