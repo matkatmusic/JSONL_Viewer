@@ -1874,5 +1874,21 @@
       "jfred@462e075"
     ],
     "closureNote": "Completed in jfred@462e075: reconstruction-mode selection view (app-mode-select.ts) with /api/prescan endpoint (viewer_api_prescan.ts) and bounded document builds wired through the document-request flow and app-choices.ts."
+  },
+  {
+    "taskNumber": 17,
+    "title": "GitHub Pages demo tier",
+    "description": "17. GitHub Pages demo tier** — canned ReconstructionDocument JSON + `webapp/` with a\n  static-data shim replacing `/api/*`. Deliberately deferred \"Phase 4, planned separately when\n  reached\" (handoffs 20260702-1434/1639, 20260703-1010/2144); needs its own plan when reached.",
+    "handoffFilePaths": [
+      "plans/archived/handoff-develop-20260702-1434.md",
+      "plans/archived/handoff-develop-20260702-1639.md",
+      "plans/archived/handoff-develop-20260703-1010.md",
+      "plans/archived/handoff-develop-20260703-2144.md"
+    ],
+    "completionDate": "2026-07-24",
+    "commitHashes": [
+      "jfred@beac114"
+    ],
+    "closureNote": "Completed in jfred@beac114: static Pages demo under docs/engineb/ (canned document.json + fetch shim over webapp_old.html); user verified the page loads in a browser via local http.server. Pages account setup tracked as task 222."
   }
 ]

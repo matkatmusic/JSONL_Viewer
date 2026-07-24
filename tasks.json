@@ -5,17 +5,6 @@
     "description": "7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** — DEFERRED UNTIL ALL other tasks are done.`/Users/matkatmusicllc/Programming/jot`\n  (separate repo); `grep -rn \"windowSizeBlocks\"`. Not a RevEng change."
   },
   {
-    "taskNumber": 17,
-    "title": "GitHub Pages demo tier",
-    "description": "17. GitHub Pages demo tier** — canned ReconstructionDocument JSON + `webapp/` with a\n  static-data shim replacing `/api/*`. Deliberately deferred \"Phase 4, planned separately when\n  reached\" (handoffs 20260702-1434/1639, 20260703-1010/2144); needs its own plan when reached.",
-    "handoffFilePaths": [
-      "plans/archived/handoff-develop-20260702-1434.md",
-      "plans/archived/handoff-develop-20260702-1639.md",
-      "plans/archived/handoff-develop-20260703-1010.md",
-      "plans/archived/handoff-develop-20260703-2144.md"
-    ]
-  },
-  {
     "taskNumber": 83,
     "title": "See if actual /jot folder can be reconstructed",
     "description": "83. See if actual /jot folder can be reconstructed."
@@ -271,5 +260,10 @@
     "taskNumber": 221,
     "title": "Timeline bubble for files with no snapshots/beacons: \"no snapshots available\"",
     "description": "User request (2026-07-24): if a file has no file-history snapshots and is not referenced in any git commit, the webapp timeline should still render the file's bubble like the others in the currently selected layer's view, but with the text \"no snapshots available\" — indicating to the user that no beacons exist for the file."
+  },
+  {
+    "taskNumber": 222,
+    "title": "Enable GitHub Pages for the jfred repo (serve docs/)",
+    "description": "User request (2026-07-24): enable GitHub Pages in the jfred repo's GitHub settings so the docs/ folder is served — source: deploy from branch, /docs folder. Verifies the Engine-B demo at https://<user>.github.io/<repo>/engineb/webapp_old.html (local check passed via python3 -m http.server from jfred/docs). Requires the task-17 demo bundle to be pushed first."
   }
 ]
