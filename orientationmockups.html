@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timeline Orientation Mockups — Horizontal vs Vertical</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb;
+    --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,.10);
+    --c-commit: #2a78d6; --c-snap: #1baf7a; --c-user: #eb6834;
+    --c-anchor: #e87ba4; --c-disk: #0b0b0b;
+    --sel: rgba(27,175,122,.14); --sel-edge: #1baf7a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19;
+      --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,.10);
+      --c-commit: #3987e5; --c-snap: #199e70; --c-user: #d95926;
+      --c-anchor: #d55181; --c-disk: #ffffff;
+      --sel: rgba(25,158,112,.18); --sel-edge: #199e70;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19;
+    --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,.10);
+    --c-commit: #3987e5; --c-snap: #199e70; --c-user: #d95926;
+    --c-anchor: #d55181; --c-disk: #ffffff;
+    --sel: rgba(25,158,112,.18); --sel-edge: #199e70;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--page); }
+  .viz-root { font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--page); padding: 28px clamp(12px,4vw,48px) 64px; }
+  h1 { font-size: 21px; margin-bottom: 4px; }
+  .sub { color: var(--ink2); margin-bottom: 24px; max-width: 78ch; }
+  section { background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 20px 22px; margin-bottom: 26px; }
+  section h2 { font-size: 15px; margin-bottom: 2px; }
+  section .note { font-size: 12.5px; color: var(--ink2); margin-bottom: 14px; max-width: 78ch; }
+  .hint { font-size: 11.5px; color: var(--muted); margin-top: 10px; }
+
+  .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; }
+  .k-commit { border-radius: 3px; background: var(--c-commit); }
+  .k-snap   { background: var(--c-snap); }
+  .k-user   { background: var(--c-user); }
+  .k-anchor { background: var(--c-anchor); }
+  .k-disk   { background: transparent; border: 3px double var(--c-disk); }
+
+  /* ---------- horizontal ---------- */
+  .h-wrap { overflow-x: auto; padding: 20px 4px 8px; }
+  .h-strip { display: flex; align-items: flex-start; min-width: max-content; position: relative; }
+  .h-node { width: 92px; flex: none; display: flex; flex-direction: column;
+    align-items: center; text-align: center; cursor: pointer; position: relative; z-index: 1; }
+  .h-node .mark { height: 22px; display: flex; align-items: center; }
+  .h-node .name { font-size: 12px; font-weight: 600; margin-top: 4px; }
+  .h-node .time { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .h-conn { width: 56px; flex: none; margin-top: 10px; border-top: 2px dashed var(--baseline); }
+  .h-sel { position: absolute; top: -14px; bottom: -6px; background: var(--sel);
+    border-left: 3px solid var(--sel-edge); border-right: 3px solid var(--sel-edge);
+    border-radius: 6px; z-index: 0; }
+  .h-sel .tag { position: absolute; top: -2px; left: 8px; font-size: 10.5px;
+    font-weight: 600; color: var(--ink2); }
+  .h-node.selected .name { color: var(--c-snap); }
+
+  /* ---------- vertical ---------- */
+  .v-layout { display: flex; gap: 22px; align-items: flex-start; }
+  .v-lane { flex: none; width: 320px; position: relative; }
+  .v-row { display: flex; align-items: center; gap: 12px; padding: 7px 10px;
+    border-radius: 8px; cursor: pointer; position: relative; }
+  .v-row .time { width: 46px; flex: none; font-size: 11px; color: var(--muted);
+    font-variant-numeric: tabular-nums; text-align: right; }
+  .v-rail { width: 14px; flex: none; display: flex; justify-content: center; position: relative; }
+  .v-row:not(:last-child) .v-rail::after { content: ""; position: absolute; top: 18px;
+    height: calc(100% - 4px); border-left: 2px dashed var(--baseline); }
+  .v-row .name { font-size: 12.5px; font-weight: 600; }
+  .v-row .kindlabel { font-size: 11px; color: var(--ink2); }
+  .v-row.selected { background: var(--sel); }
+  .v-row.cut { box-shadow: inset 0 0 0 2px var(--sel-edge); }
+  .v-row.cut::after { content: "cut"; position: absolute; right: 8px; font-size: 10px;
+    font-weight: 700; color: var(--sel-edge); }
+
+  .details { flex: 1; min-width: 260px; border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; background: var(--page); position: sticky; top: 12px; }
+  .details h3 { font-size: 13px; margin-bottom: 8px; }
+  .details dl { display: grid; grid-template-columns: 92px 1fr; gap: 4px 10px; font-size: 12px; }
+  .details dt { color: var(--muted); }
+  .details dd { color: var(--ink); word-break: break-all; }
+  .details .body { margin-top: 10px; padding: 8px 10px; border: 1px solid var(--grid);
+    border-radius: 6px; font: 11px/1.5 ui-monospace, Menlo, monospace; color: var(--ink2);
+    white-space: pre; overflow-x: auto; }
+  .patchbar { margin-top: 14px; padding: 10px 12px; border: 1px dashed var(--sel-edge);
+    border-radius: 8px; font-size: 12px; color: var(--ink2); }
+  .patchbar b { color: var(--ink); }
+  .patchbar button { margin-left: 10px; font: 600 12px system-ui; padding: 4px 10px;
+    border-radius: 6px; border: 1px solid var(--sel-edge); background: transparent;
+    color: var(--ink); cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <h1>Layer-1 Timeline — Orientation Mockups</h1>
+  <p class="sub">Same file (<code>inventory.py</code>), same merged Layer 1–3 data (anchor,
+  presumed user edits, commits, snapshots, on-disk end), both orientations. A selection is drawn in each:
+  cut points sit on <b>verified</b> states only (Q18); the patch is
+  <code>diff(endStateOfPreviousSelection, rightmostStateInThisSelection)</code>.
+  Click any node to fill the Details pane (mock of the current renderer's Details view).</p>
+
+  <section>
+    <h2>Option A — horizontal (like the Excalidraw mockups)</h2>
+    <p class="note">Time flows left→right. Multi-file / multi-session stacking adds lanes vertically,
+    and a commit selection is a vertical band spanning all lanes — matches the commit-A/B/C screenshot
+    directly. Long sessions scroll sideways.</p>
+    <div class="h-wrap"><div class="h-strip" id="hstrip"></div></div>
+    <div class="patchbar" id="hpatch"></div>
+    <div class="hint">Selection shown: cut at S1 (09:04) → cut at C1 (09:38). Nodes inside are highlighted; the band edges are the cuts.</div>
+  </section>
+
+  <section>
+    <h2>Option B — vertical (like the current webapp)</h2>
+    <p class="note">Time flows top→bottom, one row per node — same row model the current renderer uses,
+    so the Details pane docks beside the lane and stays visible while scrolling. Multi-file stacking
+    means parallel columns; a commit selection is a horizontal band across columns.</p>
+    <div class="v-layout">
+      <div class="v-lane" id="vlane"></div>
+      <div class="details" id="vdetails"></div>
+    </div>
+    <div class="patchbar" id="vpatch"></div>
+    <div class="hint">Same selection, same cuts, rendered as a row band. Click rows to inspect.</div>
+  </section>
+</div>
+
+<script>
+  const NODES = [
+    { kind: "anchor", name: "anchor", time: "09:00", label: "anchor (first full content)",
+      src: "git blob 46dbe9a", body: "def check_stock(item):\n    return item.count > 0" },
+    { kind: "user",   name: "UE?",   time: "09:02", label: "presumed user edit",
+      src: "interval 09:00–09:04", body: "(unattributed residual — no evidence yet)" },
+    { kind: "snap",   name: "S1",    time: "09:04", label: "file-history snapshot", verified: true,
+      src: "a35.jsonl:L212 → abc123@v1", body: "def check_stock(item):\n    return item.count > 0\n\ndef reorder(item): ..." },
+    { kind: "user",   name: "UE?",   time: "09:08", label: "presumed user edit",
+      src: "interval 09:04–09:11", body: "(unattributed residual)" },
+    { kind: "snap",   name: "S2",    time: "09:11", label: "file-history snapshot", verified: true,
+      src: "a35.jsonl:L471 → abc123@v2", body: "def check_stock(item): ..." },
+    { kind: "user",   name: "UE?",   time: "09:20", label: "presumed user edit",
+      src: "interval 09:11–09:38", body: "(unattributed residual)" },
+    { kind: "commit", name: "C1",    time: "09:38", label: "git commit", verified: true,
+      src: "17dj38sd", body: "committed tree state of inventory.py" },
+    { kind: "user",   name: "UE?",   time: "09:39", label: "presumed user edit",
+      src: "interval 09:38–09:40", body: "(unattributed residual)" },
+    { kind: "disk",   name: "disk",  time: "09:40", label: "current on-disk state", verified: true,
+      src: "filesystem", body: "def check_stock(item): ...  # latest" },
+  ];
+  const SEL_START = 2, SEL_END = 6;  // cut at S1, cut at C1 (both verified)
+  const NODE_W = 92, CONN_W = 56;
+
+  function patchText(el) {
+    el.innerHTML = "<b>Selection patch</b>: diff(S1 @ 09:04 — end state of previous selection, " +
+      "C1 @ 09:38) &nbsp;·&nbsp; cuts are verified states only" +
+      "<button>Generate git-diff</button>";
+  }
+
+  function details(el, n) {
+    el.innerHTML = `<h3>Node details — ${n.name}</h3><dl>` +
+      `<dt>kind</dt><dd>${n.label}</dd>` +
+      `<dt>instant</dt><dd>2026-07-23 ${n.time}:00.000 UTC</dd>` +
+      `<dt>evidence</dt><dd>${n.src}</dd>` +
+      `<dt>verified</dt><dd>${n.verified ? "yes — beacon" : "no — presumption node"}</dd>` +
+      `</dl><div class="body">${n.body}</div>`;
+  }
+
+  // horizontal
+  const hstrip = document.getElementById("hstrip");
+  const sel = document.createElement("div");
+  sel.className = "h-sel";
+  sel.style.left = (SEL_START * (NODE_W + CONN_W) + NODE_W / 2) + "px";
+  sel.style.width = ((SEL_END - SEL_START) * (NODE_W + CONN_W)) + "px";
+  sel.innerHTML = '<span class="tag">commit selection</span>';
+  hstrip.appendChild(sel);
+  NODES.forEach((n, i) => {
+    if (i > 0) { const c = document.createElement("div"); c.className = "h-conn"; hstrip.appendChild(c); }
+    const d = document.createElement("div");
+    d.className = "h-node" + (i >= SEL_START && i <= SEL_END ? " selected" : "");
+    d.innerHTML = `<div class="mark"><span class="dot k-${n.kind}"></span></div>` +
+      `<div class="name">${n.name}</div><div class="time">${n.time}</div>`;
+    d.onclick = () => details(document.getElementById("vdetails"), n);
+    hstrip.appendChild(d);
+  });
+  patchText(document.getElementById("hpatch"));
+
+  // vertical
+  const vlane = document.getElementById("vlane");
+  NODES.forEach((n, i) => {
+    const r = document.createElement("div");
+    r.className = "v-row" + (i >= SEL_START && i <= SEL_END ? " selected" : "") +
+      (i === SEL_START || i === SEL_END ? " cut" : "");
+    r.innerHTML = `<span class="time">${n.time}</span>` +
+      `<span class="v-rail"><span class="dot k-${n.kind}"></span></span>` +
+      `<span><div class="name">${n.name}</div><div class="kindlabel">${n.label}</div></span>`;
+    r.onclick = () => details(document.getElementById("vdetails"), n);
+    vlane.appendChild(r);
+  });
+  details(document.getElementById("vdetails"), NODES[SEL_START]);
+  patchText(document.getElementById("vpatch"));
+</script>
+</div>
+</body>
+</html>

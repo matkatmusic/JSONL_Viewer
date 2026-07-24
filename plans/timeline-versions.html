@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconstruction Timeline — Version Ladder</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb;
+    --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,.10);
+    --c-commit: #2a78d6; --c-patch: #eb6834; --c-snap: #1baf7a;
+    --c-echo: #eda100; --c-script: #4a3aa7; --c-user: #e34948;
+    --warn: #fab219;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19;
+      --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,.10);
+      --c-commit: #3987e5; --c-patch: #d95926; --c-snap: #199e70;
+      --c-echo: #c98500; --c-script: #9085e9; --c-user: #e66767;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19;
+    --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,.10);
+    --c-commit: #3987e5; --c-patch: #d95926; --c-snap: #199e70;
+    --c-echo: #c98500; --c-script: #9085e9; --c-user: #e66767;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--page); }
+  .viz-root {
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--page); padding: 28px clamp(12px, 4vw, 48px) 64px;
+  }
+  h1 { font-size: 21px; margin-bottom: 4px; }
+  .sub { color: var(--ink2); margin-bottom: 20px; max-width: 72ch; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px 22px; padding: 12px 16px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 28px; }
+  .legend .item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink2); }
+  section.ver { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px 22px; margin-bottom: 22px; }
+  section.ver h2 { font-size: 15px; margin-bottom: 2px; }
+  section.ver .adds { font-size: 12.5px; color: var(--ink2); margin-bottom: 16px; }
+  .strip { overflow-x: auto; padding: 6px 2px 10px; }
+  .tl { display: flex; align-items: flex-start; min-width: max-content; }
+
+  .node { width: 96px; flex: none; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .node .mark { height: 26px; display: flex; align-items: center; justify-content: center; }
+  .node .name { font-size: 12px; font-weight: 600; margin-top: 5px; }
+  .node .time { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .node .note { font-size: 10.5px; color: var(--ink2); max-width: 94px; }
+
+  .dot { width: 14px; height: 14px; border-radius: 50%; }
+  .m-commit { width: 13px; height: 13px; border-radius: 3px; background: var(--c-commit); }
+  .m-snap   { background: var(--c-snap); }
+  .m-patch  { width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent;
+              border-bottom: 14px solid var(--c-patch); border-radius: 0; }
+  .m-echo   { width: 12px; height: 12px; border-radius: 2px; background: var(--c-echo); transform: rotate(45deg); }
+  .m-script { width: 14px; height: 14px; border-radius: 50%; border: 3px solid var(--c-script); background: transparent; }
+  .m-script-ok { background: var(--c-script); border: none; color: #fff; font-size: 10px; font-weight: 700;
+              display: flex; align-items: center; justify-content: center; line-height: 1; }
+  .m-user   { background: var(--c-user); }
+  .m-disk   { background: transparent; border: 3px double var(--ink); }
+  .m-fork   { font-size: 17px; color: var(--muted); line-height: 1; }
+
+  .conn { width: 72px; flex: none; padding-top: 12px; display: flex; flex-direction: column; align-items: center; }
+  .conn.w-fork { width: 40px; }
+  .conn .line { width: 100%; border-top: 2px solid var(--baseline); }
+  .conn.gap .line { border-top-style: dashed; border-top-color: var(--warn); }
+  .conn .clabel { font-size: 9.5px; color: var(--ink2); margin-top: 3px; text-align: center; max-width: 72px; }
+  .conn.gap .clabel::before { content: "? "; font-weight: 700; }
+
+  .forknode { width: 40px; }
+  .branchlane { display: flex; min-width: max-content; align-items: flex-start; }
+  .branchlane .spacer { flex: none; }
+  .branchbody { border-left: 2px dashed var(--muted); margin-top: -4px; padding: 14px 0 0 18px; }
+  .branchbox { display: flex; align-items: flex-start; gap: 0; border: 1px dashed var(--muted);
+    border-radius: 10px; padding: 8px 14px 10px; opacity: .62; }
+  .branchcap { font-size: 11px; color: var(--ink2); align-self: center; max-width: 200px; padding-left: 6px; }
+
+  .tblwrap { overflow-x: auto; margin-top: 10px; }
+  table { border-collapse: collapse; font-size: 12px; min-width: 720px; }
+  th, td { border: 1px solid var(--grid); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--page); font-size: 11.5px; }
+  td.seg { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td .q { color: var(--ink2); }
+  td .ok { font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <h1>Reconstruction Timeline — Version Ladder</h1>
+  <p class="sub">One file (<code>inventory.py</code>), one session, the same underlying events — rendered five times as
+  the engine adds evidence channels. Beacons anchor the line; everything between beacons starts life as an
+  unexplained&nbsp;Δ (candidate user edit) and gets reclassified as each version explains it.</p>
+
+  <div class="legend">
+    <span class="item"><span class="m-commit"></span> git commit (anchor)</span>
+    <span class="item"><span class="dot m-snap"></span> file-history snapshot (beacon)</span>
+    <span class="item"><span class="m-patch"></span> structured patch (Edit)</span>
+    <span class="item"><span class="m-echo"></span> full-content echo (Read / tool output)</span>
+    <span class="item"><span class="m-script"></span> script run — located only</span>
+    <span class="item"><span class="dot m-script-ok">✓</span> script run — replayed &amp; verified</span>
+    <span class="item"><span class="dot m-user"></span> user edit (confirmed residual Δ)</span>
+    <span class="item"><span class="dot m-disk"></span> final on-disk state</span>
+    <span class="item"><span class="m-fork">⑂</span> rewind fork</span>
+  </div>
+
+  <div id="versions"></div>
+
+  <section class="ver">
+    <h2>Gap reclassification across versions</h2>
+    <p class="adds">Every inter-beacon segment starts as “user edit?” and only keeps that label if no evidence channel ever claims it.</p>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Segment</th><th>V1 beacons</th><th>V2 branching</th><th>V3 derived edits</th><th>V4 scripts located</th><th>V5 scripts verified</th></tr></thead>
+        <tbody>
+          <tr><td class="seg">C0 → S1</td><td class="q">unexplained Δ?</td><td class="q">unexplained Δ?</td><td class="ok">no change (snapshot = commit)</td><td class="ok">—</td><td class="ok">—</td></tr>
+          <tr><td class="seg">S1 → S2</td><td class="q">unexplained Δ?</td><td class="q">unexplained Δ?</td><td class="ok">patch E1, verified vs S2</td><td class="ok">—</td><td class="ok">—</td></tr>
+          <tr><td class="seg">S2 → S3</td><td class="q">unexplained Δ?</td><td class="q">fork found; branch Δ reverted</td><td class="q">echo R1 pins bytes @09:19; tail unexplained</td><td class="q">script located, unverified</td><td class="ok">script replay = S3 ✓</td></tr>
+          <tr><td class="seg">S3 → C1</td><td class="q">unexplained Δ?</td><td class="q">unexplained Δ?</td><td class="q">unexplained Δ?</td><td class="q">unexplained Δ?</td><td class="ok">residual Δ ⇒ user edit U1</td></tr>
+          <tr><td class="seg">C1 → D</td><td class="ok">identical bytes</td><td class="ok">—</td><td class="ok">—</td><td class="ok">—</td><td class="ok">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+  const N = (kind, name, time, note) => ({ t: "node", kind, name, time, note });
+  const C = (state, label, fork) => ({ t: "conn", state, label, fork });
+
+  const C0  = N("commit", "C0", "09:00", "baseline");
+  const S1  = N("snap",   "S1", "09:04");
+  const E1  = N("patch",  "E1", "09:06", "lines 12–19");
+  const S2  = N("snap",   "S2", "09:11");
+  const FK  = N("fork",   "",   "09:14");
+  const R1  = N("echo",   "R1", "09:19", "full read");
+  const SCR = N("script", "run", "09:23", "python3 reorder.py");
+  const SCRO= N("script-ok", "run ✓", "09:23", "replay = S3");
+  const S3  = N("snap",   "S3", "09:24");
+  const U1  = N("user",   "U1", "09:31", "between turns");
+  const C1  = N("commit", "C1", "09:38");
+  const D   = N("disk",   "disk", "09:40", "final state");
+  const E2b = N("patch",  "E2ᵦ", "09:14", "abandoned");
+
+  const gap = l => C("gap", l || "unexplained Δ");
+  const ok  = l => C("ok", l || "");
+
+  const VERSIONS = [
+    { title: "V1 — beacons only",
+      adds: "Commits, file-history snapshots, final on-disk state. Every segment between beacons is an unexplained Δ.",
+      trunk: [C0, gap(), S1, gap(), S2, gap(), S3, gap(), C1, ok("identical"), D] },
+    { title: "V2 — branching",
+      adds: "Rewind forks detected from the record tree; kept-vs-reverted decided by comparing the rewind-moment snapshots.",
+      trunk: [C0, gap(), S1, gap(), S2, ok("", true), FK, gap(), S3, gap(), C1, ok("identical"), D],
+      branch: { items: [E2b], cap: "⟲ code rewind 09:15 — branch Δ reverted on disk" } },
+    { title: "V3 — derived edits",
+      adds: "Structured patches and full-content echoes placed and verified against the next beacon.",
+      trunk: [C0, ok("no Δ"), S1, ok(), E1, ok("= S2 ✓"), S2, ok("reverted", true), FK, ok("no Δ"), R1, gap(), S3, gap(), C1, ok("identical"), D],
+      branch: { items: [E2b], cap: "⟲ code rewind 09:15 — branch Δ reverted on disk" } },
+    { title: "V4 — script runs located",
+      adds: "Executions that can write files are placed on the timeline — not yet executed, so their segments stay unverified.",
+      trunk: [C0, ok("no Δ"), S1, ok(), E1, ok("= S2 ✓"), S2, ok("reverted", true), FK, ok("no Δ"), R1, gap("unverified"), SCR, gap("unverified"), S3, gap(), C1, ok("identical"), D],
+      branch: { items: [E2b], cap: "⟲ code rewind 09:15 — branch Δ reverted on disk" } },
+    { title: "V5 — script runs verified + user edits confirmed",
+      adds: "Scripts replayed against reconstructed pre-state and matched to the next beacon; the last inexplicable residual becomes a confirmed user edit.",
+      trunk: [C0, ok("no Δ"), S1, ok(), E1, ok("= S2 ✓"), S2, ok("reverted", true), FK, ok("no Δ"), R1, ok(), SCRO, ok("= S3 ✓"), S3, ok("residual Δ"), U1, ok(), C1, ok("identical"), D],
+      branch: { items: [E2b], cap: "⟲ code rewind 09:15 — branch Δ reverted on disk" } },
+  ];
+
+  const NODE_W = 96, CONN_W = 72, FORK_CONN_W = 40;
+
+  function nodeEl(n) {
+    const d = document.createElement("div");
+    d.className = "node" + (n.kind === "fork" ? " forknode" : "");
+    const markHtml = n.kind === "fork" ? '<span class="m-fork">⑂</span>'
+      : n.kind === "patch" ? '<span class="m-patch"></span>'
+      : n.kind === "script-ok" ? '<span class="dot m-script-ok">✓</span>'
+      : `<span class="dot m-${n.kind}"></span>`;
+    d.innerHTML = `<div class="mark">${markHtml}</div>` +
+      (n.name ? `<div class="name">${n.name}</div>` : "") +
+      `<div class="time">${n.time}</div>` +
+      (n.note ? `<div class="note">${n.note}</div>` : "");
+    d.title = `${n.name || "fork"} @ ${n.time}${n.note ? " — " + n.note : ""}`;
+    return d;
+  }
+
+  function connEl(c) {
+    const d = document.createElement("div");
+    d.className = `conn ${c.state}` + (c.fork ? " w-fork" : "");
+    d.innerHTML = `<div class="line"></div>` + (c.label ? `<div class="clabel">${c.label}</div>` : "");
+    return d;
+  }
+
+  const host = document.getElementById("versions");
+  for (const v of VERSIONS) {
+    const sec = document.createElement("section");
+    sec.className = "ver";
+    sec.innerHTML = `<h2>${v.title}</h2><p class="adds">${v.adds}</p>`;
+    const strip = document.createElement("div"); strip.className = "strip";
+    const tl = document.createElement("div"); tl.className = "tl";
+    let forkOffset = 0, px = 0;
+    for (const item of v.trunk) {
+      if (item.t === "node") {
+        if (item.kind === "fork") forkOffset = px;
+        tl.appendChild(nodeEl(item)); px += item.kind === "fork" ? FORK_CONN_W : NODE_W;
+      } else { tl.appendChild(connEl(item)); px += item.fork ? FORK_CONN_W : CONN_W; }
+    }
+    strip.appendChild(tl);
+    if (v.branch) {
+      const lane = document.createElement("div"); lane.className = "branchlane";
+      const spacer = document.createElement("div"); spacer.className = "spacer";
+      spacer.style.width = (forkOffset + FORK_CONN_W / 2) + "px";
+      const body = document.createElement("div"); body.className = "branchbody";
+      const box = document.createElement("div"); box.className = "branchbox";
+      for (const n of v.branch.items) box.appendChild(nodeEl(n));
+      const cap = document.createElement("div"); cap.className = "branchcap"; cap.textContent = v.branch.cap;
+      box.appendChild(cap);
+      body.appendChild(box); lane.appendChild(spacer); lane.appendChild(body);
+      strip.appendChild(lane);
+    }
+    sec.appendChild(strip);
+    host.appendChild(sec);
+  }
+</script>
+</div>
+</body>
+</html>

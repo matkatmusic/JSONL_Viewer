@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconstruction MVP — App Mockup</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb;
+    --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,.10);
+    --c-commit: #2a78d6; --c-snap: #1baf7a; --c-user: #eb6834;
+    --c-echo: #eda100; --c-script: #4a3aa7; --c-anchor: #e87ba4; --c-disk: #0b0b0b;
+    --seg-a: rgba(27,175,122,.12); --seg-b: rgba(42,120,214,.10);
+    --sel-edge: #1baf7a; --box: #d98a2b;
+    --add: #0ca30c; --del: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19;
+      --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,.10);
+      --c-commit: #3987e5; --c-snap: #199e70; --c-user: #d95926;
+      --c-echo: #c98500; --c-script: #9085e9; --c-anchor: #d55181; --c-disk: #ffffff;
+      --seg-a: rgba(25,158,112,.15); --seg-b: rgba(57,135,229,.13);
+      --sel-edge: #199e70; --box: #b57427;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19;
+    --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,.10);
+    --c-commit: #3987e5; --c-snap: #199e70; --c-user: #d95926;
+    --c-echo: #c98500; --c-script: #9085e9; --c-anchor: #d55181; --c-disk: #ffffff;
+    --seg-a: rgba(25,158,112,.15); --seg-b: rgba(57,135,229,.13);
+    --sel-edge: #199e70; --box: #b57427;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body { background: var(--page); }
+  .viz-root { font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--page); height: 100vh; display: flex; flex-direction: column; }
+
+  header { display: flex; align-items: center; gap: 12px; padding: 8px 16px;
+    border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
+  header h1 { font-size: 14px; }
+  header .crumb { font-size: 11.5px; color: var(--muted); }
+  button { font: 600 12px system-ui; padding: 4px 10px; border-radius: 6px;
+    border: 1px solid var(--border); background: transparent; color: var(--ink); cursor: pointer; }
+  button:hover { border-color: var(--ink2); }
+  button.armed { border-color: var(--sel-edge); color: var(--sel-edge); }
+
+  .layerbar { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+  .layerbar .lbl { font-size: 11.5px; color: var(--muted); margin-right: 4px; }
+  .layerbar button { padding: 3px 8px; font-variant-numeric: tabular-nums; }
+  .layerbar button.current { background: var(--sel-edge); border-color: var(--sel-edge); color: #fff; }
+  .layerbar button.uncomputed { border-style: dashed; color: var(--muted); }
+
+  #progressWrap { display: none; width: 100%; padding: 4px 0 0; }
+  #progressWrap .plabel { font-size: 11px; color: var(--ink2); margin-bottom: 3px; }
+  #progressBar { height: 4px; border-radius: 2px; background: var(--grid); overflow: hidden; }
+  #progressBar > div { height: 100%; width: 0%; background: var(--sel-edge); transition: width .12s; }
+
+  .app { flex: 1; display: flex; min-height: 0; }
+
+  .drawer { width: 200px; flex: none; border-right: 1px solid var(--border);
+    background: var(--surface); overflow-y: auto; transition: width .15s; }
+  .drawer.collapsed { width: 0; border-right: none; overflow: hidden; }
+  .drawer h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); padding: 12px 14px 4px; }
+  .drawer .item { padding: 5px 14px; font-size: 12.5px; cursor: pointer; color: var(--ink2); }
+  .drawer .item:hover { background: var(--seg-a); color: var(--ink); }
+  .drawer .item.file { font-weight: 600; color: var(--ink); }
+
+  .timelines { flex: 1; min-width: 0; overflow: auto; position: relative; padding: 18px 12px 40px 0; }
+  .canvas { position: relative; min-width: max-content; padding-left: 56px; }
+
+  .ruler { position: absolute; left: 0; top: 0; bottom: 0; width: 56px; z-index: 8; }
+  .ruler.armed { cursor: crosshair; }
+  .ruler .rail { position: absolute; left: 40px; top: 0; bottom: 0; border-left: 2px dotted var(--baseline); }
+  .ruler .tick { position: absolute; left: 0; width: 38px; text-align: right;
+    font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; transform: translateY(-50%); }
+  .mark { position: absolute; left: 30px; width: 0; height: 0; cursor: pointer;
+    border-top: 8px solid transparent; border-bottom: 8px solid transparent;
+    border-left: 13px solid var(--sel-edge); transform: translateY(-8px); z-index: 9; }
+
+  .seg { position: absolute; left: 44px; right: 0; cursor: pointer; z-index: 4; }
+  .seg:hover { outline: 1.5px dashed var(--sel-edge); }
+  .seg.selectedseg { outline: 2.5px solid var(--sel-edge); }
+  .seg .stag { position: absolute; top: 2px; left: 6px; font-size: 10.5px; font-weight: 700; color: var(--ink2); }
+  .cutline { position: absolute; left: 44px; right: 0; border-top: 2px solid var(--sel-edge); z-index: 5; pointer-events: none; }
+
+  .filebox { position: absolute; border: 2px solid var(--box); border-radius: 14px;
+    background: color-mix(in srgb, var(--surface) 88%, transparent); padding: 30px 10px 14px; }
+  .filebox .fname { position: absolute; top: -22px; left: 12px; font: 600 14px ui-monospace, Menlo, monospace;
+    color: var(--c-snap); }
+  .lanes { display: flex; position: relative; height: 100%; }
+  .lane { width: 64px; flex: none; position: relative; }
+  .lane .lrail { position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1.5px solid var(--baseline); }
+  .lane .sname { position: absolute; top: -6px; left: 50%; transform: rotate(90deg) translateX(6px);
+    transform-origin: left top; font-size: 10px; color: var(--muted); white-space: nowrap; }
+  .corr { position: absolute; border-top: 3px dotted var(--muted); opacity: .55; pointer-events: none; }
+  /* dashed connector: trunk rail -> ignored-branch column (elbow), and down the branch */
+  .blink { position: absolute; border-top: 2px dashed var(--muted); border-right: 2px dashed var(--muted);
+    border-top-right-radius: 12px; opacity: .55; pointer-events: none; }
+  .bline { position: absolute; border-left: 2px dashed var(--muted); opacity: .55; pointer-events: none; }
+
+  .node { position: absolute; left: 50%; transform: translate(-50%, -50%); z-index: 6;
+    width: 15px; height: 15px; border-radius: 50%; cursor: pointer;
+    box-shadow: 0 0 0 2.5px var(--surface); }
+  .node:hover { outline: 2px solid var(--ink); }
+  .node.active { outline: 2.5px solid var(--ink); }
+  .node.dim { opacity: .38; }
+  .n-commit { border-radius: 4px; background: var(--c-commit); }
+  .n-snap   { background: var(--c-snap); }
+  .n-user   { background: var(--c-user); }
+  .n-echo   { background: var(--c-echo); transform: translate(-50%,-50%) rotate(45deg); border-radius: 3px; }
+  .n-script { background: transparent; border: 3.5px solid var(--c-script); }
+  .n-anchor { background: var(--c-anchor); }
+  .n-disk   { background: transparent; border: 3px double var(--c-disk); }
+
+  /* right half: details top / diff bottom */
+  .right { width: 44%; min-width: 340px; flex: none; border-left: 1px solid var(--border);
+    background: var(--surface); display: flex; flex-direction: column; min-height: 0; }
+  .details { flex: 1; overflow-y: auto; padding: 14px 18px; min-height: 0; }
+  .details h2 { font-size: 14px; margin-bottom: 10px; }
+  .details dl { display: grid; grid-template-columns: 96px 1fr; gap: 5px 10px; font-size: 12.5px; }
+  .details dt { color: var(--muted); }
+  .details dd { word-break: break-all; }
+  .details .body { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--grid);
+    border-radius: 8px; font: 11.5px/1.55 ui-monospace, Menlo, monospace; color: var(--ink2);
+    white-space: pre; overflow-x: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 16px; font-size: 11px; color: var(--ink2); }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+
+  .diffview { flex: 1.1; border-top: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+  .diffview.hidden { display: none; }
+  .diffview .dhead { padding: 8px 14px; font-size: 12px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .diffview .dhead b { font-size: 12.5px; }
+  .diffview .dnote { font-size: 10.5px; color: var(--muted); }
+  .dbody { flex: 1; display: flex; min-height: 0; }
+  .dtree { width: 150px; flex: none; border-right: 1px solid var(--border); overflow-y: auto; padding: 8px 0; }
+  .dtree .f { padding: 4px 12px; font: 12px ui-monospace, Menlo, monospace; cursor: pointer;
+    display: flex; justify-content: space-between; gap: 6px; color: var(--ink2); }
+  .dtree .f.on { background: var(--seg-a); color: var(--ink); }
+  .dtree .counts { font-size: 10.5px; }
+  .dtree .counts .a { color: var(--add); } .dtree .counts .d { color: var(--del); }
+  .dpane { flex: 1; overflow: auto; font: 11.5px/1.6 ui-monospace, Menlo, monospace; padding: 8px 0; }
+  .dpane .hunk { color: var(--muted); padding: 2px 14px; }
+  .dpane .ln { white-space: pre; padding: 0 14px; }
+  .dpane .add { background: color-mix(in srgb, var(--add) 14%, transparent); color: var(--ink); }
+  .dpane .del { background: color-mix(in srgb, var(--del) 14%, transparent); color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <header>
+    <button id="drawerBtn">☰</button>
+    <h1>Reconstruction Timeline — MVP mockup</h1>
+    <span class="crumb">project: demo · 4 JSONLs · 3 files</span>
+    <button id="segBtn" title="Then click the ruler to add cut marks; the ENTIRE ruler length is partitioned into patches — overlap is impossible by construction">Create segments for patch extraction</button>
+    <div class="layerbar" id="layerbar"><span class="lbl">Layer:</span></div>
+    <div id="progressWrap"><div class="plabel" id="plabel"></div><div id="progressBar"><div></div></div></div>
+  </header>
+  <div class="app">
+    <nav class="drawer" id="drawer">
+      <h3>JSONL sessions</h3>
+      <div class="item">a35.jsonl</div>
+      <div class="item">b575.jsonl</div>
+      <div class="item">ww455.jsonl</div>
+      <div class="item">a234.jsonl</div>
+      <h3>File nav</h3>
+      <div class="item file" data-file="c.py">c.py</div>
+      <div class="item file" data-file="a.py">a.py</div>
+      <div class="item file" data-file="b.py">b.py</div>
+    </nav>
+    <main class="timelines" id="tl"><div class="canvas" id="canvas"></div></main>
+    <aside class="right">
+      <div class="details">
+        <div id="detail"></div>
+        <div class="legend">
+          <span><i style="background:var(--c-anchor)"></i> anchor</span>
+          <span><i style="background:var(--c-commit);border-radius:3px"></i> commit</span>
+          <span><i style="background:var(--c-snap)"></i> snapshot</span>
+          <span><i style="background:var(--c-user)"></i> presumed user edit</span>
+          <span><i style="border:3px solid var(--c-script);background:transparent"></i> script run</span>
+          <span><i style="background:var(--c-echo);border-radius:2px"></i> full-content echo</span>
+          <span><i style="border:2px double var(--c-disk);background:transparent"></i> on-disk</span>
+          <span>dimmed = ignored (rewound branch)</span>
+        </div>
+      </div>
+      <!-- shown only while a segment is selected; REUSES the existing webapp
+           Changes view (Fork-style file tree + diff) — this block is a mock
+           of that view, not a new component. -->
+      <div class="diffview hidden" id="diffview"></div>
+    </aside>
+  </div>
+</div>
+
+<script>
+  // t = minutes since 08:50; y = t * PXM.
+  const PXM = 9, TOP = 26, MAXT = 96;
+  const y = t => TOP + t * PXM;
+  const tOf = py => Math.round((py - TOP) / PXM);
+  const clock = t => { const m = 8 * 60 + 50 + t; return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
+
+  // goneAt: layer at which an eliminate pass removes this presumption node.
+  const N = (t, kind, name, src, body, opt) => ({ t, kind, name, src, body, ...(opt || {}) });
+  const KIND_LAYER = { anchor: 1, user: 1, disk: 1, commit: 2, snap: 3, echo: 5, script: 7 };
+  const nodeLayer = n => n.dim ? 8 : KIND_LAYER[n.kind];
+
+  const FILES = [
+    { name: "c.py", x: 620, start: 2, end: 46, lanes: [
+        { s: "ww455.jsonl", nodes: [
+          N(4,"anchor","anchor","git blob 8ekc82df","import csv\n\ndef load(): ..."),
+          N(9,"user","UE?","interval 08:54–09:02","(unattributed residual)"),
+          N(14,"snap","abc9@v1","ww455.jsonl:L88","import csv\n\ndef load(): ...\ndef save(): ..."),
+          N(20,"commit","17dj38sd","git commit","committed c.py"),
+          N(26,"snap","abc9@v2","ww455.jsonl:L212","def save(): ...  # v2"),
+          N(34,"user","UE?","interval 09:16–09:24","(unattributed residual)", { goneAt: 10 }),
+          N(42,"disk","disk","filesystem","def save(): ...  # latest"),
+        ]},
+        { s: "a234.jsonl", nodes: [
+          N(20,"commit","17dj38sd","git commit (corroborated)","same blob observed"),
+          N(26,"snap","def4@v1","a234.jsonl:L31","def save(): ...  # v2"),
+          N(31,"script","run","a234.jsonl:L113 · python3 fix.py","(script body recovered from transcript)"),
+          N(38,"echo","echo","a234.jsonl:L140 full Read","def save(): ...  # patched"),
+        ]},
+      ],
+      corr: [20, 26] },
+    { name: "a.py", x: 60, start: 12, end: 78, lanes: [
+        { s: "a35.jsonl", nodes: [
+          N(14,"anchor","anchor","first full content — Write","def check_stock(item): ..."),
+          N(19,"snap","abc1@v1","a35.jsonl:L212","def check_stock ... v1"),
+          N(24,"script","run","a35.jsonl:L67 · python3 reorder.py","(recovered body)"),
+          N(29,"snap","abc1@v2","a35.jsonl:L471","def check_stock ... v2"),
+          N(35,"commit","abe72nd3","git commit","committed a.py"),
+          N(41,"user","UE?","interval 09:25–09:37","(unattributed residual)", { goneAt: 10 }),
+          N(47,"snap","abc1@v3","a35.jsonl:L602","def check_stock ... v3"),
+          N(52,"snap","ignored","rewound branch node","(code rewind — reverted)", { dim: true }),
+          N(56,"snap","ignored","rewound branch node","(code rewind — reverted)", { dim: true }),
+        ]},
+        { s: "b575.jsonl", nodes: [
+          N(22,"snap","9fe2@v1","b575.jsonl:L44","def check_stock ... v1"),
+          N(27,"user","UE?","interval 09:12–09:19","(unattributed residual)", { goneAt: 6 }),
+          N(35,"commit","abe72nd3","git commit (corroborated)","same blob observed"),
+          N(47,"snap","9fe2@v2","b575.jsonl:L310","def check_stock ... v3"),
+          N(58,"echo","echo","b575.jsonl:L402 full Read","def check_stock ... v4"),
+          N(70,"disk","disk","filesystem","def check_stock ... latest"),
+        ]},
+        { s: "ww455.jsonl", nodes: [
+          N(29,"snap","77aa@v1","ww455.jsonl:L501","def check_stock ... v2"),
+          N(36,"user","UE?","interval 09:25–09:31","(unattributed residual)"),
+          N(44,"snap","77aa@v2","ww455.jsonl:L640","def check_stock ... v3"),
+        ]},
+        { s: "a234.jsonl", nodes: [
+          N(47,"snap","def4@v2","a234.jsonl:L77","def check_stock ... v3"),
+          N(55,"user","UE?","interval 09:37–09:47","(unattributed residual)"),
+          N(63,"snap","def4@v3","a234.jsonl:L200","def check_stock ... v5"),
+        ]},
+      ],
+      corr: [29, 35, 47] },
+    { name: "b.py", x: 400, start: 26, end: 92, lanes: [
+        { s: "a35.jsonl", nodes: [
+          N(28,"anchor","anchor","first full content — Write","def render(): ..."),
+          N(33,"snap","abc2@v1","a35.jsonl:L340","def render ... v1"),
+          N(39,"script","run","a35.jsonl:L380 · python3 fmt.py","(recovered body)"),
+          N(45,"snap","abc2@v2","a35.jsonl:L455","def render ... v2"),
+          N(53,"user","UE?","interval 09:35–09:43","(unattributed residual)", { goneAt: 6 }),
+          N(61,"snap","abc2@v3","a35.jsonl:L590","def render ... v3"),
+        ]},
+        { s: "b575.jsonl", nodes: [
+          N(45,"snap","9fe2@v3","b575.jsonl:L520","def render ... v2"),
+          N(52,"commit","8ekc82df","git commit","committed b.py"),
+          N(66,"user","UE?","interval 09:56–10:08","(unattributed residual)"),
+          N(74,"snap","9fe2@v4","b575.jsonl:L700","def render ... v4"),
+          N(86,"disk","disk","filesystem","def render ... latest"),
+        ]},
+      ],
+      corr: [45] },
+  ];
+
+  // ---- state ----
+  let currentLayer = 3;
+  const computed = new Set([1, 2, 3]);   // layers 1-3 are parse-only: free
+  let marks = [19, 47];                  // cut marks on the global ruler
+  let selectedSegment = null;            // index into segments()
+  let armed = false;                     // "create segments" mode
+  let activeEl = null;
+  const allNodes = [];                   // { el, n }
+  const branchEls = [];                  // dashed ignored-branch connectors (visible at layer >= 8)
+
+  const canvas = document.getElementById("canvas");
+  canvas.style.height = y(MAXT) + 40 + "px";
+  canvas.style.minWidth = "980px";
+
+  // ---- ruler ----
+  const ruler = document.createElement("div");
+  ruler.className = "ruler"; ruler.id = "ruler";
+  ruler.innerHTML = '<div class="rail"></div>';
+  for (let t = 0; t <= MAXT; t += 10) {
+    const tick = document.createElement("div");
+    tick.className = "tick"; tick.style.top = y(t) + "px"; tick.textContent = clock(t);
+    ruler.appendChild(tick);
+  }
+  ruler.onclick = (e) => {
+    if (!armed) return;
+    const t = Math.max(1, Math.min(MAXT - 1, tOf(e.clientY - ruler.getBoundingClientRect().top)));
+    if (!marks.includes(t)) marks.push(t);
+    renderSegments();
+  };
+  canvas.appendChild(ruler);
+
+  const segLayerHost = document.createElement("div");
+  canvas.appendChild(segLayerHost);
+
+  function segments() {
+    const b = [0, ...[...marks].sort((x, z) => x - z), MAXT];
+    const out = [];
+    for (let i = 0; i + 1 < b.length; i++) out.push({ from: b[i], to: b[i + 1] });
+    return out;
+  }
+
+  function renderSegments() {
+    segLayerHost.innerHTML = "";
+    document.querySelectorAll(".mark").forEach((m) => m.remove());
+    for (const t of marks) {
+      const m = document.createElement("div");
+      m.className = "mark"; m.style.top = y(t) + "px";
+      m.title = "cut @ " + clock(t) + " (snaps to nearest verified state per file) — click to remove";
+      m.onclick = (e) => { e.stopPropagation(); marks = marks.filter((x) => x !== t); selectedSegment = null; renderSegments(); renderDiff(); };
+      ruler.appendChild(m);
+      const line = document.createElement("div");
+      line.className = "cutline"; line.style.top = y(t) + "px";
+      segLayerHost.appendChild(line);
+    }
+    segments().forEach((s, i) => {
+      const el = document.createElement("div");
+      el.className = "seg" + (selectedSegment === i ? " selectedseg" : "");
+      el.style.top = y(s.from) + "px"; el.style.height = (y(s.to) - y(s.from)) + "px";
+      el.style.background = i % 2 ? "var(--seg-b)" : "var(--seg-a)";
+      el.innerHTML = `<span class="stag">P${i + 1}</span>`;
+      el.title = `Patch P${i + 1}: ${clock(s.from)} → ${clock(s.to)} · base = end of P${i} — click to view diff`;
+      el.onclick = () => { selectedSegment = i; renderSegments(); renderDiff(); };
+      segLayerHost.appendChild(el);
+    });
+  }
+
+  // ---- details ----
+  const detail = document.getElementById("detail");
+  function showDetail(f, lane, n) {
+    if (activeEl) activeEl.classList.remove("active");
+    detail.innerHTML = `<h2>Node details — ${f.name} · ${n.name}</h2><dl>` +
+      `<dt>file</dt><dd>${f.name}</dd>` +
+      `<dt>kind</dt><dd>${{anchor:"anchor (first full content)",commit:"git commit",snap:"file-history snapshot",user:"presumed user edit",script:"script run",echo:"full-content echo",disk:"current on-disk state"}[n.kind]}${n.dim ? " — IGNORED (rewound branch)" : ""}</dd>` +
+      `<dt>instant</dt><dd>2026-07-23 ${clock(n.t)}:00.000 UTC</dd>` +
+      `<dt>session</dt><dd>${lane.s}</dd>` +
+      `<dt>evidence</dt><dd>${n.src}</dd>` +
+      `<dt>verified</dt><dd>${["snap","commit","echo","disk","anchor"].includes(n.kind) && !n.dim ? "yes — beacon" : "no — presumption / ignored"}</dd>` +
+      `</dl><div class="body">${n.body}</div>`;
+  }
+
+  // ---- timelines ----
+  for (const f of FILES) {
+    const box = document.createElement("div");
+    box.className = "filebox"; box.id = "file-" + f.name;
+    box.style.left = f.x + "px";
+    box.style.top = (y(f.start) - 30) + "px";
+    box.style.height = (y(f.end) - y(f.start) + 44) + "px";
+    box.innerHTML = `<div class="fname">${f.name}</div>`;
+    const lanes = document.createElement("div");
+    lanes.className = "lanes";
+    f.lanes.forEach((lane) => {
+      const col = document.createElement("div");
+      col.className = "lane";
+      col.innerHTML = `<div class="lrail"></div><div class="sname">${lane.s}</div>`;
+      for (const n of lane.nodes) {
+        const el = document.createElement("div");
+        el.className = `node n-${n.kind}` + (n.dim ? " dim" : "");
+        el.style.top = (y(n.t) - y(f.start) + 14) + "px";
+        if (n.dim) el.style.left = "78%";
+        el.title = `${n.name} @ ${clock(n.t)}`;
+        el.onclick = () => { showDetail(f, lane, n); el.classList.add("active"); activeEl = el; };
+        col.appendChild(el);
+        allNodes.push({ el, n });
+      }
+      const dims = lane.nodes.filter((n) => n.dim);
+      if (dims.length) {
+        const yIn = (t) => y(t) - y(f.start) + 14;
+        const origin = lane.nodes.filter((n) => !n.dim && n.t < dims[0].t).pop();
+        const elbow = document.createElement("div");
+        elbow.className = "blink";
+        elbow.style.left = "50%"; elbow.style.width = "28%";
+        elbow.style.top = yIn(origin.t) + "px";
+        elbow.style.height = (yIn(dims[0].t) - yIn(origin.t)) + "px";
+        col.appendChild(elbow); branchEls.push(elbow);
+        if (dims.length > 1) {
+          const line = document.createElement("div");
+          line.className = "bline"; line.style.left = "78%";
+          line.style.top = yIn(dims[0].t) + "px";
+          line.style.height = (yIn(dims[dims.length - 1].t) - yIn(dims[0].t)) + "px";
+          col.appendChild(line); branchEls.push(line);
+        }
+      }
+      lanes.appendChild(col);
+    });
+    for (const t of f.corr) {
+      const c = document.createElement("div");
+      c.className = "corr";
+      c.style.top = (y(t) - y(f.start) + 14) + "px";
+      c.style.left = "6px"; c.style.right = "6px";
+      lanes.appendChild(c);
+    }
+    box.appendChild(lanes);
+    canvas.appendChild(box);
+  }
+
+  // ---- layer switcher ----
+  const layerbar = document.getElementById("layerbar");
+  const layerBtns = {};
+  for (let L = 1; L <= 12; L++) {
+    const b = document.createElement("button");
+    b.textContent = L;
+    b.onclick = () => switchLayer(L);
+    layerbar.appendChild(b);
+    layerBtns[L] = b;
+  }
+  function applyLayer() {
+    for (const { el, n } of allNodes) {
+      const visible = nodeLayer(n) <= currentLayer && !(n.goneAt && currentLayer >= n.goneAt);
+      el.style.display = visible ? "" : "none";
+    }
+    for (const el of branchEls) el.style.display = currentLayer >= 8 ? "" : "none";
+    for (let L = 1; L <= 12; L++) {
+      layerBtns[L].className =
+        (L === currentLayer ? "current " : "") + (computed.has(L) ? "" : "uncomputed");
+      layerBtns[L].title = computed.has(L)
+        ? "layer " + L + " (computed — instant)"
+        : "layer " + L + " (not yet computed — switching runs it)";
+    }
+  }
+  function switchLayer(L) {
+    if (computed.has(L)) { currentLayer = L; applyLayer(); return; }
+    const wrap = document.getElementById("progressWrap");
+    const bar = document.querySelector("#progressBar > div");
+    const label = document.getElementById("plabel");
+    wrap.style.display = "block";
+    let pct = 0;
+    const names = {4:"eliminating explained diffs",5:"placing derived edits",6:"eliminating explained diffs",
+      7:"locating script executions",8:"identifying branches",9:"classifying kept/reverted",
+      10:"executing scripts (speculative replay)",11:"resolving user-edit nodes",12:"placing non-modifying events"};
+    const timer = setInterval(() => {
+      pct = Math.min(100, pct + 7 + Math.random() * 10);
+      bar.style.width = pct + "%";
+      label.textContent = `computing layer ${L} — ${names[L] || "…"} (${Math.round(pct)}%)`;
+      if (pct >= 100) {
+        clearInterval(timer);
+        for (let i = 1; i <= L; i++) computed.add(i);  // lower layers are prerequisites
+        setTimeout(() => { wrap.style.display = "none"; bar.style.width = "0%"; }, 250);
+        currentLayer = L; applyLayer();
+      }
+    }, 90);
+  }
+
+  // ---- diff view (mock of the EXISTING webapp Changes view — do not reinvent) ----
+  const diffview = document.getElementById("diffview");
+  const DIFFS = {
+    "a.py": { a: 6, d: 2, hunk: "@@ -12,7 +12,11 @@ def check_stock(item):",
+      lines: [[" ","def check_stock(item):"],["-","    return item.count > 0"],
+              ["+","    if item.discontinued:"],["+","        return False"],
+              ["+","    return item.count > item.threshold"],[" ",""],["+","def reorder(item):"],["+","    ..."]] },
+    "b.py": { a: 3, d: 1, hunk: "@@ -4,5 +4,7 @@ def render():",
+      lines: [[" ","def render():"],["-","    return template.render()"],
+              ["+","    ctx = build_context()"],["+","    return template.render(ctx)"],["+",""]] },
+    "c.py": { a: 2, d: 0, hunk: "@@ -20,3 +20,5 @@ def save():",
+      lines: [[" ","def save():"],["+","    validate()"],["+","    write_csv()"]] },
+  };
+  function renderDiff() {
+    if (selectedSegment === null) { diffview.classList.add("hidden"); return; }
+    const s = segments()[selectedSegment];
+    const inSeg = FILES.filter((f) => f.start < s.to && f.end > s.from).map((f) => f.name);
+    diffview.classList.remove("hidden");
+    diffview.innerHTML =
+      `<div class="dhead"><b>Patch P${selectedSegment + 1}</b>` +
+      `<span>${clock(s.from)} → ${clock(s.to)} · base = end state of P${selectedSegment}</span>` +
+      `<button>Generate git-diff</button>` +
+      `<span class="dnote">mock of the existing webapp Changes view (file tree + diff) — reuse, don't reinvent</span></div>` +
+      `<div class="dbody"><div class="dtree" id="dtree"></div><div class="dpane" id="dpane"></div></div>`;
+    const tree = diffview.querySelector("#dtree");
+    inSeg.forEach((name, i) => {
+      const d = DIFFS[name];
+      const row = document.createElement("div");
+      row.className = "f" + (i === 0 ? " on" : "");
+      row.innerHTML = `<span>${name}</span><span class="counts"><span class="a">+${d.a}</span> <span class="d">−${d.d}</span></span>`;
+      row.onclick = () => { tree.querySelectorAll(".f").forEach((x) => x.classList.remove("on")); row.classList.add("on"); renderPane(name); };
+      tree.appendChild(row);
+    });
+    renderPane(inSeg[0]);
+  }
+  function renderPane(name) {
+    const d = DIFFS[name];
+    diffview.querySelector("#dpane").innerHTML =
+      `<div class="hunk">${d.hunk}</div>` +
+      d.lines.map(([k, txt]) =>
+        `<div class="ln ${k === "+" ? "add" : k === "-" ? "del" : ""}">${k}${txt}</div>`).join("");
+  }
+
+  // ---- chrome ----
+  document.getElementById("drawerBtn").onclick = () =>
+    document.getElementById("drawer").classList.toggle("collapsed");
+  document.getElementById("segBtn").onclick = function () {
+    armed = !armed;
+    this.classList.toggle("armed", armed);
+    document.getElementById("ruler").classList.toggle("armed", armed);
+    this.textContent = armed ? "Click ruler to add cut marks (done)" : "Create segments for patch extraction";
+  };
+  document.querySelectorAll(".item.file").forEach((el) => {
+    el.onclick = () => document.getElementById("file-" + el.dataset.file)
+      .scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+  });
+
+  renderSegments();
+  applyLayer();
+  const first = FILES[1];
+  showDetail(first, first.lanes[0], first.lanes[0].nodes[1]);
+</script>
+</div>
+</body>
+</html>
