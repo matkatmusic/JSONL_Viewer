@@ -2026,5 +2026,55 @@
     "completionDate": "2026-07-25",
     "commitHashes": [],
     "closureNote": "Implemented + staged 2026-07-25: mergeSessionTimelines in jfred/src/layered_merge.ts merges per-session timelines onto the shared instant axis, dedupes the per-session end states to one node owned by no session, re-derives presumption gaps against merged neighbours, and marks corroboration only where two DISTINCT sessions observed the same bytes; sortNodesOntoAxis moved to layered_instants.ts so loader and merge share one sort; 7 unit tests in tests/layered_merge.test.ts green."
+  },
+  {
+    "taskNumber": 223,
+    "title": "CLI flag to decline pre-baseline reconstruction (the iterative loop needs the window cut)",
+    "description": "Task-188 finding (2026-07-25): the iterative reconstruct -> commit -> re-seed loop cannot actually start from the new hash, because preBaselineReconstructionAllowed defaults to true and ONLY the viewer flips it (src/reconstruction_base_commit.ts:33 — \"the CLI never touches it\"). computeSkippedBaselineCutoff therefore returns undefined on every CLI run, so a later --base-commit does not prune the records before it: the re-seeded run measured 48s vs the control 49s and its ladder still started ~11 hours before its own seed instant. Add the CLI equivalent of the viewer's \"No\" to the pre-baseline question (e.g. --no-pre-baseline) so a re-seeded iteration reconstructs only forward from the seed, then re-measure the loop with it. Evidence: plans/166-per-file-target.md, section \"Task 188 — the iterative reconstruct -> commit -> re-seed loop\".",
+    "blockedBy": [],
+    "completionDate": "2026-07-25",
+    "commitHashes": [],
+    "closureNote": "Implemented --no-pre-baseline in reconstruction_cli_args.ts (parseArgs + applyCliPathOverrides -> setPreBaselineReconstructionAllowed, set unconditionally so an in-process run never inherits a previous answer); 2 new tests green. Re-measured on real data: the mid-window re-seeded ladder went 20 -> 10 revisions, 66s -> 39s, and now starts exactly at its own seed instant (2026-05-14T03:06:21Z), so the loop finally cuts the window."
+  },
+  {
+    "taskNumber": 224,
+    "title": "Mid-stream base-commit seed yields a non-monotonic ladder with a duplicated snapshot revision",
+    "description": "Task-188 finding (2026-07-25): seeding --base-commit at a commit INSIDE the recorded window (step 4 of the iterative loop) corrupts the emitted ladder for common/scripts/plate/plate_cli.py. The gitBase: overwrite lands at index 10 stamped 2026-05-14T03:06:21Z, before an index-11 revision stamped 2026-05-13T21:45:19Z (non-monotonic), and snapshot 04b5333dde2392bd@v2 appears TWICE (indices 8 and 11) where the same-bound control run against the original baseline emits it once — 20 revisions vs the control 18, entirely accounted for by those two artifacts. Both the control and iteration-1 ladders are monotonic, so the trigger is the mid-window seed placement (see reconstruction_git_placement.ts / seedBaseCommitBeacon in reconstruction_base_commit.ts). Fix the ordering + dedupe, or refuse a mid-window baseline with a clear error. May be resolved by task 223 (dropping pre-seed records) — verify before assuming. Evidence: plans/166-per-file-target.md, section \"Task 188 — the iterative reconstruct -> commit -> re-seed loop\".",
+    "blockedBy": [],
+    "completionDate": "2026-07-25",
+    "commitHashes": [],
+    "closureNote": "Reproduced with four captured runs before fixing. The duplicated-snapshot half was already resolved by task 223 (--no-pre-baseline removes both the @v2 and @v1 duplications). The surviving non-monotonicity was localised by probe instrumentation to seedStaleEditBases pushing a backup-sourced seed stamped with the backup own instant, clamped only against the following edit and never against the preceding event. Fixed with clampSeedBetweenPreviousAndEdit in reconstruction_sidecar.ts giving the seed a two-sided window [previousEventTime, editTime); seedBeforeEdit deleted. 14 tests green; real-data verification passed 10/10 checks with exactly one timestamp re-stamped per run, no revisions added/dropped, no changeId churn, and final content byte-identical to the control."
+  },
+  {
+    "taskNumber": 184,
+    "title": "S10: debug viewer — revision-ladder rendering + DOM tests",
+    "description": "Render the selected file's revision ladder in the dedicated debug viewer (revision list with source attribution, conflict notes, seed hash where present). DOM tests per existing webapp test patterns for selecting a file and rendering its revision list; manual check against plate_cli.py on the real claude-data sources.",
+    "completionDate": "2026-07-25",
+    "commitHashes": [],
+    "closureNote": "Implemented revision-ladder rendering in webapp/debug-app.ts (63 -> 117 lines) over the task-183 /api/file-ladder endpoint, rendering kind+changeId attribution, timestamp, unrecoverable.reason as the conflict note, and the seed hash on gitBase: revisions; 9 DOM tests green. The required manual check against plate_cli.py on the real claude-data sources was satisfied by feeding the real 18-revision control and 10-revision iter2b ladders through the actual renderDebugLadder — 4/4 assertions passed on both, including an overwrite kind and full 40-char seed SHAs the synthetic fixture never produced."
+  },
+  {
+    "taskNumber": 187,
+    "title": "S11: run the M-file sweep (68 files) and triage results",
+    "description": "Run the task-186 harness over all 68 'modified' files from the S8 enumeration. Record the results table in plans/166-per-file-target.md; itemize every failure/gap as a finding, not an omission. Phase gate: S11 must be complete before the S12 'added' phase starts.",
+    "completionDate": "2026-07-25",
+    "commitHashes": [],
+    "closureNote": "Swept all 68 M files in 904s (827s one-time warm-up, 77s for the other 67), 0 unrecoverable revisions, and triaged every non-ok row rather than reporting the raw count. Raw 46/68 endpoint misses reduce to a real defect list of 10 files: diskMatched is a one-way oracle (content-hashing all 11,748 file-history snapshots shows 35 of the 46 misses have current bytes recorded in no source at all), 27 of the 28 one-revision ladders are the engine being correct (zero write-class tool_uses across the 156 transcripts), and the 2 baseline-blob misses are a trailing-newline render artifact with 2/2 correlation. Results and nine numbered findings recorded in plans/166-per-file-target.md; follow-ups filed as tasks 226, 227 and 228. Phase gate satisfied: S11 complete, S12 may start."
+  },
+  {
+    "taskNumber": 203,
+    "title": "RenameEdge/CopyEdge extraction + lineageOf walk",
+    "description": "S6. Extract RenameEdge (timestampOfRename) and CopyEdge (timestampOfCopy) with JsonlRef evidence from layer-1..3 evidence (reuse the engine's existing rename channels); lineageOf walks RenameEdges to derive one continuous history; bornCopy's first content = copiedFrom's reconstructed state at timestampOfCopy. No stored lineage groups. Unit test: rename chain end-to-end; copy fork leaves both lineages independent. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-25",
+    "commitHashes": [],
+    "closureNote": "Implemented src/layered_lineage.ts (143 lines) plus tests/layered_lineage.test.ts, 7 tests green, with edges wired into layered_load.ts. Reuses extractFileEvents existing EventKind.rename/copy channel as the sole edge source, the loader indexJsonlRefsByChangeId for JsonlRef evidence, and mergeSessionTimelines + checkNodeCarriesBytes for copy born-content; no stored lineage groups (born-content derived on demand, undefined when no verified source state precedes the copy). Deliberately does not reuse resolveFinalPath, which returns only the last path and would infinite-loop on a recorded mv a b; mv b a cycle — filed as task 225."
+  },
+  {
+    "taskNumber": 207,
+    "title": "Per-file widgets on one shared vertical time axis with session lanes",
+    "description": "S8. Each file renders as a rounded widget offset to its history's start on the shared vertical axis, per-session lanes inside. DOM test on a two-file two-session fixture: widget offsets ordered by start Instant; lanes per session. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-25",
+    "commitHashes": [],
+    "closureNote": "Implemented per-file widgets on the shared vertical axis in webapp/layered-app.ts (94 -> 190 lines) and layered-styles.css (94 -> 142), 12 DOM tests green on a two-file two-session fixture asserting widget offsets ordered by start Instant and one lane per observing session. CSS owns all layout; JS emits only --axis-ms/--axis-span-ms custom properties, with no JS layout pass, no new dependency and no cross-boundary import from src/ into webapp/. The dashed cross-lane corroboration lines that S8 prose also mentions are task 208 and were left out per task 207 own wording."
   }
 ]

@@ -132,7 +132,7 @@ first content = `copiedFrom`'s reconstructed state at `timestampOfCopy`).
 No stored lineage groups.
 - Verify: unit test — rename chain walks end-to-end; copy fork leaves both lineages independent afterward.
 - Tasks: #203
-- Status: open
+- Status: done 2026-07-25, staged — jfred/src/layered_lineage.ts (edges + `lineageOf`) with jfred/tests/layered_lineage.test.ts, 7 tests green; jfred/src/layered_load.ts wires the edges in. Edges come solely from `extractFileEvents`' existing `EventKind.rename`/`EventKind.copy` channel (no new parsing) and their `JsonlRef` evidence from the loader's existing `indexJsonlRefsByChangeId`; copy born-content uses `mergeSessionTimelines` (S5) + `checkNodeCarriesBytes` (S2). No stored lineage groups: `findCopyBornContent(edge)` derives born-content on demand and returns `undefined` when no verified source state precedes the copy. Deviation from Reuse-don't-rebuild: the engine's `resolveFinalPath` is NOT reused — it returns only the last path (it cannot yield the ordered chain `lineageOf` needs) and would infinite-loop on a recorded `mv a b; mv b a` cycle; the layered walk uses a shared seen-set and terminates.
 
 ### S7. App page skeleton
 The new layered page becomes the webapp's main page; the current webapp page
@@ -152,7 +152,7 @@ shared vertical time axis, per-session lanes inside; dashed cross-lane lines
 where S5 marked corroboration.
 - Verify: DOM test on a two-file, two-session fixture — widget offsets ordered by start instant; lanes per session; dashed line present exactly at corroborated instants.
 - Tasks: #207, #208
-- Status: open
+- Status: partial — offsets-and-lanes half done (#207 done 2026-07-25, staged: webapp/layered-app.ts 94 → 190 lines, webapp/layered-styles.css 94 → 142, tests/layered-app.test.ts 168 → 248, 12 tests green; CSS owns all layout and the JS emits only the custom properties `--axis-ms` / `--axis-span-ms`, so there is no JS layout pass, no new dependency, and no cross-boundary import from `src/` into `webapp/` — tsconfig.webapp.json pins rootDir to webapp). REMAINING GAP: the dashed cross-lane corroboration lines are NOT implemented — #207's text stops at offsets + lanes, and that half is #208, whose input is `MergedNode.corroboratedBy` (S5). S8 is not complete until #208 lands.
 
 ### S9. Layer switcher with per-layer tooltips
 A `Layer: [1]..[12]` control above the timeline; 1–3 selectable (switching

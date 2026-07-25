@@ -473,3 +473,236 @@ attempt-4 run took.
 
 Evidence (session scratchpad, not preserved): `iter1.json`, `iter2.json`,
 `control.json` plus their `--progress` logs.
+
+## Task 187 — the M-file sweep (68 files)
+
+Run 2026-07-25 with the task-186 harness over the full M candidate set. One
+process, one records array, 68 targets. `~/Programming/jot` was only ever read.
+
+### The command
+
+```
+cd jfred
+npx tsx scripts/per_file_sweep.ts --status M
+```
+
+All flags left at their defaults, which are the settings this run used:
+
+| setting | value |
+| --- | --- |
+| repo | `~/Programming/jot` (read-only; working tree, not HEAD) |
+| baseline commit | `793e65241902f276caf5f5c28d539269e7d36d11` (2026-05-10T11:34:03-07:00) |
+| projects | `~/Programming/jot-recovery/claude-data/projects/-Users-matkatmusicllc-Programming-jot` (156 JSONLs, 72,438 records) |
+| file-history | `~/Programming/jot-recovery/claude-data/file-history` (760 session dirs, 11,748 snapshots, 7,716 distinct contents) |
+| status | `M` |
+| out / table | `plans/166-per-file-sweep-results.jsonl` / `plans/166-per-file-sweep-table.md` |
+
+### Results summary
+
+| measure | value |
+| --- | --- |
+| candidates | 68 |
+| verdict `ok` (both endpoints + zero unrecoverable) | 22 |
+| verdict `endpoint-miss` | 46 |
+| verdict `gaps` | 0 |
+| verdict `none` (zero revisions / threw) | 0 |
+| `baselineBlobMatched=false` | 2 |
+| `diskMatched=false` | 46 |
+| `unrecoverable` revisions, summed over all 68 ladders | **0** |
+| ladders with exactly 1 revision | 28 |
+| total revisions recovered | 678 |
+| longest ladder | `common/scripts/plate/plate_lib.py`, 150 |
+
+Timing: **904 s total, of which the FIRST candidate cost 827 s and the other
+67 cost 77 s combined** (median 1 s, max 3 s). The "one process, one records
+array, N targets" decision is the whole story — the shared script-run /
+lineage warm-up is paid once, and marginal cost per additional file is ~1 s.
+A CLI-spawn-per-file harness would have paid ~827 s × 68 ≈ 15.6 hours.
+
+### The 68 rows
+
+The full 8-column table is `plans/166-per-file-sweep-table.md`. The 22 `ok`
+rows are not repeated here; every one of the 46 non-`ok` rows is listed below,
+with the three triage columns this section adds (write-class tool_use count in
+the archive, whether today's working-tree bytes exist anywhere in the recorded
+sources, and the diagnosed cause):
+
+| file | revs | baseline blob | final = disk | write-class tool_uses in archive | today's bytes in archive | cause |
+| --- | --- | --- | --- | --- | --- | --- |
+| `.gitignore` | 3 | yes | no | 1 | no | archive: today's bytes exist in no recorded source |
+| `CHANGELOG.md` | 17 | yes | no | 9 | yes | **GAP** |
+| `README.md` | 58 | yes | no | 23 | yes | **GAP** |
+| `common/scripts/claude_lib.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `common/scripts/debate_lib.py` | 20 | yes | no | 9 | yes | **GAP** |
+| `common/scripts/git_lib.py` | 5 | yes | no | 3 | no | archive: today's bytes exist in no recorded source |
+| `common/scripts/git_test_funcs_lib.py` | 13 | yes | no | 6 | no | archive: today's bytes exist in no recorded source |
+| `common/scripts/hookjson_lib.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `common/scripts/plate/spawn_summary_agent.py` | 56 | yes | no | 34 | yes | **GAP** |
+| `common/scripts/plate/transcript_parse.py` | 1 | yes | no | 0 | no | render: disk file has no trailing NL |
+| `common/scripts/plate_dispatcher.py` | 24 | yes | no | 14 | yes | **GAP** |
+| `common/scripts/tmux_lib.py` | 5 | yes | no | 2 | no | archive: today's bytes exist in no recorded source |
+| `common/scripts/todo_lib.py` | 16 | yes | no | 8 | yes | **GAP** |
+| `common/scripts/util_lib.py` | 6 | yes | no | 3 | no | archive: today's bytes exist in no recorded source |
+| `docs/design/architecture.md` | 2 | **no** | no | 1 | yes | render: baseline blob has no trailing NL |
+| `docs/design/milestones.md` | 2 | **no** | no | 1 | yes | render: baseline blob has no trailing NL |
+| `scripts/jot_plugin_orchestrator.py` | 10 | yes | no | 6 | yes | **GAP** |
+| `tests/test_claude_permissions.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_debate_agents.py` | 6 | yes | no | 3 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_debate_archive_io.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_debate_capacity.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_debate_daemon.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_debate_locks.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_debate_main.py` | 13 | yes | no | 1 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_debate_retry.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_debate_tmux.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_dispatcher.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_git_lib.py` | 1 | yes | no | **1** | no | archive (endpoint) + **GAP** (the 1 Edit produced no revision) |
+| `tests/test_hookjson_lib.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_jot_buildcmd.py` | 20 | yes | no | 9 | yes | **GAP** |
+| `tests/test_jot_diag.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_jot_dispatch.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_jot_phase2.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_jot_state.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_jot_stop.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_tmux_communicate.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_tmux_configure.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_tmux_create.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_tmux_destroy.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_tmux_read.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_todo_capture.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_todo_list.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_todo_stop.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_util_filelock.py` | 1 | yes | no | 0 | yes | **GAP** |
+| `tests/test_util_shell.py` | 1 | yes | no | 0 | no | archive: today's bytes exist in no recorded source |
+| `tests/test_util_terminal.py` | 9 | yes | no | 1 | no | archive: today's bytes exist in no recorded source |
+
+Cause tally over the 46: 34 unreachable-endpoint, 9 engine gap, 3 render
+artifact (`tests/test_git_lib.py` is counted under unreachable-endpoint above
+but carries a gap of its own — see finding 6).
+
+### Findings
+
+1. **Is `diskMatched` a sound endpoint oracle for this dataset? No — it is
+   unsound for half the candidate set, and the 46/68 failure rate indicts the
+   metric far more than the engine.** `buildSweepRow` compares
+   `renderRevisionText(last)` against `readFileSync(<repo>/<file>)` — today's
+   working tree. But `~/Programming/jot` is a live repo whose recorded history
+   is a *recovery archive with a fixed end*: the transcripts span
+   2026-04-04T22:09:02Z → 2026-06-18T17:04:40Z, while HEAD is
+   `93edad3` dated 2026-07-12 and the working tree carries 235 dirty entries.
+   The archive simply does not contain the file's final state for most
+   candidates.
+
+   The decisive test (content-hash every one of the 11,748 file-history
+   snapshots and ask whether today's bytes appear anywhere in any recorded
+   source): **22/22 `diskMatched=true` rows have their current bytes in the
+   archive; only 11/46 `diskMatched=false` rows do.** For the other **35 of 46
+   misses no engine can ever satisfy the check** — the bytes exist in no
+   recorded source. `diskMatched` therefore measures "did the archive capture
+   this file's final state", not "did the engine replay correctly". It is
+   sound only as a one-way signal: a `true` is meaningful evidence; a `false`
+   is uninterpretable without the archive-membership test above.
+
+   The working-tree *mtime* comparison the triage originally proposed is
+   **useless on this dataset** and is recorded here as a trap: all 68 files
+   carry bulk-restore mtimes (`2026-07-01T20:21:53.0xx`,
+   `2026-07-03T20:0x`, one 2026-07-17), so mtime postdates the last transcript
+   record for 68/68 — including all 22 files that *pass* `diskMatched`. The
+   `git log -1 %cI` route is equally blind here: only 3 of the 68 M files were
+   touched by any commit between the baseline and HEAD; the rest are
+   uncommitted working-tree state with no git timestamp at all. Snapshot
+   content-membership is the only oracle that discriminates.
+
+2. **Nine real engine gaps, itemized.** These files' current bytes DO sit in
+   the file-history archive and the engine's last revision is still not them:
+   `CHANGELOG.md` (17 revs, 9 write-class tool_uses), `README.md` (58/23),
+   `common/scripts/debate_lib.py` (20/9),
+   `common/scripts/plate/spawn_summary_agent.py` (56/34),
+   `common/scripts/plate_dispatcher.py` (24/14),
+   `common/scripts/todo_lib.py` (16/8),
+   `scripts/jot_plugin_orchestrator.py` (10/6),
+   `tests/test_jot_buildcmd.py` (20/9), `tests/test_util_filelock.py` (1/0).
+   Every one has a long ladder that stops short except the last. This is the
+   real S11 defect list and it is 9 files, not 46.
+
+3. **Two `baselineBlobMatched=false` rows are a render artifact, with a 2/2
+   correlation — not an engine gap.** Both docs ARE in the baseline commit
+   (`docs/design/architecture.md` → blob `933adbfa3d3b…`, 392 newline-
+   terminated lines + one unterminated final line;
+   `docs/design/milestones.md` → `0c32779b6bf1…`, 274 + 1). Both baseline
+   blobs end with byte `0x2e` (`.`), **not** `0x0a`. `renderRevisionText`
+   is `linesTextOf(revision).join("\n") + "\n"` — it unconditionally appends
+   a trailing newline — so a blob without one can never git-hash-match no
+   matter what the engine reconstructs. Auditing all 68 baseline blobs:
+   **exactly 2 lack a trailing newline, and they are exactly the 2 misses.**
+   The correlation is complete; the seed is being injected correctly and only
+   the comparison is wrong. The same artifact hits the disk side for 3 files
+   (`transcript_parse.py` plus both docs), whose working-tree bytes also lack
+   a final newline. Fix direction: the sweep should carry a per-revision
+   `endsWithNewline` (or compare against a normalized form on both sides)
+   rather than assuming every file is newline-terminated.
+
+4. **All 28 one-revision ladders contain ONLY the `gitBase:` seed — the
+   engine recovered nothing from the transcripts for any of them.** This is
+   provable from the results JSONL without re-running: all 28 have
+   `baselineBlobMatched=true`, and with exactly one revision that revision
+   must BE the baseline blob. (All 28 also have `diskMatched=false`, which is
+   forced — these are status-`M` files, so the working tree differs from the
+   baseline by definition.)
+
+5. **But 27 of those 28 are the engine being CORRECT, not failing.** Scanning
+   every `tool_use` record in the 156 transcripts for the 68 absolute target
+   paths (748 hits total): **27 of the 28 one-revision files have ZERO
+   write-class tool_uses** (`Write`/`Edit`/`MultiEdit`/`NotebookEdit`) in the
+   entire archive. Nine of them carry `Read` calls only; nineteen are never
+   named by any tool at all. There was nothing to recover — those files were
+   modified outside the recorded sessions. A one-revision ladder is the
+   correct answer for them.
+
+6. **The 28th is a real gap: `tests/test_git_lib.py`.** It carries one `Edit`
+   tool_use in the archive (plus 2 Reads) and its ladder is still seed-only.
+   One recorded write produced zero revisions. Small, isolated, and the
+   cheapest reproducer in the whole sweep — a single-Edit file that the
+   surviving-branch path drops. Worth chasing before the nine long-ladder
+   gaps in finding 2, because it isolates the mechanism with one event.
+
+7. **Zero `unrecoverable` revisions and zero throws across all 68 files.**
+   Not one ladder carried a `FileRevision.unrecoverable`, and no candidate hit
+   the harness's throw-becomes-a-row path. Every revision the engine emitted,
+   it emitted with content. Combined with 678 total revisions recovered
+   (150 for `plate_lib.py` alone), the S11 "all or most of the file's
+   revisions" bar is met on content quality; what the sweep cannot yet certify
+   is *completeness*, because the only completeness oracle available
+   (`diskMatched`) is the unsound one from finding 1.
+
+8. **Cost is a solved problem and the shape is now documented.** 827 s for
+   candidate 1, 77 s for candidates 2–68. The warm-up is per-records-ARRAY,
+   which is why the harness must stay single-process; it is not per-file
+   complexity (the 150-revision `plate_lib.py` took 3 s). Any future sweep
+   (S12's A files, S13's D files) should reuse this harness unchanged.
+
+9. **What we could NOT determine, and what would settle it.** For the nine
+   gap files in finding 2 we know the target bytes are in the archive but not
+   *which* revision the ladder stops at, or whether the miss is one dropped
+   trailing edit or a mid-ladder divergence that never recovers. Settling it
+   needs a per-file ladder dump (`--branch surviving --file <path> --json`)
+   diffed against the working tree for each of the nine — one shared-array
+   script run, ~830 s of warm-up plus ~10 s, not nine CLI spawns. That was
+   scoped out of this triage deliberately; it is the natural first task of the
+   S11 gap-closure follow-up. Likewise, finding 3's fix is unvalidated: no run
+   has yet confirmed that a newline-aware comparison flips those two rows to
+   `ok`.
+
+### Phase gate
+
+**S11 is COMPLETE and S12 (the 'added'-file phase) may start.** S11's stated
+verify criterion is "results table covers all M files — endpoints matched,
+revision count, and gaps itemized as findings, not omissions." All 68 M files
+are in the table with both endpoint results and a revision count; every
+failure is itemized above as a numbered finding with its diagnosed cause, and
+none is dropped. The gate is explicitly *not* "46 endpoint misses must first
+become zero" — finding 1 shows 35 of them are unsatisfiable against a
+recovery archive with a fixed end, and finding 3 shows 3 more are a
+comparison bug. The residual engine defect list is 10 files (finding 2's nine
+plus `tests/test_git_lib.py`), carried forward as S11 gap-closure work rather
+than as a blocker on S12.
