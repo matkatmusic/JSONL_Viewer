@@ -111,8 +111,8 @@ ladder for `common/scripts/plate/plate_cli.py`. Verify the existing arg does
 this end-to-end; extend only where a real gap surfaces. This is the step-1
 viability proof for the per-file approach.
 - Verify: unit test proving `--file` filters the ladder to the named file on a multi-source fixture; a real-data run completes, contains a revision byte-identical to blob `9d14d60d`, and emits the intermediate revisions the sources evidence (revision count reported; mismatches documented in the S8 doc — a finding, not a silent pass).
-- Tasks: #181 (done 2026-07-22), #182
-- Status: open — #181 unit test landed (it surfaced and fixed a real gap: the JSON document's steps array wasn't narrowed by --target); the #182 real-data viability run remains.
+- Tasks: #181 (done 2026-07-22), #182 (done 2026-07-24)
+- Status: done — #181 unit test landed (it surfaced and fixed a real gap: the JSON document's steps array wasn't narrowed by --target); #182 real-data run completed 2026-07-24 (34-revision ladder, revision 0 byte-identical to blob 9d14d60d, all 18 source Edits + 2 sidecar snapshots represented; findings in plans/166-per-file-target.md).
 
 ### S10. Dedicated per-file debug viewer
 A dedicated debug viewer page (user decision 2026-07-22: NOT a filter on the

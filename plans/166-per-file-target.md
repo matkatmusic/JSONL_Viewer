@@ -106,6 +106,31 @@ as a factor: writes to the target's absolute path exist only in the
 `-Users-matkatmusicllc-Programming-jot` project folder (11 JSONLs); the
 engine's multi-source machinery (specs S3–S6) is present and unused here.
 
+## Task 182 blob-identity + evidence check (2026-07-24, PASSED — task CLOSED)
+
+Validation of the attempt-4 ladder JSON
+(`plate_cli_ladder-attempt4-2026-07-24.json`, 34 revisions for
+`common/scripts/plate/plate_cli.py`):
+
+- **Blob identity PASSED.** Revision 0 (`kind: write`,
+  `changeId: gitBase:793e6524…`, ts 2026-05-10T18:34:03Z), reconstructed as
+  line-joined text + trailing newline, git-hashes to exactly
+  `9d14d60df7aebcba8455bdea7d6b817bca572fe6` — byte-identical to the
+  baseline blob. (Without the trailing newline the hash differs; the
+  trailing-NL form is the match.)
+- **Source evidence fully represented.** The 33 non-seed revisions trace to:
+  31 `edit` revisions carrying 18 DISTINCT `toolu_*` changeIds — exactly the
+  18 Edit tool_use records targeting the file in the project's JSONLs (11
+  multi-hunk Edits emit one ladder step per hunk, duplicates are consecutive
+  with identical timestamps — expected engine behavior, not a mismatch) —
+  plus 2 `overwrite` revisions from file-history snapshots
+  `04b5333dde2392bd@v2` and `@v4`.
+- Revision-kind ladder: 1 write (git seed), 31 edits, 2 overwrites; span
+  2026-05-10 → 2026-05-17.
+
+No mismatch found. Step-1 viability of the per-file approach is proven;
+tasks 183/186/188 are unblocked.
+
 Ground truth for the per-file reconstruction sprint (S8–S13, tasks 180–190):
 which files the engine must recover, in what order, and the first target's git
 provenance. All facts below re-verified live against the repo on 2026-07-22.

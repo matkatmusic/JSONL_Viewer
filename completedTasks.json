@@ -1924,5 +1924,15 @@
       "jfred@beac114"
     ],
     "closureNote": "Horizon-keyed lineage-seed memo (jfred@beac114) verified by task-182 attempt-4 rerun 2026-07-24: full 3,992-run pool completed in ~11 min (vs ~22h ETA), 96.4% lineage-cache serves, 34-revision plate_cli.py ladder produced; evidence in jot-recovery/run-evidence attempt4 files."
+  },
+  {
+    "taskNumber": 182,
+    "title": "S9: real-data viability run — plate_cli.py ladder from claude-data sources",
+    "description": "Step-1 viability proof of the per-file approach (user request): run the CLI with ~/Programming/jot-recovery/claude-data/ (projects/ JSONLs + file-history/ snapshots) as the source, --file common/scripts/plate/plate_cli.py, seeded via --repo ~/Programming/jot --base-commit 793e65241902f276caf5f5c28d539269e7d36d11. The run must complete and emit the file's revision ladder; verify a revision byte-identical to blob 9d14d60d is present and that intermediate revisions the sources evidence are emitted (report the revision count). Document results — including any mismatch, which is a finding not a silent pass — in plans/166-per-file-target.md. Attempt 1 (2026-07-22) documented there: loaded 156/156 JSONLs then >24 min silent in reconstruction, killed before emitting the ladder.",
+    "completionDate": "2026-07-24",
+    "commitHashes": [
+      "719e493"
+    ],
+    "closureNote": "Attempt-4 run completed (34-revision ladder, ~11 min); revision 0 verified byte-identical to baseline blob 9d14d60d; all 18 source Edit records + 2 sidecar snapshots represented; documented in plans/166-per-file-target.md."
   }
 ]

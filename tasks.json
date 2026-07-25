@@ -10,17 +10,9 @@
     "description": "83. See if actual /jot folder can be reconstructed."
   },
   {
-    "taskNumber": 182,
-    "title": "S9: real-data viability run — plate_cli.py ladder from claude-data sources",
-    "description": "Step-1 viability proof of the per-file approach (user request): run the CLI with ~/Programming/jot-recovery/claude-data/ (projects/ JSONLs + file-history/ snapshots) as the source, --file common/scripts/plate/plate_cli.py, seeded via --repo ~/Programming/jot --base-commit 793e65241902f276caf5f5c28d539269e7d36d11. The run must complete and emit the file's revision ladder; verify a revision byte-identical to blob 9d14d60d is present and that intermediate revisions the sources evidence are emitted (report the revision count). Document results — including any mismatch, which is a finding not a silent pass — in plans/166-per-file-target.md. Attempt 1 (2026-07-22) documented there: loaded 156/156 JSONLs then >24 min silent in reconstruction, killed before emitting the ladder."
-  },
-  {
     "taskNumber": 183,
     "title": "S10: per-file debug viewer — server endpoint + page skeleton",
-    "description": "User decision 2026-07-22: the per-file revision view is a DEDICATED debug viewer page, not a 'Filename' filter on the main webapp — free to expose engine internals (source attribution, conflict notes, seed hashes). This task: a server endpoint serving one file's revision ladder from the merged multi-source reconstruction (viewer_api_* patterns) plus the debug page skeleton with file selection / deep-link.",
-    "blockedBy": [
-      182
-    ]
+    "description": "User decision 2026-07-22: the per-file revision view is a DEDICATED debug viewer page, not a 'Filename' filter on the main webapp — free to expose engine internals (source attribution, conflict notes, seed hashes). This task: a server endpoint serving one file's revision ladder from the merged multi-source reconstruction (viewer_api_* patterns) plus the debug page skeleton with file selection / deep-link."
   },
   {
     "taskNumber": 184,
@@ -33,10 +25,7 @@
   {
     "taskNumber": 186,
     "title": "S11: per-file sweep harness — run all candidates, emit results table",
-    "description": "Build the harness that runs the S9 per-file reconstruction for a list of candidate files against the claude-data sources and emits a results table (per file: endpoints matched — baseline blob present and final revision vs current ~/Programming/jot content — plus recovered revision count and gaps). Table lands in plans/166-per-file-target.md. Success bar (user-corrected): all or most revisions recovered, to recreate the commit history lost when the plate branch became corrupted; endpoint matches are necessary, not sufficient.",
-    "blockedBy": [
-      182
-    ]
+    "description": "Build the harness that runs the S9 per-file reconstruction for a list of candidate files against the claude-data sources and emits a results table (per file: endpoints matched — baseline blob present and final revision vs current ~/Programming/jot content — plus recovered revision count and gaps). Table lands in plans/166-per-file-target.md. Success bar (user-corrected): all or most revisions recovered, to recreate the commit history lost when the plate branch became corrupted; endpoint matches are necessary, not sufficient."
   },
   {
     "taskNumber": 187,
@@ -49,10 +38,7 @@
   {
     "taskNumber": 188,
     "title": "S12 prep: prove the iterative reconstruct -> commit -> re-seed loop",
-    "description": "User workflow: 'start reconstruction from point A (a git hash) up until some chunk of revisions (like 5 or 10 steps), then commit those. Re-attempt reconstruction from this new commit hash, and more revision history will be reconstructed and committed. Repeat until the entire history is restored.' Prove this loop end-to-end on one file (plate_cli.py or a fixture): seed via --repo/--base-commit, reconstruct a chunk, commit it (in a scratch clone, never the real ~/Programming/jot), re-seed from the new hash, and show the second iteration recovers history the first did not. Document the recipe in plans/166-per-file-target.md.",
-    "blockedBy": [
-      182
-    ]
+    "description": "User workflow: 'start reconstruction from point A (a git hash) up until some chunk of revisions (like 5 or 10 steps), then commit those. Re-attempt reconstruction from this new commit hash, and more revision history will be reconstructed and committed. Repeat until the entire history is restored.' Prove this loop end-to-end on one file (plate_cli.py or a fixture): seed via --repo/--base-commit, reconstruct a chunk, commit it (in a scratch clone, never the real ~/Programming/jot), re-seed from the new hash, and show the second iteration recovers history the first did not. Document the recipe in plans/166-per-file-target.md."
   },
   {
     "taskNumber": 189,
@@ -224,6 +210,6 @@
   {
     "taskNumber": 222,
     "title": "Enable GitHub Pages for the jfred repo (serve docs/)",
-    "description": "User request (2026-07-24): enable GitHub Pages in the jfred repo's GitHub settings so the docs/ folder is served — source: deploy from branch, /docs folder. Verifies the Engine-B demo at https://<user>.github.io/<repo>/engineb/webapp_old.html (local check passed via python3 -m http.server from jfred/docs). Requires the task-17 demo bundle to be pushed first."
+    "description": "DEFERRED UNTIL ALL other tasks are done (user, 2026-07-24). User request (2026-07-24): enable GitHub Pages in the jfred repo's GitHub settings so the docs/ folder is served — source: deploy from branch, /docs folder. Verifies the Engine-B demo at https://<user>.github.io/<repo>/engineb/webapp_old.html (local check passed via python3 -m http.server from jfred/docs). Requires the task-17 demo bundle to be pushed first."
   }
 ]

@@ -103,7 +103,7 @@ Given a repo path, each commit touching a file contributes a verified beacon
 node (blob content) at its committer instant on that file's timeline.
 - Verify: unit test with a fixture repo — beacon nodes carry blob bytes and committer instants; author time never used.
 - Tasks: #200
-- Status: open
+- Status: implemented 2026-07-24, staged — pending user test run (jfred/src/layered_git_beacons.ts)
 
 ### S4. Layer 3 — snapshot beacons via owning-session sidecar
 File-history snapshots become verified beacon nodes; a snapshot reference
@@ -111,7 +111,7 @@ File-history snapshots become verified beacon nodes; a snapshot reference
 name lookup.
 - Verify: unit test with two sessions using the same `@vN` name for different bytes — each timeline gets its own session's bytes.
 - Tasks: #201
-- Status: open
+- Status: implemented 2026-07-24, staged — pending user test run (jfred/src/layered_snapshot_beacons.ts)
 
 ### S5. Multi-session merge and corroboration
 Per-session `SessionTimeline`s merge into one derived view per
@@ -144,7 +144,7 @@ Changes pane hidden until a segment is selected. Clicking a file in the
 drawer scrolls to its widget.
 - Verify: DOM test — regions present, drawer collapses, file click scrolls, Changes pane hidden with no selection; server test — `webapp_old.html` serves the pre-existing page.
 - Tasks: #204, #205, #206
-- Status: open (#204 done 2026-07-24, jfred@462e075; #205 done 2026-07-24, staged — index.html + layered-app.ts, root serving flipped; #206 open)
+- Status: open (#204 done 2026-07-24, jfred@462e075; #205 done 2026-07-24, staged — index.html + layered-app.ts, root serving flipped; #206 implemented 2026-07-24, staged — /api/layered-graph endpoint + page fetch-on-load, pending user test run)
 
 ### S8. Per-file widgets on one shared vertical axis
 Each file renders as a rounded widget offset to its history's start on the
@@ -188,7 +188,7 @@ The timeline legend renders at the top of the timeline area and stays
 visible while the timeline scrolls (it is not part of the scrolled content).
 - Verify: DOM/CSS test — legend present above the timeline; scrolling the timeline leaves the legend in view.
 - Tasks: #212
-- Status: open
+- Status: implemented 2026-07-24, staged — pending user test run (legend above the sole scroll container in index.html)
 
 ### S13. Details on node click, with raw-JSON button
 Clicking a timeline node fills the top-right pane with the existing webapp
