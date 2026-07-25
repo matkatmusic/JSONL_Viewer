@@ -41,3 +41,38 @@ Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-
 - None blocking. Task 202 should decide whether the merged view drops per-session
   end-state nodes or replaces them with one merged final node (the pure functions
   support either).
+
+## 2026-07-24:23:40:00 — Task 199 validation: real-data smoke + two fixes
+Chat title: task 198 199 202 203 207 208 209 valid
+Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-Desktop-claude-code-src-RevEng/90d6f8cb-7c8a-40fa-bfff-e2ffdb5de5ce.jsonl
+
+### References
+/Users/matkatmusicllc/Programming/jot-recovery/claude-data/projects/-Users-matkatmusicllc-Programming-jot (156 real transcripts, read-only)
+
+### Design decisions
+- Validation beyond `npm test` = a real-data smoke: loadLayeredProject over the real
+  jot project backup. Result: 772 entities / 1360 session timelines in ~2.5s;
+  tally 2010 stubs, 1644 beacons, 615 presumption gaps, 436 end states; every
+  existing FILE's timeline ends with its end-state node; 0 gap-adjacency violations.
+- Fix 1 (root cause in structures/tool-results.ts, hit via the 198 Read-echo path):
+  real transcripts report ERRORED tool runs as a plain STRING toolUseResult
+  ("Error: File does not exist.", "User rejected tool use"); resolution now returns
+  undefined for string results instead of crashing while casting. Guard sits in
+  getToolResultForUserRecord — the shared choke point for all tools.
+- Fix 2 (task 199): a recorded path can be a DIRECTORY on today's disk;
+  buildEndStateNode now requires stats.isFile() (statSync throwIfNoEntry:false)
+  instead of existsSync — a directory has no file bytes, so no end-state node.
+- New test-helper buildErroredToolResultRecordPair in multi-source-test-helpers.ts;
+  RED tests added to tool-results.test.ts and layered_end_state.test.ts before each
+  fix.
+
+### Deviations
+- None.
+
+### Tradeoffs
+- The errored-run guard drops string results for ALL tools (Bash error strings were
+  previously castable garbage too) — narrower per-tool handling adds code for no
+  consumer.
+
+### Open questions
+- None.
