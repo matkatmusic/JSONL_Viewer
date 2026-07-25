@@ -1,13 +1,85 @@
 [
   {
+    "taskNumber": 230,
+    "title": "Layer 1: on-disk file walk (`current file state`)",
+    "description": "S18. Walk the project folder given by `dir` and return the `current file state` list: every file's path RELATIVE to the project root, plus its mtime. Excludes `.git` and `node_modules` unconditionally, and honors `.gitignore` when one exists (a folder pointed at by the user may have no .gitignore — that is not an error). mtime is the timestamp used everywhere in Layer 1, including for orphan files; birthtime is deliberately NOT used because it is not portable across filesystems. Unit test: a fixture folder yields exactly its non-excluded files with relative paths; a .git dir, a node_modules dir and a gitignored path are all absent; a folder with no .gitignore still walks. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions)"
+  },
+  {
+    "taskNumber": 231,
+    "title": "Layer 1: repo tree at ref (`starting repository state`)",
+    "description": "S18. Given a repo path and an optional `ref` (commit hash or branch name; default = the repo's active branch), return the `starting repository state` list: every tracked file's path RELATIVE to the repo root. Unit test with a fixture repo: the default-branch call matches `git ls-tree -r --name-only HEAD`; an explicit hash returns that commit's tree, not HEAD's; an invalid ref reports a clear error rather than silently falling back to HEAD. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions) — check src/layered_git_beacons.ts (S3) and the engine's existing git helpers before writing new git plumbing"
+  },
+  {
+    "taskNumber": 232,
+    "title": "Layer 1: pair by relative path, classify the two orphan sets",
+    "description": "S18. Join the task-230 `current file state` against the task-231 `starting repository state` on exact relative path (same name AND same path relative to each list's own root). Emit three results: the PAIRS (each becomes a file widget), the repo-only paths (the \"No on-disk match\" bucket) and the disk-only paths (the \"No repository match\" bucket). Buckets are omitted when empty. Unit test: a fixture where some paths match and some do not yields the right three sets; the critical case is an UNRELATED repo — zero pairs, every repo path in one bucket and every disk path in the other (this is the core of the task-238 acceptance test). Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions)",
+    "blockedBy": [
+      230,
+      231
+    ]
+  },
+  {
+    "taskNumber": 233,
+    "title": "Layer 1: per-pair commit history (one node per touching commit)",
+    "description": "S18. For each pair from task 232, walk the repo's git history and collect the commits that touched that path, each with its hash and committer instant. A commit that did not touch the file contributes NOTHING to that pair — no empty node. Plain `git log`, NO `--follow`: rename tracking belongs to S6, so a renamed file legitimately shows the shorter history for now. Committer time (not author time) per the one-machine-one-clock decision, widened to ms. Unit test with a fixture repo: a file touched by 2 of 4 commits gets exactly 2 entries in commit order; author time is never used. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions) — src/layered_git_beacons.ts already reads per-commit blob evidence, so extend/reuse it rather than writing a second git-log reader",
+    "blockedBy": [
+      231
+    ]
+  },
+  {
+    "taskNumber": 234,
+    "title": "Layer 1: capped-gap ruler axis (instants to pixel offsets)",
+    "description": "S18. Resolve the ordered set of distinct instants (all commit instants plus all disk mtimes) to pixel offsets: `pos(0) = 0`, `pos(i) = pos(i-1) + min((t_i - t_(i-1)) * scale, cap)` with scale = 2.5 px/hr and cap = 24 px (0.25\" at 96dpi), both user-locked 2026-07-25. This preserves ordering and short-gap proportionality while keeping a months-long history on one screen. NOTE it accumulates — position i depends on every earlier gap — which is exactly why it cannot live in CSS the way S8's --axis-ms does; resolve once, globally, and hand the page finished pixel offsets. Ruler bounds fall out of the same ordered set: start = the earliest instant (which a disk orphan predating the first commit legitimately moves earlier), end = the newest disk mtime. Unit test: a 5-hour gap yields 12.5 px, a 6-week gap yields exactly 24 px, ordering is preserved, and a pre-first-commit disk orphan becomes position 0. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions)"
+  },
+  {
+    "taskNumber": 235,
+    "title": "Layer 1: GET /api/layer1-view?dir=&repo=&ref= endpoint",
+    "description": "S18. New server endpoint BESIDE the existing /api/layered-graph — not a change to it. Takes `dir` (project folder), `repo` (git repo) and optional `ref` (hash or branch), runs tasks 230-234, and serializes the Layer 1 View: the pairs with their commit nodes and on-disk node, the two orphan buckets, and every instant already resolved to its pixel offset (--axis-px values, per task 234). Reads NO JSONL — Layer 1 is disk-plus-git only, which is what makes the task-238 acceptance test meaningful (it cannot accidentally pass on JSONL data). Validate both paths at the trust boundary: missing/non-existent dir, non-repo repo path and invalid ref each return a clear error the page can display, never a stack trace. Server test: a fixture dir + fixture repo returns the expected pairs/buckets; a bad ref returns the error shape. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions) — src/viewer_api_layered.ts is the pattern to follow",
+    "blockedBy": [
+      232,
+      233,
+      234
+    ]
+  },
+  {
+    "taskNumber": 236,
+    "title": "Layer 1: POST /api/pick-folder — native OS folder dialog for the [Open...] buttons",
+    "description": "S18. A browser CANNOT return an absolute filesystem path: `<input type=\"file\" webkitdirectory>` and the File System Access API both withhold it by design. Since the viewer server runs on the same machine as the browser, the [Open...] buttons instead POST /api/pick-folder, the server opens the OS folder dialog and returns the chosen POSIX path as JSON. macOS: `osascript -e 'choose folder'` (returns an HFS-style path — convert it, e.g. via `POSIX path of`). A cancelled dialog must return a clean \"no selection\" result, not an error. Keep this endpoint strictly a picker: it returns a path and does nothing else with it. Server test: the handler returns the path the dialog reports and handles the cancel case. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions)"
+  },
+  {
+    "taskNumber": 237,
+    "title": "Layer 1: webapp page — source inputs, ruler, pair widgets, orphan buckets",
+    "description": "S18. Render the Layer 1 View per plans/layer1-mockup.html, whose styling the user signed off on 2026-07-25 (it lifts the tokens, header, ruler, .filebox and .node styling from plans/mvp-app-mockup.html). Header carries the whole input surface: a Project folder box and a Git repo box each with an [Open...] button (task 236), an optional Commit/branch box, and a Load button; all three values mirror into the URL as ?dir=&repo=&ref= so a view is one shareable link. Body: the left ruler with its ticks, one widget per pair offset to its first commit (a commit node per touching commit, then the double-ringed on-disk node), and the two orphan bucket widgets, each a plain file list showing each member's own timestamp and placed at its EARLIEST member's instant. Empty buckets are omitted. Positions come from the server as pixel offsets (task 234/235) — the page does no layout math. DOM test per S18. Spec: specs/from-scratch-SPEC.md S18; reuse as much existing engine code as possible (Key Decisions)",
+    "blockedBy": [
+      235,
+      236
+    ]
+  },
+  {
+    "taskNumber": 238,
+    "title": "Layer 1 ACCEPTANCE TEST: unrelated repo yields 2 buckets and 0 pairs",
+    "description": "S18, user-defined acceptance criterion for the whole milestone: point `dir` at a folder of files and `repo` at a SEPARATE, UNRELATED git repo; the timeline must show exactly the two orphan bucket widgets — every disk file under \"No repository match\", every repo file under \"No on-disk match\" — and ZERO pair widgets. Build it as a real end-to-end test over a fixture folder plus an unrelated fixture repo, exercising the actual endpoint and the actual page render, not the pairing function alone. This is the milestone's definition of done: when it passes, the Layer 1 View works for any project the user points the webapp at. Spec: specs/from-scratch-SPEC.md S18; reuse as much existing engine code as possible (Key Decisions)",
+    "blockedBy": [
+      237
+    ]
+  },
+  {
+    "taskNumber": 239,
+    "title": "Migrate S8 widgets and #208 corroboration lines from --axis-ms to --axis-px",
+    "description": "S18 consequence. S8 currently has JS emit raw milliseconds (--axis-ms / --axis-span-ms) and CSS multiply by a fixed --axis-scale. S18's capped-gap ruler ACCUMULATES — position i depends on every earlier gap — so it cannot be expressed that way. Move webapp/layered-app.ts, webapp/layered-styles.css and the task-208 .layered-corroboration lines onto the precomputed --axis-px offsets from task 234, so the whole app shares one axis. The division of labor is unchanged and must stay that way: exactly one number crosses the JS-to-CSS boundary and CSS still does the placing — do NOT introduce a JS layout pass, and do NOT import from src/ into webapp/ (tsconfig.webapp.json pins rootDir to webapp). Existing tests in tests/layered-app.test.ts and tests/layered-app-widgets.test.ts must be updated and stay green. Spec: specs/from-scratch-SPEC.md S8 (superseded-in-part note) and S18",
+    "blockedBy": [
+      234
+    ]
+  },
+  {
     "taskNumber": 7,
     "title": "jot repo: `terminal_windowSizeBlocks(s)` enum refactor",
-    "description": "7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** — DEFERRED UNTIL ALL other tasks are done.`/Users/matkatmusicllc/Programming/jot`\n  (separate repo); `grep -rn \"windowSizeBlocks\"`. Not a RevEng change."
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. 7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** — DEFERRED UNTIL ALL other tasks are done.`/Users/matkatmusicllc/Programming/jot`\n  (separate repo); `grep -rn \"windowSizeBlocks\"`. Not a RevEng change."
   },
   {
     "taskNumber": 83,
     "title": "See if actual /jot folder can be reconstructed",
-    "description": "83. See if actual /jot folder can be reconstructed.",
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. 83. See if actual /jot folder can be reconstructed.",
     "blockedBy": [
       189,
       190
@@ -16,12 +88,12 @@
   {
     "taskNumber": 189,
     "title": "S12: 'added' files sweep (11 files, rename/move-aware)",
-    "description": "Run per-file reconstruction for the 11 'A' files. User: these are probably the result of script executions (rename-file/move-file events); each ladder must start at its rename/move (or born-fresh) origin and include all modifications AFTER the move. Where history is only partially recoverable, apply the task-188 iterative commit-and-re-seed workflow. Results recorded as in S11. Phase gate: after S11, before S13."
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. Run per-file reconstruction for the 11 'A' files. User: these are probably the result of script executions (rename-file/move-file events); each ladder must start at its rename/move (or born-fresh) origin and include all modifications AFTER the move. Where history is only partially recoverable, apply the task-188 iterative commit-and-re-seed workflow. Results recorded as in S11. Phase gate: after S11, before S13."
   },
   {
     "taskNumber": 190,
     "title": "S13: 'removed' files sweep (52 files, paired with S12 moves)",
-    "description": "Run per-file reconstruction for the 52 'D' files. Each ladder ends in a true deletion or a move-away; classify each file as true-delete or move-source and name its S12 pair (the A file the content moved to) where applicable — the associated delete events from moves fold into this phase. Results recorded as in S11.",
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. Run per-file reconstruction for the 52 'D' files. Each ladder ends in a true deletion or a move-away; classify each file as true-delete or move-source and name its S12 pair (the A file the content moved to) where applicable — the associated delete events from moves fold into this phase. Results recorded as in S11.",
     "blockedBy": [
       189
     ]
@@ -29,27 +101,27 @@
   {
     "taskNumber": 209,
     "title": "Layer switcher with tooltips; 5+ disabled until unlocked",
-    "description": "S9. Layer: [1]..[12] control above the timeline; 1-3 selectable and re-render at that layer's detail; buttons for layers 5 and up disabled until the functionality each enables becomes unlocked for this engine mode; every button gets a tooltip naming what that layer adds (1 start/end, 2 commits, 3 snapshots, 5 derived edits, 7 script runs, 8/9 branches, 10 verified replay, 12 decoration). DOM tests per S9. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. NOTE — THE LAYER MEANINGS BELOW ARE STALE: per the user's 2026-07-25 renumbering the selectable three are 1 = Current File State vs Git State, 2 = adds JSONL-derived start points, 3 = adds file-history snapshots. Re-derive the full 1..12 tooltip list from spec S18 before implementing. S9. Layer: [1]..[12] control above the timeline; 1-3 selectable and re-render at that layer's detail; buttons for layers 5 and up disabled until the functionality each enables becomes unlocked for this engine mode; every button gets a tooltip naming what that layer adds (1 start/end, 2 commits, 3 snapshots, 5 derived edits, 7 script runs, 8/9 branches, 10 verified replay, 12 decoration). DOM tests per S9. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 210,
     "title": "Condense toggle: single column with classification + truncated message rows",
-    "description": "S10. Condense button squashes per-session lanes into a single all-nodes column per file and back; condensed rows look like the current webapp timeline: classification + truncated original message (reuse its row rendering). DOM test per S10. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. S10. Condense button squashes per-session lanes into a single all-nodes column per file and back; condensed rows look like the current webapp timeline: classification + truncated original message (reuse its row rendering). DOM test per S10. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 211,
     "title": "Kept/ignored dimming + branch end-vs-rejoin rendering",
-    "description": "S11. Reuse the engine's kept/ignored row classification: ignored nodes dimmed; a branch whose content did not carry forward visually ends, one whose content carried forward visually rejoins — a selection rectangle contains exactly what its patch contains. DOM test with a rewind fixture. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. S11. Reuse the engine's kept/ignored row classification: ignored nodes dimmed; a branch whose content did not carry forward visually ends, one whose content carried forward visually rejoins — a selection rectangle contains exactly what its patch contains. DOM test with a rewind fixture. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 213,
     "title": "Node click fills Details pane (reused view incl. [{ }] JSON button)",
-    "description": "S13. Clicking a timeline node fills the top-right pane with the existing webapp Details view (reused, not reimplemented), retaining the [{ }] button that shows the node's raw JSON. DOM test per S13. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. S13. Clicking a timeline node fills the top-right pane with the existing webapp Details view (reused, not reimplemented), retaining the [{ }] button that shows the node's raw JSON. DOM test per S13. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 215,
     "title": "Script-run node click shows per-file before/after diffs + script body",
-    "description": "S15. Clicking a script-run node shows the before/after state of each affected file as a diff in the detail pane (same diff mechanism as segment selection) alongside the script body, laid out per the approved task-214 mockup. DOM test with a fixture containing a script-run node. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. S15. Clicking a script-run node shows the before/after state of each affected file as a diff in the detail pane (same diff mechanism as segment selection) alongside the script body, laid out per the approved task-214 mockup. DOM test with a fixture containing a script-run node. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
     "blockedBy": [
       213
     ]
@@ -57,12 +129,12 @@
   {
     "taskNumber": 216,
     "title": "Ruler arming + cut marks with per-file at-or-before snap",
-    "description": "S16. 'Create segments for patch extraction' arms the global left ruler; cut marks (triangles) are one global instant snapping PER FILE, AT-OR-BEFORE, to that file's nearest verified state (Q17a/b: never pull future content backward; unverified or mid-residual cut states refused). DOM test: arming enables marks; unverified-node mark refused; a mark between two files' beacons snaps to each file's own at-or-before verified state. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. S16. 'Create segments for patch extraction' arms the global left ruler; cut marks (triangles) are one global instant snapping PER FILE, AT-OR-BEFORE, to that file's nearest verified state (Q17a/b: never pull future content backward; unverified or mid-residual cut states refused). DOM test: arming enables marks; unverified-node mark refused; a mark between two files' beacons snaps to each file's own at-or-before verified state. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 217,
     "title": "Segment partition P1..Pn spanning every file's lanes",
-    "description": "S16. The entire ruler length partitions into segments P1..Pn spanning all files' lanes; segments are selectable. DOM test: n marks yield n+1 contiguous segments covering the full ruler. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. S16. The entire ruler length partitions into segments P1..Pn spanning all files' lanes; segments are selectable. DOM test: n marks yield n+1 contiguous segments covering the full ruler. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
     "blockedBy": [
       216
     ]
@@ -70,55 +142,50 @@
   {
     "taskNumber": 218,
     "title": "Engine: segment patch = per-file diff of snapped states, emitted as git-diff",
-    "description": "S17. patch = diff(endStateOfPreviousSelection, rightmostStateInThisSelection) per file, each state the at-or-before snapped verified state at the segment's cut; first segment's base = anchor; a file born after the cut is absent and first appears as a creation in the segment containing its birth; concatenate into one git-diff. Unit test: each segment's git-diff applies in sequence via git apply to reproduce the final state, including the born-after-cut-1 file case. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. S17. patch = diff(endStateOfPreviousSelection, rightmostStateInThisSelection) per file, each state the at-or-before snapped verified state at the segment's cut; first segment's base = anchor; a file born after the cut is absent and first appears as a creation in the segment containing its birth; concatenate into one git-diff. Unit test: each segment's git-diff applies in sequence via git apply to reproduce the final state, including the born-after-cut-1 file case. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 219,
     "title": "Webapp: segment selection shows its patch in the reused Changes view",
-    "description": "S17. Selecting a segment computes its task-218 patch and shows it in the reused webapp Changes view (Fork-style tree + diff) in the bottom-right pane, visible only while a segment is selected. DOM test per S17. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. S17. Selecting a segment computes its task-218 patch and shows it in the reused webapp Changes view (Fork-style tree + diff) in the bottom-right pane, visible only while a segment is selected. DOM test per S17. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
     "blockedBy": [
       217,
       218
     ]
   },
   {
-    "taskNumber": 221,
-    "title": "Timeline bubble for files with no snapshots/beacons: \"no snapshots available\"",
-    "description": "User request (2026-07-24): if a file has no file-history snapshots and is not referenced in any git commit, the webapp timeline should still render the file's bubble like the others in the currently selected layer's view, but with the text \"no snapshots available\" — indicating to the user that no beacons exist for the file."
-  },
-  {
     "taskNumber": 222,
     "title": "Enable GitHub Pages for the jfred repo (serve docs/)",
-    "description": "DEFERRED UNTIL ALL other tasks are done (user, 2026-07-24). User request (2026-07-24): enable GitHub Pages in the jfred repo's GitHub settings so the docs/ folder is served — source: deploy from branch, /docs folder. Verifies the Engine-B demo at https://<user>.github.io/<repo>/engineb/webapp_old.html (local check passed via python3 -m http.server from jfred/docs). Requires the task-17 demo bundle to be pushed first."
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. DEFERRED UNTIL ALL other tasks are done (user, 2026-07-24). User request (2026-07-24): enable GitHub Pages in the jfred repo's GitHub settings so the docs/ folder is served — source: deploy from branch, /docs folder. Verifies the Engine-B demo at https://<user>.github.io/<repo>/engineb/webapp_old.html (local check passed via python3 -m http.server from jfred/docs). Requires the task-17 demo bundle to be pushed first."
   },
   {
     "taskNumber": 225,
     "title": "resolveFinalPath infinite-loops on a recorded rename cycle (mv a b; mv b a)",
-    "description": "Task-203 finding (2026-07-25): while building the layered lineage walk, resolveFinalPath (src/reconstruction_lineage.ts) was found to follow the rename chain without a seen-set, so a transcript that records `mv a b` followed by `mv b a` — which real sessions do produce when a rename is undone — makes it loop forever rather than terminating on the cycle. The new layered walk in jfred/src/layered_lineage.ts avoids this by carrying a shared seen-set across both directions, and the engine's version was deliberately left untouched so the fix could be scoped and verified on its own. Add a seen-set (or an explicit cycle error) to resolveFinalPath and every other rename-chain walker that shares the pattern, with a unit test that records the two-hop cycle and asserts termination. No live scenario is known to trigger it yet, so a synthetic fixture is acceptable evidence.",
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. Task-203 finding (2026-07-25): while building the layered lineage walk, resolveFinalPath (src/reconstruction_lineage.ts) was found to follow the rename chain without a seen-set, so a transcript that records `mv a b` followed by `mv b a` — which real sessions do produce when a rename is undone — makes it loop forever rather than terminating on the cycle. The new layered walk in jfred/src/layered_lineage.ts avoids this by carrying a shared seen-set across both directions, and the engine's version was deliberately left untouched so the fix could be scoped and verified on its own. Add a seen-set (or an explicit cycle error) to resolveFinalPath and every other rename-chain walker that shares the pattern, with a unit test that records the two-hop cycle and asserts termination. No live scenario is known to trigger it yet, so a synthetic fixture is acceptable evidence.",
     "blockedBy": []
   },
   {
     "taskNumber": 226,
     "title": "renderRevisionText unconditionally appends a trailing newline, so files without one can never blob-match",
-    "description": "Task-187 finding (2026-07-25): renderRevisionText renders a revision as linesTextOf(rev).join(\"\\n\") + \"\\n\" — the trailing newline is unconditional. A file whose real bytes do NOT end in a newline therefore can never hash-match its recorded blob. In the 68-file M sweep this produced a 2/2 correlation: exactly 2 of the 68 baseline blobs lack a trailing newline (docs/design/architecture.md ending 0x2e, docs/design/milestones.md ending 0x2e) and those are exactly the 2 baselineBlobMatched=false rows. The same artifact also corrupts the diskMatched comparison for 3 further files. Fixing this means the engine must carry a 'final line had no newline' bit, which touches the LineEntry vocabulary and every producer/consumer of it — CONFIRM the design with the user before implementing (open question 2 in plans/implementation-notes-tasks-223-224-184-203-207-187.md). Evidence: plans/166-per-file-target.md, section \"Task 187 — the M-file sweep (68 files)\".",
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. Task-187 finding (2026-07-25): renderRevisionText renders a revision as linesTextOf(rev).join(\"\\n\") + \"\\n\" — the trailing newline is unconditional. A file whose real bytes do NOT end in a newline therefore can never hash-match its recorded blob. In the 68-file M sweep this produced a 2/2 correlation: exactly 2 of the 68 baseline blobs lack a trailing newline (docs/design/architecture.md ending 0x2e, docs/design/milestones.md ending 0x2e) and those are exactly the 2 baselineBlobMatched=false rows. The same artifact also corrupts the diskMatched comparison for 3 further files. Fixing this means the engine must carry a 'final line had no newline' bit, which touches the LineEntry vocabulary and every producer/consumer of it — CONFIRM the design with the user before implementing (open question 2 in plans/implementation-notes-tasks-223-224-184-203-207-187.md). Evidence: plans/166-per-file-target.md, section \"Task 187 — the M-file sweep (68 files)\".",
     "blockedBy": []
   },
   {
     "taskNumber": 227,
     "title": "tests/test_git_lib.py: a recorded Edit produces zero revisions (minimal engine-gap reproducer)",
-    "description": "Task-187 finding (2026-07-25): of the 28 one-revision ladders in the M sweep, 27 are the engine being correct — those files have zero write-class tool_uses across the 156 transcripts, so there is nothing to recover. The 28th, tests/test_git_lib.py, is a REAL gap: it has one recorded Edit tool_use and the reconstruction still emits only the gitBase baseline revision, i.e. the Edit contributed no revision at all. This is the smallest known reproducer of a dropped-edit gap in the jot dataset, so it is the cheapest place to diagnose the mechanism. Sweep settings: repo ~/Programming/jot, baseline 793e65241902f276caf5f5c28d539269e7d36d11, projects ~/Programming/jot-recovery/claude-data/projects/-Users-matkatmusicllc-Programming-jot, file-history ~/Programming/jot-recovery/claude-data/file-history. Evidence: plans/166-per-file-target.md, section \"Task 187 — the M-file sweep (68 files)\".",
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. Task-187 finding (2026-07-25): of the 28 one-revision ladders in the M sweep, 27 are the engine being correct — those files have zero write-class tool_uses across the 156 transcripts, so there is nothing to recover. The 28th, tests/test_git_lib.py, is a REAL gap: it has one recorded Edit tool_use and the reconstruction still emits only the gitBase baseline revision, i.e. the Edit contributed no revision at all. This is the smallest known reproducer of a dropped-edit gap in the jot dataset, so it is the cheapest place to diagnose the mechanism. Sweep settings: repo ~/Programming/jot, baseline 793e65241902f276caf5f5c28d539269e7d36d11, projects ~/Programming/jot-recovery/claude-data/projects/-Users-matkatmusicllc-Programming-jot, file-history ~/Programming/jot-recovery/claude-data/file-history. Evidence: plans/166-per-file-target.md, section \"Task 187 — the M-file sweep (68 files)\".",
     "blockedBy": []
   },
   {
     "taskNumber": 228,
     "title": "Nine long-ladder M-file gaps whose current bytes ARE in the archive but unreached",
-    "description": "Task-187 finding (2026-07-25): after triage, nine of the 46 diskMatched=false rows are genuine gaps — their current working-tree bytes DO appear somewhere in the 11,748 recorded file-history snapshots, so an engine could in principle reach them, but reconstruction stops short. They are README.md (58 revisions), common/scripts/plate/spawn_summary_agent.py (56), common/scripts/plate_dispatcher.py (24), tests/test_jot_buildcmd.py (20), common/scripts/debate_lib.py (20), CHANGELOG.md (17), common/scripts/todo_lib.py (16), scripts/jot_plugin_orchestrator.py (10), tests/test_util_filelock.py (1). Open question for the user (see plans/implementation-notes-tasks-223-224-184-203-207-187.md, open question 4): triage these for a COMMON mechanism first, or attack them per-file with the task-188 iterative re-seed loop now that task 223 makes that loop actually cut the window? The loop is only worth running where a single pass stalls, which has not been established for these nine. Evidence: plans/166-per-file-target.md, section \"Task 187 — the M-file sweep (68 files)\".",
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. Task-187 finding (2026-07-25): after triage, nine of the 46 diskMatched=false rows are genuine gaps — their current working-tree bytes DO appear somewhere in the 11,748 recorded file-history snapshots, so an engine could in principle reach them, but reconstruction stops short. They are README.md (58 revisions), common/scripts/plate/spawn_summary_agent.py (56), common/scripts/plate_dispatcher.py (24), tests/test_jot_buildcmd.py (20), common/scripts/debate_lib.py (20), CHANGELOG.md (17), common/scripts/todo_lib.py (16), scripts/jot_plugin_orchestrator.py (10), tests/test_util_filelock.py (1). Open question for the user (see plans/implementation-notes-tasks-223-224-184-203-207-187.md, open question 4): triage these for a COMMON mechanism first, or attack them per-file with the task-188 iterative re-seed loop now that task 223 makes that loop actually cut the window? The loop is only worth running where a single pass stalls, which has not been established for these nine. Evidence: plans/166-per-file-target.md, section \"Task 187 — the M-file sweep (68 files)\".",
     "blockedBy": []
   },
   {
     "taskNumber": 229,
     "title": "Extend the task-224 seed clamp to the two sibling backup stampers (needs a reproducer first)",
-    "description": "Task-224 follow-up (2026-07-25): task 224 fixed the non-monotonic ladder by giving backup-sourced seeds a two-sided placement window via clampSeedBetweenPreviousAndEdit (jfred/src/reconstruction_sidecar.ts), but wired it into ONE proven site — seedStaleEditBases in jfred/src/reconstruction_reseed.ts. Two sibling stampers apply the identical `timestamp: <backupTime>` pattern and therefore share the defect CLASS: backupAfterWriteFor (reconstruction_sidecar.ts:90-96, used by reversedEditBaseSeed at reconstruction_reseed.ts:157) and backupWritesFor (reconstruction_sidecar.ts:116-122, used at reconstruction_beacons.ts:158 and via latestBackupWriteFor at reconstruction_beacons.ts:56). They were deliberately NOT changed: completeElidedBeacons and completeTruncatedBeacon are load-bearing for many character-locked scenarios (S27, S28, S30 among others) and already carry their own retiming logic — completeElidedBeacons re-times the BEACON backward when its seed precedes it — so extending the clamp without a reproducer risks breaking locked ground truths to fix a defect nobody has observed. REQUIRE a reproducing scenario that shows one of these two stampers emitting an out-of-order seed BEFORE changing them; then reuse the existing clamp and run the full suite.",
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. Task-224 follow-up (2026-07-25): task 224 fixed the non-monotonic ladder by giving backup-sourced seeds a two-sided placement window via clampSeedBetweenPreviousAndEdit (jfred/src/reconstruction_sidecar.ts), but wired it into ONE proven site — seedStaleEditBases in jfred/src/reconstruction_reseed.ts. Two sibling stampers apply the identical `timestamp: <backupTime>` pattern and therefore share the defect CLASS: backupAfterWriteFor (reconstruction_sidecar.ts:90-96, used by reversedEditBaseSeed at reconstruction_reseed.ts:157) and backupWritesFor (reconstruction_sidecar.ts:116-122, used at reconstruction_beacons.ts:158 and via latestBackupWriteFor at reconstruction_beacons.ts:56). They were deliberately NOT changed: completeElidedBeacons and completeTruncatedBeacon are load-bearing for many character-locked scenarios (S27, S28, S30 among others) and already carry their own retiming logic — completeElidedBeacons re-times the BEACON backward when its seed precedes it — so extending the clamp without a reproducer risks breaking locked ground truths to fix a defect nobody has observed. REQUIRE a reproducing scenario that shows one of these two stampers emitting an out-of-order seed BEFORE changing them; then reuse the existing clamp and run the full suite.",
     "blockedBy": []
   }
 ]

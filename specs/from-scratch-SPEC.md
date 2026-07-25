@@ -26,6 +26,16 @@ filled in."
   instant; layers 4+ compute on demand, scoped to the viewed file/region,
   outputs persisted keyed by input hashes; verified beacon states double as
   replay seeds. MVP ships layers 1–3 only.
+- **Layer renumbering (user-directed 2026-07-25) — honest visual data first.**
+  The user-facing layers are now: **Layer 1 = Current File State vs Git
+  State** (on-disk file list paired against the repo tree, commit nodes on the
+  ruler — no JSONL involved); **Layer 2 = adds JSONL-derived start points**;
+  **Layer 3 = adds file-history snapshots**. This supersedes the S2/S3/S4
+  numbering, which those sections keep as *internal* engine-layer names —
+  S2 (anchors/end state) and S4 (snapshots) are now inputs to user-facing
+  Layers 2 and 3, and S3 (commit beacons) feeds user-facing Layer 1. The
+  Layer 1 View is the current milestone; it is specified in **S18** and it
+  gates everything else.
 - One machine, one clock (Q7/Q9): single UTC-ms axis; git committer time
   (seconds) widened ×1000; same-second ties broken by content order.
 - Anchor rule (Q14): a timeline begins at its anchor — the first
@@ -153,6 +163,7 @@ where S5 marked corroboration.
 - Verify: DOM test on a two-file, two-session fixture — widget offsets ordered by start instant; lanes per session; dashed line present exactly at corroborated instants.
 - Tasks: #207, #208
 - Status: done — #207 (2026-07-25) offsets + per-session lanes; CSS owns all layout and the JS emits only `--axis-ms` / `--axis-span-ms`, so there is no JS layout pass and no cross-boundary import from `src/` into `webapp/` (tsconfig.webapp.json pins rootDir to webapp). #208 (2026-07-25, jfred@09c8df9 + @0f0c459) adds the dashed cross-lane corroboration lines: `listCorroboratedInstants` in src/viewer_api_layered.ts runs the S5 merge server-side and ships the instants as `corroboratedInstants` on the wire (webapp/ may not import src/), and the page draws one `.layered-corroboration` per instant on the `.layered-lanes` container so a line spans every lane, sharing the `--axis-ms` scale with the node dots. Tests: tests/layered-app-widgets.test.ts (3 green).
+- SUPERSEDED IN PART (2026-07-25, S18): the `--axis-ms` contract — JS emits raw milliseconds, CSS multiplies by a fixed scale — cannot express S18's capped-gap ruler, whose positions accumulate. Widget offsets, node offsets and the #208 corroboration lines migrate to a precomputed `--axis-px` (task #239). The division of labor is unchanged: one number crosses the JS→CSS boundary and CSS still does the placing.
 - CAVEAT (not an S8 gap): S8 renders whatever the graph holds, and the graph is currently LAYER-1 ONLY — `collectCommitBeaconNodes` (S3) and `collectSnapshotBeaconNodes` (S4) are never called from anywhere in src/, so no commit or snapshot beacon reaches a widget. Wiring them into `loadLayeredProject` is unclaimed by any task and blocks S9.
 
 ### S9. Layer switcher with per-layer tooltips
@@ -164,7 +175,7 @@ adds (1 start/end, 2 commits, 3 snapshots, 5 derived edits, 7 script runs,
 8/9 branches, 10 verified replay, 12 decoration).
 - Verify: DOM test — selecting a layer changes the rendered node set; layer-5+ buttons disabled while their functionality is unlocked-false; each button exposes its what-it-adds tooltip text.
 - Tasks: #209
-- Status: open
+- Status: open — DEFERRED behind the S18 milestone. The tooltip text above is STALE: per the 2026-07-25 renumbering the selectable three are 1 = current-vs-git, 2 = JSONL start points, 3 = file-history snapshots. Re-derive the full 1..12 tooltip list from S18 before implementing.
 
 ### S10. Condense button
 Toggles per-session lanes into a single all-nodes column per file and back;
@@ -238,3 +249,58 @@ reused Changes view; the emitted patch applies cleanly.
 - Verify: unit test — on a fixture, each segment's emitted git-diff `git apply`s in sequence to reproduce the final state, including a file born after cut 1 (absent from segment 1's patch, created by segment 2's); DOM test — segment selection shows the patch in the Changes pane.
 - Tasks: #218, #219
 - Status: open
+
+### S18. Layer 1 View — Current File State vs Git State (MILESTONE)
+User-directed 2026-07-25; layout signed off against
+[`../plans/layer1-mockup.html`](../plans/layer1-mockup.html). The first
+honest visual: what is on disk right now, against what the repository says,
+with nothing inferred from JSONL. **Reads no JSONL at all** — it is a new
+server path beside `loadLayeredProject`, not a change to it.
+
+**Inputs.** A project folder on disk (`dir`), a git repo (`repo`), and an
+optional commit hash or branch (`ref`, default = the repo's active branch).
+Surfaced as two text boxes plus an optional ref box in the page header, each
+folder box carrying an `[Open…]` button. A browser cannot return an absolute
+path from `<input type="file" webkitdirectory>` or the File System Access
+API, so `[Open…]` POSTs `/api/pick-folder`; the local server runs the OS
+folder dialog (macOS: `osascript -e 'choose folder'`) and returns the POSIX
+path. Boxes stay editable for paste-in. All three map to URL params
+(`?dir=&repo=&ref=`) so a view is one shareable link.
+
+**Pairing.** `current file state` = the on-disk file walk of `dir`. `starting
+repository state` = the repo tree at `ref`. A path present in both, relative
+to its own root, forms a **pair**, and each pair renders as one file widget.
+Disk walk excludes `.git` and `node_modules` unconditionally and honors
+`.gitignore` when one exists.
+
+**Per-pair history.** Walk git history for each pair's path; a commit that
+touched the file contributes one commit node, a commit that did not
+contributes nothing. The file's current on-disk state is the final node. No
+`--follow` — rename tracking is S6's job, so a renamed file simply shows the
+shorter history.
+
+**Ruler bounds.** Start = the oldest first-commit instant across all pairs,
+pulled earlier if any disk-orphan's timestamp predates it. End = the newest
+mtime in `current file state`. mtime is used throughout, including for
+orphans (birthtime is not portable).
+
+**Ruler scale — capped linear.** Position is linear in UTC-ms at **2.5 px per
+hour**, except that any single gap between adjacent instants renders at most
+**24 px (0.25″)**. Formally `pos(i) = pos(i-1) + min((t_i - t_{i-1}) ×
+scale, cap)`, which preserves ordering and short-gap proportion while keeping
+a months-long history on one screen. This accumulates, so it cannot be
+expressed in CSS the way S8's `--axis-ms` is: the server/loader resolves each
+instant to a pixel offset once, globally, and the page emits `--axis-px`.
+S8's widgets and corroboration lines migrate to that axis.
+
+**Orphans.** Exactly two bucket widgets, each a plain file list with each
+member's own timestamp, each placed at its earliest member's instant: **"No
+on-disk match"** (repo paths with no disk counterpart) and **"No repository
+match"** (disk paths with no repo counterpart). Buckets are omitted when
+empty.
+
+- Verify: **acceptance test (user-defined) — point `dir` at a folder of files and `repo` at an unrelated repo; the timeline shows exactly the two orphan bucket widgets and zero pair widgets.** Unit tests: pairing is relative-path exact-match; disk walk excludes `.git`/`node_modules`/gitignored paths; a disk orphan predating the first commit moves the ruler start; capped-gap resolver — a 5-hour gap renders 12.5 px, a 6-week gap renders 24 px, order is preserved. DOM test: pair widget offset to its first commit, one node per touching commit plus the on-disk node, buckets placed at their earliest member.
+- Tasks: #230, #231, #232, #233, #234, #235, #236, #237, #238, #239
+- Status: open (milestone — all other open tasks deferred behind it)
+- Supersedes: task #221 ("timeline bubble reading 'no snapshots available' for files with no snapshots and no commit reference"), removed from tasks.json 2026-07-25 — such a file is now a member of the "No repository match" bucket, which carries the same information without a per-file empty widget.
+- Known cosmetic issue, deliberately not solved: at 2.5 px/hr two commits ~20 minutes apart resolve under 1 px and their 15 px dots overlap. There is a cap on gaps but no floor. Add a minimum spacing only if real data makes it unreadable.
