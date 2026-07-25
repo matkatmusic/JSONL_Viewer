@@ -1,35 +1,13 @@
 [
   {
-    "taskNumber": 230,
-    "title": "Layer 1: on-disk file walk (`current file state`)",
-    "description": "S18. Walk the project folder given by `dir` and return the `current file state` list: every file's path RELATIVE to the project root, plus its mtime. Excludes `.git` and `node_modules` unconditionally, and honors `.gitignore` when one exists (a folder pointed at by the user may have no .gitignore — that is not an error). mtime is the timestamp used everywhere in Layer 1, including for orphan files; birthtime is deliberately NOT used because it is not portable across filesystems. Unit test: a fixture folder yields exactly its non-excluded files with relative paths; a .git dir, a node_modules dir and a gitignored path are all absent; a folder with no .gitignore still walks. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
-    "taskNumber": 231,
-    "title": "Layer 1: repo tree at ref (`starting repository state`)",
-    "description": "S18. Given a repo path and an optional `ref` (commit hash or branch name; default = the repo's active branch), return the `starting repository state` list: every tracked file's path RELATIVE to the repo root. Unit test with a fixture repo: the default-branch call matches `git ls-tree -r --name-only HEAD`; an explicit hash returns that commit's tree, not HEAD's; an invalid ref reports a clear error rather than silently falling back to HEAD. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions) — check src/layered_git_beacons.ts (S3) and the engine's existing git helpers before writing new git plumbing"
-  },
-  {
     "taskNumber": 232,
     "title": "Layer 1: pair by relative path, classify the two orphan sets",
-    "description": "S18. Join the task-230 `current file state` against the task-231 `starting repository state` on exact relative path (same name AND same path relative to each list's own root). Emit three results: the PAIRS (each becomes a file widget), the repo-only paths (the \"No on-disk match\" bucket) and the disk-only paths (the \"No repository match\" bucket). Buckets are omitted when empty. Unit test: a fixture where some paths match and some do not yields the right three sets; the critical case is an UNRELATED repo — zero pairs, every repo path in one bucket and every disk path in the other (this is the core of the task-238 acceptance test). Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      230,
-      231
-    ]
+    "description": "S18. Join the task-230 `current file state` against the task-231 `starting repository state` on exact relative path (same name AND same path relative to each list's own root). Emit three results: the PAIRS (each becomes a file widget), the repo-only paths (the \"No on-disk match\" bucket) and the disk-only paths (the \"No repository match\" bucket). Buckets are omitted when empty. Unit test: a fixture where some paths match and some do not yields the right three sets; the critical case is an UNRELATED repo — zero pairs, every repo path in one bucket and every disk path in the other (this is the core of the task-238 acceptance test). Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 233,
     "title": "Layer 1: per-pair commit history (one node per touching commit)",
-    "description": "S18. For each pair from task 232, walk the repo's git history and collect the commits that touched that path, each with its hash and committer instant. A commit that did not touch the file contributes NOTHING to that pair — no empty node. Plain `git log`, NO `--follow`: rename tracking belongs to S6, so a renamed file legitimately shows the shorter history for now. Committer time (not author time) per the one-machine-one-clock decision, widened to ms. Unit test with a fixture repo: a file touched by 2 of 4 commits gets exactly 2 entries in commit order; author time is never used. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions) — src/layered_git_beacons.ts already reads per-commit blob evidence, so extend/reuse it rather than writing a second git-log reader",
-    "blockedBy": [
-      231
-    ]
-  },
-  {
-    "taskNumber": 234,
-    "title": "Layer 1: capped-gap ruler axis (instants to pixel offsets)",
-    "description": "S18. Resolve the ordered set of distinct instants (all commit instants plus all disk mtimes) to pixel offsets: `pos(0) = 0`, `pos(i) = pos(i-1) + min((t_i - t_(i-1)) * scale, cap)` with scale = 2.5 px/hr and cap = 24 px (0.25\" at 96dpi), both user-locked 2026-07-25. This preserves ordering and short-gap proportionality while keeping a months-long history on one screen. NOTE it accumulates — position i depends on every earlier gap — which is exactly why it cannot live in CSS the way S8's --axis-ms does; resolve once, globally, and hand the page finished pixel offsets. Ruler bounds fall out of the same ordered set: start = the earliest instant (which a disk orphan predating the first commit legitimately moves earlier), end = the newest disk mtime. Unit test: a 5-hour gap yields 12.5 px, a 6-week gap yields exactly 24 px, ordering is preserved, and a pre-first-commit disk orphan becomes position 0. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions)"
+    "description": "S18. For each pair from task 232, walk the repo's git history and collect the commits that touched that path, each with its hash and committer instant. A commit that did not touch the file contributes NOTHING to that pair — no empty node. Plain `git log`, NO `--follow`: rename tracking belongs to S6, so a renamed file legitimately shows the shorter history for now. Committer time (not author time) per the one-machine-one-clock decision, widened to ms. Unit test with a fixture repo: a file touched by 2 of 4 commits gets exactly 2 entries in commit order; author time is never used. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions) — src/layered_git_beacons.ts already reads per-commit blob evidence, so extend/reuse it rather than writing a second git-log reader"
   },
   {
     "taskNumber": 235,
@@ -37,22 +15,15 @@
     "description": "S18. New server endpoint BESIDE the existing /api/layered-graph — not a change to it. Takes `dir` (project folder), `repo` (git repo) and optional `ref` (hash or branch), runs tasks 230-234, and serializes the Layer 1 View: the pairs with their commit nodes and on-disk node, the two orphan buckets, and every instant already resolved to its pixel offset (--axis-px values, per task 234). Reads NO JSONL — Layer 1 is disk-plus-git only, which is what makes the task-238 acceptance test meaningful (it cannot accidentally pass on JSONL data). Validate both paths at the trust boundary: missing/non-existent dir, non-repo repo path and invalid ref each return a clear error the page can display, never a stack trace. Server test: a fixture dir + fixture repo returns the expected pairs/buckets; a bad ref returns the error shape. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions) — src/viewer_api_layered.ts is the pattern to follow",
     "blockedBy": [
       232,
-      233,
-      234
+      233
     ]
-  },
-  {
-    "taskNumber": 236,
-    "title": "Layer 1: POST /api/pick-folder — native OS folder dialog for the [Open...] buttons",
-    "description": "S18. A browser CANNOT return an absolute filesystem path: `<input type=\"file\" webkitdirectory>` and the File System Access API both withhold it by design. Since the viewer server runs on the same machine as the browser, the [Open...] buttons instead POST /api/pick-folder, the server opens the OS folder dialog and returns the chosen POSIX path as JSON. macOS: `osascript -e 'choose folder'` (returns an HFS-style path — convert it, e.g. via `POSIX path of`). A cancelled dialog must return a clean \"no selection\" result, not an error. Keep this endpoint strictly a picker: it returns a path and does nothing else with it. Server test: the handler returns the path the dialog reports and handles the cancel case. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 237,
     "title": "Layer 1: webapp page — source inputs, ruler, pair widgets, orphan buckets",
     "description": "S18. Render the Layer 1 View per plans/layer1-mockup.html, whose styling the user signed off on 2026-07-25 (it lifts the tokens, header, ruler, .filebox and .node styling from plans/mvp-app-mockup.html). Header carries the whole input surface: a Project folder box and a Git repo box each with an [Open...] button (task 236), an optional Commit/branch box, and a Load button; all three values mirror into the URL as ?dir=&repo=&ref= so a view is one shareable link. Body: the left ruler with its ticks, one widget per pair offset to its first commit (a commit node per touching commit, then the double-ringed on-disk node), and the two orphan bucket widgets, each a plain file list showing each member's own timestamp and placed at its EARLIEST member's instant. Empty buckets are omitted. Positions come from the server as pixel offsets (task 234/235) — the page does no layout math. DOM test per S18. Spec: specs/from-scratch-SPEC.md S18; reuse as much existing engine code as possible (Key Decisions)",
     "blockedBy": [
-      235,
-      236
+      235
     ]
   },
   {
@@ -66,10 +37,7 @@
   {
     "taskNumber": 239,
     "title": "Migrate S8 widgets and #208 corroboration lines from --axis-ms to --axis-px",
-    "description": "S18 consequence. S8 currently has JS emit raw milliseconds (--axis-ms / --axis-span-ms) and CSS multiply by a fixed --axis-scale. S18's capped-gap ruler ACCUMULATES — position i depends on every earlier gap — so it cannot be expressed that way. Move webapp/layered-app.ts, webapp/layered-styles.css and the task-208 .layered-corroboration lines onto the precomputed --axis-px offsets from task 234, so the whole app shares one axis. The division of labor is unchanged and must stay that way: exactly one number crosses the JS-to-CSS boundary and CSS still does the placing — do NOT introduce a JS layout pass, and do NOT import from src/ into webapp/ (tsconfig.webapp.json pins rootDir to webapp). Existing tests in tests/layered-app.test.ts and tests/layered-app-widgets.test.ts must be updated and stay green. Spec: specs/from-scratch-SPEC.md S8 (superseded-in-part note) and S18",
-    "blockedBy": [
-      234
-    ]
+    "description": "S18 consequence. S8 currently has JS emit raw milliseconds (--axis-ms / --axis-span-ms) and CSS multiply by a fixed --axis-scale. S18's capped-gap ruler ACCUMULATES — position i depends on every earlier gap — so it cannot be expressed that way. Move webapp/layered-app.ts, webapp/layered-styles.css and the task-208 .layered-corroboration lines onto the precomputed --axis-px offsets from task 234, so the whole app shares one axis. The division of labor is unchanged and must stay that way: exactly one number crosses the JS-to-CSS boundary and CSS still does the placing — do NOT introduce a JS layout pass, and do NOT import from src/ into webapp/ (tsconfig.webapp.json pins rootDir to webapp). Existing tests in tests/layered-app.test.ts and tests/layered-app-widgets.test.ts must be updated and stay green. Spec: specs/from-scratch-SPEC.md S8 (superseded-in-part note) and S18"
   },
   {
     "taskNumber": 7,

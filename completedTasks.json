@@ -2087,5 +2087,37 @@
       "0f0c459"
     ],
     "closureNote": "Completed task 208 (spec S8). The server half derives each entity corroborated instants from the S5 merge (listCorroboratedInstants in src/viewer_api_layered.ts, travelling on the wire as corroboratedInstants because webapp/ may not import from src/); the page renders them as dashed cross-lane lines drawn on the .layered-lanes container so one line spans every lane, sharing the --axis-ms contract with the node dots. Verification: test_dashed_lines_are_drawn_exactly_at_corroborated_instants in tests/layered-app-widgets.test.ts asserts one line at the corroborated offset, its parent being the lanes container, and zero lines on the uncorroborated file. NOTE: the first agent on this task deleted the two task-207 widget tests to make a failing suite go green; they were recovered from the git index into tests/layered-app-widgets.test.ts and the real cause fixed (fixtures lacked the required corroboratedInstants field)."
+  },
+  {
+    "taskNumber": 230,
+    "title": "Layer 1: on-disk file walk (`current file state`)",
+    "description": "S18. Walk the project folder given by `dir` and return the `current file state` list: every file's path RELATIVE to the project root, plus its mtime. Excludes `.git` and `node_modules` unconditionally, and honors `.gitignore` when one exists (a folder pointed at by the user may have no .gitignore — that is not an error). mtime is the timestamp used everywhere in Layer 1, including for orphan files; birthtime is deliberately NOT used because it is not portable across filesystems. Unit test: a fixture folder yields exactly its non-excluded files with relative paths; a .git dir, a node_modules dir and a gitignored path are all absent; a folder with no .gitignore still walks. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-25",
+    "commitHashes": [],
+    "closureNote": "Closed 2026-07-25: walkCurrentFileState in jfred/src/layer1_disk_walk.ts returns relative paths plus mtimes, excludes .git/node_modules unconditionally and honors a top-level .gitignore (absent one is a no-op); tests/layer1_disk_walk.test.ts covers all four cases and the whole suite is green (staged, not yet committed)."
+  },
+  {
+    "taskNumber": 231,
+    "title": "Layer 1: repo tree at ref (`starting repository state`)",
+    "description": "S18. Given a repo path and an optional `ref` (commit hash or branch name; default = the repo's active branch), return the `starting repository state` list: every tracked file's path RELATIVE to the repo root. Unit test with a fixture repo: the default-branch call matches `git ls-tree -r --name-only HEAD`; an explicit hash returns that commit's tree, not HEAD's; an invalid ref reports a clear error rather than silently falling back to HEAD. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions) — check src/layered_git_beacons.ts (S3) and the engine's existing git helpers before writing new git plumbing",
+    "completionDate": "2026-07-25",
+    "commitHashes": [],
+    "closureNote": "Closed 2026-07-25: listRepoTreeAtRef in jfred/src/layer1_repo_tree.ts lists a ref's tracked paths via one spawnSync git ls-tree argument array (ref never reaches a shell), defaults to HEAD and throws naming an invalid ref instead of falling back; tests/layer1_repo_tree.test.ts covers default/hash/branch/invalid and the suite is green (staged, not yet committed)."
+  },
+  {
+    "taskNumber": 234,
+    "title": "Layer 1: capped-gap ruler axis (instants to pixel offsets)",
+    "description": "S18. Resolve the ordered set of distinct instants (all commit instants plus all disk mtimes) to pixel offsets: `pos(0) = 0`, `pos(i) = pos(i-1) + min((t_i - t_(i-1)) * scale, cap)` with scale = 2.5 px/hr and cap = 24 px (0.25\" at 96dpi), both user-locked 2026-07-25. This preserves ordering and short-gap proportionality while keeping a months-long history on one screen. NOTE it accumulates — position i depends on every earlier gap — which is exactly why it cannot live in CSS the way S8's --axis-ms does; resolve once, globally, and hand the page finished pixel offsets. Ruler bounds fall out of the same ordered set: start = the earliest instant (which a disk orphan predating the first commit legitimately moves earlier), end = the newest disk mtime. Unit test: a 5-hour gap yields 12.5 px, a 6-week gap yields exactly 24 px, ordering is preserved, and a pre-first-commit disk orphan becomes position 0. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-25",
+    "commitHashes": [],
+    "closureNote": "Closed 2026-07-25: resolveInstantOffsets in jfred/src/layer1_ruler_axis.ts accumulates min(hours x 2.5, 24) per gap over the deduped sorted instants, exporting the user-locked constants; tests/layer1_ruler_axis.test.ts proves 5h to 12.5px, 6 weeks to exactly 24px, ordering, and a pre-first-commit orphan at 0 (staged, not yet committed)."
+  },
+  {
+    "taskNumber": 236,
+    "title": "Layer 1: POST /api/pick-folder — native OS folder dialog for the [Open...] buttons",
+    "description": "S18. A browser CANNOT return an absolute filesystem path: `<input type=\"file\" webkitdirectory>` and the File System Access API both withhold it by design. Since the viewer server runs on the same machine as the browser, the [Open...] buttons instead POST /api/pick-folder, the server opens the OS folder dialog and returns the chosen POSIX path as JSON. macOS: `osascript -e 'choose folder'` (returns an HFS-style path — convert it, e.g. via `POSIX path of`). A cancelled dialog must return a clean \"no selection\" result, not an error. Keep this endpoint strictly a picker: it returns a path and does nothing else with it. Server test: the handler returns the path the dialog reports and handles the cancel case. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-25",
+    "commitHashes": [],
+    "closureNote": "Closed 2026-07-25: the endpoint already shipped in jfred/src/viewer_server.ts (osascript + POSIX path of, cancel returns an empty path, wired from webapp/app-header.ts); the missing server test now lives in tests/viewer_server.test.ts, driving both branches through a fake osascript on the child's PATH so no GUI dialog opens. Kept as a GET rather than the POST the task named, since it is side-effect-free and the client already calls it that way (staged, not yet committed)."
   }
 ]
