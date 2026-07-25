@@ -27,11 +27,6 @@
     ]
   },
   {
-    "taskNumber": 208,
-    "title": "Dashed cross-lane corroboration lines",
-    "description": "S8. Render dashed cross-lane lines exactly where S5 corroboration marks exist. DOM test: dashed line present exactly at corroborated Instants. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
     "taskNumber": 209,
     "title": "Layer switcher with tooltips; 5+ disabled until unlocked",
     "description": "S9. Layer: [1]..[12] control above the timeline; 1-3 selectable and re-render at that layer's detail; buttons for layers 5 and up disabled until the functionality each enables becomes unlocked for this engine mode; every button gets a tooltip naming what that layer adds (1 start/end, 2 commits, 3 snapshots, 5 derived edits, 7 script runs, 8/9 branches, 10 verified replay, 12 decoration). DOM tests per S9. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"

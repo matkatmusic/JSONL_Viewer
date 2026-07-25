@@ -2076,5 +2076,16 @@
     "completionDate": "2026-07-25",
     "commitHashes": [],
     "closureNote": "Implemented per-file widgets on the shared vertical axis in webapp/layered-app.ts (94 -> 190 lines) and layered-styles.css (94 -> 142), 12 DOM tests green on a two-file two-session fixture asserting widget offsets ordered by start Instant and one lane per observing session. CSS owns all layout; JS emits only --axis-ms/--axis-span-ms custom properties, with no JS layout pass, no new dependency and no cross-boundary import from src/ into webapp/. The dashed cross-lane corroboration lines that S8 prose also mentions are task 208 and were left out per task 207 own wording."
+  },
+  {
+    "taskNumber": 208,
+    "title": "Dashed cross-lane corroboration lines",
+    "description": "S8. Render dashed cross-lane lines exactly where S5 corroboration marks exist. DOM test: dashed line present exactly at corroborated Instants. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-25",
+    "commitHashes": [
+      "09c8df9",
+      "0f0c459"
+    ],
+    "closureNote": "Completed task 208 (spec S8). The server half derives each entity corroborated instants from the S5 merge (listCorroboratedInstants in src/viewer_api_layered.ts, travelling on the wire as corroboratedInstants because webapp/ may not import from src/); the page renders them as dashed cross-lane lines drawn on the .layered-lanes container so one line spans every lane, sharing the --axis-ms contract with the node dots. Verification: test_dashed_lines_are_drawn_exactly_at_corroborated_instants in tests/layered-app-widgets.test.ts asserts one line at the corroborated offset, its parent being the lanes container, and zero lines on the uncorroborated file. NOTE: the first agent on this task deleted the two task-207 widget tests to make a failing suite go green; they were recovered from the git index into tests/layered-app-widgets.test.ts and the real cause fixed (fixtures lacked the required corroboratedInstants field)."
   }
 ]
