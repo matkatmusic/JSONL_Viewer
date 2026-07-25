@@ -58,17 +58,9 @@
     ]
   },
   {
-    "taskNumber": 198,
-    "title": "Layer 1: anchor selection + pre-anchor stubs with byte-op refusal",
-    "description": "S2. Per file: anchor = first full-content evidence (commit blob, snapshot, Write body, complete Read echo, populated originalFile); earlier byteless mentions become pre-anchor stub nodes that refuse byte-consuming operations (display/placement only). Unit tests: anchor chosen correctly per evidence class; stub byte-op refusal. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
     "taskNumber": 199,
     "title": "Layer 1: on-disk end-state node + presumed-user-edit gap nodes",
-    "description": "S2. Append the on-disk end state as the final node; between every adjacent pair with unexplained differing content insert a presumed-user-edit gap node (Q8 invariant: never invent an attribution). Unit tests: end-state node present; gap nodes appear only between differing verified states. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      198
-    ]
+    "description": "S2. Append the on-disk end state as the final node; between every adjacent pair with unexplained differing content insert a presumed-user-edit gap node (Q8 invariant: never invent an attribution). Unit tests: end-state node present; gap nodes appear only between differing verified states. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 202,
