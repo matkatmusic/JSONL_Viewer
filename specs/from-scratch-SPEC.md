@@ -121,7 +121,7 @@ the nodes are marked as corroborating (input for the dashed cross-lane
 lines).
 - Verify: unit test — two sessions' nodes interleave by `Instant`; same-bytes nodes carry the corroboration mark; single-session is the degenerate case.
 - Tasks: #202
-- Status: open
+- Status: done 2026-07-25, staged — `mergeSessionTimelines` in jfred/src/layered_merge.ts: per-session end states dedupe to ONE (owned by no session), presumption gaps are re-derived against the merged neighbours (another session's beacon can explain a gap its owner could not), and corroboration marks list the other sessions that observed the same bytes — never on a single-session content group. `sortNodesOntoAxis` moved to layered_instants.ts so the loader and the merge share one sort.
 
 ### S6. Typed edges and derived lineage
 Rename and copy evidence from layers 1–3 produce typed directed edges

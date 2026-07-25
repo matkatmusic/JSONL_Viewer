@@ -311,3 +311,165 @@ tests/test_tmux_monitor.py
 tests/test_todo_e2e_wiring.py
 tests/test_todo_send.py
 ```
+
+## Task 186 — the per-file sweep harness (spec S11)
+
+`jfred/scripts/per_file_sweep.ts` runs the task-182 per-file path over a
+candidate list and writes the S11 results table. Running the 68-file M phase
+with it is task 187, not task 186.
+
+Invocation (defaults already point at the jot recovery sources and the baseline
+commit, so the M phase is just `--status M`):
+
+```
+cd jfred
+npx tsx scripts/per_file_sweep.ts --status M \
+  [--repo ~/Programming/jot] \
+  [--base-commit 793e65241902f276caf5f5c28d539269e7d36d11] \
+  [--projects ~/Programming/jot-recovery/claude-data/projects/-Users-matkatmusicllc-Programming-jot] \
+  [--fhsLoc ~/Programming/jot-recovery/claude-data/file-history] \
+  [--out plans/166-per-file-sweep-results.jsonl] \
+  [--table plans/166-per-file-sweep-table.md] \
+  [--limit <n>]
+```
+
+Outputs:
+
+- `--out` — one JSON line per candidate, appended as each finishes. A killed
+  run resumes from it: candidates already logged are skipped, so the 68-file
+  run does not restart from zero.
+- `--table` — the markdown results table, rewritten after every candidate:
+  `file | revisions | baseline blob | final = disk | unrecoverable | verdict | note`.
+
+Verdicts (`SweepVerdict` in `jfred/src/structures/vocabulary.ts`) encode the
+user's S11 correction that endpoints are necessary but not sufficient:
+`ok` = both endpoints matched and every revision replayed; `gaps` = endpoints
+matched but the ladder holds unrecoverable revisions; `endpoint-miss` = the
+baseline blob or the final-vs-disk check failed; `none` = no revisions at all.
+
+Design points that matter for the task-187 run:
+
+- **One process, one records array, N targets.** The script loads the 156
+  transcripts once and calls `reconstructSurvivingFileHistory` per candidate
+  over that same array, because the expensive machinery memoizes per
+  records-ARRAY identity (attempt-4 evidence above). Spawning the CLI once per
+  file would pay the ~11-minute cost 68 times.
+- Candidates resolve to absolute paths through the RECORDED cwd
+  (`findFirstRecordCwd`), not through `--repo` — the transcripts' paths are
+  recorded-cwd absolute, and `reconstruction_base_commit.ts` derives its
+  repo-relative path the same way.
+- A candidate that throws becomes a zero-revision row carrying the message; one
+  bad file never ends the sweep.
+
+### Measured cost (2026-07-25, first three M candidates)
+
+| candidate | revisions | baseline blob | final = disk | verdict | seconds |
+| --- | --- | --- | --- | --- | --- |
+| `.claude-plugin/marketplace.json` | 16 | yes | yes | ok | 810 |
+| `.claude-plugin/plugin.json` | 9 | yes | yes | ok | 1 |
+| `.gitignore` | 3 | yes | no | endpoint-miss | 1 |
+
+817 s wall clock for all three over the 156-transcript / 72,438-record source.
+**The shared warm-up is the whole cost: 810 s for the first candidate, 1 s each
+for the next two.** That is the "one process, one records array, N targets"
+decision paying off — the full 68-file M phase should land in roughly 15
+minutes, not the ~12 hours a CLI-spawn-per-file harness would take. Two things
+for task 187 to triage from this slice alone:
+
+- `.gitignore` recovers only 3 revisions and its final revision does NOT match
+  today's working tree — a real endpoint miss, not a harness artifact.
+- "Baseline blob present" had to mean present ANYWHERE in the ladder: both
+  `.claude-plugin` files carry the git seed mid-ladder (their recorded history
+  starts before the 2026-05-10 baseline commit), so a revision-0-only check
+  reported a false `endpoint-miss` for both.
+
+## Task 188 — the iterative reconstruct → commit → re-seed loop (spec S12 prep)
+
+Run 2026-07-25 on `common/scripts/plate/plate_cli.py`, all four runs against
+`~/Programming/jot-recovery/claude-data`. Commits landed in a scratch clone
+(`git clone --shared ~/Programming/jot <scratch>` checked out at the baseline);
+`~/Programming/jot` was only ever read.
+
+### The recipe
+
+1. **Scratch clone at the baseline** — never commit into the real repo:
+   ```
+   git clone --shared ~/Programming/jot "$SCRATCH"
+   git -C "$SCRATCH" checkout -B loop-proof 793e65241902f276caf5f5c28d539269e7d36d11
+   ```
+2. **Reconstruct a chunk** (`--until-revision <file> --nth <n>` bounds the
+   record stream at the containing turn's end; both flags name the same file):
+   ```
+   npx tsx src/reconstruction_cli.ts <claude-data projects>/*.jsonl \
+     --file /Users/matkatmusicllc/Programming/jot/common/scripts/plate/plate_cli.py \
+     --repo ~/Programming/jot --base-commit 793e6524… \
+     --fhsLoc ~/Programming/jot-recovery/claude-data/file-history \
+     --branch surviving --until-revision <same file> --nth 5 --json --progress
+   ```
+   `--branch surviving` (NOT `--surviving`) is what engages the fast path.
+3. **Commit the chunk's last revision at ITS OWN instant.** Write
+   `lines.join("\n") + "\n"` (the form that blob-matched in task 182) to the
+   file in the clone, then:
+   ```
+   GIT_AUTHOR_DATE=<revision.timestamp> GIT_COMMITTER_DATE=<revision.timestamp> \
+     git -C "$SCRATCH" commit -am "<chunk>"
+   ```
+   `GIT_COMMITTER_DATE` is the load-bearing one — the engine reads committer
+   time (`%cI`) and never author time, so `git commit --date` alone places the
+   seed at today's instant and it sorts to the END of the ladder.
+4. **Re-seed from the new hash** — same command with
+   `--repo "$SCRATCH" --base-commit $(git -C "$SCRATCH" rev-parse HEAD)` and a
+   wider `--nth`. `--repo` may point at the clone: the repo-relative path comes
+   from the recorded cwd, not from `--repo`.
+5. **Control run** — the same wider `--nth` against the ORIGINAL baseline, to
+   separate what re-seeding recovered from what merely widening the bound
+   recovered.
+
+### Measured results
+
+| run | seed | bound | wall clock | revisions | monotonic | unrecoverable |
+| --- | --- | --- | --- | --- | --- | --- |
+| iteration 1 | `793e6524…` (baseline) | `--nth 5` | 12 s | 7 | yes | 0 |
+| iteration 2 | `403f6944…` (committed rev 6, 2026-05-14T03:06:21Z) | `--nth 10` | 48 s | 20 | **no** | 0 |
+| control | `793e6524…` (baseline) | `--nth 10` | 49 s | 18 | yes | 0 |
+
+Bounded runs are cheap: 12–49 s against the ~11 minutes the unbounded
+attempt-4 run took.
+
+### Findings
+
+1. **The loop's mechanics work.** The mid-stream commit is accepted as a seed —
+   iteration 2's ladder carries
+   `gitBase:403f69440808e9ad21291695f99595e3a5f10d98:<target>` — and iteration 2
+   emits 13 revisions iteration 1 never produced, ending at different (later)
+   content. The reconstruct → commit → re-seed → reconstruct cycle runs
+   end-to-end with no engine change.
+2. **But re-seeding recovered no history the widened bound did not.** The
+   control run (original baseline, same `--nth 10`) produced the same 18
+   revisions and the byte-identical final content. Every changeId in iteration 2
+   is in the control except the new `gitBase:` id, and vice versa. For this file
+   the extra history came from moving the bound, not from moving the seed.
+3. **Mechanism: the CLI never prunes pre-baseline records.**
+   `preBaselineReconstructionAllowed` defaults to `true` and only the viewer
+   flips it (`reconstruction_base_commit.ts:33`, "the CLI never touches it"), so
+   `computeSkippedBaselineCutoff` returns undefined and a later baseline does
+   NOT cut the window. Iteration 2's ladder starts at 2026-05-13T15:53 — well
+   before its own 2026-05-14T03:06 seed — which is why it neither pruned work
+   (48 s ≈ the control's 49 s) nor shortened the ladder. **The loop's intended
+   "start from the new hash" effect needs a CLI equivalent of the viewer's "No"
+   to the pre-baseline question; there is no such flag today** (task 223).
+4. **A mid-stream seed corrupts the ladder as things stand.** Iteration 2 is
+   non-monotonic — its `gitBase:` overwrite (2026-05-14T03:06:21Z, index 10)
+   sits before a revision stamped 2026-05-13T21:45:19Z (index 11) — and it
+   repeats snapshot `04b5333dde2392bd@v2` twice (indices 8 and 11) where the
+   control emits it once. 20 revisions vs the control's 18 is exactly those two
+   artifacts (task 224).
+5. **Consequence for S12/S13.** The loop is only worth running where a single
+   pass STALLS. `plate_cli.py` is not such a file — one unbounded pass already
+   recovers all 34 revisions (task 182) — so it proved the mechanics but could
+   not demonstrate the value. Before tasks 189/190 lean on re-seeding, tasks 223
+   and 224 need to land, or a re-seeded ladder will be reported non-monotonic
+   with duplicated snapshot revisions.
+
+Evidence (session scratchpad, not preserved): `iter1.json`, `iter2.json`,
+`control.json` plus their `--progress` logs.

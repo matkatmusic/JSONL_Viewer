@@ -7,38 +7,22 @@
   {
     "taskNumber": 83,
     "title": "See if actual /jot folder can be reconstructed",
-    "description": "83. See if actual /jot folder can be reconstructed."
-  },
-  {
-    "taskNumber": 183,
-    "title": "S10: per-file debug viewer — server endpoint + page skeleton",
-    "description": "User decision 2026-07-22: the per-file revision view is a DEDICATED debug viewer page, not a 'Filename' filter on the main webapp — free to expose engine internals (source attribution, conflict notes, seed hashes). This task: a server endpoint serving one file's revision ladder from the merged multi-source reconstruction (viewer_api_* patterns) plus the debug page skeleton with file selection / deep-link."
+    "description": "83. See if actual /jot folder can be reconstructed.",
+    "blockedBy": [
+      187,
+      189,
+      190
+    ]
   },
   {
     "taskNumber": 184,
     "title": "S10: debug viewer — revision-ladder rendering + DOM tests",
-    "description": "Render the selected file's revision ladder in the dedicated debug viewer (revision list with source attribution, conflict notes, seed hash where present). DOM tests per existing webapp test patterns for selecting a file and rendering its revision list; manual check against plate_cli.py on the real claude-data sources.",
-    "blockedBy": [
-      183
-    ]
-  },
-  {
-    "taskNumber": 186,
-    "title": "S11: per-file sweep harness — run all candidates, emit results table",
-    "description": "Build the harness that runs the S9 per-file reconstruction for a list of candidate files against the claude-data sources and emits a results table (per file: endpoints matched — baseline blob present and final revision vs current ~/Programming/jot content — plus recovered revision count and gaps). Table lands in plans/166-per-file-target.md. Success bar (user-corrected): all or most revisions recovered, to recreate the commit history lost when the plate branch became corrupted; endpoint matches are necessary, not sufficient."
+    "description": "Render the selected file's revision ladder in the dedicated debug viewer (revision list with source attribution, conflict notes, seed hash where present). DOM tests per existing webapp test patterns for selecting a file and rendering its revision list; manual check against plate_cli.py on the real claude-data sources."
   },
   {
     "taskNumber": 187,
     "title": "S11: run the M-file sweep (68 files) and triage results",
-    "description": "Run the task-186 harness over all 68 'modified' files from the S8 enumeration. Record the results table in plans/166-per-file-target.md; itemize every failure/gap as a finding, not an omission. Phase gate: S11 must be complete before the S12 'added' phase starts.",
-    "blockedBy": [
-      186
-    ]
-  },
-  {
-    "taskNumber": 188,
-    "title": "S12 prep: prove the iterative reconstruct -> commit -> re-seed loop",
-    "description": "User workflow: 'start reconstruction from point A (a git hash) up until some chunk of revisions (like 5 or 10 steps), then commit those. Re-attempt reconstruction from this new commit hash, and more revision history will be reconstructed and committed. Repeat until the entire history is restored.' Prove this loop end-to-end on one file (plate_cli.py or a fixture): seed via --repo/--base-commit, reconstruct a chunk, commit it (in a scratch clone, never the real ~/Programming/jot), re-seed from the new hash, and show the second iteration recovers history the first did not. Document the recipe in plans/166-per-file-target.md."
+    "description": "Run the task-186 harness over all 68 'modified' files from the S8 enumeration. Record the results table in plans/166-per-file-target.md; itemize every failure/gap as a finding, not an omission. Phase gate: S11 must be complete before the S12 'added' phase starts."
   },
   {
     "taskNumber": 189,
@@ -46,7 +30,8 @@
     "description": "Run per-file reconstruction for the 11 'A' files. User: these are probably the result of script executions (rename-file/move-file events); each ladder must start at its rename/move (or born-fresh) origin and include all modifications AFTER the move. Where history is only partially recoverable, apply the task-188 iterative commit-and-re-seed workflow. Results recorded as in S11. Phase gate: after S11, before S13.",
     "blockedBy": [
       187,
-      188
+      223,
+      224
     ]
   },
   {
@@ -58,25 +43,14 @@
     ]
   },
   {
-    "taskNumber": 202,
-    "title": "Multi-session merged view + corroboration marks",
-    "description": "S5. Merge per-session SessionTimelines into one derived view per ReconstructionEntity, nodes ordered by Instant; mark nodes where multiple sessions observed the same bytes as corroborating (input for dashed cross-lane lines). Unit test: interleave by Instant; corroboration mark on same-bytes nodes; single-session degenerate case. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
     "taskNumber": 203,
     "title": "RenameEdge/CopyEdge extraction + lineageOf walk",
-    "description": "S6. Extract RenameEdge (timestampOfRename) and CopyEdge (timestampOfCopy) with JsonlRef evidence from layer-1..3 evidence (reuse the engine's existing rename channels); lineageOf walks RenameEdges to derive one continuous history; bornCopy's first content = copiedFrom's reconstructed state at timestampOfCopy. No stored lineage groups. Unit test: rename chain end-to-end; copy fork leaves both lineages independent. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      202
-    ]
+    "description": "S6. Extract RenameEdge (timestampOfRename) and CopyEdge (timestampOfCopy) with JsonlRef evidence from layer-1..3 evidence (reuse the engine's existing rename channels); lineageOf walks RenameEdges to derive one continuous history; bornCopy's first content = copiedFrom's reconstructed state at timestampOfCopy. No stored lineage groups. Unit test: rename chain end-to-end; copy fork leaves both lineages independent. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 207,
     "title": "Per-file widgets on one shared vertical time axis with session lanes",
-    "description": "S8. Each file renders as a rounded widget offset to its history's start on the shared vertical axis, per-session lanes inside. DOM test on a two-file two-session fixture: widget offsets ordered by start Instant; lanes per session. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      202
-    ]
+    "description": "S8. Each file renders as a rounded widget offset to its history's start on the shared vertical axis, per-session lanes inside. DOM test on a two-file two-session fixture: widget offsets ordered by start Instant; lanes per session. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 208,
@@ -145,10 +119,7 @@
   {
     "taskNumber": 218,
     "title": "Engine: segment patch = per-file diff of snapped states, emitted as git-diff",
-    "description": "S17. patch = diff(endStateOfPreviousSelection, rightmostStateInThisSelection) per file, each state the at-or-before snapped verified state at the segment's cut; first segment's base = anchor; a file born after the cut is absent and first appears as a creation in the segment containing its birth; concatenate into one git-diff. Unit test: each segment's git-diff applies in sequence via git apply to reproduce the final state, including the born-after-cut-1 file case. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      202
-    ]
+    "description": "S17. patch = diff(endStateOfPreviousSelection, rightmostStateInThisSelection) per file, each state the at-or-before snapped verified state at the segment's cut; first segment's base = anchor; a file born after the cut is absent and first appears as a creation in the segment containing its birth; concatenate into one git-diff. Unit test: each segment's git-diff applies in sequence via git apply to reproduce the final state, including the born-after-cut-1 file case. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 219,
@@ -171,5 +142,17 @@
     "taskNumber": 222,
     "title": "Enable GitHub Pages for the jfred repo (serve docs/)",
     "description": "DEFERRED UNTIL ALL other tasks are done (user, 2026-07-24). User request (2026-07-24): enable GitHub Pages in the jfred repo's GitHub settings so the docs/ folder is served — source: deploy from branch, /docs folder. Verifies the Engine-B demo at https://<user>.github.io/<repo>/engineb/webapp_old.html (local check passed via python3 -m http.server from jfred/docs). Requires the task-17 demo bundle to be pushed first."
+  },
+  {
+    "taskNumber": 223,
+    "title": "CLI flag to decline pre-baseline reconstruction (the iterative loop needs the window cut)",
+    "description": "Task-188 finding (2026-07-25): the iterative reconstruct -> commit -> re-seed loop cannot actually start from the new hash, because preBaselineReconstructionAllowed defaults to true and ONLY the viewer flips it (src/reconstruction_base_commit.ts:33 — \"the CLI never touches it\"). computeSkippedBaselineCutoff therefore returns undefined on every CLI run, so a later --base-commit does not prune the records before it: the re-seeded run measured 48s vs the control 49s and its ladder still started ~11 hours before its own seed instant. Add the CLI equivalent of the viewer's \"No\" to the pre-baseline question (e.g. --no-pre-baseline) so a re-seeded iteration reconstructs only forward from the seed, then re-measure the loop with it. Evidence: plans/166-per-file-target.md, section \"Task 188 — the iterative reconstruct -> commit -> re-seed loop\".",
+    "blockedBy": []
+  },
+  {
+    "taskNumber": 224,
+    "title": "Mid-stream base-commit seed yields a non-monotonic ladder with a duplicated snapshot revision",
+    "description": "Task-188 finding (2026-07-25): seeding --base-commit at a commit INSIDE the recorded window (step 4 of the iterative loop) corrupts the emitted ladder for common/scripts/plate/plate_cli.py. The gitBase: overwrite lands at index 10 stamped 2026-05-14T03:06:21Z, before an index-11 revision stamped 2026-05-13T21:45:19Z (non-monotonic), and snapshot 04b5333dde2392bd@v2 appears TWICE (indices 8 and 11) where the same-bound control run against the original baseline emits it once — 20 revisions vs the control 18, entirely accounted for by those two artifacts. Both the control and iteration-1 ladders are monotonic, so the trigger is the mid-window seed placement (see reconstruction_git_placement.ts / seedBaseCommitBeacon in reconstruction_base_commit.ts). Fix the ordering + dedupe, or refuse a mid-window baseline with a clear error. May be resolved by task 223 (dropping pre-seed records) — verify before assuming. Evidence: plans/166-per-file-target.md, section \"Task 188 — the iterative reconstruct -> commit -> re-seed loop\".",
+    "blockedBy": []
   }
 ]

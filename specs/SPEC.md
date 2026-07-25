@@ -122,7 +122,7 @@ conflict notes, seed hash. Navigate to (or deep-link) one file and see its
 ladder.
 - Verify: DOM tests (existing webapp test patterns) for selecting a file and rendering its revision list; manual check against plate_cli.py on the real claude-data sources.
 - Tasks: #183, #184
-- Status: open (#183 implemented 2026-07-24, staged — /api/file-ladder endpoint (viewer_api_ladder.ts) + /app/debug.html skeleton with file selection and deep-link; #184 ladder rendering open)
+- Status: open (#183 done — /api/file-ladder endpoint (viewer_api_ladder.ts, wired at viewer_server.ts:187) + /app/debug.html skeleton with file selection and deep-link, committed with tests/viewer_api_ladder.test.ts and tests/debug-app.test.ts; #184 ladder rendering open)
 
 ### S11. All 'modified' files recover their revision history
 Every file with status M in the S8 enumeration runs through the S9 per-file
@@ -135,7 +135,7 @@ per-file revision counts in a results table in the S8 doc. Phase gate:
 complete before starting S12.
 - Verify: results table covers all M files — endpoints matched, revision count, and gaps itemized as findings, not omissions.
 - Tasks: #186, #187
-- Status: open
+- Status: open (#186 done 2026-07-25, staged — jfred/scripts/per_file_sweep.ts + jfred/src/per_file_sweep_report.ts: one process, one records array, N targets through the task-182 fast path; resumable JSONL log + markdown table with an `ok`/`gaps`/`endpoint-miss`/`none` verdict per candidate, recipe in plans/166-per-file-target.md. #187, the 68-file M run, is open)
 
 ### S12. 'Added' files reconstruct per-file (rename/move-aware)
 Files with status A are likely the products of script-driven rename/move
@@ -146,7 +146,7 @@ reconstruct a chunk from a seed hash, commit, re-seed, repeat (see Key
 Decisions). Results recorded as in S11. Phase gate: after S11, before S13.
 - Verify: results table covers all A files, each ladder starting at its rename/move (or born-fresh) origin and including post-move modifications.
 - Tasks: #188, #189
-- Status: open
+- Status: open (#188 done 2026-07-25 — the loop ran end-to-end on plate_cli.py in a scratch clone: bounded reconstruct (12 s) → commit the chunk's last revision at its own committer instant → re-seed (48 s, 13 new revisions). TWO findings block leaning on it: the CLI never prunes pre-baseline records, so a re-seed does not move the window (task 223), and a mid-window seed emits a non-monotonic ladder with a duplicated snapshot revision (task 224) — a control run at the same bound against the original baseline recovered the same history. Recipe + measurements in plans/166-per-file-target.md; #189 now blocked on 187/223/224)
 
 ### S13. 'Removed' files reconstruct per-file (paired with S12 moves)
 Files with status D run through per-file mode; ladders end in deletion or a
