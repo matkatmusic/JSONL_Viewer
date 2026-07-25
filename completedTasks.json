@@ -1934,5 +1934,45 @@
       "719e493"
     ],
     "closureNote": "Attempt-4 run completed (34-revision ladder, ~11 min); revision 0 verified byte-identical to baseline blob 9d14d60d; all 18 source Edit records + 2 sidecar snapshots represented; documented in plans/166-per-file-target.md."
+  },
+  {
+    "taskNumber": 212,
+    "title": "Always-visible timeline legend above the scrolled area",
+    "description": "S12. Legend renders at the top of the timeline area and stays visible while the timeline scrolls (not part of the scrolled content). DOM/CSS test per S12. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-24",
+    "commitHashes": [
+      "jfred@43b8a5d"
+    ],
+    "closureNote": "Implemented at jfred@43b8a5d: always-visible legend rendered above the scrolled timeline area (index.html + layered-styles.css sticky placement) with DOM tests in layered-app.test.ts."
+  },
+  {
+    "taskNumber": 206,
+    "title": "Viewer API endpoint serving the layered reconstruction",
+    "description": "S7/S8 plumbing. Serve loadLayeredProject's graph to the layered page (follow the existing viewer_api_* route patterns); the page fetches it on load. Server test: endpoint returns the fixture graph JSON. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-24",
+    "commitHashes": [
+      "jfred@43b8a5d"
+    ],
+    "closureNote": "Implemented at jfred@43b8a5d: /api/layered-graph endpoint (viewer_api_layered.ts) serving loadLayeredProject graph, page fetch-on-load, server test returns fixture graph JSON (viewer_api_layered.test.ts)."
+  },
+  {
+    "taskNumber": 200,
+    "title": "Layer 2: commit beacon nodes at committer instants",
+    "description": "S3. Given repoPath, each commit touching a file contributes a verified beacon node carrying blob bytes at its committer Instant (reuse existing git evidence code, e.g. reconstruction_git_evidence.ts). Unit test with a fixture repo; author time never used. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-24",
+    "commitHashes": [
+      "jfred@43b8a5d"
+    ],
+    "closureNote": "Implemented at jfred@43b8a5d: layered_git_beacons.ts derives verified commit beacon nodes at committer instants (author time unused) with fixture-repo unit tests (layered_git_beacons.test.ts)."
+  },
+  {
+    "taskNumber": 201,
+    "title": "Layer 3: snapshot beacon nodes via owning-session sidecar",
+    "description": "S4. File-history snapshots become verified beacon nodes; a snapshot reference (abc123@vN) resolves through the OWNING session's sidecar, never a global lookup (reuse the per-source BackupReader). Unit test: two sessions using the same @vN name for different bytes each get their own session's bytes. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-24",
+    "commitHashes": [
+      "jfred@43b8a5d"
+    ],
+    "closureNote": "Implemented at jfred@43b8a5d: layered_snapshot_beacons.ts resolves @vN snapshot references through the owning session sidecar BackupReader; two-sessions-same-@vN unit test (layered_snapshot_beacons.test.ts)."
   }
 ]

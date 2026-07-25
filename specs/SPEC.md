@@ -122,7 +122,7 @@ conflict notes, seed hash. Navigate to (or deep-link) one file and see its
 ladder.
 - Verify: DOM tests (existing webapp test patterns) for selecting a file and rendering its revision list; manual check against plate_cli.py on the real claude-data sources.
 - Tasks: #183, #184
-- Status: open
+- Status: open (#183 implemented 2026-07-24, staged — /api/file-ladder endpoint (viewer_api_ladder.ts) + /app/debug.html skeleton with file selection and deep-link; #184 ladder rendering open)
 
 ### S11. All 'modified' files recover their revision history
 Every file with status M in the S8 enumeration runs through the S9 per-file

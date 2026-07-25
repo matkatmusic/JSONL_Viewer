@@ -71,23 +71,11 @@
     ]
   },
   {
-    "taskNumber": 200,
-    "title": "Layer 2: commit beacon nodes at committer instants",
-    "description": "S3. Given repoPath, each commit touching a file contributes a verified beacon node carrying blob bytes at its committer Instant (reuse existing git evidence code, e.g. reconstruction_git_evidence.ts). Unit test with a fixture repo; author time never used. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
-    "taskNumber": 201,
-    "title": "Layer 3: snapshot beacon nodes via owning-session sidecar",
-    "description": "S4. File-history snapshots become verified beacon nodes; a snapshot reference (abc123@vN) resolves through the OWNING session's sidecar, never a global lookup (reuse the per-source BackupReader). Unit test: two sessions using the same @vN name for different bytes each get their own session's bytes. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
     "taskNumber": 202,
     "title": "Multi-session merged view + corroboration marks",
     "description": "S5. Merge per-session SessionTimelines into one derived view per ReconstructionEntity, nodes ordered by Instant; mark nodes where multiple sessions observed the same bytes as corroborating (input for dashed cross-lane lines). Unit test: interleave by Instant; corroboration mark on same-bytes nodes; single-session degenerate case. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
     "blockedBy": [
-      199,
-      200,
-      201
+      199
     ]
   },
   {
@@ -99,17 +87,11 @@
     ]
   },
   {
-    "taskNumber": 206,
-    "title": "Viewer API endpoint serving the layered reconstruction",
-    "description": "S7/S8 plumbing. Serve loadLayeredProject's graph to the layered page (follow the existing viewer_api_* route patterns); the page fetches it on load. Server test: endpoint returns the fixture graph JSON. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
     "taskNumber": 207,
     "title": "Per-file widgets on one shared vertical time axis with session lanes",
     "description": "S8. Each file renders as a rounded widget offset to its history's start on the shared vertical axis, per-session lanes inside. DOM test on a two-file two-session fixture: widget offsets ordered by start Instant; lanes per session. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
     "blockedBy": [
-      202,
-      206
+      202
     ]
   },
   {
@@ -145,16 +127,10 @@
     ]
   },
   {
-    "taskNumber": 212,
-    "title": "Always-visible timeline legend above the scrolled area",
-    "description": "S12. Legend renders at the top of the timeline area and stays visible while the timeline scrolls (not part of the scrolled content). DOM/CSS test per S12. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
     "taskNumber": 213,
     "title": "Node click fills Details pane (reused view incl. [{ }] JSON button)",
     "description": "S13. Clicking a timeline node fills the top-right pane with the existing webapp Details view (reused, not reimplemented), retaining the [{ }] button that shows the node's raw JSON. DOM test per S13. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
     "blockedBy": [
-      206,
       207
     ]
   },
