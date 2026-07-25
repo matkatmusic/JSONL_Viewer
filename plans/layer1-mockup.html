@@ -1,0 +1,230 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Layer 1 mockup — Current File State vs Git State</title>
+<style>
+* { box-sizing: border-box; margin: 0; }
+body { font: 13px/1.5 system-ui, -apple-system, sans-serif; padding: 14px 18px; }
+
+.bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.bar h1 { font-size: 15px; font-weight: 600; }
+.bar label { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; }
+button { font: inherit; font-size: 11.5px; padding: 3px 9px; border-radius: 6px;
+         border: 1px solid rgba(0,0,0,.3); background: #fff; cursor: pointer; }
+button.on { background: #2f6fed; border-color: #2f6fed; color: #fff; }
+button:disabled { opacity: .4; cursor: not-allowed; }
+input[type=text] { font: 11.5px ui-monospace, Menlo, monospace; padding: 3px 7px;
+                   border: 1px solid rgba(0,0,0,.3); border-radius: 6px; }
+.hint { font-size: 11px; color: #9ca3af; margin: -4px 0 12px; }
+
+.legend { display: flex; gap: 16px; font-size: 11px; margin-bottom: 12px; color: #374151; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 11px; height: 11px; display: inline-block; }
+.sw-commit { background: #7a3fe0; border-radius: 3px; }
+.sw-disk { border: 2px double #111827; border-radius: 50%; }
+.sw-orphan { background: #9ca3af; border-radius: 2px; }
+
+/* Ruler + widgets share one precomputed pixel axis: JS resolves each instant to a px offset
+   (linear, but each gap clamped to --cap), CSS does the placing off --axis-px. */
+.stage { display: flex; align-items: flex-start; gap: 26px; overflow-x: auto; padding-bottom: 20px; }
+
+.ruler { position: relative; flex: none; width: 128px; border-right: 2px solid #d1d5db;
+         margin-top: 26px; }
+.tick { position: absolute; right: 8px; top: calc(var(--axis-px) * 1px); transform: translateY(-50%);
+        font: 10px ui-monospace, Menlo, monospace; color: #6b7280; white-space: nowrap; }
+.tick::after { content: ""; position: absolute; right: -10px; top: 50%; width: 8px;
+               border-top: 1px solid #d1d5db; }
+
+.widget { flex: none; margin-top: calc(var(--axis-px) * 1px); padding: 8px 11px 16px;
+          border: 2px solid rgba(0,0,0,.25); border-radius: 14px; min-width: 128px; }
+.widget-name { font: 600 12px ui-monospace, Menlo, monospace; white-space: nowrap; margin-bottom: 6px; }
+.widget-sub { font-size: 10px; color: #6b7280; margin-bottom: 4px; }
+
+.lane { position: relative; margin-left: 8px; width: 100%;
+        min-height: calc(var(--span-px) * 1px + 20px); border-left: 1.5px solid rgba(0,0,0,.15); }
+.node { position: absolute; left: 0; top: calc(var(--axis-px) * 1px); transform: translate(-50%, -50%);
+        width: 13px; height: 13px; }
+.node-commit { background: #7a3fe0; border-radius: 3px; }
+.node-disk { background: #fff; border: 2px double #111827; border-radius: 50%; }
+.node-label { position: absolute; left: 12px; top: calc(var(--axis-px) * 1px); transform: translateY(-50%);
+              font: 10px ui-monospace, Menlo, monospace; color: #4b5563; white-space: nowrap; }
+
+/* Orphan buckets: one per direction, a plain file list, placed at the earliest member instant. */
+.bucket { border-style: dashed; border-color: #9ca3af; background: #fafafa; }
+.bucket .widget-name { color: #4b5563; }
+.bucket ul { list-style: none; font: 11px ui-monospace, Menlo, monospace; color: #4b5563; }
+.bucket li { display: flex; justify-content: space-between; gap: 14px; padding: 1px 0; }
+.bucket li em { font-style: normal; color: #9ca3af; font-size: 10px; }
+.empty { color: #9ca3af; font-size: 11.5px; padding: 30px 0; }
+</style>
+
+<div class="bar">
+  <h1>Layer 1 — Current File State vs Git State</h1>
+  <button class="on" disabled>Layer 1</button>
+  <button disabled title="Layer 2 adds JSONL-derived start points">Layer 2</button>
+  <button disabled title="Layer 3 adds file-history snapshots">Layer 3</button>
+</div>
+
+<div class="bar">
+  <label>Project folder
+    <input id="dir" type="text" size="34" value="/Users/you/code/demo-app">
+    <button class="pick" data-for="dir">Open…</button></label>
+  <label>Git repo
+    <input id="repo" type="text" size="34" value="/Users/you/code/demo-app">
+    <button class="pick" data-for="repo">Open…</button></label>
+  <label>Commit / branch
+    <input id="ref" type="text" size="10" value="" placeholder="default branch"></label>
+  <button id="load">Load</button>
+</div>
+<p class="hint">These two boxes are the whole input surface — they map to
+  <code>?dir=&amp;repo=&amp;ref=</code>. In this mockup, changing the Git repo box to any path other
+  than the Project folder stands in for "point it at an unrelated repo": the pairs vanish and only
+  the two orphan buckets remain.</p>
+
+<div class="legend">
+  <span><i class="sw-commit"></i> commit touched this file</span>
+  <span><i class="sw-disk"></i> current on-disk state</span>
+  <span><i class="sw-orphan"></i> orphan (no counterpart)</span>
+</div>
+
+<div class="stage" id="stage"></div>
+
+<script>
+// Fixed fixture, no clock reads. Commits carry committer instants; disk files carry mtime.
+const COMMITS = [
+  { hash: "a1b2c3d", at: "2026-06-01T09:00:00Z", files: ["src/index.ts", "README.md"] },
+  { hash: "e4f5a6b", at: "2026-06-01T14:30:00Z", files: ["src/index.ts", "src/util.ts"] },
+  { hash: "c7d8e9f", at: "2026-06-03T11:00:00Z", files: ["src/util.ts"] },
+  { hash: "0a1b2c3", at: "2026-06-03T11:20:00Z", files: ["src/index.ts"] },
+  { hash: "4d5e6f7", at: "2026-07-20T16:00:00Z", files: ["README.md", "docs/old-api.md"] },
+  { hash: "8a9b0c1", at: "2026-07-20T16:05:00Z", files: ["scripts/deploy.sh"] },
+];
+const DISK = [
+  { path: "src/index.ts", at: "2026-07-24T08:15:00Z" },
+  { path: "src/util.ts",  at: "2026-07-22T10:00:00Z" },
+  { path: "README.md",    at: "2026-07-20T16:00:00Z" },
+  { path: "notes.txt",    at: "2026-07-23T19:40:00Z" },
+  { path: ".env.local",   at: "2026-05-28T07:00:00Z" }, // predates commit 1 -> pulls the ruler start back
+];
+
+const ms = s => Date.parse(s);
+const label = s => s.replace("T", " ").replace(":00.000Z", "").replace("Z", "").slice(0, 16);
+const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls;
+                                if (txt != null) n.textContent = txt; return n; };
+
+const PX_PER_HOUR = 2.5;  // locked with the user
+const CAP_PX = 24;        // 0.25" at 96dpi — the widest any single gap may render
+
+function render() {
+  const dir = document.getElementById("dir").value.trim().replace(/\/$/, "");
+  const repo = document.getElementById("repo").value.trim().replace(/\/$/, "");
+  const unrelated = repo !== dir;
+  const cap = CAP_PX;
+  const scale = PX_PER_HOUR / 3600000;
+
+  // 1. pair repo paths against on-disk paths (unrelated repo => zero pairs, everything orphans)
+  const repoPaths = [...new Set(COMMITS.flatMap(c => c.files))];
+  const diskPaths = DISK.map(f => f.path);
+  const paired = unrelated ? [] : repoPaths.filter(p => diskPaths.includes(p));
+  const repoOrphans = repoPaths.filter(p => !paired.includes(p));
+  const diskOrphans = DISK.filter(f => !paired.includes(f.path));
+
+  // 2. every instant that will be drawn, in order
+  const instants = [...new Set([
+    ...COMMITS.map(c => ms(c.at)),
+    ...DISK.map(f => ms(f.at)),
+  ])].sort((a, b) => a - b);
+
+  // 3. THE RULER RULE: linear px, but no single gap wider than the cap.
+  const pos = new Map([[instants[0], 0]]);
+  instants.reduce((prev, t) => {
+    pos.set(t, pos.get(prev) + Math.min((t - prev) * scale, cap));
+    return t;
+  });
+  const at = t => pos.get(ms(t));
+
+  const stage = document.getElementById("stage");
+  stage.replaceChildren();
+
+  // ruler ticks, skipping labels that would collide
+  const ruler = el("div", "ruler");
+  let lastLabel = -99;
+  for (const t of instants) {
+    const p = pos.get(t);
+    if (p - lastLabel < 13) continue;
+    lastLabel = p;
+    const tick = el("div", "tick", label(new Date(t).toISOString()));
+    tick.style.setProperty("--axis-px", p);
+    ruler.appendChild(tick);
+  }
+  ruler.style.height = (pos.get(instants.at(-1)) + 30) + "px";
+  stage.appendChild(ruler);
+
+  // 4. one widget per pair, offset to its first commit, one node per commit that touched it
+  for (const path of paired) {
+    const touching = COMMITS.filter(c => c.files.includes(path));
+    const disk = DISK.find(f => f.path === path);
+    const start = at(touching[0].at);
+    const end = at(disk.at);
+
+    const w = el("div", "widget");
+    w.style.setProperty("--axis-px", start);
+    w.appendChild(el("div", "widget-name", path));
+    w.appendChild(el("div", "widget-sub", touching.length + " commits · on disk"));
+
+    const lane = el("div", "lane");
+    lane.style.setProperty("--span-px", end - start);
+    for (const c of touching) addNode(lane, at(c.at) - start, "node-commit", c.hash);
+    addNode(lane, end - start, "node-disk", "on disk");
+    w.appendChild(lane);
+    stage.appendChild(w);
+  }
+
+  if (!paired.length) stage.appendChild(el("div", "empty", "No git ↔ on-disk pairs."));
+
+  // 5. two orphan buckets, each a file list, each placed at its earliest member instant
+  const repoRows = repoOrphans.map(p => {
+    const last = COMMITS.filter(c => c.files.includes(p)).at(-1);
+    return { path: p, at: last.at };
+  });
+  addBucket(stage, "No on-disk match", repoRows, at);
+  addBucket(stage, "No repository match", diskOrphans.map(f => ({ path: f.path, at: f.at })), at);
+}
+
+function addNode(lane, px, cls, text) {
+  const dot = el("i", "node " + cls);
+  dot.style.setProperty("--axis-px", px);
+  const tag = el("span", "node-label", text);
+  tag.style.setProperty("--axis-px", px);
+  lane.append(dot, tag);
+}
+
+function addBucket(stage, title, rows, at) {
+  if (!rows.length) return;
+  rows.sort((a, b) => ms(a.at) - ms(b.at));
+  const w = el("div", "widget bucket");
+  w.style.setProperty("--axis-px", at(rows[0].at));
+  w.appendChild(el("div", "widget-name", title));
+  w.appendChild(el("div", "widget-sub", rows.length + " files"));
+  const ul = el("ul");
+  for (const r of rows) {
+    const li = el("li");
+    li.append(el("span", null, r.path), el("em", null, label(r.at)));
+    ul.appendChild(li);
+  }
+  w.appendChild(ul);
+  stage.appendChild(w);
+}
+
+// [Open…] — in the real page this POSTs /api/pick-folder, the local server runs the OS folder
+// dialog and returns the chosen absolute path. Here it just cycles sample paths.
+const SAMPLES = ["/Users/you/code/demo-app", "/Users/you/code/some-other-repo", "/Users/you/archive/backup-2024"];
+document.querySelectorAll("button.pick").forEach(b => b.addEventListener("click", () => {
+  const box = document.getElementById(b.dataset.for);
+  box.value = SAMPLES[(SAMPLES.indexOf(box.value) + 1) % SAMPLES.length];
+  render();
+}));
+
+document.querySelectorAll("#dir, #repo, #ref").forEach(c => c.addEventListener("input", render));
+document.getElementById("load").addEventListener("click", render);
+render();
+</script>
