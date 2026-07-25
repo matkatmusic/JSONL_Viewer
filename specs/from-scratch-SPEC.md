@@ -3,7 +3,9 @@
 Distilled from the 2026-07-23 design interview (Q1–Q21). Decision ledger:
 [`../from-scratch-reconstruction.hpp`](../from-scratch-reconstruction.hpp);
 goal input: [`../plans/from-scratch-reconstruction-goal.md`](../plans/from-scratch-reconstruction-goal.md);
-decided layout: [`../plans/mvp-app-mockup.html`](../plans/mvp-app-mockup.html).
+decided layout: [`../plans/mvp-app-mockup.html`](../plans/mvp-app-mockup.html);
+Layer 1 View layout (S18, signed off 2026-07-25):
+[`../plans/layer1-mockup.html`](../plans/layer1-mockup.html).
 
 ## Goal
 
@@ -16,6 +18,13 @@ ranges of verified states into git-diff patches. Done = layers 1–3 load and
 render for a real project, and a segment selection emits a git-diff patch
 that applies cleanly. "Fill in the gaps, but only when you want the gaps
 filled in."
+
+**Current milestone (2026-07-25): the Layer 1 View (S18)** — honest visual
+data first. Under the user-facing renumbering below, Layer 1 is on-disk
+state against git state and reads no JSONL at all, so it does NOT go through
+`loadLayeredProject`; it is a separate path with its own endpoint. Layers 2
+and 3 then add the JSONL-derived and snapshot evidence that the paragraph
+above describes. Everything else is deferred behind this milestone.
 
 ## Key Decisions
 
@@ -163,7 +172,7 @@ where S5 marked corroboration.
 - Verify: DOM test on a two-file, two-session fixture — widget offsets ordered by start instant; lanes per session; dashed line present exactly at corroborated instants.
 - Tasks: #207, #208
 - Status: done — #207 (2026-07-25) offsets + per-session lanes; CSS owns all layout and the JS emits only `--axis-ms` / `--axis-span-ms`, so there is no JS layout pass and no cross-boundary import from `src/` into `webapp/` (tsconfig.webapp.json pins rootDir to webapp). #208 (2026-07-25, jfred@09c8df9 + @0f0c459) adds the dashed cross-lane corroboration lines: `listCorroboratedInstants` in src/viewer_api_layered.ts runs the S5 merge server-side and ships the instants as `corroboratedInstants` on the wire (webapp/ may not import src/), and the page draws one `.layered-corroboration` per instant on the `.layered-lanes` container so a line spans every lane, sharing the `--axis-ms` scale with the node dots. Tests: tests/layered-app-widgets.test.ts (3 green).
-- SUPERSEDED IN PART (2026-07-25, S18): the `--axis-ms` contract — JS emits raw milliseconds, CSS multiplies by a fixed scale — cannot express S18's capped-gap ruler, whose positions accumulate. Widget offsets, node offsets and the #208 corroboration lines migrate to a precomputed `--axis-px` (task #239). The division of labor is unchanged: one number crosses the JS→CSS boundary and CSS still does the placing.
+- SUPERSEDED IN PART (2026-07-25, S18): the `--axis-ms` contract — JS emits raw milliseconds, CSS multiplies by a fixed scale — cannot express S18's capped-gap ruler, whose positions accumulate. Widget offsets, node offsets and the #208 corroboration lines migrate to a precomputed `--axis-px` (task #239). The division of labor is unchanged: one number crosses the JS→CSS boundary and CSS still does the placing. DONE 2026-07-25 (#239, staged): `src/viewer_api_layered.ts` runs `resolveInstantOffsets` (task #234) over the whole graph and ships `axisOffsetsPx` — every instant keyed by the same ISO text its nodes already carry — beside `corroboratedInstants`, since webapp/ may not import src/. The page looks an offset up and emits `--axis-px` / `--axis-span-px`; `--axis-scale` is gone from layered-styles.css, which still owns every placement rule. Tests updated: tests/layered-app-widgets.test.ts states the fixture's ruler offsets explicitly (as it already did for corroboration), and tests/viewer_api_layered.test.ts asserts the wire's key agreement.
 - CAVEAT (not an S8 gap): S8 renders whatever the graph holds, and the graph is currently LAYER-1 ONLY — `collectCommitBeaconNodes` (S3) and `collectSnapshotBeaconNodes` (S4) are never called from anywhere in src/, so no commit or snapshot beacon reaches a widget. Wiring them into `loadLayeredProject` is unclaimed by any task and blocks S9.
 
 ### S9. Layer switcher with per-layer tooltips
@@ -262,10 +271,12 @@ optional commit hash or branch (`ref`, default = the repo's active branch).
 Surfaced as two text boxes plus an optional ref box in the page header, each
 folder box carrying an `[Open…]` button. A browser cannot return an absolute
 path from `<input type="file" webkitdirectory>` or the File System Access
-API, so `[Open…]` POSTs `/api/pick-folder`; the local server runs the OS
+API, so `[Open…]` calls `/api/pick-folder`; the local server runs the OS
 folder dialog (macOS: `osascript -e 'choose folder'`) and returns the POSIX
 path. Boxes stay editable for paste-in. All three map to URL params
-(`?dir=&repo=&ref=`) so a view is one shareable link.
+(`?dir=&repo=&ref=`) so a view is one shareable link. (As shipped in #236 the
+picker is a **GET**, not the POST originally specified — it is side-effect-free
+and `webapp/app-header.ts` already called it that way.)
 
 **Pairing.** `current file state` = the on-disk file walk of `dir`. `starting
 repository state` = the repo tree at `ref`. A path present in both, relative
@@ -299,8 +310,28 @@ on-disk match"** (repo paths with no disk counterpart) and **"No repository
 match"** (disk paths with no repo counterpart). Buckets are omitted when
 empty.
 
-- Verify: **acceptance test (user-defined) — point `dir` at a folder of files and `repo` at an unrelated repo; the timeline shows exactly the two orphan bucket widgets and zero pair widgets.** Unit tests: pairing is relative-path exact-match; disk walk excludes `.git`/`node_modules`/gitignored paths; a disk orphan predating the first commit moves the ruler start; capped-gap resolver — a 5-hour gap renders 12.5 px, a 6-week gap renders 24 px, order is preserved. DOM test: pair widget offset to its first commit, one node per touching commit plus the on-disk node, buckets placed at their earliest member.
-- Tasks: #230, #231, #232, #233, #234, #235, #236, #237, #238, #239
-- Status: open (milestone — all other open tasks deferred behind it). Done 2026-07-25, staged: #230 (`walkCurrentFileState`, jfred/src/layer1_disk_walk.ts), #231 (`listRepoTreeAtRef`, jfred/src/layer1_repo_tree.ts), #234 (`resolveInstantOffsets` + the locked 2.5 px/hr and 24 px constants, jfred/src/layer1_ruler_axis.ts) and #236 (the picker already shipped in jfred/src/viewer_server.ts; its server test now drives both branches through a fake `osascript` on the child's PATH — kept a GET, not the POST the task named, since it is side-effect-free and webapp/app-header.ts already calls it that way). Remaining: #232, #233, #235, #237, #238, #239.
+**Output contract (user-settled 2026-07-25).** The engine emits JSON carrying
+exactly three top-level properties, and these are the names the webapp
+renders — the endpoint (#235) passes them through unchanged, adding `axisPx`
+and node detail but never renaming or inverting them:
+
+| property | contents | renders as |
+|---|---|---|
+| `pairs` | paths present in BOTH lists | one file widget each |
+| `gitOrphans` | repo paths with NO on-disk counterpart | the "No on-disk match" bucket |
+| `diskOrphans` | on-disk paths with NO repo entry | the "No repository match" bucket |
+
+The two orphan sets are mirror images, so a swap is **invisible to the
+acceptance test** — which counts two buckets either way. Treat the direction
+as load-bearing.
+
+**Testing is split by concern (user-directed 2026-07-25).** Path extraction
+and placement are tested separately: the #232 test asserts *only* which paths
+land in `pairs` / `gitOrphans` / `diskOrphans` — no `axisPx`, no timestamps,
+no ruler data — and #240 covers vertical placement on its own.
+
+- Verify: **acceptance test (user-defined) — point `dir` at a folder of files and `repo` at an unrelated repo; the timeline shows exactly the two orphan bucket widgets and zero pair widgets.** Path test (#232, paths only): a partial-overlap fixture yields the right three sets, and the unrelated-repo case yields empty `pairs` with every repo path in `gitOrphans` and every disk path in `diskOrphans`. Placement test (#240): pair widget offset = its first commit, node offsets within a widget, buckets at their earliest member, capped-gap rule end to end (5-hour gap → 12.5 px, 6-week gap → exactly 24 px, order preserved), and a disk orphan predating the first commit landing at 0. Unit tests: disk walk excludes `.git`/`node_modules`/gitignored paths. DOM test (#237): widgets, nodes and buckets render at the offsets the endpoint supplies.
+- Tasks: #230, #231, #232, #233, #234, #235, #236, #237, #238, #239, #240
+- Status: open (milestone — all other open tasks deferred behind it). Done 2026-07-25, staged: #230 (`walkCurrentFileState`, jfred/src/layer1_disk_walk.ts), #231 (`listRepoTreeAtRef`, jfred/src/layer1_repo_tree.ts), #234 (`resolveInstantOffsets` + the locked 2.5 px/hr and 24 px constants, jfred/src/layer1_ruler_axis.ts) and #236 (the picker already shipped in jfred/src/viewer_server.ts; its server test now drives both branches through a fake `osascript` on the child's PATH — kept a GET, not the POST the task named, since it is side-effect-free and webapp/app-header.ts already calls it that way). Also done 2026-07-25, jfred@7e0c9c2: #232 (`pairDiskFilesAgainstRepoPaths`, jfred/src/layer1_pairing.ts — exact relative-path join emitting the user-settled shape `{ pairs, gitOrphans, diskOrphans }`, the rename to those names being a follow-up staged on top of that commit; an empty bucket is an empty list, so "omitted when empty" is the renderer reading that emptiness rather than the joiner encoding it. Its test asserts PATHS ONLY per the 2026-07-25 split — placement is #240), #233 (`listPairCommitHistory`, jfred/src/layer1_commit_history.ts — layered_git_beacons.ts's `listCommitsTouchingFile` was EXPORTED and re-typed to `Path` rather than a second git-log reader being written; Layer 1 drops the blob read, so unlike a Layer-2 beacon a delete-commit still counts as a touch) and #239 (see the S8 entry above). Remaining: #235 (now unblocked), #237, #238, #240.
 - Supersedes: task #221 ("timeline bubble reading 'no snapshots available' for files with no snapshots and no commit reference"), removed from tasks.json 2026-07-25 — such a file is now a member of the "No repository match" bucket, which carries the same information without a per-file empty widget.
 - Known cosmetic issue, deliberately not solved: at 2.5 px/hr two commits ~20 minutes apart resolve under 1 px and their 15 px dots overlap. There is a cap on gaps but no floor. Add a minimum spacing only if real data makes it unreadable.

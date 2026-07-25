@@ -1,45 +1,5 @@
 [
   {
-    "taskNumber": 232,
-    "title": "Layer 1: pair by relative path, classify the two orphan sets",
-    "description": "S18. Join the task-230 `current file state` against the task-231 `starting repository state` on exact relative path (same name AND same path relative to each list's own root). Emit three results: the PAIRS (each becomes a file widget), the repo-only paths (the \"No on-disk match\" bucket) and the disk-only paths (the \"No repository match\" bucket). Buckets are omitted when empty. Unit test: a fixture where some paths match and some do not yields the right three sets; the critical case is an UNRELATED repo — zero pairs, every repo path in one bucket and every disk path in the other (this is the core of the task-238 acceptance test). Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
-    "taskNumber": 233,
-    "title": "Layer 1: per-pair commit history (one node per touching commit)",
-    "description": "S18. For each pair from task 232, walk the repo's git history and collect the commits that touched that path, each with its hash and committer instant. A commit that did not touch the file contributes NOTHING to that pair — no empty node. Plain `git log`, NO `--follow`: rename tracking belongs to S6, so a renamed file legitimately shows the shorter history for now. Committer time (not author time) per the one-machine-one-clock decision, widened to ms. Unit test with a fixture repo: a file touched by 2 of 4 commits gets exactly 2 entries in commit order; author time is never used. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions) — src/layered_git_beacons.ts already reads per-commit blob evidence, so extend/reuse it rather than writing a second git-log reader"
-  },
-  {
-    "taskNumber": 235,
-    "title": "Layer 1: GET /api/layer1-view?dir=&repo=&ref= endpoint",
-    "description": "S18. New server endpoint BESIDE the existing /api/layered-graph — not a change to it. Takes `dir` (project folder), `repo` (git repo) and optional `ref` (hash or branch), runs tasks 230-234, and serializes the Layer 1 View: the pairs with their commit nodes and on-disk node, the two orphan buckets, and every instant already resolved to its pixel offset (--axis-px values, per task 234). Reads NO JSONL — Layer 1 is disk-plus-git only, which is what makes the task-238 acceptance test meaningful (it cannot accidentally pass on JSONL data). Validate both paths at the trust boundary: missing/non-existent dir, non-repo repo path and invalid ref each return a clear error the page can display, never a stack trace. Server test: a fixture dir + fixture repo returns the expected pairs/buckets; a bad ref returns the error shape. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions) — src/viewer_api_layered.ts is the pattern to follow",
-    "blockedBy": [
-      232,
-      233
-    ]
-  },
-  {
-    "taskNumber": 237,
-    "title": "Layer 1: webapp page — source inputs, ruler, pair widgets, orphan buckets",
-    "description": "S18. Render the Layer 1 View per plans/layer1-mockup.html, whose styling the user signed off on 2026-07-25 (it lifts the tokens, header, ruler, .filebox and .node styling from plans/mvp-app-mockup.html). Header carries the whole input surface: a Project folder box and a Git repo box each with an [Open...] button (task 236), an optional Commit/branch box, and a Load button; all three values mirror into the URL as ?dir=&repo=&ref= so a view is one shareable link. Body: the left ruler with its ticks, one widget per pair offset to its first commit (a commit node per touching commit, then the double-ringed on-disk node), and the two orphan bucket widgets, each a plain file list showing each member's own timestamp and placed at its EARLIEST member's instant. Empty buckets are omitted. Positions come from the server as pixel offsets (task 234/235) — the page does no layout math. DOM test per S18. Spec: specs/from-scratch-SPEC.md S18; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      235
-    ]
-  },
-  {
-    "taskNumber": 238,
-    "title": "Layer 1 ACCEPTANCE TEST: unrelated repo yields 2 buckets and 0 pairs",
-    "description": "S18, user-defined acceptance criterion for the whole milestone: point `dir` at a folder of files and `repo` at a SEPARATE, UNRELATED git repo; the timeline must show exactly the two orphan bucket widgets — every disk file under \"No repository match\", every repo file under \"No on-disk match\" — and ZERO pair widgets. Build it as a real end-to-end test over a fixture folder plus an unrelated fixture repo, exercising the actual endpoint and the actual page render, not the pairing function alone. This is the milestone's definition of done: when it passes, the Layer 1 View works for any project the user points the webapp at. Spec: specs/from-scratch-SPEC.md S18; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      237
-    ]
-  },
-  {
-    "taskNumber": 239,
-    "title": "Migrate S8 widgets and #208 corroboration lines from --axis-ms to --axis-px",
-    "description": "S18 consequence. S8 currently has JS emit raw milliseconds (--axis-ms / --axis-span-ms) and CSS multiply by a fixed --axis-scale. S18's capped-gap ruler ACCUMULATES — position i depends on every earlier gap — so it cannot be expressed that way. Move webapp/layered-app.ts, webapp/layered-styles.css and the task-208 .layered-corroboration lines onto the precomputed --axis-px offsets from task 234, so the whole app shares one axis. The division of labor is unchanged and must stay that way: exactly one number crosses the JS-to-CSS boundary and CSS still does the placing — do NOT introduce a JS layout pass, and do NOT import from src/ into webapp/ (tsconfig.webapp.json pins rootDir to webapp). Existing tests in tests/layered-app.test.ts and tests/layered-app-widgets.test.ts must be updated and stay green. Spec: specs/from-scratch-SPEC.md S8 (superseded-in-part note) and S18"
-  },
-  {
     "taskNumber": 7,
     "title": "jot repo: `terminal_windowSizeBlocks(s)` enum refactor",
     "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. 7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** — DEFERRED UNTIL ALL other tasks are done.`/Users/matkatmusicllc/Programming/jot`\n  (separate repo); `grep -rn \"windowSizeBlocks\"`. Not a RevEng change."
@@ -155,5 +115,34 @@
     "title": "Extend the task-224 seed clamp to the two sibling backup stampers (needs a reproducer first)",
     "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. Task-224 follow-up (2026-07-25): task 224 fixed the non-monotonic ladder by giving backup-sourced seeds a two-sided placement window via clampSeedBetweenPreviousAndEdit (jfred/src/reconstruction_sidecar.ts), but wired it into ONE proven site — seedStaleEditBases in jfred/src/reconstruction_reseed.ts. Two sibling stampers apply the identical `timestamp: <backupTime>` pattern and therefore share the defect CLASS: backupAfterWriteFor (reconstruction_sidecar.ts:90-96, used by reversedEditBaseSeed at reconstruction_reseed.ts:157) and backupWritesFor (reconstruction_sidecar.ts:116-122, used at reconstruction_beacons.ts:158 and via latestBackupWriteFor at reconstruction_beacons.ts:56). They were deliberately NOT changed: completeElidedBeacons and completeTruncatedBeacon are load-bearing for many character-locked scenarios (S27, S28, S30 among others) and already carry their own retiming logic — completeElidedBeacons re-times the BEACON backward when its seed precedes it — so extending the clamp without a reproducer risks breaking locked ground truths to fix a defect nobody has observed. REQUIRE a reproducing scenario that shows one of these two stampers emitting an out-of-order seed BEFORE changing them; then reuse the existing clamp and run the full suite.",
     "blockedBy": []
+  },
+  {
+    "taskNumber": 235,
+    "title": "Layer 1: GET /api/layer1-view?dir=&repo=&ref= endpoint",
+    "description": "S18. New server endpoint BESIDE the existing /api/layered-graph — not a change to it. Takes `dir` (project folder), `repo` (git repo) and optional `ref` (hash or branch), runs tasks 230-234, and serializes the Layer 1 View: the pairs with their commit nodes and on-disk node, the two orphan buckets, and every instant already resolved to its pixel offset (--axis-px values, per task 234). PASS THE TASK-232 PROPERTY NAMES THROUGH UNCHANGED — `pairs`, `gitOrphans` (repo paths with no on-disk counterpart), `diskOrphans` (disk paths with no repo entry); the endpoint adds axisPx and node detail but must not rename or invert them. Reads NO JSONL — Layer 1 is disk-plus-git only, which is what makes the task-238 acceptance test meaningful (it cannot accidentally pass on JSONL data). Validate both paths at the trust boundary: missing/non-existent dir, non-repo repo path and invalid ref each return a clear error the page can display, never a stack trace. Server test: a fixture dir + fixture repo returns the expected pairs/buckets; a bad ref returns the error shape. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions) — src/viewer_api_layered.ts is the pattern to follow"
+  },
+  {
+    "taskNumber": 237,
+    "title": "Layer 1: webapp page — source inputs, ruler, pair widgets, orphan buckets",
+    "description": "S18. Render the Layer 1 View per plans/layer1-mockup.html, whose styling the user signed off on 2026-07-25 (it lifts the tokens, header, ruler, .filebox and .node styling from plans/mvp-app-mockup.html). Header carries the whole input surface: a Project folder box and a Git repo box each with an [Open...] button (task 236), an optional Commit/branch box, and a Load button; all three values mirror into the URL as ?dir=&repo=&ref= so a view is one shareable link. Body: the left ruler with its ticks, one widget per pair offset to its first commit (a commit node per touching commit, then the double-ringed on-disk node), and the two orphan bucket widgets, each a plain file list showing each member's own timestamp and placed at its EARLIEST member's instant. Empty buckets are omitted. Positions come from the server as pixel offsets (task 234/235) — the page does no layout math. DOM test per S18. Spec: specs/from-scratch-SPEC.md S18; reuse as much existing engine code as possible (Key Decisions)",
+    "blockedBy": [
+      235
+    ]
+  },
+  {
+    "taskNumber": 238,
+    "title": "Layer 1 ACCEPTANCE TEST: unrelated repo yields 2 buckets and 0 pairs",
+    "description": "S18, user-defined acceptance criterion for the whole milestone: point `dir` at a folder of files and `repo` at a SEPARATE, UNRELATED git repo; the timeline must show exactly the two orphan bucket widgets — every disk file under \"No repository match\", every repo file under \"No on-disk match\" — and ZERO pair widgets. Build it as a real end-to-end test over a fixture folder plus an unrelated fixture repo, exercising the actual endpoint and the actual page render, not the pairing function alone. This is the milestone's definition of done: when it passes, the Layer 1 View works for any project the user points the webapp at. Spec: specs/from-scratch-SPEC.md S18; reuse as much existing engine code as possible (Key Decisions)",
+    "blockedBy": [
+      237
+    ]
+  },
+  {
+    "taskNumber": 240,
+    "title": "Layer 1: axisPx vertical-placement test (split out of the task-232 path test)",
+    "description": "S18. The task-232 test deliberately asserts PATHS ONLY — what gets extracted, matched and orphaned — because the user split placement off as its own concern (2026-07-25). This task is that separate test: assert the axisPx values the endpoint emits actually place things correctly on the capped-gap ruler. Cover: a pair widget's axisPx equals its FIRST commit's position; each commit node and the on-disk node carry the right offset within their widget; each orphan bucket sits at its EARLIEST member's instant; the capped-gap rule holds end to end (a 5-hour gap renders 12.5 px, a 6-week gap exactly 24 px, ordering preserved); and a disk orphan whose mtime predates the first commit lands at position 0 and moves the ruler start. Task 234 already unit-tests the resolver in isolation — this test covers the wiring from real fixture data through the endpoint, which is where an off-by-one anchor or a forgotten widget-relative subtraction would actually show up. DOM-level placement is covered separately by the task-237 DOM test. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html",
+    "blockedBy": [
+      235
+    ]
   }
 ]

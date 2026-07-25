@@ -2119,5 +2119,35 @@
     "completionDate": "2026-07-25",
     "commitHashes": [],
     "closureNote": "Closed 2026-07-25: the endpoint already shipped in jfred/src/viewer_server.ts (osascript + POSIX path of, cancel returns an empty path, wired from webapp/app-header.ts); the missing server test now lives in tests/viewer_server.test.ts, driving both branches through a fake osascript on the child's PATH so no GUI dialog opens. Kept as a GET rather than the POST the task named, since it is side-effect-free and the client already calls it that way (staged, not yet committed)."
+  },
+  {
+    "taskNumber": 232,
+    "title": "Layer 1: pair by relative path, classify the two orphan sets",
+    "description": "S18. Join the task-230 `current file state` against the task-231 `starting repository state` on exact relative path (same name AND same path relative to each list's own root). Emit three results: the PAIRS (each becomes a file widget), the repo-only paths (the \"No on-disk match\" bucket) and the disk-only paths (the \"No repository match\" bucket). Buckets are omitted when empty. OUTPUT SHAPE (user-settled 2026-07-25) — the engine emits JSON with exactly these three property names, and they are the names the webapp renders: `pairs` (paths present in BOTH), `gitOrphans` (paths in the repo with NO on-disk counterpart — the \"No on-disk match\" widget), `diskOrphans` (paths on disk with NO repo entry — the \"No repository match\" widget). Do not rename or invert these: the two orphan sets read as mirror images and a swap is invisible to the task-238 acceptance test, which only counts two buckets either way. REQUIRED TEST (user-requested 2026-07-25): assert the emitted JSON's `pairs` / `gitOrphans` / `diskOrphans` contain exactly the expected PATHS — this test is strictly about what gets extracted, matched and orphaned. Assert paths only: no axisPx, no timestamps, no ruler data (vertical placement gets its own separate test). Cover a fixture with partial overlap, and the critical UNRELATED-repo case — `pairs` empty, every repo path in `gitOrphans`, every disk path in `diskOrphans` (this is the core of the task-238 acceptance test). Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-25",
+    "commitHashes": [
+      "7e0c9c2"
+    ],
+    "closureNote": "Closed 2026-07-25: pairDiskFilesAgainstRepoPaths in jfred/src/layer1_pairing.ts joins the disk walk against the repo tree on exact relative path and emits the settled shape { pairs, gitOrphans, diskOrphans } (renamed mid-task when the description was revised to pin those names). tests/layer1_pairing.test.ts asserts PATHS ONLY per the user split - partial overlap, same-basename-at-a-different-path, identical trees, and the unrelated-repo case that seeds task 238; vertical placement is task 240 (engine + tests in jfred@7e0c9c2; the gitOrphans/diskOrphans rename is a follow-up staged on top, since the description pinning those names landed after the first implementation)."
+  },
+  {
+    "taskNumber": 233,
+    "title": "Layer 1: per-pair commit history (one node per touching commit)",
+    "description": "S18. For each pair from task 232, walk the repo's git history and collect the commits that touched that path, each with its hash and committer instant. A commit that did not touch the file contributes NOTHING to that pair — no empty node. Plain `git log`, NO `--follow`: rename tracking belongs to S6, so a renamed file legitimately shows the shorter history for now. Committer time (not author time) per the one-machine-one-clock decision, widened to ms. Unit test with a fixture repo: a file touched by 2 of 4 commits gets exactly 2 entries in commit order; author time is never used. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions) — src/layered_git_beacons.ts already reads per-commit blob evidence, so extend/reuse it rather than writing a second git-log reader",
+    "completionDate": "2026-07-25",
+    "commitHashes": [
+      "7e0c9c2"
+    ],
+    "closureNote": "Closed 2026-07-25: listPairCommitHistory in jfred/src/layer1_commit_history.ts returns one node per touching commit as { hash, instant }. Per the reuse decision no second git-log reader was written - layered_git_beacons.ts listCommitsTouchingFile was exported and re-typed to Path, and Layer 1 simply drops the blob read, so unlike a Layer-2 beacon a delete-commit still counts as a touch. tests/layer1_commit_history.test.ts pins author time to 2020 and committer time to 2026 so an author-time read would fail, plus a rename case proving the no---follow shorter history (jfred@7e0c9c2)."
+  },
+  {
+    "taskNumber": 239,
+    "title": "Migrate S8 widgets and #208 corroboration lines from --axis-ms to --axis-px",
+    "description": "S18 consequence. S8 currently has JS emit raw milliseconds (--axis-ms / --axis-span-ms) and CSS multiply by a fixed --axis-scale. S18's capped-gap ruler ACCUMULATES — position i depends on every earlier gap — so it cannot be expressed that way. Move webapp/layered-app.ts, webapp/layered-styles.css and the task-208 .layered-corroboration lines onto the precomputed --axis-px offsets from task 234, so the whole app shares one axis. The division of labor is unchanged and must stay that way: exactly one number crosses the JS-to-CSS boundary and CSS still does the placing — do NOT introduce a JS layout pass, and do NOT import from src/ into webapp/ (tsconfig.webapp.json pins rootDir to webapp). Existing tests in tests/layered-app.test.ts and tests/layered-app-widgets.test.ts must be updated and stay green. Spec: specs/from-scratch-SPEC.md S8 (superseded-in-part note) and S18",
+    "completionDate": "2026-07-25",
+    "commitHashes": [
+      "7e0c9c2"
+    ],
+    "closureNote": "Closed 2026-07-25: jfred/src/viewer_api_layered.ts now runs task 234 resolveInstantOffsets over the whole graph and ships axisOffsetsPx (every instant keyed by the same ISO text its nodes carry) beside corroboratedInstants, since webapp/ may not import src/. webapp/layered-app.ts looks an offset up and emits --axis-px / --axis-span-px; --axis-scale is gone from layered-styles.css, which still owns every placement rule - so no JS layout pass and no cross-boundary import. tests/layered-app-widgets.test.ts, tests/layered-app.test.ts and tests/viewer_api_layered.test.ts updated and green (jfred@7e0c9c2)."
   }
 ]
