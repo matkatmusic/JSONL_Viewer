@@ -2149,5 +2149,13 @@
       "7e0c9c2"
     ],
     "closureNote": "Closed 2026-07-25: jfred/src/viewer_api_layered.ts now runs task 234 resolveInstantOffsets over the whole graph and ships axisOffsetsPx (every instant keyed by the same ISO text its nodes carry) beside corroboratedInstants, since webapp/ may not import src/. webapp/layered-app.ts looks an offset up and emits --axis-px / --axis-span-px; --axis-scale is gone from layered-styles.css, which still owns every placement rule - so no JS layout pass and no cross-boundary import. tests/layered-app-widgets.test.ts, tests/layered-app.test.ts and tests/viewer_api_layered.test.ts updated and green (jfred@7e0c9c2)."
+  },
+  {
+    "taskNumber": 235,
+    "title": "Layer 1: GET /api/layer1-view?dir=&repo=&ref= endpoint",
+    "description": "S18. New server endpoint BESIDE the existing /api/layered-graph — not a change to it. Takes `dir` (project folder), `repo` (git repo) and optional `ref` (hash or branch), runs tasks 230-234, and serializes the Layer 1 View: the pairs with their commit nodes and on-disk node, the two orphan buckets, and every instant already resolved to its pixel offset (--axis-px values, per task 234). PASS THE TASK-232 PROPERTY NAMES THROUGH UNCHANGED — `pairs`, `gitOrphans` (repo paths with no on-disk counterpart), `diskOrphans` (disk paths with no repo entry); the endpoint adds axisPx and node detail but must not rename or invert them. Reads NO JSONL — Layer 1 is disk-plus-git only, which is what makes the task-238 acceptance test meaningful (it cannot accidentally pass on JSONL data). Validate both paths at the trust boundary: missing/non-existent dir, non-repo repo path and invalid ref each return a clear error the page can display, never a stack trace. Server test: a fixture dir + fixture repo returns the expected pairs/buckets; a bad ref returns the error shape. Spec: specs/from-scratch-SPEC.md S18; mockup: plans/layer1-mockup.html; reuse as much existing engine code as possible (Key Decisions) — src/viewer_api_layered.ts is the pattern to follow",
+    "completionDate": "2026-07-25",
+    "commitHashes": [],
+    "closureNote": "Implemented as GET /api/layer1-view in jfred/src/viewer_api_layer1.ts (routed in jfred/src/viewer_server.ts): composes the five layer1_* modules, passes pairs/gitOrphans/diskOrphans through unchanged while adding per-node axisPx plus a ruler array, validates dir/repo/ref at the trust boundary as 400s with no stack, and is covered by tests/viewer_api_layer1.test.ts; the shared listCommitsTouchingFile gained an optional ref (spawnSync argument-array form) so a URL-supplied ref never reaches a shell."
   }
 ]
