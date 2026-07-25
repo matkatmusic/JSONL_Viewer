@@ -1984,5 +1984,13 @@
       "jfred@05c305c"
     ],
     "closureNote": "Implemented and committed at jfred@05c305c: layered_anchor.ts anchor selection per evidence class + pre-anchor stub byte-op refusal, Edit-originalFile and complete-Read-echo beacon promotion in layered_load.ts, unit tests in tests/layered_anchor.test.ts."
+  },
+  {
+    "taskNumber": 199,
+    "title": "Layer 1: on-disk end-state node + presumed-user-edit gap nodes",
+    "description": "S2. Append the on-disk end state as the final node; between every adjacent pair with unexplained differing content insert a presumed-user-edit gap node (Q8 invariant: never invent an attribution). Unit tests: end-state node present; gap nodes appear only between differing verified states. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "completionDate": "2026-07-25",
+    "commitHashes": [],
+    "closureNote": "Validated by full npm test pass plus real-data smoke over the 156-transcript jot backup (772 entities/1360 timelines in ~2.5s, 0 gap-adjacency violations); implementation staged in jfred (layered_end_state.ts + loader wiring + hardening fixes), uncommitted at closure."
   }
 ]

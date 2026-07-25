@@ -58,17 +58,9 @@
     ]
   },
   {
-    "taskNumber": 199,
-    "title": "Layer 1: on-disk end-state node + presumed-user-edit gap nodes",
-    "description": "S2. Append the on-disk end state as the final node; between every adjacent pair with unexplained differing content insert a presumed-user-edit gap node (Q8 invariant: never invent an attribution). Unit tests: end-state node present; gap nodes appear only between differing verified states. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
-  },
-  {
     "taskNumber": 202,
     "title": "Multi-session merged view + corroboration marks",
-    "description": "S5. Merge per-session SessionTimelines into one derived view per ReconstructionEntity, nodes ordered by Instant; mark nodes where multiple sessions observed the same bytes as corroborating (input for dashed cross-lane lines). Unit test: interleave by Instant; corroboration mark on same-bytes nodes; single-session degenerate case. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
-    "blockedBy": [
-      199
-    ]
+    "description": "S5. Merge per-session SessionTimelines into one derived view per ReconstructionEntity, nodes ordered by Instant; mark nodes where multiple sessions observed the same bytes as corroborating (input for dashed cross-lane lines). Unit test: interleave by Instant; corroboration mark on same-bytes nodes; single-session degenerate case. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)"
   },
   {
     "taskNumber": 203,

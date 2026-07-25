@@ -96,7 +96,7 @@ end state is the final node; every adjacent pair with unexplained differing
 content gets a presumed-user-edit gap node.
 - Verify: unit tests — anchor chosen correctly per evidence class; stub byte-op refusal; end-state node present; gap nodes appear only between differing verified states.
 - Tasks: #198, #199
-- Status: done pending validation (#198 done 2026-07-24, jfred@05c305c — anchor selection + byte-op refusal in layered_anchor.ts, Edit-originalFile + complete-Read-echo beacon classes in layered_load.ts; #199 implemented 2026-07-24, staged — layered_end_state.ts end-state + presumption-gap completion, wired per session timeline in layered_load.ts)
+- Status: done (#198 done 2026-07-24, jfred@05c305c — anchor selection + byte-op refusal in layered_anchor.ts, Edit-originalFile + complete-Read-echo beacon classes in layered_load.ts; #199 done 2026-07-25, staged — layered_end_state.ts end-state + presumption-gap completion wired per session timeline, validated by npm test + real-jot smoke)
 
 ### S3. Layer 2 — commit beacons
 Given a repo path, each commit touching a file contributes a verified beacon
