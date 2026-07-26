@@ -117,21 +117,9 @@
     "blockedBy": []
   },
   {
-    "taskNumber": 245,
-    "title": "Layer 1 View: long file names overflow their bubble and collide with neighbours",
-    "description": "Layer 1 View visual fix (2026-07-25, user feedback on jfred/webapp/layer1.html + jfred/webapp/layer1-page.ts). Long file names need addressing: the file-name label renders at full width regardless of the bubble it sits in, so it spills past the bubble's rounded border and overprints the labels of the widgets on either side. See specs/bug screenshots/'colliding filenames, commit nodes overlapping text.png' — four adjacent 'archive/interim-run-scenario/...' widgets whose names run into each other, and specs/bug screenshots/'on-disk above timeline bubble 2.png' — six 'demo-baseline/file-hist...' widgets with the same overlap. Decide and implement a treatment (truncate with a middle or leading ellipsis and a full-path hover title, wrap to a bounded number of lines, or widen the widget to fit) and make the bubble box actually contain the label.",
-    "blockedBy": []
-  },
-  {
     "taskNumber": 246,
     "title": "Layer 1 View: add a minimap of the whole render showing the current viewport",
     "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Add a minimap of the entire render so it is easy to see where in the timeline view the user is currently looking. PLACEMENT: the minimap lives in the LOWER-LEFT CORNER of the timeline pane (user, 2026-07-25) — it must be pinned to the viewport corner, not to the scrolling canvas, so it stays put while the canvas scrolls under it. Motivation: the scroll bars only appear while the view is actively being scrolled, so at rest there is no indication of position within a render that is far larger than the viewport in both axes. The minimap should show the full extent of the canvas and a movable/indicative viewport rectangle, and should stay correct under the zoom control added in task 242 (jfred/webapp/layer1-zoom.ts, native CSS `zoom` on `.canvas`). Design reference: plans/layer1-mockup.html renders it as a `.minimap` block absolutely positioned in a non-scrolling wrapper around the scroll container, with one scaled rect per widget plus a `.mm-view` viewport rect driven by scrollLeft/scrollTop, and click-to-scroll.",
-    "blockedBy": []
-  },
-  {
-    "taskNumber": 247,
-    "title": "Layer 1 View: commit node collides with the text beside it",
-    "description": "Layer 1 View visual bug (2026-07-25, user feedback on jfred/webapp/layer1.html + jfred/webapp/layer1-page.ts). The commit node marker (the blue square) and its short-hash label collide with other text inside the bubble — in the screenshots the 8-char hash is drawn directly on top of the 'on disk' label. Evidence: specs/bug screenshots/'colliding filenames, commit nodes overlapping text.png' (`5636d8ec` overprinting 'on disk'), specs/bug screenshots/'squashed bubble contents colliding.png' (`cedcc5cc` overprinting 'on disk'), and specs/bug screenshots/'on-disk above timeline bubble.png' (`08809914` overprinting 'on disk'). Give the commit node and the on-disk node their own non-overlapping rows/lanes inside the bubble.",
     "blockedBy": []
   },
   {
@@ -147,16 +135,9 @@
     "blockedBy": []
   },
   {
-    "taskNumber": 250,
-    "title": "Layer 1 View: draw a horizontal dashed leader line from the top of each file bubble to the ruler",
-    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Add a horizontal dashed line that connects the top of each file bubble back to the ruler, so the reader can trace a bubble to its timestamp on the sticky ruler gutter without eyeballing the vertical position. The ruler is the sticky flex column added in the S18 feedback batch (`.ruler { position: sticky; left: 0 }` inside the zoomed `.canvas`) — the leader must render correctly under the zoom control and while the canvas is horizontally scrolled.",
-    "blockedBy": []
-  },
-  {
     "taskNumber": 251,
     "title": "Layer 1 View: size ruler spacing from measured bubble height instead of a fixed gap",
-    "description": "Layer 1 View layout fix (2026-07-25, user feedback on jfred/webapp/layer1.html). The contents of bubbles get squished because the ruler spacing is fixed: every ruler entry is allotted the same vertical gap regardless of how much a bubble needs to show. Evidence: specs/bug screenshots/'squashed bubble contents colliding.png' — a bubble whose file name, commit hash and 'on disk' rows are all crushed into two overprinted lines. Build a mechanism that computes how tall a bubble needs to be in order to show everything it contains (file name, all commit nodes, all on-disk nodes), and use that computed height to drive the spacing of each ruler entry rather than the current fixed pitch. Note the S18 feedback batch already added a ruler gap FLOOR and CAP (jfred/src/layer1_ruler_axis.ts) — this task replaces the floor heuristic with a real content measurement. Depends on the collision fixes so the measurement reflects the final bubble layout.",
-    "blockedBy": [245, 247]
+    "description": "Layer 1 View layout fix (2026-07-25, user feedback on jfred/webapp/layer1.html). The contents of bubbles get squished because the ruler spacing is fixed: every ruler entry is allotted the same vertical gap regardless of how much a bubble needs to show. Evidence: specs/bug screenshots/'squashed bubble contents colliding.png' — a bubble whose file name, commit hash and 'on disk' rows are all crushed into two overprinted lines. Build a mechanism that computes how tall a bubble needs to be in order to show everything it contains (file name, all commit nodes, all on-disk nodes), and use that computed height to drive the spacing of each ruler entry rather than the current fixed pitch. Note the S18 feedback batch already added a ruler gap FLOOR and CAP (jfred/src/layer1_ruler_axis.ts) — this task replaces the floor heuristic with a real content measurement. Depends on the collision fixes so the measurement reflects the final bubble layout."
   },
   {
     "taskNumber": 252,
@@ -168,19 +149,25 @@
     "taskNumber": 253,
     "title": "Layer 1 View: clicking a folder in File Nav filters the timeline to that folder's files",
     "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Clicking a folder in the File Nav pane should make the timeline show ONLY the bubbles for files in that folder, including files in nested subfolders. This is the timeline's content filter. The timeline's height and width must also resize to the timestamp range of the SELECTED files only — i.e. the ruler is recomputed over the filtered set, not left at the full-project range. NOTE: the reused component (task 252) has NO folder-click handler today — `FileTreeCallbacks` in jfred/webapp/views/sidebar.ts carries only `onFileClick`, and a folder renders as a bare `<summary class=\"file-folder-name\">` inside a native `<details>`. This task must add an optional folder callback to that type and wire it in `renderFileTreeNode` WITHOUT breaking the two existing callers (views/timeline.ts:211 and views/details.ts:130), and without swallowing the `<details>` element's own native expand/collapse toggle on the same click.",
-    "blockedBy": [252]
+    "blockedBy": [
+      252
+    ]
   },
   {
     "taskNumber": 254,
     "title": "Layer 1 View: add a way to deselect the folder filter and show all files again",
     "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Follow-up to task 253: there must also be a mechanism to 'deselect' the currently selected folder so that all files are shown in the timeline again (and the ruler returns to the full timestamp range).",
-    "blockedBy": [253]
+    "blockedBy": [
+      253
+    ]
   },
   {
     "taskNumber": 255,
     "title": "Layer 1 View: shift-click folders in File Nav to select more than one",
     "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Follow-up to task 253: shift-clicking folders in the File Nav pane should select more than one folder at a time, and the timeline should display all files found in any of the selected folders, including nested subfolders. The timeline range resize from task 253 applies to the union of the selected folders.",
-    "blockedBy": [253]
+    "blockedBy": [
+      253
+    ]
   },
   {
     "taskNumber": 256,
@@ -193,5 +180,17 @@
     "title": "Detail View drawer: clicking a commit node or on-disk node shows the file contents at that moment",
     "description": "Layer 1 View feature, PROBABLY BELONGS TO A LATER LAYER — the user flagged it as 'probably a feature for another layer' (2026-07-25 feedback on jfred/webapp/layer1.html). Clicking a commit node or an on-disk node should make the Detail View drawer appear over the right half of the screen and show the contents of that file at that moment. For git nodes, use the appropriate git command to show the file from that commit (e.g. `git show <hash>:<path>`). For on-disk nodes, only enable clicking the node if it is the MOST RECENT on-disk node — not the 'created at' node — UNLESS the 'created at' node IS the most recent node (that is, modified timestamp == created-at timestamp). Confirm the target layer/spec section before implementing; this may need to be re-filed against a later spec item rather than S18.",
     "blockedBy": []
+  },
+  {
+    "taskNumber": 258,
+    "title": "Re-center the clicked node in the timeline area that survives after the inspector opens",
+    "description": "User request 2026-07-25, in their own wording: \"when the inspector is displayed, the clicked node should center itself in the displayed timeline area (an area which shrank because the detail view was shown)\". Opening the inspector reveals/grows the details pane, which reflows the split and SHRINKS the timeline pane, so the row the user just clicked can end up off-screen or under the pane edge — the click's own target is what they lose sight of. Centering must run against the POST-reflow layout, never the pre-open one. PRIMARY SITE (jfred/webapp): `openNodeInspector` in webapp/views/timeline-render-inspectors.ts:179 — the opener shared by the `{ }` row buttons and DetailsContext.openNodeInspector — calls through to `openInspectorPane` (webapp/inspector.ts:64), which calls `revealDetailsPane()` and thereby shrinks the timeline, but performs NO scroll afterwards. Note its existing comment: it \"deliberately does NOT re-call selectTimelineRow ... reopening the selection would loop\" — so the fix is a bare re-center of the already-selected row, NOT a selectTimelineRow call, or the loop that comment guards against comes back. Two places already get this right and are the pattern to copy: `selectTimelineRow` (webapp/views/timeline-render-selection.ts:33) ends with `row.scrollIntoView({ block: \"center\" })` AFTER awaiting the details render (\"item 50\"), and the `/at/<n>` deep-link path (webapp/views/timeline.ts:246) opens the inspector and only THEN center-scrolls (\"item 37 ordering\"). SECOND SURFACE: the same rule applies to the Layer 1 Detail View drawer in task 257, which shrinks the timeline HORIZONTALLY rather than vertically — there the clicked node must center in the remaining left half, so the scroll is on the inline axis, not the block axis. Confirm with the user whether 258 covers both surfaces or only the existing webapp before implementing.",
+    "blockedBy": []
+  },
+  {
+    "taskNumber": 259,
+    "title": "Layer 1 View: group same-timestamp nodes in a bubble behind a visual indicator",
+    "description": "User request 2026-07-25, in their own wording: \"visual indicator of some kind in the timeline bubble when two events happen at the same timestamp. maybe a rounded rectangle is put around the same-time nodes\". WHY THIS IS REAL, NOT HYPOTHETICAL: a commit instant and a file's on-disk mtime routinely land on the SAME instant (a commit written and the working tree touched in the same second), and that tie is the mechanism behind the overprinting in specs/bug screenshots/'colliding filenames, commit nodes overlapping text.png' — `5636d8ec` drawn straight on top of `on disk`. Task 251 makes the tied nodes stop overlapping by giving each one its own row slot and charging the ruler for it, but once they are on separate rows NOTHING tells the reader they were simultaneous — the fix for the collision destroys the information. This task restores it: draw a rounded rectangle (or equivalent grouping affordance) around the run of nodes that share one instant, so the reader can see the rows are one moment rather than a sequence. The single tick that instant occupies on the ruler is the anchor the rectangle should read against. DESIGN REFERENCE: plans/layer1-mockup.html already computes exactly the grouping this needs — each node carries a `slot` index within its instant and `rowsAt` maps an instant to how many rows it needs; a run with `rowsAt > 1` is precisely a same-timestamp group. The fixture's README.md widget has a real tie (commit 4d5e6f70 and its mtime both at 2026-07-20T16:00:00Z), so the mockup can demonstrate the indicator without new test data. Implementation lands in jfred/webapp/layer1-page.ts plus the layer1.html style block.",
+    "blockedBy": [251]
   }
 ]
