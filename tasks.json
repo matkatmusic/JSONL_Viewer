@@ -115,5 +115,83 @@
     "title": "Extend the task-224 seed clamp to the two sibling backup stampers (needs a reproducer first)",
     "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. Task-224 follow-up (2026-07-25): task 224 fixed the non-monotonic ladder by giving backup-sourced seeds a two-sided placement window via clampSeedBetweenPreviousAndEdit (jfred/src/reconstruction_sidecar.ts), but wired it into ONE proven site — seedStaleEditBases in jfred/src/reconstruction_reseed.ts. Two sibling stampers apply the identical `timestamp: <backupTime>` pattern and therefore share the defect CLASS: backupAfterWriteFor (reconstruction_sidecar.ts:90-96, used by reversedEditBaseSeed at reconstruction_reseed.ts:157) and backupWritesFor (reconstruction_sidecar.ts:116-122, used at reconstruction_beacons.ts:158 and via latestBackupWriteFor at reconstruction_beacons.ts:56). They were deliberately NOT changed: completeElidedBeacons and completeTruncatedBeacon are load-bearing for many character-locked scenarios (S27, S28, S30 among others) and already carry their own retiming logic — completeElidedBeacons re-times the BEACON backward when its seed precedes it — so extending the clamp without a reproducer risks breaking locked ground truths to fix a defect nobody has observed. REQUIRE a reproducing scenario that shows one of these two stampers emitting an out-of-order seed BEFORE changing them; then reuse the existing clamp and run the full suite.",
     "blockedBy": []
+  },
+  {
+    "taskNumber": 245,
+    "title": "Layer 1 View: long file names overflow their bubble and collide with neighbours",
+    "description": "Layer 1 View visual fix (2026-07-25, user feedback on jfred/webapp/layer1.html + jfred/webapp/layer1-page.ts). Long file names need addressing: the file-name label renders at full width regardless of the bubble it sits in, so it spills past the bubble's rounded border and overprints the labels of the widgets on either side. See specs/bug screenshots/'colliding filenames, commit nodes overlapping text.png' — four adjacent 'archive/interim-run-scenario/...' widgets whose names run into each other, and specs/bug screenshots/'on-disk above timeline bubble 2.png' — six 'demo-baseline/file-hist...' widgets with the same overlap. Decide and implement a treatment (truncate with a middle or leading ellipsis and a full-path hover title, wrap to a bounded number of lines, or widen the widget to fit) and make the bubble box actually contain the label.",
+    "blockedBy": []
+  },
+  {
+    "taskNumber": 246,
+    "title": "Layer 1 View: add a minimap of the whole render showing the current viewport",
+    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Add a minimap of the entire render so it is easy to see where in the timeline view the user is currently looking. PLACEMENT: the minimap lives in the LOWER-LEFT CORNER of the timeline pane (user, 2026-07-25) — it must be pinned to the viewport corner, not to the scrolling canvas, so it stays put while the canvas scrolls under it. Motivation: the scroll bars only appear while the view is actively being scrolled, so at rest there is no indication of position within a render that is far larger than the viewport in both axes. The minimap should show the full extent of the canvas and a movable/indicative viewport rectangle, and should stay correct under the zoom control added in task 242 (jfred/webapp/layer1-zoom.ts, native CSS `zoom` on `.canvas`). Design reference: plans/layer1-mockup.html renders it as a `.minimap` block absolutely positioned in a non-scrolling wrapper around the scroll container, with one scaled rect per widget plus a `.mm-view` viewport rect driven by scrollLeft/scrollTop, and click-to-scroll.",
+    "blockedBy": []
+  },
+  {
+    "taskNumber": 247,
+    "title": "Layer 1 View: commit node collides with the text beside it",
+    "description": "Layer 1 View visual bug (2026-07-25, user feedback on jfred/webapp/layer1.html + jfred/webapp/layer1-page.ts). The commit node marker (the blue square) and its short-hash label collide with other text inside the bubble — in the screenshots the 8-char hash is drawn directly on top of the 'on disk' label. Evidence: specs/bug screenshots/'colliding filenames, commit nodes overlapping text.png' (`5636d8ec` overprinting 'on disk'), specs/bug screenshots/'squashed bubble contents colliding.png' (`cedcc5cc` overprinting 'on disk'), and specs/bug screenshots/'on-disk above timeline bubble.png' (`08809914` overprinting 'on disk'). Give the commit node and the on-disk node their own non-overlapping rows/lanes inside the bubble.",
+    "blockedBy": []
+  },
+  {
+    "taskNumber": 248,
+    "title": "Layer 1 View: explain (or fix) commit hashes rendered directly below a timeline bubble",
+    "description": "Layer 1 View question/bug (2026-07-25, user feedback on jfred/webapp/layer1.html). Sometimes commit hashes appear directly BELOW a timeline bubble rather than inside it, and it is not clear what that indicates — the user's guess is that it may mean the file was deleted. Determine what the renderer is actually doing in that case (see jfred/webapp/layer1-page.ts and the pairing/placement logic in jfred/src/layer1_pairing.ts and jfred/src/layer1_ruler_axis.ts), then either fix the placement so the node sits inside its bubble, or give it an explicit visual legend entry that states what an out-of-bubble commit node means.",
+    "blockedBy": []
+  },
+  {
+    "taskNumber": 249,
+    "title": "Layer 1 View: explain (or fix) 'on disk' rendered directly above a timeline bubble",
+    "description": "Layer 1 View question/bug (2026-07-25, user feedback on jfred/webapp/layer1.html). Sometimes an 'on disk' node with its ring marker appears directly ABOVE a timeline bubble instead of inside it, with no visual connection to the file it belongs to. Evidence: specs/bug screenshots/'on-disk above timeline bubble.png' (a lone 'on disk' at 07-21 01:12 above the 'archive/timeline-changes-retired-orphan-proxies.ts' bubble) and specs/bug screenshots/'on-disk above timeline bubble 2.png' (six free-floating 'on disk' nodes strung above a row of demo-baseline bubbles). Determine why the node lands outside its bubble (jfred/webapp/layer1-page.ts, jfred/src/layer1_pairing.ts, jfred/src/layer1_ruler_axis.ts) and either place it inside or make the association explicit. Related to task 248.",
+    "blockedBy": []
+  },
+  {
+    "taskNumber": 250,
+    "title": "Layer 1 View: draw a horizontal dashed leader line from the top of each file bubble to the ruler",
+    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Add a horizontal dashed line that connects the top of each file bubble back to the ruler, so the reader can trace a bubble to its timestamp on the sticky ruler gutter without eyeballing the vertical position. The ruler is the sticky flex column added in the S18 feedback batch (`.ruler { position: sticky; left: 0 }` inside the zoomed `.canvas`) — the leader must render correctly under the zoom control and while the canvas is horizontally scrolled.",
+    "blockedBy": []
+  },
+  {
+    "taskNumber": 251,
+    "title": "Layer 1 View: size ruler spacing from measured bubble height instead of a fixed gap",
+    "description": "Layer 1 View layout fix (2026-07-25, user feedback on jfred/webapp/layer1.html). The contents of bubbles get squished because the ruler spacing is fixed: every ruler entry is allotted the same vertical gap regardless of how much a bubble needs to show. Evidence: specs/bug screenshots/'squashed bubble contents colliding.png' — a bubble whose file name, commit hash and 'on disk' rows are all crushed into two overprinted lines. Build a mechanism that computes how tall a bubble needs to be in order to show everything it contains (file name, all commit nodes, all on-disk nodes), and use that computed height to drive the spacing of each ruler entry rather than the current fixed pitch. Note the S18 feedback batch already added a ruler gap FLOOR and CAP (jfred/src/layer1_ruler_axis.ts) — this task replaces the floor heuristic with a real content measurement. Depends on the collision fixes so the measurement reflects the final bubble layout.",
+    "blockedBy": [245, 247]
+  },
+  {
+    "taskNumber": 252,
+    "title": "Layer 1 View: add a File Nav tree to the left of the ruler listing every identified file",
+    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Add a File Nav pane on the left, to the LEFT of the sticky ruler gutter, that shows every identified file — including files that were deleted (i.e. files with no current on-disk presence must still be listed). REUSE THE EXISTING FILE NAV COMPONENT the current webapp (index.html) already ships — the user confirmed this 2026-07-25; do NOT write a second tree. The component is already shared by two callers, so a third is the intended extension point: `buildFileTree(files: FileSidebarEntry[]) -> FileTreeNode[]` in jfred/webapp/views/timeline-file-tree.ts (common-prefix stripping, folders-before-files sort, single-child chain collapse) and `renderFileTreeNode(node, callbacks, selectionRoot, coverage?)` in jfred/webapp/views/sidebar.ts (folder = native `<details open>`, leaf = `.file-item` with basename text and full path in `title`, `.file-item.deleted` variant already exists). Existing callers to copy from: views/timeline.ts:211 (the Files sidebar) and views/details.ts:130 (the details pane's \"Files touched\" tree, which passes no `coverage`). THREE TRAPS. (1) `buildFileTree` consumes `FileSidebarEntry` (timeline-file-tree.ts:13) built by `buildFilesSidebarViewModel` from a `WireTimelineDocument` — Layer 1 has NO such document, so the Layer 1 caller must construct its own `FileSidebarEntry[]`-shaped list from the /api/layer1-view payload (`pairs` + `gitOrphans` + `diskOrphans`), mapping revisionCount to the commit count and isDeleted to a path present in the repo tree but absent on disk; `originalPath` and `renameBadgeLabel` are undefined at Layer 1. (2) The tree's CSS (`.file-folder`, `.file-folder-kids`, `.file-folder-name`, `.file-item`) lives in jfred/webapp/styles.css (20 rules) which layer1.html does NOT load — layer1.html has only an inline `<style>` block, and index.html loads layered-styles.css which carries none of it. Bring the rules across or link the sheet. (3) views/sidebar.ts deliberately MIRRORS `FileSidebarEntry`/`FileTreeNode` rather than importing them (timeline-file-tree.ts imports sidebar.ts, so importing back would be a cycle) — any field added must be added in both places. This pane is the host for the folder-filter behaviour in tasks 253, 254 and 255.",
+    "blockedBy": []
+  },
+  {
+    "taskNumber": 253,
+    "title": "Layer 1 View: clicking a folder in File Nav filters the timeline to that folder's files",
+    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Clicking a folder in the File Nav pane should make the timeline show ONLY the bubbles for files in that folder, including files in nested subfolders. This is the timeline's content filter. The timeline's height and width must also resize to the timestamp range of the SELECTED files only — i.e. the ruler is recomputed over the filtered set, not left at the full-project range. NOTE: the reused component (task 252) has NO folder-click handler today — `FileTreeCallbacks` in jfred/webapp/views/sidebar.ts carries only `onFileClick`, and a folder renders as a bare `<summary class=\"file-folder-name\">` inside a native `<details>`. This task must add an optional folder callback to that type and wire it in `renderFileTreeNode` WITHOUT breaking the two existing callers (views/timeline.ts:211 and views/details.ts:130), and without swallowing the `<details>` element's own native expand/collapse toggle on the same click.",
+    "blockedBy": [252]
+  },
+  {
+    "taskNumber": 254,
+    "title": "Layer 1 View: add a way to deselect the folder filter and show all files again",
+    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Follow-up to task 253: there must also be a mechanism to 'deselect' the currently selected folder so that all files are shown in the timeline again (and the ruler returns to the full timestamp range).",
+    "blockedBy": [253]
+  },
+  {
+    "taskNumber": 255,
+    "title": "Layer 1 View: shift-click folders in File Nav to select more than one",
+    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Follow-up to task 253: shift-clicking folders in the File Nav pane should select more than one folder at a time, and the timeline should display all files found in any of the selected folders, including nested subfolders. The timeline range resize from task 253 applies to the union of the selected folders.",
+    "blockedBy": [253]
+  },
+  {
+    "taskNumber": 256,
+    "title": "Layer 1 View: add jump buttons for the 'No Repository Match' and 'No disk match' buckets",
+    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Add a button that jumps the view to the 'No Repository Match' bucket, and a second button that jumps the view to the 'No disk match' bucket. Both buckets already exist in the render; these are navigation shortcuts so the user does not have to scroll the full canvas to reach them. They must land correctly under the zoom control (jfred/webapp/layer1-zoom.ts).",
+    "blockedBy": []
+  },
+  {
+    "taskNumber": 257,
+    "title": "Detail View drawer: clicking a commit node or on-disk node shows the file contents at that moment",
+    "description": "Layer 1 View feature, PROBABLY BELONGS TO A LATER LAYER — the user flagged it as 'probably a feature for another layer' (2026-07-25 feedback on jfred/webapp/layer1.html). Clicking a commit node or an on-disk node should make the Detail View drawer appear over the right half of the screen and show the contents of that file at that moment. For git nodes, use the appropriate git command to show the file from that commit (e.g. `git show <hash>:<path>`). For on-disk nodes, only enable clicking the node if it is the MOST RECENT on-disk node — not the 'created at' node — UNLESS the 'created at' node IS the most recent node (that is, modified timestamp == created-at timestamp). Confirm the target layer/spec section before implementing; this may need to be re-filed against a later spec item rather than S18.",
+    "blockedBy": []
   }
 ]

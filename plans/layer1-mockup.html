@@ -6,8 +6,10 @@
 <title>Layer 1 View — Current File State vs Git State (mockup)</title>
 <style>
   /* Tokens, header/button/ruler/filebox/node styling all lifted from plans/mvp-app-mockup.html
-     so this reads as the same app. Only the parts Layer 1 needs are kept — no drawer, no
-     right-hand Details/Changes panes; those already exist in the real page. */
+     so this reads as the same app. Only the parts Layer 1 needs are kept.
+
+     2026-07-25: extended to show tasks #245-#257 — the user's visual-fix round after driving the
+     real page against the live jfred repo. Each feature is tagged with its task number below. */
   .viz-root {
     color-scheme: light;
     --page: #f9f9f7; --surface: #fcfcfb;
@@ -72,28 +74,79 @@
   .sources input:focus { outline: none; border-color: var(--sel-edge); }
 
   /* S12: legend above the timeline, outside the scroll container. */
-  .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 7px 16px; font-size: 11px;
-    color: var(--ink2); border-bottom: 1px solid var(--border); background: var(--surface); }
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 7px 16px;
+    font-size: 11px; color: var(--ink2); border-bottom: 1px solid var(--border); background: var(--surface); }
   .legend span { display: inline-flex; align-items: center; gap: 5px; }
   .legend i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  /* task #256: jump straight to either orphan bucket instead of scrolling the whole canvas. */
+  .jumps { display: flex; gap: 6px; margin-left: auto; }
+  .jumps button { padding: 3px 9px; font-size: 11px; }
 
-  .timelines { flex: 1; min-width: 0; overflow: auto; position: relative; padding: 18px 12px 40px 0; }
-  .canvas { position: relative; min-width: max-content; padding-left: 96px; }
+  /* Three columns: File Nav (#252) | timeline | Detail View drawer (#257). */
+  .body { flex: 1; min-height: 0; display: flex; }
 
-  .ruler { position: absolute; left: 0; top: 0; bottom: 0; width: 96px; z-index: 8; }
+  /* ---- task #252: File Nav, LEFT of the ruler. Class names are deliberately the ones the real
+     component already ships in webapp/views/sidebar.ts + views/timeline-file-tree.ts
+     (.file-folder / .file-folder-kids / .file-folder-name / .file-item / .file-item.deleted),
+     because the task is to REUSE that component, not to write a second tree. The CSS below is
+     the subset of webapp/styles.css those rules need — layer1.html does not load that sheet. */
+  .filenav { flex: none; width: 216px; overflow: auto; padding: 10px 8px 20px;
+    border-right: 1px solid var(--border); background: var(--surface); }
+  .filenav .pane-title { font: 600 11px system-ui; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--muted); padding: 2px 4px 6px; display: flex; align-items: center; gap: 6px; }
+  .filenav .pane-title button { margin-left: auto; padding: 1px 7px; font-size: 10.5px; }
+  .file-folder { }
+  .file-folder-name { font: 600 11.5px ui-monospace, Menlo, monospace; color: var(--ink2);
+    padding: 2px 4px; border-radius: 4px; cursor: pointer; list-style: none; }
+  .file-folder-name::-webkit-details-marker { display: none; }
+  .file-folder-name::before { content: "▾ "; color: var(--muted); }
+  .file-folder-name:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+  .file-folder-name.selected { background: var(--sel-edge); color: #fff; }
+  .file-folder-name.selected::before { color: #fff; }
+  .file-folder-kids { margin-left: 9px; padding-left: 7px; border-left: 1px solid var(--border); }
+  .file-item { font: 11px ui-monospace, Menlo, monospace; color: var(--ink2);
+    padding: 1px 4px; border-radius: 4px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .file-item:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+  /* Deleted = in the repo tree, absent on disk. #252 says these MUST still be listed. */
+  .file-item.deleted { color: var(--muted); text-decoration: line-through; }
+
+  .stagewrap { flex: 1; min-width: 0; position: relative; display: flex; }
+  /* Extra top padding: a widget's box top sits 44px ABOVE its first node so the node lands on its
+     own ruler tick (see --head below), and that overhang needs somewhere to live. */
+  .timelines { flex: 1; min-width: 0; overflow: auto; padding: 68px 12px 40px 0; }
+  .canvas { display: flex; align-items: flex-start; min-width: max-content; }
+
+  /* Sticky gutter, matching the shipped page: the ruler stays put while the canvas scrolls left. */
+  .ruler { position: sticky; left: 0; z-index: 8; flex: none; width: 96px; align-self: stretch;
+    background: var(--page); }
   .ruler .rail { position: absolute; left: 80px; top: 0; bottom: 0; border-left: 2px dotted var(--baseline); }
   .ruler .tick { position: absolute; left: 0; width: 70px; text-align: right; top: calc(var(--axis-px) * 1px);
     font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; transform: translateY(-50%); }
 
-  .stage { display: flex; align-items: flex-start; gap: 26px; }
+  .stage { display: flex; align-items: flex-start; gap: 26px; padding-left: 26px; }
 
-  .filebox { position: relative; flex: none; min-width: 168px;
-    margin-top: calc(var(--axis-px) * 1px);
+  /* --head is the in-box headroom the file name + sub line occupy. The box is pulled UP by exactly
+     that much so node axis 0 lands on its ruler tick — without this the whole widget renders --head
+     px late, which is what the CDP alignment smoke test caught on the shipped page. */
+  .filebox { --head: 52px; position: relative; flex: none; width: 224px;
+    margin-top: calc(var(--axis-px) * 1px - var(--head));
     border: 2px solid var(--box); border-radius: 14px;
-    background: color-mix(in srgb, var(--surface) 88%, transparent); padding: 30px 12px 14px; }
-  .filebox .fname { position: absolute; top: 7px; left: 12px;
-    font: 600 13px ui-monospace, Menlo, monospace; color: var(--c-snap); white-space: nowrap; }
-  .filebox .sub { position: absolute; top: 24px; left: 12px; font-size: 10px; color: var(--muted); }
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    padding: var(--head) 12px 14px; }
+  /* task #245: a long path used to render at full width with white-space:nowrap, spilling out of
+     the bubble and over its neighbours' labels. Now it is clipped to the bubble with a leading
+     ellipsis (the TAIL of a path is the identifying part) and carries the full path in `title`. */
+  .filebox .fname { position: absolute; top: 8px; left: 12px; right: 12px;
+    font: 600 13px ui-monospace, Menlo, monospace; color: var(--c-snap);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+  .filebox .sub { position: absolute; top: 29px; left: 12px; right: 12px; font-size: 10px;
+    color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* task #250: a dashed leader from the bubble back to the ruler, drawn at the bubble's first node
+     row — the row that actually corresponds to a ruler tick. It runs leftwards only, which cannot
+     grow the scroll width, and it terminates under the opaque sticky ruler. */
+  .filebox::before { content: ""; position: absolute; right: 100%; top: var(--head);
+    width: 3000px; border-top: 1px dashed var(--baseline); pointer-events: none; }
 
   .lane { position: relative; margin-left: 6px; min-height: calc(var(--span-px) * 1px + 18px); }
   .lane .lrail { position: absolute; left: 0; top: 0; bottom: 0; border-left: 1.5px solid var(--baseline); }
@@ -102,17 +155,51 @@
     box-shadow: 0 0 0 2.5px var(--surface); }
   .n-commit { border-radius: 4px; background: var(--c-commit); }
   .n-disk { background: transparent; border: 3px double var(--c-disk); }
+  .n-created { border-style: dotted; border-color: var(--muted); }
   .nlabel { position: absolute; left: 14px; top: calc(var(--axis-px) * 1px); transform: translateY(-50%);
     font: 10px ui-monospace, Menlo, monospace; color: var(--ink2); white-space: nowrap; }
+  /* task #257: only clickable nodes advertise themselves. */
+  .node.hot, .nlabel.hot { cursor: pointer; }
+  .nlabel.hot { text-decoration: underline dotted; }
+  .node.hot:hover { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--sel-edge); }
+  .nlabel.cold { color: var(--muted); }
 
   /* Orphan buckets: one per direction, a plain file list, placed at the earliest member instant. */
-  .filebox.bucket { border-style: dashed; border-color: var(--muted); }
-  .filebox.bucket .fname { color: var(--ink2); font-family: inherit; font-size: 12px; }
+  .filebox.bucket { border-style: dashed; border-color: var(--muted); width: 268px; }
+  .filebox.bucket .fname { color: var(--ink2); font-family: inherit; font-size: 12px; direction: ltr; }
   .bucket ul { list-style: none; }
   .bucket li { display: flex; justify-content: space-between; gap: 16px; padding: 1px 0;
     font: 11px ui-monospace, Menlo, monospace; color: var(--ink2); }
-  .bucket li em { font-style: normal; color: var(--muted); font-size: 10px; }
+  .bucket li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+  .bucket li em { font-style: normal; color: var(--muted); font-size: 10px; flex: none; }
   .nopairs { color: var(--muted); font-size: 11.5px; padding: 34px 8px 0; }
+
+  /* ---- task #246: minimap, pinned to the LOWER-LEFT of the timeline pane. It lives in
+     .stagewrap, NOT in the scrolling .timelines, so it does not scroll away. */
+  .minimap { position: absolute; left: 12px; bottom: 12px; z-index: 20;
+    width: 176px; height: 124px; padding: 6px; cursor: crosshair;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(3px); }
+  .minimap .mm-title { position: absolute; top: -8px; left: 8px; padding: 0 4px; font-size: 9px;
+    color: var(--muted); background: var(--page); }
+  .mm-plot { position: relative; width: 100%; height: 100%; overflow: hidden; }
+  .mm-box { position: absolute; background: var(--box); opacity: .55; border-radius: 1px; }
+  .mm-box.bucket { background: var(--muted); }
+  .mm-view { position: absolute; border: 1.5px solid var(--sel-edge);
+    background: color-mix(in srgb, var(--sel-edge) 14%, transparent); border-radius: 2px; }
+
+  /* ---- task #257: Detail View drawer, right half of the screen. */
+  .drawer { flex: none; width: 0; overflow: hidden; border-left: 1px solid var(--border);
+    background: var(--surface); transition: width .12s ease; }
+  .drawer.open { width: 50%; }
+  .drawer .dhead { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    border-bottom: 1px solid var(--border); }
+  .drawer .dpath { font: 600 12px ui-monospace, Menlo, monospace; color: var(--c-snap);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+  .drawer .dmeta { padding: 6px 12px; font: 10.5px ui-monospace, Menlo, monospace; color: var(--muted);
+    border-bottom: 1px solid var(--border); }
+  .drawer pre { margin: 0; padding: 12px; overflow: auto; height: calc(100% - 76px);
+    font: 11.5px/1.55 ui-monospace, Menlo, monospace; color: var(--ink2); white-space: pre; }
 </style>
 </head>
 <body>
@@ -142,35 +229,76 @@
   <div class="legend">
     <span><i style="background:var(--c-commit);border-radius:4px"></i> commit</span>
     <span><i style="border:3px double var(--c-disk);background:transparent"></i> on-disk</span>
+    <span><i style="border:3px dotted var(--muted);background:transparent"></i> created at</span>
     <span><i style="border:1.5px dashed var(--muted);background:transparent"></i> orphan bucket</span>
+    <!-- task #256 -->
+    <div class="jumps">
+      <button id="jump-repo">↓ No repository match</button>
+      <button id="jump-disk">↓ No disk match</button>
+    </div>
   </div>
 
-  <main class="timelines"><div class="canvas">
-    <div class="ruler" id="ruler"><div class="rail"></div></div>
-    <div class="stage" id="stage"></div>
-  </div></main>
+  <div class="body">
+    <!-- task #252 -->
+    <aside class="filenav">
+      <div class="pane-title">Files
+        <!-- task #254: the deselect. Shift-click folders (#255) to select more than one. -->
+        <button id="clear-filter" disabled>All files</button>
+      </div>
+      <div id="nav"></div>
+    </aside>
+
+    <div class="stagewrap">
+      <main class="timelines" id="timelines"><div class="canvas" id="canvas">
+        <div class="ruler" id="ruler"><div class="rail"></div></div>
+        <div class="stage" id="stage"></div>
+      </div></main>
+      <!-- task #246 -->
+      <div class="minimap" id="minimap"><span class="mm-title">minimap</span>
+        <div class="mm-plot" id="mm-plot"><div class="mm-view" id="mm-view"></div></div>
+      </div>
+    </div>
+
+    <!-- task #257 -->
+    <aside class="drawer" id="drawer">
+      <div class="dhead"><div class="dpath" id="dpath"></div>
+        <button id="dclose" style="margin-left:auto">Close</button></div>
+      <div class="dmeta" id="dmeta"></div>
+      <pre id="dbody"></pre>
+    </aside>
+  </div>
 </div>
 
 <script>
-  // Fixed fixture, no clock reads. Commits carry committer instants; disk files carry mtime.
+  // Fixed fixture, no clock reads. Commits carry committer instants; disk files carry both a
+  // created-at and a modified instant, because task #257's click rule turns on whether they differ.
   const COMMITS = [
-    { hash: "a1b2c3d", at: "2026-06-01T09:00:00Z", files: ["src/index.ts", "README.md"] },
-    { hash: "e4f5a6b", at: "2026-06-01T14:30:00Z", files: ["src/index.ts", "src/util.ts"] },
-    { hash: "c7d8e9f", at: "2026-06-03T11:00:00Z", files: ["src/util.ts"] },
-    { hash: "0a1b2c3", at: "2026-06-03T18:20:00Z", files: ["src/index.ts"] },
-    { hash: "4d5e6f7", at: "2026-07-20T16:00:00Z", files: ["README.md", "docs/old-api.md"] },
-    { hash: "8a9b0c1", at: "2026-07-20T21:05:00Z", files: ["scripts/deploy.sh"] },
+    { hash: "a1b2c3d4", at: "2026-06-01T09:00:00Z", files: ["src/index.ts", "README.md"] },
+    { hash: "e4f5a6b7", at: "2026-06-01T14:30:00Z", files: ["src/index.ts", "src/util.ts"] },
+    { hash: "c7d8e9f0", at: "2026-06-03T11:00:00Z", files: ["src/util.ts",
+        "src/components/interim-run-scenario/test_run_scenario_dispatcher.ts"] },
+    { hash: "0a1b2c3d", at: "2026-06-03T18:20:00Z", files: ["src/index.ts"] },
+    { hash: "4d5e6f70", at: "2026-07-20T16:00:00Z", files: ["README.md", "docs/old-api.md"] },
+    { hash: "8a9b0c1d", at: "2026-07-20T21:05:00Z", files: ["scripts/deploy.sh"] },
+    { hash: "5636d8ec", at: "2026-07-20T21:20:00Z", files: [
+        "src/components/interim-run-scenario/test_run_scenario_dispatcher.ts"] },
   ];
   const DISK = [
-    { path: "src/index.ts", at: "2026-07-24T08:15:00Z" },
-    { path: "src/util.ts",  at: "2026-07-22T10:00:00Z" },
-    { path: "README.md",    at: "2026-07-20T16:00:00Z" },
-    { path: "notes.txt",    at: "2026-07-23T19:40:00Z" },
-    { path: ".env.local",   at: "2026-05-28T07:00:00Z" }, // predates commit 1 -> pulls the ruler start back
+    // created !== modified -> the created node is NOT clickable, only the latest one is (#257).
+    { path: "src/index.ts", born: "2026-06-01T09:05:00Z", at: "2026-07-24T08:15:00Z" },
+    { path: "src/util.ts",  born: "2026-06-01T14:35:00Z", at: "2026-07-22T10:00:00Z" },
+    { path: "src/components/interim-run-scenario/test_run_scenario_dispatcher.ts",
+      born: "2026-06-03T11:05:00Z", at: "2026-07-24T09:30:00Z" },
+    // created === modified -> the ONE node is the latest, so it IS clickable (#257's exception).
+    { path: "README.md",    born: "2026-07-20T16:00:00Z", at: "2026-07-20T16:00:00Z" },
+    { path: "notes.txt",    born: "2026-07-23T19:40:00Z", at: "2026-07-23T19:40:00Z" },
+    { path: ".env.local",   born: "2026-05-28T07:00:00Z", at: "2026-05-28T07:00:00Z" }, // pre-dates commit 1
   ];
 
   const PX_PER_HOUR = 2.5;  // locked with the user
   const CAP_PX = 24;        // 0.25" at 96dpi — the widest any single gap may render
+  const FLOOR_PX = 16;      // the shipped per-gap floor
+  const ROW_PX = 22;        // task #251: the height ONE node row (dot + 10px label) needs
   const SCALE = PX_PER_HOUR / 3600000;
 
   const ms = s => Date.parse(s);
@@ -178,91 +306,314 @@
   const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls;
                                   if (txt != null) n.textContent = txt; return n; };
   const setPx = (n, px) => { n.style.setProperty("--axis-px", px); return n; };
+  const dirOf = p => p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
 
-  function render() {
+  // tasks #253/#254/#255 — the folder filter's whole state. Empty = show everything.
+  const selectedFolders = new Set();
+  const inSelection = path => selectedFolders.size === 0 ||
+    [...selectedFolders].some(f => path === f || path.startsWith(f + "/"));
+
+  // ---- task #251: content-driven ruler spacing -------------------------------------------------
+  // The gap between two ruler entries is no longer a fixed pitch. Each widget declares the node
+  // instants it must render; any two of its CONSECUTIVE nodes are forced at least ROW_PX apart, so
+  // a bubble is always tall enough to show its name, every commit and its on-disk rows without the
+  // squashing in specs/bug screenshots/"squashed bubble contents colliding.png". The linear/capped
+  // rule still sets the baseline; content only ever pushes entries further apart, never closer.
+  function resolveOffsets(instants, rowsAt) {
+    const pos = new Map([[instants[0], 0]]);
+    for (let i = 1; i < instants.length; i += 1) {
+      const t = instants[i], prev = instants[i - 1];
+      // The cap still bounds the LINEAR term, but the content floor outranks it: an instant that
+      // must render three stacked rows gets 3 x ROW_PX no matter how close the next instant is.
+      const linear = Math.min(Math.max((t - prev) * SCALE, FLOOR_PX), CAP_PX);
+      pos.set(t, pos.get(prev) + Math.max(linear, (rowsAt.get(prev) ?? 1) * ROW_PX));
+    }
+    return pos;
+  }
+
+  function buildModel() {
     const dir = document.getElementById("dir").value.trim().replace(/\/$/, "");
     const repo = document.getElementById("repo").value.trim().replace(/\/$/, "");
     const unrelated = repo !== dir;
 
-    // 1. pair repo paths against on-disk paths (unrelated repo => zero pairs, everything orphans)
     const repoPaths = [...new Set(COMMITS.flatMap(c => c.files))];
     const diskPaths = DISK.map(f => f.path);
-    const paired = unrelated ? [] : repoPaths.filter(p => diskPaths.includes(p));
-    const repoOrphans = repoPaths.filter(p => !paired.includes(p));
-    const diskOrphans = DISK.filter(f => !paired.includes(f.path));
+    const pairedAll = unrelated ? [] : repoPaths.filter(p => diskPaths.includes(p));
 
-    // 2. every instant that will be drawn, in order
-    const instants = [...new Set([...COMMITS.map(c => ms(c.at)), ...DISK.map(f => ms(f.at))])]
-      .sort((a, b) => a - b);
+    // The filter bites HERE, before instants are collected — which is what makes the timeline
+    // range shrink to the selected folders (#253) rather than just hiding widgets.
+    const paired = pairedAll.filter(inSelection);
+    const repoOrphans = repoPaths.filter(p => !pairedAll.includes(p)).filter(inSelection);
+    const diskOrphans = DISK.filter(f => !pairedAll.includes(f.path)).filter(f => inSelection(f.path));
 
-    // 3. THE RULER RULE: linear px, but no single gap wider than the cap.
-    const pos = new Map([[instants[0], 0]]);
-    instants.reduce((prev, t) => {
-      pos.set(t, pos.get(prev) + Math.min((t - prev) * SCALE, CAP_PX));
-      return t;
+    const widgets = paired.map(path => {
+      const disk = DISK.find(f => f.path === path);
+      const nodes = COMMITS.filter(c => c.files.includes(path))
+        .map(c => ({ t: ms(c.at), cls: "n-commit", text: c.hash, kind: "commit", hash: c.hash }));
+      // One node when born === modified, two when they differ.
+      if (disk.born !== disk.at)
+        nodes.push({ t: ms(disk.born), cls: "n-disk n-created", text: "created at", kind: "created" });
+      nodes.push({ t: ms(disk.at), cls: "n-disk", text: "on disk", kind: "disk" });
+      nodes.sort((a, b) => a.t - b.t);
+      // A commit and an mtime can land on the SAME instant — README.md below does. Drawing both at
+      // one axis position is the `5636d8ec` overprinting `on disk` in the bug screenshots, so tied
+      // nodes get successive row slots and the ruler pays for them (see rowsAt / #251).
+      nodes.forEach((n, i) => { n.slot = i > 0 && nodes[i - 1].t === n.t ? nodes[i - 1].slot + 1 : 0; });
+      return { path, nodes };
     });
-    const at = iso => pos.get(ms(iso));
 
-    document.getElementById("crumb").textContent =
-      `${paired.length} pairs · ${repoOrphans.length} repo-only · ${diskOrphans.length} disk-only`;
+    const bucketRows = title => title === "repo"
+      ? repoOrphans.map(p => ({ path: p, t: ms(COMMITS.filter(c => c.files.includes(p)).at(-1).at) }))
+      : diskOrphans.map(f => ({ path: f.path, t: ms(f.at) }));
+    const noDisk = bucketRows("repo").sort((a, b) => a.t - b.t);
+    const noRepo = bucketRows("disk").sort((a, b) => a.t - b.t);
 
-    // ruler ticks, skipping labels that would collide
+    const instants = [...new Set([
+      ...widgets.flatMap(w => w.nodes.map(n => n.t)),
+      ...noDisk.map(r => r.t), ...noRepo.map(r => r.t),
+    ])].sort((a, b) => a - b);
+
+    // How many stacked rows any one widget needs at a given instant — the input to #251's spacing.
+    const rowsAt = new Map(instants.map(t => [t, 1]));
+    for (const w of widgets)
+      for (const n of w.nodes) rowsAt.set(n.t, Math.max(rowsAt.get(n.t), n.slot + 1));
+
+    return { widgets, noDisk, noRepo, instants, rowsAt, pairedAll, repoPaths, diskPaths };
+  }
+
+  function render() {
+    const m = buildModel();
+    const stage = document.getElementById("stage");
     const ruler = document.getElementById("ruler");
+    stage.replaceChildren();
     ruler.replaceChildren(el("div", "rail"));
+
+    renderNav(m);
+    document.getElementById("crumb").textContent =
+      `${m.widgets.length} pairs · ${m.noDisk.length} repo-only · ${m.noRepo.length} disk-only` +
+      (selectedFolders.size ? ` · filtered to ${[...selectedFolders].join(", ")}` : "");
+
+    if (!m.instants.length) {
+      stage.appendChild(el("div", "nopairs", "Nothing selected."));
+      drawMinimap();
+      return;
+    }
+
+    const pos = resolveOffsets(m.instants, m.rowsAt);
+    const rowY = n => pos.get(n.t) + n.slot * ROW_PX;   // the node's own row within its instant
+
     let lastLabel = -99;
-    for (const t of instants) {
+    for (const t of m.instants) {
       if (pos.get(t) - lastLabel < 13) continue;
       lastLabel = pos.get(t);
       ruler.appendChild(setPx(el("div", "tick", label(t)), pos.get(t)));
     }
 
-    const stage = document.getElementById("stage");
-    stage.replaceChildren();
-
-    // 4. one widget per pair, offset to its first commit, one node per commit that touched it
-    for (const path of paired) {
-      const touching = COMMITS.filter(c => c.files.includes(path));
-      const start = at(touching[0].at);
-      const end = at(DISK.find(f => f.path === path).at);
-
+    // One widget per pair. EVERY node lives inside its own bubble — the stray hashes below a bubble
+    // (#248) and the stray "on disk" above a bubble (#249) in the bug screenshots are exactly what
+    // this must never produce, so the bubble's height is derived from its own last node.
+    for (const w of m.widgets) {
+      const start = rowY(w.nodes[0]), end = rowY(w.nodes.at(-1));
       const box = setPx(el("div", "filebox"), start);
-      box.append(el("div", "fname", path),
-                 el("div", "sub", `${touching.length} commits · on disk`));
+      const name = el("div", "fname", w.path);
+      name.title = w.path;                       // #245: full path on hover, ellipsis in the box
+      box.append(name, el("div", "sub", `${w.nodes.filter(n => n.kind === "commit").length} commits · on disk`));
+
       const lane = setPx(el("div", "lane"), 0);
       lane.style.setProperty("--span-px", end - start);
       lane.appendChild(el("div", "lrail"));
-      for (const c of touching) addNode(lane, at(c.at) - start, "n-commit", c.hash);
-      addNode(lane, end - start, "n-disk", "on disk");
+      for (const n of w.nodes) addNode(lane, rowY(n) - start, n, w.path);
       box.appendChild(lane);
       stage.appendChild(box);
     }
-    if (!paired.length) stage.appendChild(el("div", "nopairs", "No git ↔ on-disk pairs."));
+    if (!m.widgets.length) stage.appendChild(el("div", "nopairs", "No git ↔ on-disk pairs."));
 
-    // 5. two orphan buckets, each a file list, each placed at its earliest member instant
-    const repoRows = repoOrphans.map(p => ({
-      path: p, at: COMMITS.filter(c => c.files.includes(p)).at(-1).at,
-    }));
-    addBucket(stage, "No on-disk match", repoRows, at);
-    addBucket(stage, "No repository match", diskOrphans.map(f => ({ path: f.path, at: f.at })), at);
+    addBucket(stage, "No on-disk match", m.noDisk, pos, "bucket-disk");
+    addBucket(stage, "No repository match", m.noRepo, pos, "bucket-repo");
+    drawMinimap();
   }
 
-  function addNode(lane, px, cls, text) {
-    lane.append(setPx(el("i", "node " + cls), px), setPx(el("span", "nlabel", text), px));
+  // task #257: a commit node is always clickable. An on-disk node is clickable only when it is the
+  // LATEST disk node — i.e. the "created at" node is inert unless created === modified, in which
+  // case the file has exactly one disk node and that node IS the latest.
+  function addNode(lane, px, node, path) {
+    const hot = node.kind !== "created";
+    const dot = setPx(el("i", `node ${node.cls}${hot ? " hot" : ""}`), px);
+    const tag = setPx(el("span", `nlabel ${hot ? "hot" : "cold"}`, node.text), px);
+    if (hot) {
+      const open = () => openDrawer(path, node);
+      dot.addEventListener("click", open);
+      tag.addEventListener("click", open);
+    } else {
+      tag.title = "created-at is not the latest on-disk state — nothing to show";
+    }
+    lane.append(dot, tag);
   }
 
-  function addBucket(stage, title, rows, at) {
+  function addBucket(stage, title, rows, pos, id) {
     if (!rows.length) return;
-    rows.sort((a, b) => ms(a.at) - ms(b.at));
-    const box = setPx(el("div", "filebox bucket"), at(rows[0].at));
+    const box = setPx(el("div", "filebox bucket"), pos.get(rows[0].t));
+    box.id = id;
     box.append(el("div", "fname", title), el("div", "sub", `${rows.length} files`));
     const ul = el("ul");
     for (const r of rows) {
       const li = el("li");
-      li.append(el("span", null, r.path), el("em", null, label(ms(r.at))));
+      const p = el("span", null, r.path); p.title = r.path;   // #245 applies to bucket rows too
+      li.append(p, el("em", null, label(r.t)));
       ul.appendChild(li);
     }
     box.appendChild(ul);
     stage.appendChild(box);
+  }
+
+  // ---- tasks #252/#253/#254/#255: File Nav --------------------------------------------------
+  // Shape: the same folder/leaf tree the current webapp renders. Every identified file is here —
+  // paired, orphaned, and repo-only paths that no longer exist on disk (rendered .deleted).
+  function renderNav(m) {
+    const all = [...new Set([...m.repoPaths, ...m.diskPaths])].sort();
+    const root = { name: "", folders: new Map(), files: [] };
+    for (const path of all) {
+      let node = root;
+      const segments = path.split("/");
+      for (const segment of segments.slice(0, -1)) {
+        if (!node.folders.has(segment))
+          node.folders.set(segment, { name: segment, folders: new Map(), files: [] });
+        node = node.folders.get(segment);
+      }
+      node.files.push({ name: segments.at(-1), path, deleted: !m.diskPaths.includes(path) });
+    }
+    const nav = document.getElementById("nav");
+    nav.replaceChildren(...renderNavLevel(root, ""));
+    document.getElementById("clear-filter").disabled = selectedFolders.size === 0;
+  }
+
+  function renderNavLevel(node, prefix) {
+    const out = [];
+    for (const folder of node.folders.values()) {
+      const full = prefix ? `${prefix}/${folder.name}` : folder.name;
+      const summary = el("summary", "file-folder-name", folder.name);
+      if (selectedFolders.has(full)) summary.classList.add("selected");
+      summary.addEventListener("click", event => {
+        // The tree is always expanded (the real component ships no collapse state), so the click
+        // means "filter", never "toggle". Shift extends the selection (#255); a plain click on the
+        // only selected folder clears it (#254).
+        event.preventDefault();
+        if (!event.shiftKey) {
+          const only = selectedFolders.size === 1 && selectedFolders.has(full);
+          selectedFolders.clear();
+          if (!only) selectedFolders.add(full);
+        } else if (!selectedFolders.delete(full)) selectedFolders.add(full);
+        render();
+      });
+      const details = el("details", "file-folder");
+      details.open = true;
+      details.append(summary, el("div", "file-folder-kids", null));
+      details.lastChild.append(...renderNavLevel(folder, full));
+      out.push(details);
+    }
+    for (const file of node.files) {
+      const item = el("div", `file-item${file.deleted ? " deleted" : ""}`, file.name);
+      item.title = file.deleted ? `${file.path} (deleted)` : file.path;
+      out.push(item);
+    }
+    return out;
+  }
+
+  document.getElementById("clear-filter").addEventListener("click", () => {
+    selectedFolders.clear();
+    render();
+  });
+
+  // ---- task #246: minimap, lower-left, pinned outside the scroll container --------------------
+  function drawMinimap() {
+    const plot = document.getElementById("mm-plot");
+    const pane = document.getElementById("timelines");
+    const canvas = document.getElementById("canvas");
+    const view = document.getElementById("mm-view");
+    plot.replaceChildren(view);
+
+    const w = Math.max(canvas.scrollWidth, pane.scrollWidth, 1);
+    const h = Math.max(canvas.scrollHeight, pane.scrollHeight, 1);
+    const scale = Math.min(plot.clientWidth / w, plot.clientHeight / h);
+    const base = canvas.getBoundingClientRect();
+
+    for (const box of document.querySelectorAll(".filebox")) {
+      const r = box.getBoundingClientRect();
+      const mm = el("div", `mm-box${box.classList.contains("bucket") ? " bucket" : ""}`);
+      Object.assign(mm.style, {
+        left: `${(r.left - base.left + pane.scrollLeft) * scale}px`,
+        top: `${(r.top - base.top + pane.scrollTop) * scale}px`,
+        width: `${Math.max(r.width * scale, 1.5)}px`,
+        height: `${Math.max(r.height * scale, 1.5)}px`,
+      });
+      plot.insertBefore(mm, view);
+    }
+    plot.dataset.scale = scale;
+    syncMinimapViewport();
+  }
+
+  function syncMinimapViewport() {
+    const pane = document.getElementById("timelines");
+    const plot = document.getElementById("mm-plot");
+    const scale = Number(plot.dataset.scale || 0);
+    Object.assign(document.getElementById("mm-view").style, {
+      left: `${pane.scrollLeft * scale}px`, top: `${pane.scrollTop * scale}px`,
+      width: `${pane.clientWidth * scale}px`, height: `${pane.clientHeight * scale}px`,
+    });
+  }
+  document.getElementById("timelines").addEventListener("scroll", syncMinimapViewport);
+  window.addEventListener("resize", () => drawMinimap());
+
+  // Click the minimap to centre the view there.
+  document.getElementById("mm-plot").addEventListener("click", event => {
+    const plot = event.currentTarget, pane = document.getElementById("timelines");
+    const scale = Number(plot.dataset.scale || 0);
+    if (!scale) return;
+    const r = plot.getBoundingClientRect();
+    pane.scrollTo({
+      left: (event.clientX - r.left) / scale - pane.clientWidth / 2,
+      top: (event.clientY - r.top) / scale - pane.clientHeight / 2,
+      behavior: "smooth",
+    });
+  });
+
+  // ---- task #256: jump to either bucket -------------------------------------------------------
+  const jumpTo = id => document.getElementById(id)
+    ?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+  document.getElementById("jump-repo").addEventListener("click", () => jumpTo("bucket-repo"));
+  document.getElementById("jump-disk").addEventListener("click", () => jumpTo("bucket-disk"));
+
+  // ---- task #257: Detail View drawer ----------------------------------------------------------
+  // Real page: a commit node reads `git show <hash>:<path>`; an on-disk node reads the working
+  // tree. Here both return canned text, since the mockup has no server.
+  function openDrawer(path, node) {
+    const drawer = document.getElementById("drawer");
+    drawer.classList.add("open");
+    document.getElementById("dpath").textContent = path;
+    document.getElementById("dpath").title = path;
+    document.getElementById("dmeta").textContent = node.kind === "commit"
+      ? `git show ${node.hash}:${path}   ·   ${label(node.t)}`
+      : `working tree   ·   modified ${label(node.t)}`;
+    document.getElementById("dbody").textContent = fakeContents(path, node);
+    drawMinimap();
+  }
+  document.getElementById("dclose").addEventListener("click", () => {
+    document.getElementById("drawer").classList.remove("open");
+    drawMinimap();
+  });
+
+  function fakeContents(path, node) {
+    const stamp = node.kind === "commit" ? `at commit ${node.hash}` : "as it is on disk right now";
+    return [
+      `// ${path}`,
+      `// ${stamp} — ${label(node.t)}`,
+      "",
+      "export function run(input) {",
+      node.kind === "commit" ? "  return input.trim();" : "  return input.trim().toLowerCase();",
+      "}",
+      "",
+      "// (mockup: the real drawer renders the file body the server returns)",
+    ].join("\n");
   }
 
   // [Open…] — in the real page this POSTs /api/pick-folder, the local server runs the OS folder
@@ -277,6 +628,7 @@
   document.querySelectorAll("#dir, #repo, #ref").forEach(c => c.addEventListener("input", render));
   document.getElementById("load").addEventListener("click", render);
   render();
+  requestAnimationFrame(drawMinimap);   // geometry is only real after the first layout pass
 </script>
 </body>
 </html>
