@@ -2255,7 +2255,9 @@
     "completionDate": "2026-07-25",
     "commitHashes": [
       "jfred@3129451",
-      "RevEng@f8abb49"
+      "RevEng@f8abb49",
+      "jfred@00a403d",
+      "RevEng@c6a1bf8"
     ],
     "closureNote": "Closed: .filebox padding-top raised 30px to 50px, derived from .sub ending at y 39 plus the 10px a translate(-50%,-50%) node reaches above the lane top, so the commit node and its short-hash label no longer overprint the N commits/on disk header line. Verified in headless Chrome: zero commit-node header collisions across 805 pair widgets at 100% and 64% zoom. The remaining disk-node collisions are the negative onDisk-minus-firstCommit offset owned by tasks 248/249 and were deliberately left untouched."
   },
@@ -2275,7 +2277,10 @@
     "title": "Layer 1 View: explain (or fix) commit hashes rendered directly below a timeline bubble",
     "description": "Layer 1 View question/bug (2026-07-25, user feedback on jfred/webapp/layer1.html). Sometimes commit hashes appear directly BELOW a timeline bubble rather than inside it, and it is not clear what that indicates — the user's guess is that it may mean the file was deleted. Determine what the renderer is actually doing in that case (see jfred/webapp/layer1-page.ts and the pairing/placement logic in jfred/src/layer1_pairing.ts and jfred/src/layer1_ruler_axis.ts), then either fix the placement so the node sits inside its bubble, or give it an explicit visual legend entry that states what an out-of-bubble commit node means.",
     "completionDate": "2026-07-25",
-    "commitHashes": [],
+    "commitHashes": [
+      "jfred@00a403d",
+      "RevEng@c6a1bf8"
+    ],
     "closureNote": "Fixed, not explained away: the out-of-bubble commit hash was the widget lane being too short to hold its own ladder whenever the LAST node was a commit rather than the on-disk state. Closed together with the second round of #247 (user re-reported the collision via specs/bug screenshots/on-disk collision inside bubble.png): #248 and #249 were two descriptions of ONE cause in buildPairWidget (jfred/webapp/layer1-page.ts), which anchored on pair.commits[0].axisPx unconditionally and hardcoded --span-px to the on-disk node, so a file whose disk mtime predated its first commit produced a negative offset and, because nodes are abspos under translate(-50%,-50%), drew the disk node above the lane top while the lane was simultaneously too short when the last node was a commit; now startPx = Math.min(...nodePx) and --span-px = Math.max(...nodePx) - startPx over every node offset, which also retires the old empty-ladder fallback. The anchor stays a real ruler tick, so #250 leader still points at a tick, and neither task needed the legend entry it offered as the alternative to fixing placement. New tests in jfred/tests/layer1-page-spans.test.ts (RED first, span read -14). Verified in headless Chrome on the live jfred repo: disk-node header collisions 250 to 0 across all 808 widgets at 100% and 64% zoom and every scroll position."
   },
   {
@@ -2283,7 +2288,10 @@
     "title": "Layer 1 View: explain (or fix) 'on disk' rendered directly above a timeline bubble",
     "description": "Layer 1 View question/bug (2026-07-25, user feedback on jfred/webapp/layer1.html). Sometimes an 'on disk' node with its ring marker appears directly ABOVE a timeline bubble instead of inside it, with no visual connection to the file it belongs to. Evidence: specs/bug screenshots/'on-disk above timeline bubble.png' (a lone 'on disk' at 07-21 01:12 above the 'archive/timeline-changes-retired-orphan-proxies.ts' bubble) and specs/bug screenshots/'on-disk above timeline bubble 2.png' (six free-floating 'on disk' nodes strung above a row of demo-baseline bubbles). Determine why the node lands outside its bubble (jfred/webapp/layer1-page.ts, jfred/src/layer1_pairing.ts, jfred/src/layer1_ruler_axis.ts) and either place it inside or make the association explicit. Related to task 248.",
     "completionDate": "2026-07-25",
-    "commitHashes": [],
+    "commitHashes": [
+      "jfred@00a403d",
+      "RevEng@c6a1bf8"
+    ],
     "closureNote": "Fixed, not explained away: the free-floating on-disk node was a NEGATIVE relative offset escaping above the lane, not a pairing or ruler-axis error. Closed together with the second round of #247 (user re-reported the collision via specs/bug screenshots/on-disk collision inside bubble.png): #248 and #249 were two descriptions of ONE cause in buildPairWidget (jfred/webapp/layer1-page.ts), which anchored on pair.commits[0].axisPx unconditionally and hardcoded --span-px to the on-disk node, so a file whose disk mtime predated its first commit produced a negative offset and, because nodes are abspos under translate(-50%,-50%), drew the disk node above the lane top while the lane was simultaneously too short when the last node was a commit; now startPx = Math.min(...nodePx) and --span-px = Math.max(...nodePx) - startPx over every node offset, which also retires the old empty-ladder fallback. The anchor stays a real ruler tick, so #250 leader still points at a tick, and neither task needed the legend entry it offered as the alternative to fixing placement. New tests in jfred/tests/layer1-page-spans.test.ts (RED first, span read -14). Verified in headless Chrome on the live jfred repo: disk-node header collisions 250 to 0 across all 808 widgets at 100% and 64% zoom and every scroll position."
   }
 ]
