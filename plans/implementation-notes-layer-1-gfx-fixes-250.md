@@ -86,6 +86,39 @@ Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-
   shows faintly through it. It never overprints text (it is behind the background). Clipping the
   leader at the neighbouring bubble would require measuring `offsetLeft` per widget in JS.
 
+### Second round — 2026-07-25 21:10, user reported the collision was still present
+
+The user supplied `specs/bug screenshots/on-disk collision inside bubble.png`: `launch.json` and
+`tasks.json` bubbles with the on-disk node and its "on disk" label still overprinting the filename
+and the `.sub` line. This was the mechanism the first round explicitly deferred to #248/#249 — but
+the user reported it under #247, whose own stated remedy is "give the commit node **and the on-disk
+node** their own non-overlapping rows", so it was in scope after all and is now fixed at the root.
+
+- **Root cause (one bug, three reported shapes).** `buildPairWidget` anchored on
+  `pair.commits[0].axisPx` unconditionally and hardcoded `--span-px` to the on-disk node. A file
+  whose disk mtime predates its first commit therefore got a NEGATIVE `onDisk.axisPx − startPx`, and
+  since nodes are abspos under `translate(-50%, -50%)`, that drew the disk node above the lane top —
+  over the header, or clear outside the bubble. The same hardcoding left the lane too short whenever
+  the LAST node was a commit rather than the disk state.
+- **Fix.** One offsets list: `nodePx = [...commits.map(c => c.axisPx), onDisk.axisPx]`, then
+  `startPx = Math.min(...nodePx)` and `--span-px = Math.max(...nodePx) − startPx`. Net zero lines
+  (the 250-line cap again), and it retires the previous `?? pair.onDisk.axisPx` empty-ladder
+  fallback for free. The anchor remains a real ruler tick because the wire's `ruler` array carries
+  every instant the view draws, on-disk included — so #250's leader still points at a tick.
+- **This also closes #248 and #249**, which were two descriptions of this one cause ("hash below a
+  bubble" and "'on disk' above a bubble"). Neither needed the legend entry they offered as the
+  alternative to fixing placement.
+- **Tests.** New `jfred/tests/layer1-page-spans.test.ts` — a separate file because
+  `layer1-page.test.ts` had 8 lines of headroom before the cap, matching the precedent that forced
+  `viewer_api_layer1_placement.test.ts` out of `viewer_api_layer1.test.ts`. Three tests on an
+  inverted fixture (disk older than both commits): the widget pins to the on-disk offset, no node
+  carries a negative offset, and the lane spans to the last COMMIT. All three were RED first (the
+  span read `-14`).
+- **Re-verified** with the same CDP script on a freshly built server: disk-node header collisions
+  **250 → 0** across all 808 widgets in all five scenarios, with name bounds, leader reach and
+  tick alignment still passing. The `launch.json` bubble from the user's screenshot was photographed
+  clean.
+
 ### Open questions
 
 1. **Should the faint leader show-through be removed?** A leader crossing a bubble to its left is
@@ -100,6 +133,9 @@ Path to JSONL log: /Users/matkatmusicllc/.claude/projects/-Users-matkatmusicllc-
 3. **Bubbles are 20 px taller everywhere.** `padding-top: 30px → 50px` applies to orphan buckets too
    (which incidentally fixes their first list row being drawn under `.sub`). If the extra height is
    unwelcome at scale, the real lever is task 251's measured ruler spacing.
-4. **250 disk-node header collisions remain, by design.** The live check counts them separately and
-   they are entirely the negative `onDisk − firstCommit` offset owned by tasks 248/249; commit-node
-   collisions are now zero. Confirming this is the right split before 248/249 are planned.
+4. ~~250 disk-node header collisions remain, by design.~~ **RESOLVED in the second round above** —
+   fixed at the root, #248 and #249 closed with it. Collisions are now 0 of 808.
+5. **A bubble's top edge is now its earliest instant of EITHER kind**, so for a file whose disk state
+   predates its history the leader points at the on-disk instant rather than at first-commit. That is
+   the honest reading of "when this file's timeline starts", but confirm it is the one you want
+   before #251 sizes ruler spacing from bubble geometry.

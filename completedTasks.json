@@ -2242,7 +2242,10 @@
     "title": "Layer 1 View: long file names overflow their bubble and collide with neighbours",
     "description": "Layer 1 View visual fix (2026-07-25, user feedback on jfred/webapp/layer1.html + jfred/webapp/layer1-page.ts). Long file names need addressing: the file-name label renders at full width regardless of the bubble it sits in, so it spills past the bubble's rounded border and overprints the labels of the widgets on either side. See specs/bug screenshots/'colliding filenames, commit nodes overlapping text.png' — four adjacent 'archive/interim-run-scenario/...' widgets whose names run into each other, and specs/bug screenshots/'on-disk above timeline bubble 2.png' — six 'demo-baseline/file-hist...' widgets with the same overlap. Decide and implement a treatment (truncate with a middle or leading ellipsis and a full-path hover title, wrap to a bounded number of lines, or widen the widget to fit) and make the bubble box actually contain the label.",
     "completionDate": "2026-07-25",
-    "commitHashes": [],
+    "commitHashes": [
+      "jfred@3129451",
+      "RevEng@f8abb49"
+    ],
     "closureNote": "Closed: the pair bubble now renders the file BASENAME with the full path on its hover title, bounded by max-width: calc(100% - 24px) + text-overflow: ellipsis, so a long name can no longer spill past the border onto its neighbours; a truncated full path was rejected because sibling bubbles all truncate to the same shared prefix. Verified in headless Chrome over this repo 805 pair widgets: zero names escaping their bubble, all carrying a title."
   },
   {
@@ -2250,7 +2253,10 @@
     "title": "Layer 1 View: commit node collides with the text beside it",
     "description": "Layer 1 View visual bug (2026-07-25, user feedback on jfred/webapp/layer1.html + jfred/webapp/layer1-page.ts). The commit node marker (the blue square) and its short-hash label collide with other text inside the bubble — in the screenshots the 8-char hash is drawn directly on top of the 'on disk' label. Evidence: specs/bug screenshots/'colliding filenames, commit nodes overlapping text.png' (`5636d8ec` overprinting 'on disk'), specs/bug screenshots/'squashed bubble contents colliding.png' (`cedcc5cc` overprinting 'on disk'), and specs/bug screenshots/'on-disk above timeline bubble.png' (`08809914` overprinting 'on disk'). Give the commit node and the on-disk node their own non-overlapping rows/lanes inside the bubble.",
     "completionDate": "2026-07-25",
-    "commitHashes": [],
+    "commitHashes": [
+      "jfred@3129451",
+      "RevEng@f8abb49"
+    ],
     "closureNote": "Closed: .filebox padding-top raised 30px to 50px, derived from .sub ending at y 39 plus the 10px a translate(-50%,-50%) node reaches above the lane top, so the commit node and its short-hash label no longer overprint the N commits/on disk header line. Verified in headless Chrome: zero commit-node header collisions across 805 pair widgets at 100% and 64% zoom. The remaining disk-node collisions are the negative onDisk-minus-firstCommit offset owned by tasks 248/249 and were deliberately left untouched."
   },
   {
@@ -2258,7 +2264,26 @@
     "title": "Layer 1 View: draw a horizontal dashed leader line from the top of each file bubble to the ruler",
     "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Add a horizontal dashed line that connects the top of each file bubble back to the ruler, so the reader can trace a bubble to its timestamp on the sticky ruler gutter without eyeballing the vertical position. The ruler is the sticky flex column added in the S18 feedback batch (`.ruler { position: sticky; left: 0 }` inside the zoomed `.canvas`) — the leader must render correctly under the zoom control and while the canvas is horizontally scrolled.",
     "completionDate": "2026-07-25",
-    "commitHashes": [],
+    "commitHashes": [
+      "jfred@3129451",
+      "RevEng@f8abb49"
+    ],
     "closureNote": "Closed: a dashed leader added as .filebox::before (right:100%, top:-2px cancelling the 2px border, width calc(100vw / var(--zoom,1)), z-index:-1) plus isolation:isolate on .canvas so the negative z-index resolves inside the zoomed canvas instead of escaping to the root and hiding behind the page background. The leader lands on the bubble border-box top edge, which equals its first instant ruler tick. Verified in headless Chrome across five scenarios (zoom 100% and 64%; unscrolled, scrolled 1200px, 120000px, and to the far edge at 155362px): every on-screen bubble leader reaches the pinned gutter and every bubble top matches its tick within 1.5px."
+  },
+  {
+    "taskNumber": 248,
+    "title": "Layer 1 View: explain (or fix) commit hashes rendered directly below a timeline bubble",
+    "description": "Layer 1 View question/bug (2026-07-25, user feedback on jfred/webapp/layer1.html). Sometimes commit hashes appear directly BELOW a timeline bubble rather than inside it, and it is not clear what that indicates — the user's guess is that it may mean the file was deleted. Determine what the renderer is actually doing in that case (see jfred/webapp/layer1-page.ts and the pairing/placement logic in jfred/src/layer1_pairing.ts and jfred/src/layer1_ruler_axis.ts), then either fix the placement so the node sits inside its bubble, or give it an explicit visual legend entry that states what an out-of-bubble commit node means.",
+    "completionDate": "2026-07-25",
+    "commitHashes": [],
+    "closureNote": "Fixed, not explained away: the out-of-bubble commit hash was the widget lane being too short to hold its own ladder whenever the LAST node was a commit rather than the on-disk state. Closed together with the second round of #247 (user re-reported the collision via specs/bug screenshots/on-disk collision inside bubble.png): #248 and #249 were two descriptions of ONE cause in buildPairWidget (jfred/webapp/layer1-page.ts), which anchored on pair.commits[0].axisPx unconditionally and hardcoded --span-px to the on-disk node, so a file whose disk mtime predated its first commit produced a negative offset and, because nodes are abspos under translate(-50%,-50%), drew the disk node above the lane top while the lane was simultaneously too short when the last node was a commit; now startPx = Math.min(...nodePx) and --span-px = Math.max(...nodePx) - startPx over every node offset, which also retires the old empty-ladder fallback. The anchor stays a real ruler tick, so #250 leader still points at a tick, and neither task needed the legend entry it offered as the alternative to fixing placement. New tests in jfred/tests/layer1-page-spans.test.ts (RED first, span read -14). Verified in headless Chrome on the live jfred repo: disk-node header collisions 250 to 0 across all 808 widgets at 100% and 64% zoom and every scroll position."
+  },
+  {
+    "taskNumber": 249,
+    "title": "Layer 1 View: explain (or fix) 'on disk' rendered directly above a timeline bubble",
+    "description": "Layer 1 View question/bug (2026-07-25, user feedback on jfred/webapp/layer1.html). Sometimes an 'on disk' node with its ring marker appears directly ABOVE a timeline bubble instead of inside it, with no visual connection to the file it belongs to. Evidence: specs/bug screenshots/'on-disk above timeline bubble.png' (a lone 'on disk' at 07-21 01:12 above the 'archive/timeline-changes-retired-orphan-proxies.ts' bubble) and specs/bug screenshots/'on-disk above timeline bubble 2.png' (six free-floating 'on disk' nodes strung above a row of demo-baseline bubbles). Determine why the node lands outside its bubble (jfred/webapp/layer1-page.ts, jfred/src/layer1_pairing.ts, jfred/src/layer1_ruler_axis.ts) and either place it inside or make the association explicit. Related to task 248.",
+    "completionDate": "2026-07-25",
+    "commitHashes": [],
+    "closureNote": "Fixed, not explained away: the free-floating on-disk node was a NEGATIVE relative offset escaping above the lane, not a pairing or ruler-axis error. Closed together with the second round of #247 (user re-reported the collision via specs/bug screenshots/on-disk collision inside bubble.png): #248 and #249 were two descriptions of ONE cause in buildPairWidget (jfred/webapp/layer1-page.ts), which anchored on pair.commits[0].axisPx unconditionally and hardcoded --span-px to the on-disk node, so a file whose disk mtime predated its first commit produced a negative offset and, because nodes are abspos under translate(-50%,-50%), drew the disk node above the lane top while the lane was simultaneously too short when the last node was a commit; now startPx = Math.min(...nodePx) and --span-px = Math.max(...nodePx) - startPx over every node offset, which also retires the old empty-ladder fallback. The anchor stays a real ruler tick, so #250 leader still points at a tick, and neither task needed the legend entry it offered as the alternative to fixing placement. New tests in jfred/tests/layer1-page-spans.test.ts (RED first, span read -14). Verified in headless Chrome on the live jfred repo: disk-node header collisions 250 to 0 across all 808 widgets at 100% and 64% zoom and every scroll position."
   }
 ]
