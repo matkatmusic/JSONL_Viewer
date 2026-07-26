@@ -2419,5 +2419,58 @@
       "jfred@f27922c"
     ],
     "closureNote": "Closed with #263 on the user's 2026-07-26 hard-reload report (\"the page is much more responsive\"). The user's own speculation was right: the smooth scroll in jfred/webapp/layer1-minimap.ts was animating across a canvas painting 805 leader lines of 500,000 px each, so the minimap was never itself at fault and needed no change. Resolved entirely by #264. The fallback this task named — dropping `behavior: 'smooth'` for long jumps — was NOT needed and should not be applied speculatively."
+  },
+  {
+    "taskNumber": 252,
+    "title": "Layer 1 View: add a File Nav tree to the left of the ruler listing every identified file",
+    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Add a File Nav pane on the left, to the LEFT of the sticky ruler gutter, that shows every identified file — including files that were deleted (i.e. files with no current on-disk presence must still be listed). REUSE THE EXISTING FILE NAV COMPONENT the current webapp (index.html) already ships — the user confirmed this 2026-07-25; do NOT write a second tree. The component is already shared by two callers, so a third is the intended extension point: `buildFileTree(files: FileSidebarEntry[]) -> FileTreeNode[]` in jfred/webapp/views/timeline-file-tree.ts (common-prefix stripping, folders-before-files sort, single-child chain collapse) and `renderFileTreeNode(node, callbacks, selectionRoot, coverage?)` in jfred/webapp/views/sidebar.ts (folder = native `<details open>`, leaf = `.file-item` with basename text and full path in `title`, `.file-item.deleted` variant already exists). Existing callers to copy from: views/timeline.ts:211 (the Files sidebar) and views/details.ts:130 (the details pane's \"Files touched\" tree, which passes no `coverage`). THREE TRAPS. (1) `buildFileTree` consumes `FileSidebarEntry` (timeline-file-tree.ts:13) built by `buildFilesSidebarViewModel` from a `WireTimelineDocument` — Layer 1 has NO such document, so the Layer 1 caller must construct its own `FileSidebarEntry[]`-shaped list from the /api/layer1-view payload (`pairs` + `gitOrphans` + `diskOrphans`), mapping revisionCount to the commit count and isDeleted to a path present in the repo tree but absent on disk; `originalPath` and `renameBadgeLabel` are undefined at Layer 1. (2) The tree's CSS (`.file-folder`, `.file-folder-kids`, `.file-folder-name`, `.file-item`) lives in jfred/webapp/styles.css (20 rules) which layer1.html does NOT load — layer1.html has only an inline `<style>` block, and index.html loads layered-styles.css which carries none of it. Bring the rules across or link the sheet. (3) views/sidebar.ts deliberately MIRRORS `FileSidebarEntry`/`FileTreeNode` rather than importing them (timeline-file-tree.ts imports sidebar.ts, so importing back would be a cycle) — any field added must be added in both places. This pane is the host for the folder-filter behaviour in tasks 253, 254 and 255.",
+    "blockedBy": [],
+    "completionDate": "2026-07-26",
+    "commitHashes": [
+      "d4e4ca3"
+    ],
+    "closureNote": "Closed: the File Nav pane shipped in jfred@d4e4ca3 — webapp/layer1-filenav.ts builds FileSidebarEntry rows from the /api/layer1-view payload and renders them through the existing buildFileTree/renderFileTreeNode, in an aside.filenav left of the sticky ruler, with the tree CSS retargeted into layer1-styles.css."
+  },
+  {
+    "taskNumber": 259,
+    "title": "Layer 1 View: group same-timestamp nodes in a bubble behind a visual indicator",
+    "description": "User request 2026-07-25, in their own wording: \"visual indicator of some kind in the timeline bubble when two events happen at the same timestamp. maybe a rounded rectangle is put around the same-time nodes\". WHY THIS IS REAL, NOT HYPOTHETICAL: a commit instant and a file's on-disk mtime routinely land on the SAME instant (a commit written and the working tree touched in the same second), and that tie is the mechanism behind the overprinting in specs/bug screenshots/'colliding filenames, commit nodes overlapping text.png' — `5636d8ec` drawn straight on top of `on disk`. Task 251 makes the tied nodes stop overlapping by giving each one its own row slot and charging the ruler for it, but once they are on separate rows NOTHING tells the reader they were simultaneous — the fix for the collision destroys the information. This task restores it: draw a rounded rectangle (or equivalent grouping affordance) around the run of nodes that share one instant, so the reader can see the rows are one moment rather than a sequence. The single tick that instant occupies on the ruler is the anchor the rectangle should read against. DESIGN REFERENCE: plans/layer1-mockup.html already computes exactly the grouping this needs — each node carries a `slot` index within its instant and `rowsAt` maps an instant to how many rows it needs; a run with `rowsAt > 1` is precisely a same-timestamp group. The fixture's README.md widget has a real tie (commit 4d5e6f70 and its mtime both at 2026-07-20T16:00:00Z), so the mockup can demonstrate the indicator without new test data. Implementation lands in jfred/webapp/layer1-page.ts plus the layer1.html style block.",
+    "completionDate": "2026-07-26",
+    "commitHashes": [
+      "d4e4ca3"
+    ],
+    "closureNote": "Closed: same-instant nodes are now wrapped in a rounded rectangle by webapp/layer1-tie-groups.ts, appended behind the nodes by buildPairWidget and styled by the .lane .tiegroup rule, shipped in jfred@d4e4ca3."
+  },
+  {
+    "taskNumber": 269,
+    "title": "Layer 1 View: the minimap overlaps the ruler and must sit entirely inside the timeline area",
+    "description": "Layer 1 View visual bug (user report 2026-07-26, voice). In the user's words: \"the minimap covers up part of the ruler and should be entirely in the timeline area.\" Evidence: the user's 2026-07-26 screenshot shows the minimap box sitting over the left gutter, hiding several ruler timestamps behind it. The minimap is jfred/webapp/layer1-minimap.ts, positioned by the `.minimap` rule in jfred/webapp/layer1-styles.css at `left: 12px; bottom: 12px` inside `.stagewrap`, which spans the ruler as well as the stage. It must be inset to clear the sticky `.ruler` gutter (width `calc(var(--rail-x) + 2px)`, --rail-x currently 80px) rather than starting at the pane's left edge.",
+    "completionDate": "2026-07-26",
+    "commitHashes": [
+      "d4e4ca3"
+    ],
+    "closureNote": "Closed: the .minimap rule now insets by calc(232px + 82px + 12px) — the File Nav width plus the sticky gutter (--rail-x 80px + the rail border) plus the inset — so the minimap sits entirely inside the timeline area (jfred@d4e4ca3)."
+  },
+  {
+    "taskNumber": 277,
+    "title": "Layer 1 View: jumping to a bubble does not bring the bubble's TOP into view",
+    "description": "User report 2026-07-26, in their own wording: \"clicking a file in the file nav correctly jumps to the bubble in the timeline but the top of the bubble is not scrolled to; the scrolling appears to be horizontal only\", and separately \"the find bubble search field and cycling through the search results via the enter key does not scroll the top of the bubble for the selected search result in to view\". ONE root cause serves both symptoms. jfred/webapp/layer1-find-file.ts's jumpToNamedBubble calls `landed.scrollIntoView({ block: \"center\", inline: \"center\" })`. A `.filebox` is as tall as its own ladder span (jfred/webapp/layer1-styles.css: `.filebox` takes `margin-top: calc(var(--axis-px) * 1px)` and `.lane` takes `min-height: calc(var(--span-px) * 1px + 18px)`), so a file with a long commit history is thousands of px tall; centring that box VERTICALLY puts its top far above the viewport, which reads as \"only the horizontal scroll worked\". Both callers route through this one function — the find-bubble box (task 261) and the File Nav leaf click (task 252) — so the fix belongs in jumpToNamedBubble, not in either caller. Likely fix: `block: \"start\"` while KEEPING `inline: \"center\"` (the horizontal centring is correct and is what already works), plus a small `scroll-margin-top` on `.filebox` so the bubble's name/sub header is not flush against the pane's top edge. TRAP: verify against a MANY-COMMIT bubble (jfred/webapp/styles.css has a long ladder), never a short one — on a short bubble the centre and the top are close together and the bug is invisible.",
+    "blockedBy": [],
+    "completionDate": "2026-07-26",
+    "commitHashes": [
+      "d4e4ca3"
+    ],
+    "closureNote": "Closed: landOnBubble now scrolls with block:start (inline:center kept) and .filebox carries scroll-margin-top: 14px; the identical defect in layer1-ruler-click.ts was fixed at the same time (jfred@d4e4ca3)."
+  },
+  {
+    "taskNumber": 278,
+    "title": "Layer 1 View: a File Nav click piggybacks on the find-bubble search and cycles instead of targeting that one file",
+    "description": "User report 2026-07-26, in their own wording: \"clicking the root level .gitignore file cycles between every instance of gitignore in the timeline. the mechanism of clicking the file and going to the bubble in the timeline seems to piggyback off of the search functionality because when you click on the file name in the file nav, the 'find filename: n of N' in the page header populates with the name of the file you clicked on in the file nav. clicking that file multiple times increments the 'n' of that search result header.\" That diagnosis is exactly right, and it is a deliberate shortcut taken in task 252: jfred/webapp/layer1-filenav.ts wires `onFileClick: jumpToNamedBubble`, and jumpToNamedBubble (jfred/webapp/layer1-find-file.ts) does a case-insensitive SUBSTRING match over each bubble's `.fname` title, keeps a module-scope cycle counter (`cycledTerm`/`cycleIndex`), and reports \"find <term>: n of N\" into the #crumb. A File Nav leaf knows the EXACT path it represents, so it should land that one bubble deterministically — no substring match, no cycle counter, no find-box crumb text. TRAP: `.gitignore` is the worst case rather than an odd one — the root `.gitignore` path is a substring of every nested `.gitignore` path, so a substring match can NEVER disambiguate it no matter how the cycle is tweaked. Fix direction: add an exported exact-path jump to jfred/webapp/layer1-find-file.ts (match on the `.fname` title being EQUAL to the target rather than containing it) and have the File Nav call that, leaving the typed find box's cycling untouched — cycling is correct for a typed term (task 261 requirement 2) and wrong only for a click. Related: task 277 is the separate defect that the landed bubble's top is not scrolled into view.",
+    "blockedBy": [],
+    "completionDate": "2026-07-26",
+    "commitHashes": [
+      "d4e4ca3"
+    ],
+    "closureNote": "Closed: the File Nav now calls the new exact-path jumpToBubbleAtPath, which matches the .fname title for equality with no cycle counter and no find-box crumb text, so repeat clicks land the same bubble (jfred@d4e4ca3)."
   }
 ]
