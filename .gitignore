@@ -148,3 +148,5 @@ __pycache__
 webapp/dist/
 tools/line-state-reports
 logs*.txt
+plans/cleanup-claude-mem-caches.sh
+**/specs/bug screenshots/
