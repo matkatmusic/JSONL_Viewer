@@ -2472,5 +2472,15 @@
       "d4e4ca3"
     ],
     "closureNote": "Closed: the File Nav now calls the new exact-path jumpToBubbleAtPath, which matches the .fname title for equality with no cycle counter and no find-box crumb text, so repeat clicks land the same bubble (jfred@d4e4ca3)."
+  },
+  {
+    "taskNumber": 253,
+    "title": "Layer 1 View: clicking a folder in File Nav filters the timeline to that folder's files",
+    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Clicking a folder in the File Nav pane should make the timeline show ONLY the bubbles for files in that folder, including files in nested subfolders. This is the timeline's content filter. The timeline's height and width must also resize to the timestamp range of the SELECTED files only — i.e. the ruler is recomputed over the filtered set, not left at the full-project range. NOTE: the reused component (task 252) has NO folder-click handler today — `FileTreeCallbacks` in jfred/webapp/views/sidebar.ts carries only `onFileClick`, and a folder renders as a bare `<summary class=\"file-folder-name\">` inside a native `<details>`. This task must add an optional folder callback to that type and wire it in `renderFileTreeNode` WITHOUT breaking the two existing callers (views/timeline.ts:211 and views/details.ts:130), and without swallowing the `<details>` element's own native expand/collapse toggle on the same click.",
+    "completionDate": "2026-07-26",
+    "commitHashes": [
+      "4d9eab7"
+    ],
+    "closureNote": "Implemented and committed in jfred@4d9eab7: a File Nav folder click filters the timeline to that folder's files (nested subfolders included) and the ruler is recomputed over the filtered set by the new webapp/layer1-filter.ts, with src/layer1_ruler_axis.ts moved to webapp/layer1-ruler-axis.ts so the endpoint and the page share one layout implementation; an optional onFolderClick was added to FileTreeCallbacks without breaking views/timeline.ts or views/details.ts and without cancelling the native details toggle, and the expand triangle became a real span so opening a folder does not also select it."
   }
 ]

@@ -117,25 +117,14 @@
     "blockedBy": []
   },
   {
-    "taskNumber": 253,
-    "title": "Layer 1 View: clicking a folder in File Nav filters the timeline to that folder's files",
-    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Clicking a folder in the File Nav pane should make the timeline show ONLY the bubbles for files in that folder, including files in nested subfolders. This is the timeline's content filter. The timeline's height and width must also resize to the timestamp range of the SELECTED files only — i.e. the ruler is recomputed over the filtered set, not left at the full-project range. NOTE: the reused component (task 252) has NO folder-click handler today — `FileTreeCallbacks` in jfred/webapp/views/sidebar.ts carries only `onFileClick`, and a folder renders as a bare `<summary class=\"file-folder-name\">` inside a native `<details>`. This task must add an optional folder callback to that type and wire it in `renderFileTreeNode` WITHOUT breaking the two existing callers (views/timeline.ts:211 and views/details.ts:130), and without swallowing the `<details>` element's own native expand/collapse toggle on the same click."
-  },
-  {
     "taskNumber": 254,
     "title": "Layer 1 View: add a way to deselect the folder filter and show all files again",
-    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Follow-up to task 253: there must also be a mechanism to 'deselect' the currently selected folder so that all files are shown in the timeline again (and the ruler returns to the full timestamp range).",
-    "blockedBy": [
-      253
-    ]
+    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Follow-up to task 253: there must also be a mechanism to 'deselect' the currently selected folder so that all files are shown in the timeline again (and the ruler returns to the full timestamp range)."
   },
   {
     "taskNumber": 255,
     "title": "Layer 1 View: shift-click folders in File Nav to select more than one",
-    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Follow-up to task 253: shift-clicking folders in the File Nav pane should select more than one folder at a time, and the timeline should display all files found in any of the selected folders, including nested subfolders. The timeline range resize from task 253 applies to the union of the selected folders.",
-    "blockedBy": [
-      253
-    ]
+    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Follow-up to task 253: shift-clicking folders in the File Nav pane should select more than one folder at a time, and the timeline should display all files found in any of the selected folders, including nested subfolders. The timeline range resize from task 253 applies to the union of the selected folders."
   },
   {
     "taskNumber": 257,
