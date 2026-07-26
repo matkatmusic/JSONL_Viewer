@@ -2498,32 +2498,40 @@
     "title": "Layer 1 View: add forward/backward buttons to the find-bubble box for cycling matches",
     "description": "Layer 1 View feature (user request 2026-07-26, voice). In the user's words: \"the find bubble text editor has no forward backward buttons to cycle through the search results when more than one search result exists.\" TODAY jfred/webapp/layer1-find-file.ts cycles matches on repeat Enter only (an unchanged term steps forward and wraps), which is invisible affordance-wise and offers no way to step BACKWARD. Add explicit next/previous controls beside the input, keeping the existing Enter behaviour. Related: task #272 (the tooltip explaining Enter-cycling vanishes while typing) and task #273 (clearing the box leaves a stale match count in the header).",
     "completionDate": "2026-07-26",
-    "commitHashes": [],
-    "closureNote": "Added ‹/› cycle buttons beside the find box; selectNextMatch became selectMatchAtStep(term, step) with (cycleIndex + step + matches.length) % matches.length so -1 wraps to the last match instead of going negative. Enter still submits and steps forward. Staged uncommitted in jfred at closure time."
+    "commitHashes": [
+      "59bc15b"
+    ],
+    "closureNote": "Added ‹/› cycle buttons beside the find box; selectNextMatch became selectMatchAtStep(term, step) with (cycleIndex + step + matches.length) % matches.length so -1 wraps to the last match instead of going negative. Enter still submits and steps forward. Committed as jfred@59bc15b."
   },
   {
     "taskNumber": 272,
     "title": "Layer 1 View: the find-bubble tooltip disappears as soon as the user starts typing",
     "description": "Layer 1 View UX bug (user report 2026-07-26, voice). In the user's words: \"the tooltip for the text editor says cycle on return, but as soon as you start typing in the text editor, the tooltip disappears.\" The instruction explaining that Enter cycles through matches is therefore hidden at exactly the moment it becomes relevant — the user is typing a term precisely when they need to know how to move between its matches. The find box is in the `.sources` row of jfred/webapp/layer1.html and its behaviour lives in jfred/webapp/layer1-find-file.ts; the hint is currently a native `title` attribute, which browsers hide on input. Surface the guidance somewhere that survives typing. Related: task #271 adds explicit next/previous buttons, which may make the tooltip largely redundant — settle these two together.",
     "completionDate": "2026-07-26",
-    "commitHashes": [],
-    "closureNote": "DROPPED by the user 2026-07-26 in favour of task 271: the Enter-cycles hint no longer needs surfacing because the ‹/› buttons are a visible affordance. The find box placeholder was left untouched. Staged uncommitted in jfred at closure time."
+    "commitHashes": [
+      "59bc15b"
+    ],
+    "closureNote": "DROPPED by the user 2026-07-26 in favour of task 271: the Enter-cycles hint no longer needs surfacing because the ‹/› buttons are a visible affordance. The find box placeholder was left untouched. Committed as jfred@59bc15b."
   },
   {
     "taskNumber": 273,
     "title": "Layer 1 View: clearing the find-bubble box leaves a stale match count in the header",
     "description": "Layer 1 View bug (user report 2026-07-26, voice). In the user's words: \"if you clear the find bubble text editor, the header row that holds the zoom controls does not stop displaying the find results and number of items found.\" jfred/webapp/layer1-find-file.ts writes its `find \"<term>\": N of M . <path>` readout into the `#crumb` element, and nothing clears it when the input is emptied, so a stale result count keeps displaying against a search the user has abandoned. Emptying the box must clear the readout (and should also drop any lingering match highlight and reset the cycle position).",
     "completionDate": "2026-07-26",
-    "commitHashes": [],
-    "closureNote": "The find readout moved out of the shared header #crumb into its own #find-status element in the .sources row, so a search no longer destroys the stage counts; an input listener clears the readout, the lit bubble and the cycle position whenever the box is emptied. Staged uncommitted in jfred at closure time."
+    "commitHashes": [
+      "59bc15b"
+    ],
+    "closureNote": "The find readout moved out of the shared header #crumb into its own #find-status element in the .sources row, so a search no longer destroys the stage counts; an input listener clears the readout, the lit bubble and the cycle position whenever the box is emptied. Committed as jfred@59bc15b."
   },
   {
     "taskNumber": 276,
     "title": "Layer 1 View: the ruler should show seconds and milliseconds, not just month/day and hours/minutes",
     "description": "Layer 1 View fix (user report 2026-07-26, voice). In the user's own words: \"the ruler should show more of the timestamp information. the ruler appears to only show month/day + hours and minutes, not seconds or milliseconds.\" Confirmed: `formatInstantLabel` in jfred/webapp/layer1-page.ts is `new Date(instant).toISOString().slice(5, 16).replace('T', ' ')`, which yields exactly \"MM-DD HH:MM\" and discards seconds and milliseconds. Because of that truncation, instants that are seconds apart render as identical text, which is the direct cause of the duplicate-looking rows in task #268 — the user's phrasing there (\"if the ruler row is showing milliseconds, then rows with the same value should all be combined\") assumes THIS task lands first. Widen the label to include seconds and milliseconds (the example given in task #275 is `07-18 19:42:08.22`); note the `.ruler .tick` rule in jfred/webapp/layer1-styles.css currently allots the label a fixed 70 px against an 80 px gutter, so the gutter will need to grow with the longer text.",
     "completionDate": "2026-07-26",
-    "commitHashes": [],
-    "closureNote": "formatInstantLabel now slices the ISO string to 22 (MM-DD HH:MM:SS.hh, the precision the user gave in task 275); .ruler .tick width grew 70 to 108px and --rail-x 80 to 118px to fit the longer label. Staged uncommitted in jfred at closure time."
+    "commitHashes": [
+      "59bc15b"
+    ],
+    "closureNote": "formatInstantLabel now slices the ISO string to 22 (MM-DD HH:MM:SS.hh, the precision the user gave in task 275); .ruler .tick width grew 70 to 108px and --rail-x 80 to 118px to fit the longer label. Committed as jfred@59bc15b."
   },
   {
     "taskNumber": 279,
@@ -2531,8 +2539,10 @@
     "description": "User request 2026-07-26, in their own wording: \"the file nav column should be resizable. right edge of the column should be draggable to resize.\" The pane landed in task 252 as `<aside class=\\\"filenav\\\">` inside `.stagewrap` in jfred/webapp/layer1.html, styled in jfred/webapp/layer1-styles.css with a hardcoded `width: 232px`. TRAP: `.minimap` is `position: absolute` against `.stagewrap`, and task 252 set its `left` to `calc(232px + 12px)` to clear the pane — that literal REPEATS the pane's width, so whatever makes the width dynamic must drive the minimap's `left` from the same value or the minimap will drift over the pane (or back over the ruler) as the user drags. Native-first options to weigh before writing a drag handler: CSS `resize: horizontal` on `.filenav` costs zero JS but puts the grabber in the bottom-right corner rather than along the whole right edge as asked, and cannot update the minimap; a small pointerdown/pointermove handler writing ONE custom property (e.g. `--filenav-w` on `.viz-root`) that BOTH `.filenav`'s width and `.minimap`'s `left` read is the smallest thing that satisfies the request as worded and removes the duplicated literal at the same time. Note task 269 (minimap overlapping the ruler) touches the same `.minimap` positioning and should be settled first or together.",
     "blockedBy": [],
     "completionDate": "2026-07-26",
-    "commitHashes": [],
-    "closureNote": "One --filenav-w custom property on .stagewrap now drives both .filenav width and .minimap left, removing the duplicated 232px literal; a 6px .filenav-grip on the pane right edge writes it via pointer listeners on the window, clamped 120-640px. Staged uncommitted in jfred at closure time."
+    "commitHashes": [
+      "59bc15b"
+    ],
+    "closureNote": "One --filenav-w custom property on .stagewrap now drives both .filenav width and .minimap left, removing the duplicated 232px literal; a 6px .filenav-grip on the pane right edge writes it via pointer listeners on the window, clamped 120-640px. Committed as jfred@59bc15b."
   },
   {
     "taskNumber": 280,
@@ -2540,7 +2550,9 @@
     "description": "User clarification 2026-07-26, in their own wording: \"there's a task that says file names in bubbles are truncated. for that task, when you mouse over the file name in the bubble the full file name should be shown. right now the full file name appears as a tool tip.\" This REFINES existing task 270 (\"Layer 1 View: bubble file names are truncated and should be readable\") rather than replacing it: 270 covers making the name readable at all, this pins the specific hover behaviour asked for. CURRENT STATE: jfred/webapp/layer1-page.ts's buildPairWidget renders `el(\\\"div\\\", { class: \\\"fname\\\", text: basename, title: pair.path })`, so the full path is reachable ONLY through the native `title` tooltip — which the user is explicitly rejecting (slow to appear, unstyled, vanishes on movement). `.filebox .fname` in jfred/webapp/layer1-styles.css is `position: absolute` with `max-width: calc(100% - 24px)`, `overflow: hidden`, `text-overflow: ellipsis`, `white-space: nowrap`; that ellipsis is the truncation. FIX DIRECTION: on `:hover`, let the name escape the bubble's width so the full path is revealed in-page immediately — CSS-only, no JS. TRAP: the neighbouring bubbles sit only 26 px apart in `.stage` (the `.stage` gap), so a revealed long name will paint over them unless it also gets an opaque background and a z-index above its siblings. Task 270 should be settled with this one, not separately — they are the same widget's name.",
     "blockedBy": [],
     "completionDate": "2026-07-26",
-    "commitHashes": [],
-    "closureNote": "The full path moved from title to data-path so no native tooltip fires, and .filebox .fname:hover lifts max-width/overflow to reveal the whole path in-page with an opaque background at z-index 7 (above .node 6, below .ruler 8). Settles task 270 as its text asked. Staged uncommitted in jfred at closure time."
+    "commitHashes": [
+      "59bc15b"
+    ],
+    "closureNote": "The full path moved from title to data-path so no native tooltip fires, and .filebox .fname:hover lifts max-width/overflow to reveal the whole path in-page with an opaque background at z-index 7 (above .node 6, below .ruler 8). Settles task 270 as its text asked. Committed as jfred@59bc15b."
   }
 ]
