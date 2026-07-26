@@ -117,48 +117,15 @@
     "blockedBy": []
   },
   {
-    "taskNumber": 255,
-    "title": "Layer 1 View: shift-click folders in File Nav to select more than one",
-    "description": "Layer 1 View feature (2026-07-25, user feedback on jfred/webapp/layer1.html). Follow-up to task 253: shift-clicking folders in the File Nav pane should select more than one folder at a time, and the timeline should display all files found in any of the selected folders, including nested subfolders. The timeline range resize from task 253 applies to the union of the selected folders."
-  },
-  {
     "taskNumber": 257,
     "title": "Detail View drawer: clicking a commit node or on-disk node shows the file contents at that moment",
     "description": "Layer 1 View feature, PROBABLY BELONGS TO A LATER LAYER — the user flagged it as 'probably a feature for another layer' (2026-07-25 feedback on jfred/webapp/layer1.html). Clicking a commit node or an on-disk node should make the Detail View drawer appear over the right half of the screen and show the contents of that file at that moment. For git nodes, use the appropriate git command to show the file from that commit (e.g. `git show <hash>:<path>`). For on-disk nodes, only enable clicking the node if it is the MOST RECENT on-disk node — not the 'created at' node — UNLESS the 'created at' node IS the most recent node (that is, modified timestamp == created-at timestamp). Confirm the target layer/spec section before implementing; this may need to be re-filed against a later spec item rather than S18.",
     "blockedBy": []
   },
   {
-    "taskNumber": 266,
-    "title": "Layer 1 View: clicking a ruler row does not jump to the first bubble with that timestamp",
-    "description": "Layer 1 View bug (user report 2026-07-26, voice). In the user's words: \"clicking a ruler row does not jump to the first bubble with that same time stamp.\" This is the task #260 feature failing in practice against the live render, despite passing its 3 unit tests. The implementation is jfred/webapp/layer1-ruler-click.ts: `findBubbleForAxisPx` runs a two-stage lookup — stage 1 matches a `.filebox` whose own `--axis-px` equals the clicked tick's offset (a bubble that BEGINS at that instant), stage 2 falls back to `bubbleAxisPx + nodeAxisPx` for a bubble merely holding a node there. Re-verify against the REAL render, not the fixture: likely suspects are that the equality comparison never matches because the values are floats after task #251's content-driven spacing, or that the handler is attached to a tick element that is replaced on re-render. Note task #268 may merge duplicate ruler rows, which changes which tick is clickable."
-  },
-  {
     "taskNumber": 267,
     "title": "Layer 1 View: show visual feedback for which node belongs to the clicked ruler row",
-    "description": "Layer 1 View feature (user request 2026-07-26, voice). In the user's words: \"there needs to be some kind of visual feedback that shows you which node is the node associated with the clicked ruler row.\" After a ruler-row click scrolls the view (task #260/#266), nothing indicates WHICH node on the target bubble the clicked row actually refers to — the reader arrives at a bubble but still has to work out which of its nodes shares the clicked instant. Highlight or otherwise mark that node. Note task #261's find-box already establishes a highlight convention for this page: it uses an `outline` rather than a border, deliberately, because a border change would move the bubble's own box, which is the geometry the page exists to inspect. Reuse that convention.",
-    "blockedBy": [
-      266
-    ]
-  },
-  {
-    "taskNumber": 268,
-    "title": "Layer 1 View: merge ruler rows that display the same time value into a single row",
-    "description": "Layer 1 View fix (user report 2026-07-26, voice). In the user's words: \"there are many ruler rows that have the same time value. if the ruler row is showing milliseconds, then rows with the same value should all be combined into one row.\" TODAY: `formatInstantLabel` in jfred/webapp/layer1-page.ts renders \"MM-DD HH:MM\" (no seconds, no milliseconds), and `renderRulerTicks` drops a label only when it would PHYSICALLY collide with the one above it (TICK_LABEL_MIN_GAP_PX = 13). So distinct instants that render to the same visible text still occupy separate rows whenever they are far enough apart in pixels, and the gutter reads as a run of identical timestamps. Decide with care whether the merge happens on the DISPLAYED string or on the underlying instant, and at what precision — the user's phrasing ties it to what the label shows. Changing the number of ruler entries affects task #264 (one leader per entry) and task #266 (which tick is clickable)."
-  },
-  {
-    "taskNumber": 270,
-    "title": "Layer 1 View: bubble file names are truncated and should be readable",
-    "description": "Layer 1 View visual issue (user report 2026-07-26, voice). In the user's words: \"bubble file names are truncated.\" Since task #245 the `.fname` label shows the BASENAME only, with the full path in the element's `title` attribute, and the `.fname` rule in jfred/webapp/layer1-styles.css bounds it with `max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis` so a long name cannot overprint neighbouring bubbles. The bubble is a fixed 168 px wide, so any basename longer than roughly 20 characters still ellipsises — visible in the user's screenshot as several bubbles reading `971e94bac3cb2811...`. The user wants the names READABLE. Decide the mechanism (wider or variable-width bubbles, wrapping onto a second line, a smaller font for long names, or something else) — do not simply remove the max-width, which reinstates the #245 overprinting bug."
-  },
-  {
-    "taskNumber": 275,
-    "title": "Layer 1 View: show the event count in parentheses to the right of each ruler row",
-    "description": "Layer 1 View feature (user request 2026-07-26, voice). In the user's own words: \"it would be useful to have the number of events in parentheses shown to the right of each timeline ruler row: ex: 07-18 19:42:08.22 (6). this means there are six events that occurred at that timestamp.\" So a ruler row reads `<timestamp> (<n>)` where n is how many events share that instant. The ruler is rendered by renderRulerTicks in jfred/webapp/layer1-page.ts from the `ruler` array returned by /api/layer1-view (jfred/src/viewer_api_layer1.ts); that array currently carries only `{ instant, axisPx }` per entry, so the COUNT has to be derived — either added to the wire by the endpoint (which already knows every pair's node ladder, and since task #251 already computes per-instant row demand in src/layer1_ruler_axis.ts) or counted on the page. Prefer the endpoint: the page deliberately does no arithmetic over the wire data. Pairs naturally with task #268 (merging rows that show the same value) and task #276 (showing seconds and milliseconds)."
-  },
-  {
-    "taskNumber": 281,
-    "title": "file nav gets its own search box, separate from the find-bubble box",
-    "description": "the file nav tool needs a search box.  when the user enters text there, as text is entered the file nav tree should filter to only show matching results.  the find-bubble box should not be used for this and find-bubble code that searches the timeline should not be used; find-bubble is a separate search box for a different purpose.  the file nav search box should be placed above the file nav tree but still be a part of the file nav component, and should be styled to match the find-bubble box.  the file nav search box should have a placeholder text of 'search files...'.  the file nav search box should have a clear button '(x)' that clears the search text and resets the file nav tree to show all files."
+    "description": "Layer 1 View feature (user request 2026-07-26, voice). In the user's words: \"there needs to be some kind of visual feedback that shows you which node is the node associated with the clicked ruler row.\" After a ruler-row click scrolls the view (task #260/#266), nothing indicates WHICH node on the target bubble the clicked row actually refers to — the reader arrives at a bubble but still has to work out which of its nodes shares the clicked instant. Highlight or otherwise mark that node. Note task #261's find-box already establishes a highlight convention for this page: it uses an `outline` rather than a border, deliberately, because a border change would move the bubble's own box, which is the geometry the page exists to inspect. Reuse that convention."
   },
   {
     "taskNumber": 282,
