@@ -2705,5 +2705,17 @@
     "completionDate": "2026-07-27",
     "commitHashes": [],
     "closureNote": "Already satisfied by task 285's .jumpbar migration (the row is display:flex with the default nowrap, so the input and its cycle buttons cannot separate at any width); the user confirmed that in-session and instead asked for the placeholder text to go, so #find-file's placeholder was removed from webapp/layer1.html."
+  },
+  {
+    "taskNumber": 291,
+    "title": "Layer 1 View: mockup session for how a bubble top, its first node and the ruler timestamp should align",
+    "description": "Layer 1 View DESIGN-OPTIONS exercise (user feedback 2026-07-26, after task 290 aligned the dashed leader lines and ruler ticks with the NODES via `--lane-y: 52px` on `.canvas`, added to both `.leader` and `.ruler .tick` in jfred/webapp/layer1-styles.css). In the user’s words: \"is the vertical alignment of the top of a bubble and the first commit in the bubble supposed to not line up with the actual timestamp they go with? for example, the git modules file is time stamped at July 16th 19 hours 24 minutes 47 seconds 0 microseconds. the commit hash 082468f2 is in line with that timestamp but the top of the bubble is a few rows above that, to accommodate the text shown at the top of the bubble so that the commit hash remains in line with the ruler time stamp. dialing in the way I want the bubble and first node alignment with the ruler visuals to look should be reserved for a mock-up session so I can see the various options.\"\n\nTHIS IS NOT A BUG FIX. No webapp code changes until the user picks an option.\n\nWHAT TO PRODUCE: a static mockup page — house pattern is jfred/plans/layer1-mockup.html (itself preceded by plans/mvp-app-mockup.html, and the file layer1-styles.css was lifted verbatim from) — rendering the SAME small set of bubbles several ways, side by side or switchable, so the user can compare by eye.\n\nTHE GEOMETRY TO VARY: a `.filebox` is placed by `margin-top: calc(var(--axis-px) * 1px)`, so its BORDER-BOX top is its first instant, while its nodes live in `.lane`, which starts after the bubble’s 2px border and its 50px `padding-top`. A node’s absolute canvas y is therefore `axisPx + 52`, and that 52px is exactly what `--lane-y` now adds to the ruler ticks and the leader lines.\n\nOPTIONS WORTH DRAWING: (1) today — ruler and dashes on the nodes, bubble box top 52px above its own first instant; (2) pull the bubble up so its FIRST NODE sits at the box top, header text floating above the box; (3) keep the header inside the box but offset the box so its top edge lands on the instant and the first node sits 52px below, ruler following the node; (4) header text moved out of the box entirely (above it, or into a hover reveal) so the box top and the first node coincide. For EACH option show what happens to the leader line, to the gutter tick, and to two bubbles whose instants are close enough that a 52px shift makes them collide.\n\nTRAP: the 50px `padding-top` is DERIVED, not chosen — it comes from `.fname`/`.sub`’s `top` values and font sizes (see the derivation comment on `.filebox`), and task 270 briefly made it 70px before being reverted, so any option that changes the header changes the number.",
+    "completionDate": "2026-07-27",
+    "commitHashes": [
+      "d1c9aa7",
+      "ab33f73",
+      "2402cf1"
+    ],
+    "closureNote": "Closed by the user after reviewing the mockup: the current styling and positioning of bubbles is fine and looks good, so no alignment option needs to be chosen or ported."
   }
 ]
