@@ -237,7 +237,10 @@
   .filebox { --head: 52px; position: relative; flex: none; min-width: 224px; scroll-margin-top: 14px;
     margin-top: calc(var(--axis-px) * 1px);
     border: 2px solid var(--box); border-radius: 14px;
-    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    /* Half-transparent so the JSONL wash behind it reads THROUGH the bubble (user, 2026-07-27) —
+       otherwise the one place the range matters most, over the files it touched, is the one place
+       it cannot be seen. */
+    background: color-mix(in srgb, var(--surface) 52%, transparent);
     padding: var(--head) 12px 14px; }
   /* task #245/#270/#280: the label is the BASENAME with the full path on `data-path`, ellipsised to
      the bubble at rest so it cannot overprint its neighbours. #270's wrapped two-line name was
@@ -614,10 +617,10 @@
   ];
   const DISK = [
     // created !== modified -> the created node is NOT clickable, only the latest one is (#257).
-    { path: "src/index.ts", born: "2026-06-01T09:05:00Z", at: "2026-07-24T08:15:00Z" },
-    { path: "src/util.ts",  born: "2026-06-01T14:35:00Z", at: "2026-07-22T10:00:00Z" },
+    { path: "src/index.ts", born: "2026-06-01T08:05:00Z", at: "2026-07-24T08:15:00Z" },
+    { path: "src/util.ts",  born: "2026-05-31T14:35:00Z", at: "2026-07-22T10:00:00Z" },
     { path: "src/components/interim-run-scenario/test_run_scenario_dispatcher.ts",
-      born: "2026-06-03T11:05:00Z", at: "2026-07-24T09:30:00Z" },
+      born: "2026-05-31T11:05:00Z", at: "2026-07-24T09:30:00Z" },
     // created === modified -> the ONE node is the latest, so it IS clickable (#257's exception).
     // README.md's disk instant also equals commit 4d5e6f70's, which is task #259's tie group.
     { path: "README.md",    born: "2026-07-20T16:00:00Z", at: "2026-07-20T16:00:00Z" },
@@ -1329,9 +1332,13 @@
     for (const box of document.querySelectorAll(".filebox")) {
       const r = box.getBoundingClientRect();
       const mm = el("div", `mm-box${box.classList.contains("bucket") ? " bucket" : ""}`);
+      // `base` is the CANVAS, which scrolls with the boxes, so `r.left - base.left` is already the
+      // box's offset inside the canvas. Adding the pane's scroll on top counted it twice and slid
+      // every box off the plot as soon as anything scrolled the timeline — which opening the Detail
+      // View does, because it re-centres the node it just opened (user, 2026-07-27).
       Object.assign(mm.style, {
-        left: `${(r.left - base.left + pane.scrollLeft) * scale}px`,
-        top: `${(r.top - base.top + pane.scrollTop) * scale}px`,
+        left: `${(r.left - base.left) * scale}px`,
+        top: `${(r.top - base.top) * scale}px`,
         width: `${Math.max(r.width * scale, 1.5)}px`,
         height: `${Math.max(r.height * scale, 1.5)}px`,
       });
