@@ -11,10 +11,10 @@ Layer 1 View layout (S18, signed off 2026-07-25):
 
 A layered, lazy reconstruction timeline: `loadLayeredProject(projectFolder, …)`
 renders the cheap evidence (commits, file-history snapshots, on-disk end
-state) instantly as per-file layer-1..3 timelines, honestly showing every
+state) instantly as per-file timelines, honestly showing every
 unexplained diff as a presumed user edit; the vertical timeline app (per-file
 widgets on one shared time axis, ruler-armed segment cuts) lets the user cut
-ranges of verified states into git-diff patches. Done = layers 1–3 load and
+ranges of verified states into git-diff patches. Done = Layers 1 and 2 load and
 render for a real project, and a segment selection emits a git-diff patch
 that applies cleanly. "Fill in the gaps, but only when you want the gaps
 filled in."
@@ -31,20 +31,31 @@ above describes. Everything else is deferred behind this milestone.
 - Attribution invariant (Q8): every adjacent-pair diff is a **presumed user
   edit** until a layer explains it — the engine may leave a gap but may never
   invent an attribution; only evidence convicts.
-- Performance = layered laziness (Q21): layers 1–3 are parse-only and
-  instant; layers 4+ compute on demand, scoped to the viewed file/region,
-  outputs persisted keyed by input hashes; verified beacon states double as
-  replay seeds. MVP ships layers 1–3 only.
-- **Layer renumbering (user-directed 2026-07-25) — honest visual data first.**
-  The user-facing layers are now: **Layer 1 = Current File State vs Git
-  State** (on-disk file list paired against the repo tree, commit nodes on the
-  ruler — no JSONL involved); **Layer 2 = adds JSONL-derived start points**;
-  **Layer 3 = adds file-history snapshots**. This supersedes the S2/S3/S4
-  numbering, which those sections keep as *internal* engine-layer names —
-  S2 (anchors/end state) and S4 (snapshots) are now inputs to user-facing
-  Layers 2 and 3, and S3 (commit beacons) feeds user-facing Layer 1. The
-  Layer 1 View is the current milestone; it is specified in **S18** and it
-  gates everything else.
+- Performance = layered laziness (Q21): the assigned layers are parse-only and
+  instant; any computed layer added later runs on demand, scoped to the viewed
+  file/region, outputs persisted keyed by input hashes, with verified beacon
+  states doubling as replay seeds. MVP ships Layers 1 and 2 only.
+- **Layer numbering (user-directed, current as of 2026-07-27) — honest visual
+  data first.** The user-facing layers are: **Layer 1 = Current File State vs
+  Git State** (on-disk file list paired against the repo tree, commit nodes on
+  the ruler, plus the JSONL surface — session list and picker, multi-folder
+  source paths, selected-session time-range wash), specified in **S18** and
+  SHIPPED; **Layer 2 = adds file-history snapshots**, specified in **S19** and
+  at the mockup stage. Layers 3+ are UNASSIGNED — the user's direction was
+  "just do snapshots", so nothing above Layer 2 is specified and no task exists
+  for one. A JSONL layer was briefly numbered separately and then DROPPED, not
+  deferred: the Layer 1 mockup already carried the whole JSONL surface, and a
+  layer that adds nothing is not a layer.
+- **ONE layer numbering, and the spec plus the mockup own it (user-directed
+  2026-07-27).** The engine once carried its own *internal* layer numbers that
+  drifted out of step with the user-facing ones — S3 was titled "Layer 2 —
+  commit beacons" while commits render at Layer 1. Two numbering systems for
+  one ladder is a code smell: the engine now FOLLOWS the numbering above, so
+  this spec and the mockup are the single source of truth and an engine module
+  never names a layer the user cannot see. Under it, S2 (anchors/end state) and
+  S3 (commit beacons) are both Layer 1, and S4 (snapshots) is Layer 2 — their
+  titles were corrected rather than annotated. `S<n>` remains a SPEC-ITEM id
+  only; it has never meant a layer and must not be read as one.
 - One machine, one clock (Q7/Q9): single UTC-ms axis; git committer time
   (seconds) widened ×1000; same-second ties broken by content order.
 - Anchor rule (Q14): a timeline begins at its anchor — the first
@@ -81,7 +92,7 @@ above describes. Everything else is deferred behind this milestone.
   shows the before/after diff of its affected files in the detail pane
   (same mechanism as segment diffs), with the script body displayed per a
   mockup to be produced before implementation.
-- Deferred (not MVP): layers 4+ computation, commit creation from selections
+- Deferred (not MVP): any layer above 2, commit creation from selections
   (Q17 SETTLED 2026-07-24, still post-MVP: one commit per segment via
   apply-and-commit from the baseline; per-file at-or-before snap with
   manifest lines; author date = cut instant, committer date = export time
@@ -117,14 +128,14 @@ content gets a presumed-user-edit gap node.
 - Tasks: #198, #199
 - Status: done (#198 done 2026-07-24, jfred@05c305c — anchor selection + byte-op refusal in layered_anchor.ts, Edit-originalFile + complete-Read-echo beacon classes in layered_load.ts; #199 done 2026-07-25, staged — layered_end_state.ts end-state + presumption-gap completion wired per session timeline, validated by npm test + real-jot smoke)
 
-### S3. Layer 2 — commit beacons
+### S3. Layer 1 — commit beacons
 Given a repo path, each commit touching a file contributes a verified beacon
 node (blob content) at its committer instant on that file's timeline.
 - Verify: unit test with a fixture repo — beacon nodes carry blob bytes and committer instants; author time never used.
 - Tasks: #200
 - Status: done 2026-07-24, jfred@43b8a5d (jfred/src/layered_git_beacons.ts)
 
-### S4. Layer 3 — snapshot beacons via owning-session sidecar
+### S4. Layer 2 — snapshot beacons via owning-session sidecar
 File-history snapshots become verified beacon nodes; a snapshot reference
 (`abc123@vN`) resolves through the owning session's sidecar, never a global
 name lookup.
@@ -143,7 +154,7 @@ lines).
 - Status: done 2026-07-25, staged — `mergeSessionTimelines` in jfred/src/layered_merge.ts: per-session end states dedupe to ONE (owned by no session), presumption gaps are re-derived against the merged neighbours (another session's beacon can explain a gap its owner could not), and corroboration marks list the other sessions that observed the same bytes — never on a single-session content group. `sortNodesOntoAxis` moved to layered_instants.ts so the loader and the merge share one sort.
 
 ### S6. Typed edges and derived lineage
-Rename and copy evidence from layers 1–3 produce typed directed edges
+Rename and copy evidence from Layers 1 and 2 produce typed directed edges
 (`RenameEdge` with `timestampOfRename`, `CopyEdge` with `timestampOfCopy`,
 each carrying its `JsonlRef` evidence); `lineageOf` walks `RenameEdge`s to
 derive one continuous history; copies fork (both entities alive; `bornCopy`'s
@@ -176,15 +187,16 @@ where S5 marked corroboration.
 - CAVEAT (not an S8 gap): S8 renders whatever the graph holds, and the graph is currently LAYER-1 ONLY — `collectCommitBeaconNodes` (S3) and `collectSnapshotBeaconNodes` (S4) are never called from anywhere in src/, so no commit or snapshot beacon reaches a widget. Wiring them into `loadLayeredProject` is unclaimed by any task and blocks S9.
 
 ### S9. Layer switcher with per-layer tooltips
-A `Layer: [1]..[12]` control above the timeline; 1–3 selectable (switching
-re-renders at that layer's detail); buttons for layers 5 and up are disabled
-until the functionality each enables becomes unlocked to work with this new
-engine mode. Every layer button carries a tooltip naming what that layer
-adds (1 start/end, 2 commits, 3 snapshots, 5 derived edits, 7 script runs,
-8/9 branches, 10 verified replay, 12 decoration).
-- Verify: DOM test — selecting a layer changes the rendered node set; layer-5+ buttons disabled while their functionality is unlocked-false; each button exposes its what-it-adds tooltip text.
+A `Layer:` control above the timeline carrying one button per ASSIGNED layer
+and no others — today `[1]` and `[2]`. Selecting one re-renders at that
+layer's detail. Every button carries a tooltip naming what that layer adds:
+1 = current file state vs git state (with JSONL sessions), 2 = file-history
+snapshots. Layers 3+ are unassigned, so they get no button at all rather than
+a disabled one — a greyed row of unassigned numbers promises a ladder that no
+longer exists. A button appears when a layer is specified, not before.
+- Verify: DOM test — selecting a layer changes the rendered node set; the control renders exactly the assigned layers and no placeholder buttons; each button exposes its what-it-adds tooltip text.
 - Tasks: #209
-- Status: open — DEFERRED behind the S18 milestone. The tooltip text above is STALE: per the 2026-07-25 renumbering the selectable three are 1 = current-vs-git, 2 = JSONL start points, 3 = file-history snapshots. Re-derive the full 1..12 tooltip list from S18 before implementing.
+- Status: open — the mockup half of this is #299/#304 under S19; #209 is the port into the real page.
 
 ### S10. Condense button
 Toggles per-session lanes into a single all-nodes column per file and back;
@@ -442,3 +454,83 @@ no ruler data — and #240 covers vertical placement on its own.
 - **A truncated bubble name reveals itself in-page (#280, settling #270, done 2026-07-26).** `.filebox .fname` ellipsises at the bubble's 168 px and the full path was reachable only through the native `title` tooltip, which the user rejected — delayed, unstyled, gone on the first mouse move. `:hover` now lifts `max-width` and `overflow`, so the name simply runs past the bubble; the opaque background and `z-index: 7` are load-bearing, not decoration, because `.stage`'s bubbles sit 26 px apart and 7 is DERIVED — above `.node`'s 6 so the revealed name covers its neighbours' dots, below `.ruler`'s 8 so it still scrolls under the sticky gutter. Suppressing the tooltip means not having the attribute, so the full path moved to **`data-path`**, which is also the find box's haystack and the File Nav jump's identity — the three readers in `layer1-find-file.ts` moved with it. File Nav ROWS keep their `title`: they are not width-truncated and have no hover reveal to make it redundant.
 - **The File Nav is drag-resizable (#279, done 2026-07-26).** `.filenav`'s width was a hardcoded `232px` that `.minimap`'s `left` repeated, so a drag would have moved one and not the other. One `--filenav-w` custom property on `.stagewrap` — the nearest common ancestor of both — now drives both, and the duplicated literal #269 flagged is gone. The handle is a 6 px `.filenav-grip` straddling the pane's right edge, abspos against `.stagewrap` so grabbing it cannot itself change the layout it is measuring; `webapp/layer1-filenav-resize.ts` writes the property on pointer move, clamped 120-640 px, listening on the WINDOW rather than the grip because a fast drag outruns a 6 px handle. Native `resize: horizontal` was REJECTED: it grabs at the bottom-right corner rather than the edge the user asked for, and it writes the element's own width, which no other rule can read.
 - **Four mocked behaviours ported from `plans/layer1-mockup.html` (#257, #282, #284, #286, plus #289's placeholder removal; done 2026-07-27).** The mockup was the signed-off reference for all four, so its placement, class names and ids were followed rather than re-designed. **#282** the axis can be read by AUTHOR or COMMITTER time: `listCommitsTouchingFile` now asks for `--format=%H %ct %at`, so ONE spawn carries both stamps and the CALLER picks the field — git is never re-run when the toggle flips, which matters because the view build is ~10 s. The choice is a two-member `CommitTimeSource` enum (never a boolean — `plans/coding-requirements.md`), threaded to the route as a fourth `?time=` param and round-tripped through the URL, and `widenCommitterSecondsToInstant` was renamed `widenEpochSecondsToInstant` because only second-precision, not which stamp, was ever load-bearing. The case is real: a rebase collapses several commits onto one committer instant while their author instants stay days apart. **#286** the repository row now carries Branch and Commit dropdowns, revealed only once the path is CONFIRMED to be a git repo. That confirmation is the new `/api/layer1-refs` route succeeding — deliberately its OWN fast route, never a side effect of the ~10 s view build — returning branches, HEAD and a capped 200-commit head window. `#ref` SURVIVES as a text box so a raw hash is still typeable; the commit dropdown WRITES into it, which is why the page's `?dir=&repo=&ref=` contract is unchanged. A branch pick reloads the view (user, 2026-07-27); a commit pick does not, because a `<select>` fires `change` on keyboard arrow-through. **#284** a ruler tick standing for more than one event expands into the files touched at that instant instead of silently jumping to whichever the lookup found first. A printed row can stand for SEVERAL instants (#268's merge), so `RulerRow` now carries every offset it absorbed. DEVIATION from the mockup, deliberate: the mockup feeds the open list's height back into the axis so the rows below shift down; here the offsets are resolved server-side, so a re-layout means re-rendering ~800 bubbles on every open and close — the list instead paints over the two or three timestamps beneath it until Escape or a re-click closes it. **#257** clicking a commit or on-disk node opens the Detail View drawer on that file's bytes at that moment, via a new `/api/layer1-file` (`git show <hash>:<path>`, or the working tree) behind a hex-only hash check and a path-escape guard. The drawer is a third flex child of `.stagewrap`, not an overlay, so opening it SHRINKS the timeline pane rather than covering the render it describes — and the clicked node is re-centred against the POST-reflow layout, which is why `.drawer` carries no width transition. Its numbered-line renderer was COPIED out of the classic Revision View rather than imported (user-directed 2026-07-27): importing it drags `app-routes` → `inspector` → `timeline-*`, i.e. the whole classic app, into a page that loads only `layer1-*.js`, and no classic-app file was modified.
+
+### S19. Layer 2 View mockup — file-history snapshots
+User-directed 2026-07-27. Layer 2 is the **snapshot layer** (see the second
+renumbering pass in Key Decisions: the JSONL layer was dropped, not deferred).
+This item covers the **MOCKUP ONLY** — an HTML mockup the user signs off on
+before any engine or page code is written, exactly as `layer1-mockup.html`
+gated S18. No task here touches `jfred/src` or `jfred/webapp`.
+
+**File.** `plans/layer1-mockup.html`, modified IN PLACE (user-directed
+2026-07-27 — no `layer2-mockup.html` copy). One mockup carries every layer
+because one page carries every layer; a copy would fork the ruler, bubbles,
+minimap, File Nav, find box, zoom, drawer and JSONL pickers into two files that
+must then be kept in step by hand.
+
+**Same page, one switcher.** Layer 2 is not a second page. The existing
+`Layer: [1][2][3]` control drops its `[3]` (unassigned), `[2]` stops being
+`.uncomputed`, and its tooltip becomes "Layer 2 adds file-history snapshots".
+Layer 1 hides snapshot nodes; Layer 2 shows them on the SAME bubbles against
+the SAME ruler.
+
+**Snapshot nodes.** One node per snapshot version — `@v1`, `@v2`, … — placed
+at its own instant on its file's bubble, marked with a **camera emoji** (📸,
+user-chosen 2026-07-27) so it is distinguishable at a glance from a commit node
+and from the on-disk node, and carrying its **owning session** on the node's
+detail. A file with no snapshots renders exactly as it does at Layer 1: no
+node, no "no snapshots available" text (S18 already retired that per the #221
+supersession).
+
+**Ruler consequences.** Snapshot instants are real ruler entries: they join the
+capped-gap ladder and they get ticks, and a snapshot predating a file's first
+commit pulls that bubble's anchor EARLIER — the S18 rule "widget anchor = its
+earliest node, span = to its latest, whichever kind each is" already covers
+this and must not be re-derived. The minimap draws BUBBLES, not nodes, so it is
+untouched by this item.
+
+**Ruler expand rows (user-specified 2026-07-27).** #284's expanded tick already
+lists one row per event as `<filename> <type identifier slug>`, where a commit's
+slug is the first 8 characters of its hash. A snapshot's slug is **`@vN 📸`** —
+the same row shape, so the list stays one column of filenames with a trailing
+identifier and needs no new layout.
+
+**Ruler snapshot row → JSONL Nav highlight (user-specified 2026-07-27).**
+Clicking a snapshot row in an expanded tick **highlights, but does not select**,
+the JSONL that snapshot came from in the JSONL Nav — a different colour from the
+selection colour, since selecting is what filters the view and this must not.
+The highlight **fades out after a few seconds**: its whole job is to answer
+"where did this come from", and a persistent mark would keep pulling the eye off
+the timeline. The mockup exists partly so the user can judge that fade.
+
+**JSONL Nav row order (user-specified 2026-07-27).** A session's `customTitle`
+values move ABOVE the metadata line and a session may carry more than one, so
+the row becomes three parts: truncated `<filename>.jsonl`, then the session's
+`customTitle` values deduped (omitted when it has none), then
+`<start timestamp> · N files`. This supersedes the current filename / timestamp
+· files / title order.
+
+**Snapshot node click (user-specified 2026-07-27).** Clicking a snapshot node
+does two things. It opens the Detail drawer (#257's drawer, reused) on that
+snapshot's bytes, with the header reading **`<filename> Snapshot - <customTitle>`**
+— and that `customTitle` is the one **in effect over the JSONL line range where
+the snapshot occurred**, not the session's first or last. A user may rename a
+session more than once, so a session's title is a function of position in the
+file, not a single value; picking the wrong one would attribute a snapshot to
+work it has nothing to do with. It also **flashes the owning session in the
+JSONL Nav**, the identical highlight-then-fade the ruler row uses above — one
+mechanism, two callers.
+
+**Fixture discipline.** The mockup's snapshot instants obey the existing fixture
+rule — no snapshot may pre-date its file's DISK `born` value — and at least one
+file carries snapshots from TWO different sessions using the same `@vN` name for
+different bytes. Snapshots are numbered per session, so `@v2` alone identifies
+nothing; the collision is in the fixture precisely so a design that resolves a
+version by name rather than by owning session visibly breaks under review.
+One fixture session also carries **two `customTitle` values over two line
+ranges**, with a snapshot inside each, so a drawer header that grabs the
+session's first or last title instead of the one in effect is visibly wrong.
+
+- Verify: the modified mockup opens standalone in a browser with no server, and the user signs off on the layout — the same bar S14 and S18's mockup were held to. Concretely reviewable in the page: the `[2]` button is live and `[3]` is gone; toggling 1 ↔ 2 adds and removes snapshot nodes with nothing else moving except bubbles whose anchor a pre-commit snapshot pulls earlier; a snapshot node carries 📸, and clicking it opens the drawer headed `<filename> Snapshot - <the customTitle in effect at that point in the session>` while flashing its JSONL in the nav; an expanded ruler tick lists snapshot rows as `<filename> @vN 📸`; clicking one highlights its JSONL in a non-selection colour that fades; JSONL Nav rows read filename / customTitles / timestamp · files; the two same-`@vN`-different-bytes snapshots are distinguishable; a snapshot-free file is unchanged from Layer 1.
+- Tasks: #299, #300, #301, #302, #303, #304, #305, #306, #307
+- Status: open — mockup stage; implementation tasks are NOT created until sign-off.

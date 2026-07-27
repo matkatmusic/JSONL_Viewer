@@ -151,5 +151,82 @@
     "title": "Layer 1 View: draw the 'created at' on-disk node the mockup has always shown",
     "description": "Layer 1 View feature, USER-CONFIRMED 2026-07-27 in the FULL shape (the mockup's rules in full, not a minimal node). The user asked whether each file's created-at timestamp was being COMBINED with its first commit; it is not — created-at is simply UNBUILT. jfred/src/layer1_disk_walk.ts's DiskFileState carries ONLY `mtime` (line 23) and its header comment states the reason: \"birthtime is not portable, so it is never read\" (spec S18). So jfred/src/viewer_api_layer1.ts's listPairNodeLadder emits commits plus ONE on-disk instant, and jfred/webapp/layer1-page.ts's buildPairWidget draws a single `.node.n-disk` labelled \"on disk\". WHAT THE MOCKUP SPECIFIES (plans/layer1-mockup.html, the signed-off reference): its DISK fixture (line 618) gives every file BOTH `born` and `at`; the widget builder (line 743) pushes a `created at` node ONLY when `disk.born !== disk.at` (lines 748-749 — classes `n-disk n-created`, text \"created at\", kind \"created\"), then always pushes the `on disk` node, then sorts the whole node list by instant and assigns tied nodes successive row slots (line 755); `.n-created` is `border-style: dotted; border-color: var(--muted)` (line 316); the legend carries its own swatch `border:3px dotted var(--muted)` labelled \"created at\" (line 518); and task 257's drawer rule (lines 955-971) makes the created node INERT — `const hot = node.kind !== \"created\"` — with the non-clickable label carrying `title=\"created-at is not the latest on-disk state — nothing to show\"`, so only the LATEST disk node opens the drawer, and when born === modified the single node IS the latest and IS clickable. THE WORK, END TO END. (1) jfred/src/layer1_disk_walk.ts: DiskFileState gains a birth instant; both statSync call sites (lines 112 and 154) already hold the Stats object, so `stats.birthtime` costs nothing. DECIDE AND DOCUMENT the unreliable-birthtime rule — on macOS/APFS birthtime is real, on ext4 it is frequently 0 or a copy of mtime, so a birth that is epoch-0, later than mtime, or equal to mtime must yield NO created node rather than a false one. (2) jfred/src/viewer_api_layer1.ts: listPairNodeLadder must emit the created instant in the right ladder position (its order is LOAD-BEARING — placePairNodesOnAxis reads the offsets back POSITIONALLY, and the mockup sorts the node list by instant before assigning slots), and Layer1WirePair needs the new node on the wire. (3) jfred/webapp/layer1-wire.ts and jfred/webapp/layer1-filter.ts: the wire mirror and listWirePairLadder must match the server EXACTLY, or a folder filter's client-side re-layout will disagree with the shipped offsets. (4) jfred/webapp/layer1-page.ts's buildPairWidget draws it with class `n-disk n-created`; jfred/webapp/layer1-styles.css gains the `.n-created` rule; jfred/webapp/layer1.html's legend gains the swatch. (5) jfred/webapp/layer1-drawer.ts must REFUSE the created node unless it is the only disk node, mirroring the mockup's `hot` rule, and set the explanatory title on the inert label — today it treats every `.node.n-disk` as clickable. TRAPS: layer1-page.ts is AT the 250-line cap and viewer_api_layer1.ts is near it, so new behaviour goes in NEW modules; task 259's tie-group markers read instants off the ladder, so an extra node changes which nodes group; and the ruler's per-instant row demand (countRowsPerInstant in jfred/webapp/layer1-ruler-axis.ts) is measured from the ladders, so adding a node per pair changes ruler spacing and every offset after it — the existing placement tests' hand-derived ladders will have to be redone. Also update spec S18, whose disk-walk section currently states that birthtime is never read.",
     "blockedBy": []
+  },
+  {
+    "taskNumber": 299,
+    "title": "Layer 2 mockup: layer button row becomes [1][2], with [2] live",
+    "description": "Spec item S19 in specs/from-scratch-SPEC.md. MOCKUP ONLY — this task touches plans/layer1-mockup.html and nothing in jfred/src or jfred/webapp. Layer 2 is now the FILE-HISTORY SNAPSHOT layer — the old 'JSONL-derived start points' layer was dropped on 2026-07-27 because the Layer 1 mockup already carries the JSONL surface (#292, #294-#297), and everything above it shifted down one. In plans/layer1-mockup.html, the `Layer:` control currently renders `[1][2][3]` with 2 and 3 both `.uncomputed` (around line 471). Drop the `[3]` button entirely (layers 3+ are unassigned — no task exists for one), take `.uncomputed` off `[2]`, and set its tooltip to 'Layer 2 adds file-history snapshots'. Also update the HTML comment block at the top of the file (around lines 9-13, the 'brought level with…' note) to say the mockup now covers Layers 1 AND 2. No snapshot data or rendering yet — this task is the switcher chrome only."
+  },
+  {
+    "taskNumber": 300,
+    "title": "Layer 2 mockup: file-history snapshot fixture",
+    "description": "Spec item S19 in specs/from-scratch-SPEC.md. MOCKUP ONLY — this task touches plans/layer1-mockup.html and nothing in jfred/src or jfred/webapp. Add snapshot fixture data to plans/layer1-mockup.html beside the existing DISK / commit / JSONL fixtures. Each snapshot carries: its file path, its version name (`@v1`, `@v2`, …), its instant, and the JSONL session that OWNS it. Three constraints the fixture must satisfy, each of which exists to make a wrong design visible under review: (1) no snapshot instant may pre-date its file's DISK `born` value — the standing mockup fixture rule; (2) at least one file carries snapshots from TWO different sessions that both use the name `@v2` for DIFFERENT bytes, because snapshots are numbered per session and `@v2` alone identifies nothing, so a design resolving a version by name rather than by owning session must visibly break; (3) one session carries TWO `customTitle` values over two different line ranges, with a snapshot inside each, so task #305's drawer header cannot pass by grabbing the session's first or last title. At least one snapshot should also pre-date its file's first commit, so #302's ruler and the bubble anchor get exercised.",
+    "blockedBy": [
+      299
+    ]
+  },
+  {
+    "taskNumber": 301,
+    "title": "Layer 2 mockup: draw snapshot nodes on the bubbles",
+    "description": "Spec item S19 in specs/from-scratch-SPEC.md. MOCKUP ONLY — this task touches plans/layer1-mockup.html and nothing in jfred/src or jfred/webapp. Render one node per snapshot version on its file's bubble in plans/layer1-mockup.html, at its own instant on the shared ruler. The node is marked with a CAMERA EMOJI (📸, user-chosen 2026-07-27) plus its `@vN` label, so it is distinguishable at a glance from a commit node and from the on-disk node. Add a matching row to the always-visible legend. A file with NO snapshots renders exactly as it does at Layer 1 — no node, no 'no snapshots available' text (S18 retired that per the #221 supersession). Note the S18 rule already covers the placement consequence and must not be re-derived: a widget's anchor is its EARLIEST node and its span runs to its LATEST, whichever kind each is, so a snapshot predating the first commit simply pulls the bubble's anchor earlier. The minimap draws BUBBLES, not nodes, so it needs no change.",
+    "blockedBy": [
+      300
+    ]
+  },
+  {
+    "taskNumber": 302,
+    "title": "Layer 2 mockup: snapshot rows in the expanded ruler tick",
+    "description": "Spec item S19 in specs/from-scratch-SPEC.md. MOCKUP ONLY — this task touches plans/layer1-mockup.html and nothing in jfred/src or jfred/webapp. The expanded ruler tick (#284) in plans/layer1-mockup.html lists one row per event at that instant, shaped `<filename> <type identifier slug>`, where a commit's slug is the first 8 characters of its hash — e.g. `.gitignore 0eabc4c4`. Give snapshots the SAME row shape with the slug `@vN 📸` — e.g. `src/api/client.ts @v2 📸`. The list stays one column of filenames with a trailing identifier, so no new layout is needed. Snapshot instants are real ruler entries: they join the capped-gap ladder and get their own ticks, and the tick's `(N)` event count includes them.",
+    "blockedBy": [
+      300
+    ]
+  },
+  {
+    "taskNumber": 303,
+    "title": "Layer 2 mockup: ruler snapshot row flashes its owning JSONL in the nav",
+    "description": "Spec item S19 in specs/from-scratch-SPEC.md. MOCKUP ONLY — this task touches plans/layer1-mockup.html and nothing in jfred/src or jfred/webapp. In plans/layer1-mockup.html, clicking a snapshot row inside an expanded ruler tick HIGHLIGHTS — but does NOT select — the JSONL that snapshot came from, in the JSONL Nav pane. Use a DIFFERENT colour from the JSONL selection colour: selecting is what filters the timeline, and this must not filter anything. The highlight FADES OUT after a few seconds. Its whole job is to answer 'where did this snapshot come from'; a persistent mark would keep pulling the eye off the timeline. The user explicitly wants to see the fade in the mockup in order to judge it, so make the duration easy to find and change. Build this as ONE reusable highlight-then-fade helper — task #305 calls it too.",
+    "blockedBy": [
+      302
+    ]
+  },
+  {
+    "taskNumber": 304,
+    "title": "Layer 2 mockup: the layer switcher actually switches",
+    "description": "Spec item S19 in specs/from-scratch-SPEC.md. MOCKUP ONLY — this task touches plans/layer1-mockup.html and nothing in jfred/src or jfred/webapp. Wire the `[1]` / `[2]` buttons in plans/layer1-mockup.html so they change what renders. At Layer 1 the snapshot nodes (#301) and the snapshot rows in expanded ruler ticks (#302) are HIDDEN; at Layer 2 they are shown. Everything else stays put between the two states — the only thing that may move is a bubble whose anchor a pre-commit snapshot pulls earlier, and the ruler entries that only a snapshot occupies. Toggling 1 → 2 → 1 must land back exactly where it started (the render is idempotent), and the selected layer should read clearly in the page chrome.",
+    "blockedBy": [
+      301,
+      302
+    ]
+  },
+  {
+    "taskNumber": 305,
+    "title": "Layer 2 mockup: snapshot node click opens the Detail drawer",
+    "description": "Spec item S19 in specs/from-scratch-SPEC.md. MOCKUP ONLY — this task touches plans/layer1-mockup.html and nothing in jfred/src or jfred/webapp. In plans/layer1-mockup.html, clicking a snapshot node does TWO things. (1) It opens the Detail drawer (#257's drawer, reused — do not build a second one) on that snapshot's bytes, with the header reading `<filename> Snapshot - <customTitle>`. That `customTitle` is the one IN EFFECT OVER THE JSONL LINE RANGE WHERE THE SNAPSHOT OCCURRED — not the session's first title and not its last. A user may rename a session more than once, so a session's title is a function of position within the file; picking the wrong one attributes the snapshot to work it has nothing to do with. #300's fixture contains a session with two title ranges specifically to catch this. (2) It FLASHES the owning session in the JSONL Nav using the identical highlight-then-fade helper task #303 builds — one mechanism, two callers, not two implementations.",
+    "blockedBy": [
+      301,
+      303
+    ]
+  },
+  {
+    "taskNumber": 306,
+    "title": "Layer 2 mockup: JSONL Nav rows lead with customTitle",
+    "description": "Spec item S19 in specs/from-scratch-SPEC.md. MOCKUP ONLY — this task touches plans/layer1-mockup.html and nothing in jfred/src or jfred/webapp. A JSONL Nav row in plans/layer1-mockup.html currently reads filename / `<timestamp> · N files` / title, e.g. `0f3c9a7e.jsonl` then `06-01 08:44 · 2 files` then `seed the demo app`. The user wants the title FIRST, and a session may carry more than one, so the row becomes three parts in this order: truncated `<filename>.jsonl`; then the session's `customTitle` values, DEDUPED, omitted entirely when the session has none; then `<start timestamp> · N files`. This is independent of the snapshot work — it only needs the multi-title fixture from #300 to be visible, and can otherwise be done any time after #299.",
+    "blockedBy": [
+      299
+    ]
+  },
+  {
+    "taskNumber": 307,
+    "title": "Layer 2 mockup: final pass and hand to the user for sign-off",
+    "description": "Spec item S19 in specs/from-scratch-SPEC.md. MOCKUP ONLY — this task touches plans/layer1-mockup.html and nothing in jfred/src or jfred/webapp. Final review pass over plans/layer1-mockup.html before the user signs off, which is what gates any Layer 2 engine or page work being specified at all. Confirm in the page itself: `[2]` is live and `[3]` is gone; toggling 1 ↔ 2 adds and removes snapshot nodes with nothing else moving except a bubble whose anchor a pre-commit snapshot pulls earlier; a snapshot node carries 📸 and its `@vN`; clicking it opens the drawer headed `<filename> Snapshot - <the customTitle in effect at that point>` and flashes its JSONL; an expanded ruler tick lists snapshot rows as `<filename> @vN 📸` and clicking one flashes its JSONL in a non-selection colour that fades; JSONL Nav rows read filename / customTitles / timestamp · files; the two same-`@vN`-different-bytes snapshots are distinguishable by their owning session; and a file with NO snapshots looks identical to how it looks at Layer 1. Then hand it to the user — visual verification is the user's job, so do not screenshot or start a server; say what to open and wait.",
+    "blockedBy": [
+      300,
+      301,
+      302,
+      303,
+      304,
+      305,
+      306
+    ]
   }
 ]
