@@ -134,8 +134,18 @@
   /* ---- task #252: File Nav, LEFT of the ruler. Class names are deliberately the ones the real
      component already ships in webapp/views/sidebar.ts + views/timeline-file-tree.ts, because the
      task is to REUSE that component, not to write a second tree. */
-  .filenav { flex: none; width: var(--filenav-w); overflow: auto; padding: 10px 8px 20px;
+  /* One column, two pickers, a horizontal grip between them (user, 2026-07-27). `--files-share` is
+     the split as a percentage of the column, so the two panes always add up to the column's height
+     and neither can be dragged out of existence. */
+  .filenav { flex: none; width: var(--filenav-w); display: flex; flex-direction: column;
+    overflow: hidden; --files-share: 50;
     border-right: 1px solid var(--border); background: var(--surface); }
+  .navpane { overflow: auto; padding: 10px 8px 14px; min-height: 0; }
+  #pane-files { flex: var(--files-share) 1 0; }
+  #pane-sessions { flex: calc(100 - var(--files-share)) 1 0; }
+  .pane-grip { flex: none; height: 7px; margin: -3px 0; cursor: row-resize; z-index: 3;
+    background: transparent; }
+  .pane-grip:hover, .pane-grip.dragging { background: color-mix(in srgb, var(--sel-edge) 45%, transparent); }
   .filenav .pane-title { font: 600 11px system-ui; text-transform: uppercase; letter-spacing: .04em;
     color: var(--muted); padding: 2px 4px 6px; display: flex; align-items: center; gap: 6px; }
   .filenav .pane-title button { margin-left: auto; padding: 1px 7px; font-size: 10.5px; }
@@ -162,6 +172,18 @@
   /* Deleted = in the repo tree, absent on disk. #252 says these MUST still be listed. */
   .file-item.deleted { color: var(--muted); text-decoration: line-through; }
   .navempty { font-size: 11px; color: var(--muted); padding: 6px 4px; }
+
+  /* task #292: the JSONL picker is a second SECTION of the File Nav pane, not a third column — it
+     filters the timeline the same way the folder tree does, so it belongs beside it and inherits the
+     pane's width, its scroll and its resize grip. */
+  .session-item { font: 11px ui-monospace, Menlo, monospace; color: var(--ink2); margin-bottom: 3px;
+    padding: 3px 5px; border-radius: 5px; cursor: pointer; border: 1px solid transparent; }
+  .session-item:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+  .session-item.selected { color: var(--ink); border-color: var(--c-script);
+    background: color-mix(in srgb, var(--c-script) 20%, transparent); }
+  .session-item .sname { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .session-item .smeta { display: block; font-size: 9.5px; color: var(--muted); padding-top: 1px; }
+  .session-item.selected .smeta { color: var(--ink2); }
 
   /* task #279: drag the File Nav's right edge to resize it. The grip is a sibling overlay rather
      than a border on the pane, so the drag target is 7 px wide without changing the pane's box. */
@@ -248,6 +270,29 @@
     top: calc((var(--axis-px) * 1px + var(--lane-y)) * var(--zoom, 1));
     border-top: 1px dashed var(--baseline); opacity: 0; transition: opacity .08s linear; }
   .leader.on { opacity: 1; border-top-color: var(--sel-edge); }
+
+  /* task #292: where a selected JSONL starts and ends. The filter keeps each touched file's WHOLE
+     history, so the band is the only thing saying which part of that history the session actually
+     wrote — it rides the same axis-times-zoom conversion the ticks and leaders use. */
+  /* A BAR in the empty column between the gutter and the first bubble, not a band across the canvas:
+     the canvas belongs to the bubbles, and anything drawn over it — wash, edges, label — is written
+     across whatever file happens to sit at that instant. This lane is the `.stage`'s own left
+     padding, which nothing else occupies, so a session can never hide a file. One slot per picked
+     session, side by side. */
+  .ranges { position: absolute; inset: 0; pointer-events: none; z-index: 7; }
+  .range { position: absolute; width: 7px; border-radius: 4px; pointer-events: auto; cursor: default;
+    left: calc(155px + var(--slot) * 9px);
+    top: calc((var(--axis-px) * 1px + var(--lane-y)) * var(--zoom, 1));
+    height: calc(var(--span-px) * 1px * var(--zoom, 1));
+    background: color-mix(in srgb, var(--c-script) 70%, transparent); }
+  /* The two ends read as ends rather than as a bar that got clipped by a scroll. */
+  .range::before, .range::after { content: ""; position: absolute; left: -3px; right: -3px;
+    height: 2px; background: var(--c-script); border-radius: 2px; }
+  .range::before { top: -1px; }
+  .range::after { bottom: -1px; }
+  /* The gutter is opaque and always on screen, so it carries the range too — a band alone is hidden
+     wherever a bubble sits over it. */
+  .ruler .tick.inrange { color: var(--c-script); }
 
   .lane { position: relative; margin-left: 6px; min-height: calc(var(--span-px) * 1px + 18px); }
   .lane .lrail { position: absolute; left: 0; top: 0; bottom: 0; border-left: 1.5px solid var(--baseline); }
@@ -424,21 +469,34 @@
     <span><i style="border:3px dotted var(--muted);background:transparent"></i> created at</span>
     <span><i style="border:1.5px dashed var(--c-anchor);background:transparent"></i> same instant</span>
     <span><i style="border:1.5px dashed var(--muted);background:transparent"></i> orphan bucket</span>
+    <!-- task #292 -->
+    <span><i style="border:1px dashed var(--c-script);background:color-mix(in srgb, var(--c-script) 11%, transparent)"></i> JSONL range</span>
     <span class="hint">dashed leader: hover a ruler row, a bubble or a node</span>
   </div>
 
   <div class="body" id="body">
     <!-- tasks #252/#281 -->
     <aside class="filenav" id="filenav">
-      <div class="pane-title">Files
-        <!-- task #254: the deselect. Shift-click folders (#255) to select more than one. -->
-        <button id="clear-filter" disabled>All files</button>
-      </div>
-      <div class="navsearch">
-        <input id="nav-search" type="text" placeholder="search files…">
-        <button id="nav-search-clear" title="clear">(x)</button>
-      </div>
-      <div id="nav"></div>
+      <section class="navpane" id="pane-files">
+        <div class="pane-title">Files
+          <!-- task #254: the deselect. Shift-click folders (#255) to select more than one. -->
+          <button id="clear-filter" disabled>All files</button>
+        </div>
+        <div class="navsearch">
+          <input id="nav-search" type="text" placeholder="search files…">
+          <button id="nav-search-clear" title="clear">(x)</button>
+        </div>
+        <div id="nav"></div>
+      </section>
+      <div class="pane-grip" id="navpane-grip" title="drag to resize"></div>
+      <!-- task #292: the project's JSONLs. Same picker behaviour as the folder tree — click filters,
+           clicking the only selected one clears, shift extends. -->
+      <section class="navpane" id="pane-sessions">
+        <div class="pane-title">JSONLs
+          <button id="clear-sessions" disabled>All sessions</button>
+        </div>
+        <div id="sessions"></div>
+      </section>
     </aside>
     <!-- task #279 -->
     <div class="filenav-grip" id="filenav-grip" title="drag to resize"></div>
@@ -447,6 +505,8 @@
       <main class="timelines" id="timelines"><div class="canvas" id="canvas">
         <div class="ruler" id="ruler"><div class="rail"></div></div>
         <div class="leaders" id="leaders"></div>
+        <!-- task #292 -->
+        <div class="ranges" id="ranges"></div>
         <div class="stage" id="stage"></div>
       </div></main>
       <!-- tasks #246/#269/#274 -->
@@ -503,6 +563,28 @@
   // OPEN #286: what the branch/commit route would return once the repo is confirmed.
   const BRANCHES = ["main", "layer-1-milestone", "spike/author-timestamps"];
 
+  // task #292: the project's JSONL transcripts. `started`/`ended` are the session's first and last
+  // record — deliberately NOT the instants of the files it touched, because the band has to be able
+  // to open before the first write and close after the last one. `paths` is what the session wrote,
+  // which is all the filter needs; the timeline it draws for those paths still comes from the repo
+  // and the disk, so a file keeps its whole history even when the session only touched it once.
+  const SESSIONS = [
+    { file: "0f3c9a7e.jsonl", title: "seed the demo app",
+      started: "2026-06-01T08:44:00Z", ended: "2026-06-01T09:12:00Z",
+      paths: ["src/index.ts", "README.md"] },
+    { file: "b21d84c5.jsonl", title: "extract the trim helper, then the dispatch table",
+      started: "2026-06-01T14:05:00Z", ended: "2026-06-03T18:40:00Z",
+      paths: ["src/index.ts", "src/util.ts",
+              "src/components/interim-run-scenario/test_run_scenario_dispatcher.ts"] },
+    { file: "7ce50a19.jsonl", title: "retire the old API notes and ship the deploy script",
+      started: "2026-07-20T15:38:00Z", ended: "2026-07-20T21:30:00Z",
+      paths: ["README.md", "docs/old-api.md", "scripts/deploy.sh"] },
+    { file: "d4a06b8f.jsonl", title: "cover the error branch, take notes",
+      started: "2026-07-23T19:10:00Z", ended: "2026-07-24T09:45:00Z",
+      paths: ["notes.txt", "src/index.ts", "src/util.ts",
+              "src/components/interim-run-scenario/test_run_scenario_dispatcher.ts"] },
+  ];
+
   const PX_PER_HOUR = 2.5;  // locked with the user
   const CAP_PX = 24;        // 0.25" at 96dpi — the widest any single gap may render
   const FLOOR_PX = 16;      // the shipped per-gap floor
@@ -526,6 +608,12 @@
   const selectedFolders = new Set();
   const inSelection = path => selectedFolders.size === 0 ||
     [...selectedFolders].some(f => path === f || path.startsWith(f + "/"));
+  // task #292: the picked JSONLs, holding the fixture objects themselves. Empty = every session.
+  // Two filters, one rule: a file is drawn only if BOTH pickers admit it.
+  const selectedSessions = new Set();
+  const touchedBySelection = path => selectedSessions.size === 0 ||
+    [...selectedSessions].some(s => s.paths.includes(path));
+  const isShown = path => inSelection(path) && touchedBySelection(path);
   // OPEN #284: the ruler row currently expanded into its file list, as an instant. One at a time —
   // the list changes the axis layout, so two open rows would be two stacked shifts to reason about.
   let expandedInstant = null;
@@ -557,6 +645,19 @@
     return pos;
   }
 
+  // task #292: where an ARBITRARY time sits on an axis built from events. A session opens and closes
+  // between events, not on them, so its band has to be read off the two entries it falls between —
+  // and read by interpolation, because the axis is capped and floored rather than linear in time.
+  function axisAt(t, pos, instants) {
+    if (t <= instants[0]) return pos.get(instants[0]);
+    const i = instants.findIndex(x => x >= t);
+    if (i < 0) return pos.get(instants.at(-1));
+    const before = instants[i - 1], after = instants[i];
+    if (after === t) return pos.get(after);
+    return pos.get(before) +
+      (pos.get(after) - pos.get(before)) * ((t - before) / (after - before));
+  }
+
   function buildModel() {
     const dir = byId("dir").value.trim().replace(/\/$/, "");
     const repo = byId("repo").value.trim().replace(/\/$/, "");
@@ -568,9 +669,9 @@
 
     // The filter bites HERE, before instants are collected — which is what makes the timeline range
     // shrink to the selected folders (#253) rather than just hiding widgets.
-    const paired = pairedAll.filter(inSelection);
-    const repoOrphans = repoPaths.filter(p => !pairedAll.includes(p)).filter(inSelection);
-    const diskOrphans = DISK.filter(f => !pairedAll.includes(f.path)).filter(f => inSelection(f.path));
+    const paired = pairedAll.filter(isShown);
+    const repoOrphans = repoPaths.filter(p => !pairedAll.includes(p)).filter(isShown);
+    const diskOrphans = DISK.filter(f => !pairedAll.includes(f.path)).filter(f => isShown(f.path));
 
     const widgets = paired.map(path => {
       const disk = DISK.find(f => f.path === path);
@@ -650,10 +751,13 @@
     byId("leaders").replaceChildren();
 
     renderNav(m);
+    renderSessions();
     byId("crumb").textContent =
       `${m.widgets.length} pairs · ${m.noDisk.length} repo-only · ${m.noRepo.length} disk-only` +
-      (selectedFolders.size ? ` · filtered to ${[...selectedFolders].join(", ")}` : "");
+      (selectedFolders.size ? ` · filtered to ${[...selectedFolders].join(", ")}` : "") +
+      (selectedSessions.size ? ` · ${[...selectedSessions].map(s => s.file).join(", ")}` : "");
 
+    byId("ranges").replaceChildren();
     if (!m.instants.length) {
       stage.appendChild(el("div", "nopairs", "Nothing selected."));
       drawMinimap();
@@ -689,8 +793,22 @@
         tick.classList.add("expanded");
         tick.appendChild(buildTickFileList(expandedEvents));
       }
+      // task #292: this row's time falls inside a picked session.
+      if ([...selectedSessions].some(s => row.instants.some(t => t >= ms(s.started) && t <= ms(s.ended))))
+        tick.classList.add("inrange");
       ruler.appendChild(tick);
     }
+
+    // task #292: one bar per picked JSONL, start to end. The name is a tooltip rather than printed
+    // text — the lane is 7 px wide, which is the price of never covering a file.
+    byId("ranges").replaceChildren(...[...selectedSessions].map((session, slot) => {
+      const from = axisAt(ms(session.started), pos, m.instants);
+      const bar = setPx(el("div", "range"), from);
+      bar.style.setProperty("--span-px", axisAt(ms(session.ended), pos, m.instants) - from);
+      bar.style.setProperty("--slot", slot);
+      bar.title = `${session.file}\n${label(ms(session.started))} → ${label(ms(session.ended))}`;
+      return bar;
+    }));
 
     // One dashed line per ruler ENTRY, hidden until something asks for it.
     byId("leaders").replaceChildren(...m.instants.map(t => {
@@ -1040,6 +1158,34 @@
     return out;
   }
 
+  // ---- task #292: the JSONL picker --------------------------------------------------------------
+  // The folder tree's selection rules, applied to sessions: a plain click picks one, a plain click on
+  // the only picked one clears it, shift extends. What it filters is the FILE LIST — each surviving
+  // file keeps its whole history, and the band drawn over the canvas is what says which stretch of
+  // that history the session is answerable for.
+  function renderSessions() {
+    byId("sessions").replaceChildren(...SESSIONS.map(session => {
+      const item = el("div", "session-item");
+      if (selectedSessions.has(session)) item.classList.add("selected");
+      item.append(el("div", "sname", session.file),
+                  el("div", "smeta", `${label(ms(session.started)).slice(0, 11)} · ${session.paths.length} files`),
+                  el("div", "smeta", session.title));
+      item.title = `${session.title}\n${label(ms(session.started))} → ${label(ms(session.ended))}\n` +
+                   session.paths.join("\n");
+      item.addEventListener("click", event => {
+        if (!event.shiftKey) {
+          const only = selectedSessions.size === 1 && selectedSessions.has(session);
+          selectedSessions.clear();
+          if (!only) selectedSessions.add(session);
+        } else if (!selectedSessions.delete(session)) selectedSessions.add(session);
+        render();
+      });
+      return item;
+    }));
+    byId("clear-sessions").disabled = selectedSessions.size === 0;
+  }
+  byId("clear-sessions").addEventListener("click", () => { selectedSessions.clear(); render(); });
+
   byId("clear-filter").addEventListener("click", () => { selectedFolders.clear(); render(); });
   byId("nav-search").addEventListener("input", () => renderNav(model));
   byId("nav-search-clear").addEventListener("click", () => {
@@ -1067,6 +1213,26 @@
     grip.addEventListener("pointerup", () => {
       dragging = false; grip.classList.remove("dragging"); drawMinimap();
     });
+  })();
+
+  // ---- task #292: drag the split between the Files pane and the JSONLs pane ---------------------
+  // A share of the column rather than a pixel height, so the two panes keep filling it exactly when
+  // the window resizes. Clamped well short of 0 and 100 — a pane dragged to nothing is a pane the
+  // reader cannot get back.
+  (() => {
+    const grip = byId("navpane-grip"), nav = byId("filenav");
+    let dragging = false, pendingShare = 50, frame = 0;
+    const commit = () => { frame = 0; nav.style.setProperty("--files-share", pendingShare); };
+    grip.addEventListener("pointerdown", event => {
+      dragging = true; grip.classList.add("dragging"); grip.setPointerCapture(event.pointerId);
+    });
+    grip.addEventListener("pointermove", event => {
+      if (!dragging) return;
+      const box = nav.getBoundingClientRect();
+      pendingShare = Math.min(Math.max((event.clientY - box.top) / box.height * 100, 12), 88);
+      if (!frame) frame = requestAnimationFrame(commit);
+    });
+    grip.addEventListener("pointerup", () => { dragging = false; grip.classList.remove("dragging"); });
   })();
 
   // ---- tasks #246/#269/#274: minimap ------------------------------------------------------------
