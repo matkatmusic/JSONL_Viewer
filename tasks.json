@@ -135,5 +135,25 @@
     "taskNumber": 294,
     "title": "Add syntax highlighting to the Detail view code display",
     "description": "The Layer 1 Detail view currently displays code in a plain text format.  The original webapp's detail/revision view contains syntax highlighting for known programming languages (ts, js, python, c++, etc).  Incorporate the syntax highlighting mechanism from the original webapp into the Layer 1 Detail view so that code viewed in the Layer 1 detail view is more readable."
+  },
+  {
+    "taskNumber": 295,
+    "title": "add 'JSONL sources' picker that lets you pick multiple JSONL source folders.",
+    "description": "Purpose: This component allows the user to select multiple locations for JSONL files.  Implementation Details: This component should be implemented as a scrollable list view with [+][-][set and close][cancel] buttons along the bottom to add/remove folders, confirm the JSONL source folder list, or cancel the updated list.  Trigger: The picker will be accessed using a button titled 'JSONL sources' placed on the same row as the 'Project folder' row. When the button is clicked, the widget with the title 'JSONL Source Paths' will be centered in the browser window, as the front-most item (z-order), rendered in front of the timeline.  Modifying the list: Clicking the [+] button shows a native file browser, with a filter to choose folder types only. Selecting a folder in the native file browser then adds that folder to the list.  [-].onClick removes the selected item from the list. OnListChange: Chosen Folders are scanned for nested JSONL files.  This allows the user to pick, for example, '~/Programming/jot-recover/claude-date/projects/', which would pick up every JSONL file in the subdirectories. Folders that do not contain JSONL files (at any nested level) are not added to the list. If the folder contains no JSONLs (at any nested level), a small alert bubble is displayed in front of the list with the text 'no JSONL files found' for a few seconds, then is removed.  Default list date: When the user first picks a project folder, the jsonl list is default-populated with the derived JSONL source folder for that project.  [set and close].onClick: the timeline should be rebuilt to incorporate the new sources."
+  },
+  {
+    "taskNumber": 296,
+    "title": "Add 'File History Snapshots' picker that lets you pick multiple file-history snapshot folders.",
+    "description": "This component uses the same mechanism and look as the 'JSONL sources' picker, and is placed next to the 'JSONL sources' button.  The component's title with displayed will be 'File History Snapshot Paths'.  Purpose: This component allows the user to select multiple locations for file history snapshots. [set and close].onClick: the timeline should be rebuilt to incorporate the new sources."
+  },
+  {
+    "taskNumber": 297,
+    "title": "add a 'save project settings' button.",
+    "description": "This button will save the current project settings (project folder, JSONL sources, file-history snapshot sources, git repo path, git branch, git commit) to a local configuration file.  The configuration file will be read on startup to restore the last used project settings.  When the user changes any data source list for a particular project folder, this button will be enabled.  before the user closes the browser window, the user will be prompted to save the project settings if they have changed.  The user can also choose to discard the changes." 
+  },
+  {
+    "taskNumber": ,
+    "title": "",
+    "description": ""
   }
 ]
