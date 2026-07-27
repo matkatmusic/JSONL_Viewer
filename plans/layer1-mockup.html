@@ -8,8 +8,20 @@
   /* Tokens, header/button/ruler/filebox/node styling all lifted from plans/mvp-app-mockup.html
      so this reads as the same app. Only the parts Layer 1 needs are kept.
 
-     2026-07-25: extended to show tasks #245-#257 — the user's visual-fix round after driving the
-     real page against the live jfred repo. Each feature is tagged with its task number below. */
+     2026-07-25: extended to show tasks #245-#257 — the user's visual-fix round.
+     2026-07-26: brought level with EVERY Layer 1 task now closed (#245-#256, #258-#266, #268-#281)
+     AND with every Layer 1 task still open in tasks.json (#257, #267, #282-#290), which are mocked
+     here as the EXPECTED state so the behaviour can be dialled in before it is signed off. Those
+     carry an "OPEN #n" tag; closed ones just carry their number.
+     Of the open set, #267, #283, #285, #287, #288 and #290 are already BUILT in the jfred working
+     tree (plans/task-287-285-283-267-288-290-layer1-batch) and are only waiting to be closed — so
+     for those, this file and the real page should already agree. Genuinely unbuilt: #257 (the
+     Detail View drawer), #282 (author vs committer time), #284 (a shared tick expanding to its file
+     list) and #286 (the branch and commit dropdowns).
+
+     NEW BEHAVIOUR, user-requested 2026-07-26 and not yet a task: the dashed leader lines are no
+     longer drawn at rest. One is drawn only while the user hovers a ruler timestamp, or hovers /
+     selects a bubble, or hovers / selects a node. Plain scrolling draws none. */
   .viz-root {
     color-scheme: light;
     --page: #f9f9f7; --surface: #fcfcfb;
@@ -19,6 +31,9 @@
     --c-echo: #eda100; --c-script: #4a3aa7; --c-anchor: #e87ba4; --c-disk: #0b0b0b;
     --seg-a: rgba(27,175,122,.12);
     --sel-edge: #1baf7a; --box: #d98a2b;
+    /* OPEN #287: the hover-revealed full path needs a colour NO resting bubble name uses, or a long
+       path reads as one continuous run of green monospace mixed with its neighbours' names. */
+    --reveal-ink: #7a3ecb;
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) .viz-root {
@@ -30,6 +45,7 @@
       --c-echo: #c98500; --c-script: #9085e9; --c-anchor: #d55181; --c-disk: #ffffff;
       --seg-a: rgba(25,158,112,.15);
       --sel-edge: #199e70; --box: #b57427;
+      --reveal-ink: #c3a7ff;
     }
   }
   :root[data-theme="dark"] .viz-root {
@@ -41,12 +57,14 @@
     --c-echo: #c98500; --c-script: #9085e9; --c-anchor: #d55181; --c-disk: #ffffff;
     --seg-a: rgba(25,158,112,.15);
     --sel-edge: #199e70; --box: #b57427;
+    --reveal-ink: #c3a7ff;
   }
   * { box-sizing: border-box; margin: 0; }
   html, body { height: 100%; }
   body { background: var(--page); }
   .viz-root { font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-    color: var(--ink); background: var(--page); height: 100vh; display: flex; flex-direction: column; }
+    color: var(--ink); background: var(--page); height: 100vh; display: flex; flex-direction: column;
+    --filenav-w: 232px; }
 
   header { display: flex; align-items: center; gap: 12px; padding: 8px 16px;
     border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
@@ -58,44 +76,77 @@
   button:disabled { color: var(--muted); cursor: not-allowed; }
   button:disabled:hover { border-color: var(--border); }
 
-  .layerbar { display: flex; align-items: center; gap: 4px; margin-left: auto; }
-  .layerbar .lbl { font-size: 11.5px; color: var(--muted); margin-right: 4px; }
-  .layerbar button { padding: 3px 8px; font-variant-numeric: tabular-nums; }
-  .layerbar button.current { background: var(--sel-edge); border-color: var(--sel-edge); color: #fff; }
+  .layerbar, .zoombar, .timebar { display: flex; align-items: center; gap: 4px; }
+  .layerbar { margin-left: auto; }
+  .layerbar .lbl, .zoombar .lbl, .timebar .lbl { font-size: 11.5px; color: var(--muted); margin-right: 4px; }
+  .layerbar button, .zoombar button, .timebar button { padding: 3px 8px; font-variant-numeric: tabular-nums; }
+  .layerbar button.current, .timebar button.current { background: var(--sel-edge);
+    border-color: var(--sel-edge); color: #fff; }
   .layerbar button.uncomputed { border-style: dashed; color: var(--muted); }
 
-  /* The whole Layer 1 input surface: two folder paths and an optional ref. */
+  /* task #256 + OPEN #285: the two bucket jumps and the Find bubble box share ONE navigation row.
+     #285 moves the find box out of the .sources path row and onto this one. */
+  .navbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 6px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .navbar .lbl { font-size: 11.5px; color: var(--muted); }
+  /* OPEN #289: the input and its ‹ › cycle buttons are ONE non-wrapping group, so no window width
+     can separate a button from the box it drives. */
+  .findgroup { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
+  .findgroup input { font: 11.5px ui-monospace, Menlo, monospace; padding: 4px 8px; color: var(--ink);
+    background: var(--page); border: 1px solid var(--border); border-radius: 6px; width: 210px; }
+  .findgroup input:focus { outline: none; border-color: var(--sel-edge); }
+  .findgroup button { padding: 3px 7px; }
+  /* task #272: the "Enter cycles" guidance is PAGE TEXT, not a `title`. A native tooltip is hidden
+     the moment the user starts typing — exactly when the instruction becomes relevant. */
+  .hint { font-size: 10.5px; color: var(--muted); }
+  /* task #273: emptied box -> this readout is emptied too, so a stale count never outlives its search. */
+  .findstatus { font: 11px ui-monospace, Menlo, monospace; color: var(--ink2); min-width: 40px; }
+
+  /* The whole Layer 1 input surface: two folder paths, a branch and a commit. */
   .sources { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
     padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
   .sources label { display: inline-flex; align-items: center; gap: 6px;
     font-size: 11.5px; color: var(--muted); }
-  .sources input { font: 11.5px ui-monospace, Menlo, monospace; padding: 4px 8px; color: var(--ink);
-    background: var(--page); border: 1px solid var(--border); border-radius: 6px; }
-  .sources input:focus { outline: none; border-color: var(--sel-edge); }
+  .sources input, .sources select { font: 11.5px ui-monospace, Menlo, monospace; padding: 4px 8px;
+    color: var(--ink); background: var(--page); border: 1px solid var(--border); border-radius: 6px; }
+  .sources input:focus, .sources select:focus { outline: none; border-color: var(--sel-edge); }
+  /* OPEN #286: the ref textbox becomes a commit-history dropdown sized in ch — 75 characters of
+     subject plus its timestamp — and a branch dropdown appears only once the repo is confirmed.
+     The repo row is `nowrap` (user, 2026-07-26: git repo, branch and commit belong on ONE row), so
+     88ch is the WANTED width, not a floor: `min-width: 0` lets the select give way on a narrow
+     window instead of wrapping the control onto a line of its own. */
+  .sources.repo { flex-wrap: nowrap; }
+  #ref { width: 88ch; min-width: 0; }
+  .sources.repo label:last-of-type { min-width: 0; flex: 0 1 auto; }
+  .confirmed-only { display: none; }
+  .repo-ok .confirmed-only { display: inline-flex; }
+  .repo-flag { font-size: 11px; color: var(--sel-edge); }
 
   /* S12: legend above the timeline, outside the scroll container. */
   .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 7px 16px;
     font-size: 11px; color: var(--ink2); border-bottom: 1px solid var(--border); background: var(--surface); }
   .legend span { display: inline-flex; align-items: center; gap: 5px; }
   .legend i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
-  /* task #256: jump straight to either orphan bucket instead of scrolling the whole canvas. */
-  .jumps { display: flex; gap: 6px; margin-left: auto; }
-  .jumps button { padding: 3px 9px; font-size: 11px; }
 
-  /* Three columns: File Nav (#252) | timeline | Detail View drawer (#257). */
+  /* Three columns: File Nav (#252) | timeline | Detail View drawer (OPEN #257). */
   .body { flex: 1; min-height: 0; display: flex; }
 
   /* ---- task #252: File Nav, LEFT of the ruler. Class names are deliberately the ones the real
-     component already ships in webapp/views/sidebar.ts + views/timeline-file-tree.ts
-     (.file-folder / .file-folder-kids / .file-folder-name / .file-item / .file-item.deleted),
-     because the task is to REUSE that component, not to write a second tree. The CSS below is
-     the subset of webapp/styles.css those rules need — layer1.html does not load that sheet. */
-  .filenav { flex: none; width: 216px; overflow: auto; padding: 10px 8px 20px;
+     component already ships in webapp/views/sidebar.ts + views/timeline-file-tree.ts, because the
+     task is to REUSE that component, not to write a second tree. */
+  .filenav { flex: none; width: var(--filenav-w); overflow: auto; padding: 10px 8px 20px;
     border-right: 1px solid var(--border); background: var(--surface); }
   .filenav .pane-title { font: 600 11px system-ui; text-transform: uppercase; letter-spacing: .04em;
     color: var(--muted); padding: 2px 4px 6px; display: flex; align-items: center; gap: 6px; }
   .filenav .pane-title button { margin-left: auto; padding: 1px 7px; font-size: 10.5px; }
-  .file-folder { }
+  /* task #281: the File Nav's OWN search box — it filters this tree only and shares no code with
+     the find-bubble box, which searches the timeline. Sticky so it survives a long scroll. */
+  .navsearch { position: sticky; top: 0; z-index: 2; display: flex; gap: 4px; align-items: center;
+    padding: 2px 4px 6px; background: var(--surface); }
+  .navsearch input { flex: 1; min-width: 0; font: 11px ui-monospace, Menlo, monospace; padding: 3px 7px;
+    color: var(--ink); background: var(--page); border: 1px solid var(--border); border-radius: 6px; }
+  .navsearch input:focus { outline: none; border-color: var(--sel-edge); }
+  .navsearch button { padding: 1px 6px; font-size: 11px; }
   .file-folder-name { font: 600 11.5px ui-monospace, Menlo, monospace; color: var(--ink2);
     padding: 2px 4px; border-radius: 4px; cursor: pointer; list-style: none; }
   .file-folder-name::-webkit-details-marker { display: none; }
@@ -110,43 +161,93 @@
   .file-item:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
   /* Deleted = in the repo tree, absent on disk. #252 says these MUST still be listed. */
   .file-item.deleted { color: var(--muted); text-decoration: line-through; }
+  .navempty { font-size: 11px; color: var(--muted); padding: 6px 4px; }
+
+  /* task #279: drag the File Nav's right edge to resize it. The grip is a sibling overlay rather
+     than a border on the pane, so the drag target is 7 px wide without changing the pane's box. */
+  .filenav-grip { flex: none; width: 7px; margin-left: -4px; cursor: col-resize; z-index: 3;
+    background: transparent; }
+  .filenav-grip:hover, .filenav-grip.dragging { background: color-mix(in srgb, var(--sel-edge) 45%, transparent); }
 
   .stagewrap { flex: 1; min-width: 0; position: relative; display: flex; }
-  /* Extra top padding: a widget's box top sits 44px ABOVE its first node so the node lands on its
-     own ruler tick (see --head below), and that overhang needs somewhere to live. */
-  .timelines { flex: 1; min-width: 0; overflow: auto; padding: 68px 12px 40px 0; }
-  .canvas { display: flex; align-items: flex-start; min-width: max-content; }
+  .timelines { flex: 1; min-width: 0; overflow: auto; padding: 18px 12px 40px 0; }
+  /* `zoom`, never `transform: scale()` — zoom participates in layout, so the scroll area shrinks
+     with the content. `isolation` makes this an unconditional stacking context, which the leader
+     layer's negative z-index needs at 100% zoom.
+     --lane-y is the gap between a bubble's border-box top and its first NODE: `.filebox`'s 2 px
+     border plus its 52 px header padding. Declared HERE because it is the nearest common ancestor
+     of both consumers — `.ruler .tick` and `.leader` — and neither may state the literal twice.
+     It is what makes the timestamp and the dashed line land on the dots (task 290). The bubble is
+     NOT pulled up by it: a negative margin put every bubble's box 54 px ABOVE the canvas top, which
+     is above the sticky gutter's own top edge, so bubbles at the earliest instants were drawn OVER
+     the ruler as soon as the canvas was scrolled sideways (user, 2026-07-26). */
+  .canvas { position: relative; display: flex; align-items: flex-start; min-width: max-content;
+    isolation: isolate; --lane-y: 54px; }
 
-  /* Sticky gutter, matching the shipped page: the ruler stays put while the canvas scrolls left. */
-  .ruler { position: sticky; left: 0; z-index: 8; flex: none; width: 96px; align-self: stretch;
-    background: var(--page); }
-  .ruler .rail { position: absolute; left: 80px; top: 0; bottom: 0; border-left: 2px dotted var(--baseline); }
-  .ruler .tick { position: absolute; left: 0; width: 70px; text-align: right; top: calc(var(--axis-px) * 1px);
-    font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; transform: translateY(-50%); }
+  /* Sticky gutter: the ruler stays put while the canvas scrolls left. --rail-x is derived from the
+     widest label — task #276 put seconds and hundredths in ("MM-DD HH:MM:SS.hh") and task #275
+     appended " (n)", so 23 monospace characters at 10 px x 0.6 em = ~140 px, plus 10 px clearance. */
+  .ruler { --rail-x: 150px; position: sticky; left: 0; z-index: 8; flex: none;
+    width: calc(var(--rail-x) + 2px); align-self: stretch; background: var(--page); }
+  .ruler .rail { position: absolute; left: var(--rail-x); top: 0; bottom: 0; border-left: 2px dotted var(--baseline); }
+  /* task #260/#266: a tick is a navigation control, not inert text. */
+  /* The zoom lives on `.stage`, so a tick has to scale the axis itself to keep pointing at its
+     nodes — the timestamp's own size is what the reader asked to hold still. */
+  .ruler .tick { position: absolute; left: 0; width: 140px; text-align: right;
+    top: calc((var(--axis-px) * 1px + var(--lane-y)) * var(--zoom, 1));
+    font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
+    transform: translateY(-50%); cursor: pointer; border-radius: 3px; padding-right: 4px; }
+  .ruler .tick:hover { color: var(--ink); background: color-mix(in srgb, var(--sel-edge) 16%, transparent); }
+  .ruler .tick.multi { text-decoration: underline dotted; }   /* OPEN #284: shared by >1 bubble */
 
-  .stage { display: flex; align-items: flex-start; gap: 26px; padding-left: 26px; }
+  /* Zoom is the BUBBLES' scale, not the page's: `zoom` (never `transform: scale()`) participates in
+     layout, so zooming out genuinely shrinks the scroll area and more bubbles fit on screen, while
+     the gutter outside it keeps its own font size at every zoom (user, 2026-07-26). */
+  .stage { display: flex; align-items: flex-start; gap: 26px; padding-left: 26px; zoom: var(--zoom, 1); }
 
   /* --head is the in-box headroom the file name + sub line occupy. The box is pulled UP by exactly
-     that much so node axis 0 lands on its ruler tick — without this the whole widget renders --head
-     px late, which is what the CDP alignment smoke test caught on the shipped page. */
-  .filebox { --head: 52px; position: relative; flex: none; width: 224px;
-    margin-top: calc(var(--axis-px) * 1px - var(--head));
+     that much so node axis 0 lands on its ruler tick.
+     OPEN #290 is the SAME defect stated the other way round: --axis-px alone is NOT where a node
+     sits, so the tick and the leader used to mark a point --head px above the dots. The fix is
+     `+ var(--lane-y)` on the TICK and the LEADER (see `.canvas`), not a negative margin here —
+     pulling the bubble up instead put its box above the canvas's own top edge, and the sticky ruler
+     stretches only to that edge, so early bubbles rode over the gutter under horizontal scroll. */
+  .filebox { --head: 52px; position: relative; flex: none; min-width: 224px; scroll-margin-top: 14px;
+    margin-top: calc(var(--axis-px) * 1px);
     border: 2px solid var(--box); border-radius: 14px;
     background: color-mix(in srgb, var(--surface) 88%, transparent);
     padding: var(--head) 12px 14px; }
-  /* task #245: a long path used to render at full width with white-space:nowrap, spilling out of
-     the bubble and over its neighbours' labels. Now it is clipped to the bubble with a leading
-     ellipsis (the TAIL of a path is the identifying part) and carries the full path in `title`. */
-  .filebox .fname { position: absolute; top: 8px; left: 12px; right: 12px;
-    font: 600 13px ui-monospace, Menlo, monospace; color: var(--c-snap);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+  /* task #245/#270/#280: the label is the BASENAME with the full path on `data-path`, ellipsised to
+     the bubble at rest so it cannot overprint its neighbours. #270's wrapped two-line name was
+     REVERTED on user feedback; truncate-plus-reveal is the settled treatment. */
+  .filebox .fname { position: absolute; top: 7px; left: 12px; max-width: calc(100% - 24px);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font: 600 13px ui-monospace, Menlo, monospace; color: var(--c-snap); cursor: default; }
+  /* task #280: hovering reveals the WHOLE path in-page — not as a native tooltip, which the user
+     rejected. Lifting max-width/overflow is the entire reveal; the opaque background and z-index 7
+     (above .node's 6, below .ruler's 8) stop it being painted over by its neighbours.
+     OPEN #287: the revealed text also changes colour, so it cannot be read as a continuation of the
+     neighbouring bubbles' names sitting at the same y. */
+  .filebox .fname:hover { max-width: none; overflow: visible; z-index: 7;
+    color: var(--reveal-ink); background: var(--surface); padding-right: 6px;
+    border-radius: 4px; box-shadow: 0 0 0 1px var(--border); }
   .filebox .sub { position: absolute; top: 29px; left: 12px; right: 12px; font-size: 10px;
     color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  /* task #250: a dashed leader from the bubble back to the ruler, drawn at the bubble's first node
-     row — the row that actually corresponds to a ruler tick. It runs leftwards only, which cannot
-     grow the scroll width, and it terminates under the opaque sticky ruler. */
-  .filebox::before { content: ""; position: absolute; right: 100%; top: var(--head);
-    width: 3000px; border-top: 1px dashed var(--baseline); pointer-events: none; }
+
+  /* ---- tasks #250/#262/#264/#265 + the 2026-07-26 on-demand rule --------------------------------
+     ONE dashed line per ruler ENTRY, in its own layer behind the bubbles (#264) — the per-bubble
+     `.filebox::before` drew 805 overlapping copies and made the page unusable (#263). `inset: 0`
+     against `.canvas`, not `.stage`, is what lets a line reach the sticky gutter with no length
+     guess (#262). `top` is the entry's own --axis-px, which is where its nodes sit (#265/#290).
+
+     ON DEMAND (user, 2026-07-26): opacity 0 at rest. Scrolling draws nothing. `.on` is set by JS
+     only while a ruler timestamp, a bubble or a node is hovered or selected. Kept as an opacity
+     toggle rather than display/none so the lines never re-layout — showing one costs a repaint. */
+  .leaders { position: absolute; inset: 0; pointer-events: none; z-index: -1; }
+  .leader { position: absolute; left: 0; right: 0;
+    top: calc((var(--axis-px) * 1px + var(--lane-y)) * var(--zoom, 1));
+    border-top: 1px dashed var(--baseline); opacity: 0; transition: opacity .08s linear; }
+  .leader.on { opacity: 1; border-top-color: var(--sel-edge); }
 
   .lane { position: relative; margin-left: 6px; min-height: calc(var(--span-px) * 1px + 18px); }
   .lane .lrail { position: absolute; left: 0; top: 0; bottom: 0; border-left: 1.5px solid var(--baseline); }
@@ -158,25 +259,82 @@
   .n-created { border-style: dotted; border-color: var(--muted); }
   .nlabel { position: absolute; left: 14px; top: calc(var(--axis-px) * 1px); transform: translateY(-50%);
     font: 10px ui-monospace, Menlo, monospace; color: var(--ink2); white-space: nowrap; }
-  /* task #257: only clickable nodes advertise themselves. */
+  /* OPEN #257: only clickable nodes advertise themselves. */
   .node.hot, .nlabel.hot { cursor: pointer; }
   .nlabel.hot { text-decoration: underline dotted; }
   .node.hot:hover { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--sel-edge); }
   .nlabel.cold { color: var(--muted); }
 
+  /* task #259: two events of ONE file at ONE instant (a commit and the working tree touched in the
+     same second) get their own row slots — the rounded rectangle is what says they are simultaneous
+     rather than merely adjacent. Drawn before the nodes so it stays behind them. */
+  .tiegroup { position: absolute; left: -9px; top: calc(var(--axis-px) * 1px - 9px);
+    height: calc(var(--span-px) * 1px + 18px); width: 132px; border-radius: 9px;
+    border: 1.5px dashed var(--c-anchor); background: color-mix(in srgb, var(--c-anchor) 8%, transparent); }
+
+  /* task #261's highlight convention, reused by every landing: an OUTLINE, never a border — a
+     border would move the bubble's own box, which is the geometry this page exists to inspect.
+     OPEN #267/#283: a NODE is marked with [ ] brackets instead. A dot is 15 px inside a lane of
+     stacked rows, so an outline on it reads as another ring — the brackets sit OUTSIDE the dot in
+     the empty gutter beside the rail, where nothing else on the page draws. The pseudo-elements
+     hang off `.node`, which is already absolutely positioned, so they move nothing. */
+  .filebox.found { outline: 3px solid var(--sel-edge); outline-offset: 3px; }
+  .node.found::before, .node.found::after { content: ""; position: absolute; top: -6px; bottom: -6px;
+    width: 5px; border: 2px solid var(--sel-edge); }
+  .node.found::before { right: 100%; margin-right: 3px; border-right: none; }
+  .node.found::after { left: 100%; margin-left: 3px; border-left: none; }
+  .nlabel.found { color: var(--ink); font-weight: 700; }
+  /* The gutter row for whatever is selected reads the same as an expanded row (user, 2026-07-26):
+     bold, in full ink, with its dashed leader up — one selection, one language. */
+  .ruler .tick.selected { color: var(--ink); font-weight: 700; }
+
   /* Orphan buckets: one per direction, a plain file list, placed at the earliest member instant. */
   .filebox.bucket { border-style: dashed; border-color: var(--muted); width: 268px; }
-  .filebox.bucket .fname { color: var(--ink2); font-family: inherit; font-size: 12px; direction: ltr; }
-  .bucket ul { list-style: none; }
-  .bucket li { display: flex; justify-content: space-between; gap: 16px; padding: 1px 0;
+  .filebox.bucket .fname { color: var(--ink2); font-family: inherit; font-size: 12px; }
+  /* Each row is placed at its OWN instant (see addBucket), so the list is a positioning context
+     tall enough to hold the last one. `translateY(-50%)` centres a row on its instant the way a
+     `.node` is centred on its own — otherwise a row hangs half a line below its ruler timestamp. */
+  .bucket ul { list-style: none; position: relative; min-height: calc(var(--span-px) * 1px + 16px); }
+  .bucket li { position: absolute; left: 0; right: 0; top: calc(var(--axis-px) * 1px);
+    transform: translateY(-50%);
+    display: flex; justify-content: space-between; gap: 16px;
     font: 11px ui-monospace, Menlo, monospace; color: var(--ink2); }
+  /* An orphan row is inspectable like a node (user, 2026-07-26): a repo-only file still has bytes in
+     the repository at its last commit, and a disk-only file has them in the working tree. */
+  .bucket li { cursor: pointer; border-radius: 4px; padding: 0 3px; }
+  .bucket li:hover { background: color-mix(in srgb, var(--sel-edge) 16%, transparent); color: var(--ink); }
+  .bucket li.found { outline: 2px solid var(--sel-edge); outline-offset: 2px; }
   .bucket li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
   .bucket li em { font-style: normal; color: var(--muted); font-size: 10px; flex: none; }
   .nopairs { color: var(--muted); font-size: 11.5px; padding: 34px 8px 0; }
 
-  /* ---- task #246: minimap, pinned to the LOWER-LEFT of the timeline pane. It lives in
-     .stagewrap, NOT in the scrolling .timelines, so it does not scroll away. */
-  .minimap { position: absolute; left: 12px; bottom: 12px; z-index: 20;
+  /* ---- OPEN #284: a tick shared by nodes in MORE THAN ONE bubble expands the list of files
+     touched at that instant instead of silently jumping to whichever one the lookup found first.
+     IN THE RULER, not over the canvas (user, 2026-07-26): the list is part of the gutter row, so it
+     opens UNDER its timestamp and pushes the rows below it down — see EXPAND_ROW_PX in the script,
+     which feeds the row's extra height back into the axis layout so the bubbles crossing that
+     timestamp grow and shift with it. A popover floating over the timeline was the first attempt and
+     was wrong twice over: it hid the render it was describing, and its text took the timeline's ink
+     rather than the gutter's.
+     `width: max-content` past the 150 px rail is deliberate — a path is longer than the gutter is
+     wide, and `.ruler` is opaque and z-index 8, so the list paints cleanly over the canvas it
+     overhangs while the timestamps stay put. */
+  /* An OPEN row is not a SELECTED row. It used to be bold, which is exactly what `.selected` looks
+     like, so a row left open under a selection somewhere else read as a second selected row (user,
+     2026-07-26). Bold now means selected and nothing else; the open row is announced by the file
+     list hanging under it, which no other row has. */
+  .ruler .tick.expanded { color: var(--ink); }
+  .tickfiles { position: absolute; left: 12px; top: 100%; width: max-content; max-width: 300px;
+    padding: 2px 0 0; }
+  .tickfiles button { display: block; width: 100%; text-align: left; border: none; border-radius: 3px;
+    padding: 0 4px; font: 10px ui-monospace, Menlo, monospace; color: var(--ink2);
+    background: var(--page); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tickfiles button:hover { background: color-mix(in srgb, var(--sel-edge) 20%, transparent); color: var(--ink); }
+
+  /* ---- task #246: minimap, pinned to the LOWER-LEFT of the timeline pane. It lives in .stagewrap,
+     NOT in the scrolling .timelines, so it does not scroll away.
+     task #269: inset past the sticky ruler — at left: 12px it covered the gutter's timestamps. */
+  .minimap { position: absolute; left: calc(var(--rail-x, 150px) + 14px); bottom: 12px; z-index: 20;
     width: 176px; height: 124px; padding: 6px; cursor: crosshair;
     border: 1px solid var(--border); border-radius: 8px;
     background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(3px); }
@@ -188,9 +346,10 @@
   .mm-view { position: absolute; border: 1.5px solid var(--sel-edge);
     background: color-mix(in srgb, var(--sel-edge) 14%, transparent); border-radius: 2px; }
 
-  /* ---- task #257: Detail View drawer, right half of the screen. */
+  /* ---- OPEN #257: Detail View drawer, right half of the screen. */
   .drawer { flex: none; width: 0; overflow: hidden; border-left: 1px solid var(--border);
-    background: var(--surface); transition: width .12s ease; }
+    background: var(--surface); }   /* no width transition: #258 re-centres the clicked node against
+                                    the post-reflow pane, and an animating width is never that */
   .drawer.open { width: 50%; }
   .drawer .dhead { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
     border-bottom: 1px solid var(--border); }
@@ -203,10 +362,22 @@
 </style>
 </head>
 <body>
-<div class="viz-root">
+<div class="viz-root" id="root">
   <header>
-    <h1>Layer 1 View — Current File State vs Git State</h1>
+    <h1>Layer 1 View</h1>
     <span class="crumb" id="crumb"></span>
+    <!-- OPEN #282: which stamp places a bubble. Two commits rewritten in one rebase share a
+         committer instant while their author instants are days apart, so the reading has to be
+         chosen per view rather than assumed. -->
+    <div class="timebar">
+      <span class="lbl">Time:</span>
+      <button id="t-committer" class="current">committer</button>
+      <button id="t-author">author</button>
+    </div>
+    <div class="zoombar">
+      <span class="lbl">Zoom:</span>
+      <button id="zoom-out">−</button><button id="zoom-reset">100%</button><button id="zoom-in">+</button>
+    </div>
     <div class="layerbar">
       <span class="lbl">Layer:</span>
       <button class="current">1</button>
@@ -215,51 +386,76 @@
     </div>
   </header>
 
+  <!-- task #256 + OPEN #285/#289: every navigation control on one row. -->
+  <div class="navbar">
+    <span class="lbl">Jump to:</span>
+    <button id="jump-repo">No repository match</button>
+    <button id="jump-disk">No disk match</button>
+    <div class="findgroup">
+      <span class="lbl">Find bubble</span>
+      <input id="find-file" type="text" placeholder="basename">
+      <button id="find-prev" title="previous match">‹</button>
+      <button id="find-next" title="next match">›</button>
+      <span class="findstatus" id="find-status"></span>
+    </div>
+  </div>
+
+  <!-- Two rows, not one (user, 2026-07-26): the project folder is what is on DISK, and everything
+       below it describes the REPOSITORY the disk state is being read against. Splitting them also
+       stops #286's 88ch commit dropdown pushing the folder box off the row. -->
   <div class="sources">
     <label>Project folder
       <input id="dir" type="text" size="34" value="/Users/you/code/demo-app">
       <button class="pick" data-for="dir">Open…</button></label>
+  </div>
+  <div class="sources repo">
     <label>Git repo
       <input id="repo" type="text" size="34" value="/Users/you/code/demo-app">
       <button class="pick" data-for="repo">Open…</button></label>
-    <label>Commit / branch
-      <input id="ref" type="text" size="10" value="" placeholder="default branch"></label>
+    <span class="repo-flag confirmed-only">✓ git repo</span>
+    <!-- OPEN #286 -->
+    <label class="confirmed-only">Branch <select id="branch"></select></label>
+    <label class="confirmed-only">Commit <select id="ref"></select></label>
     <button id="load">Load</button>
   </div>
   <div class="legend">
     <span><i style="background:var(--c-commit);border-radius:4px"></i> commit</span>
     <span><i style="border:3px double var(--c-disk);background:transparent"></i> on-disk</span>
     <span><i style="border:3px dotted var(--muted);background:transparent"></i> created at</span>
+    <span><i style="border:1.5px dashed var(--c-anchor);background:transparent"></i> same instant</span>
     <span><i style="border:1.5px dashed var(--muted);background:transparent"></i> orphan bucket</span>
-    <!-- task #256 -->
-    <div class="jumps">
-      <button id="jump-repo">↓ No repository match</button>
-      <button id="jump-disk">↓ No disk match</button>
-    </div>
+    <span class="hint">dashed leader: hover a ruler row, a bubble or a node</span>
   </div>
 
-  <div class="body">
-    <!-- task #252 -->
-    <aside class="filenav">
+  <div class="body" id="body">
+    <!-- tasks #252/#281 -->
+    <aside class="filenav" id="filenav">
       <div class="pane-title">Files
         <!-- task #254: the deselect. Shift-click folders (#255) to select more than one. -->
         <button id="clear-filter" disabled>All files</button>
       </div>
+      <div class="navsearch">
+        <input id="nav-search" type="text" placeholder="search files…">
+        <button id="nav-search-clear" title="clear">(x)</button>
+      </div>
       <div id="nav"></div>
     </aside>
+    <!-- task #279 -->
+    <div class="filenav-grip" id="filenav-grip" title="drag to resize"></div>
 
     <div class="stagewrap">
       <main class="timelines" id="timelines"><div class="canvas" id="canvas">
         <div class="ruler" id="ruler"><div class="rail"></div></div>
+        <div class="leaders" id="leaders"></div>
         <div class="stage" id="stage"></div>
       </div></main>
-      <!-- task #246 -->
+      <!-- tasks #246/#269/#274 -->
       <div class="minimap" id="minimap"><span class="mm-title">minimap</span>
         <div class="mm-plot" id="mm-plot"><div class="mm-view" id="mm-view"></div></div>
       </div>
     </div>
 
-    <!-- task #257 -->
+    <!-- OPEN #257 -->
     <aside class="drawer" id="drawer">
       <div class="dhead"><div class="dpath" id="dpath"></div>
         <button id="dclose" style="margin-left:auto">Close</button></div>
@@ -270,17 +466,26 @@
 </div>
 
 <script>
-  // Fixed fixture, no clock reads. Commits carry committer instants; disk files carry both a
-  // created-at and a modified instant, because task #257's click rule turns on whether they differ.
+  // Fixed fixture, no clock reads. A commit carries BOTH stamps (OPEN #282): `at` is committer time,
+  // `wrote` is author time. The last two commits deliberately share a committer instant while their
+  // author instants are days apart — that is the rebase case from the user's screenshot, and it is
+  // what makes the header's time toggle visibly change the layout.
   const COMMITS = [
-    { hash: "a1b2c3d4", at: "2026-06-01T09:00:00Z", files: ["src/index.ts", "README.md"] },
-    { hash: "e4f5a6b7", at: "2026-06-01T14:30:00Z", files: ["src/index.ts", "src/util.ts"] },
-    { hash: "c7d8e9f0", at: "2026-06-03T11:00:00Z", files: ["src/util.ts",
+    { hash: "a1b2c3d4", at: "2026-06-01T09:00:00Z", wrote: "2026-06-01T09:00:00Z",
+      subject: "seed the demo app with an index and a readme", files: ["src/index.ts", "README.md"] },
+    { hash: "e4f5a6b7", at: "2026-06-01T14:30:00Z", wrote: "2026-06-01T14:30:00Z",
+      subject: "extract the shared trim helper into src/util.ts", files: ["src/index.ts", "src/util.ts"] },
+    { hash: "c7d8e9f0", at: "2026-06-03T11:00:00Z", wrote: "2026-06-02T08:10:00Z",
+      subject: "dispatch run-scenario cases through one table", files: ["src/util.ts",
         "src/components/interim-run-scenario/test_run_scenario_dispatcher.ts"] },
-    { hash: "0a1b2c3d", at: "2026-06-03T18:20:00Z", files: ["src/index.ts"] },
-    { hash: "4d5e6f70", at: "2026-07-20T16:00:00Z", files: ["README.md", "docs/old-api.md"] },
-    { hash: "8a9b0c1d", at: "2026-07-20T21:05:00Z", files: ["scripts/deploy.sh"] },
-    { hash: "5636d8ec", at: "2026-07-20T21:20:00Z", files: [
+    { hash: "0a1b2c3d", at: "2026-06-03T18:20:00Z", wrote: "2026-06-03T18:20:00Z",
+      subject: "lowercase the parsed input before dispatch", files: ["src/index.ts"] },
+    { hash: "4d5e6f70", at: "2026-07-20T16:00:00Z", wrote: "2026-07-20T16:00:00Z",
+      subject: "retire the old API notes", files: ["README.md", "docs/old-api.md"] },
+    { hash: "8a9b0c1d", at: "2026-07-20T21:05:00Z", wrote: "2026-07-20T21:05:00Z",
+      subject: "ship the deploy script", files: ["scripts/deploy.sh"] },
+    { hash: "5636d8ec", at: "2026-07-20T21:20:00Z", wrote: "2026-07-19T13:45:00Z",
+      subject: "cover the dispatcher's error branch", files: [
         "src/components/interim-run-scenario/test_run_scenario_dispatcher.ts"] },
   ];
   const DISK = [
@@ -290,58 +495,79 @@
     { path: "src/components/interim-run-scenario/test_run_scenario_dispatcher.ts",
       born: "2026-06-03T11:05:00Z", at: "2026-07-24T09:30:00Z" },
     // created === modified -> the ONE node is the latest, so it IS clickable (#257's exception).
+    // README.md's disk instant also equals commit 4d5e6f70's, which is task #259's tie group.
     { path: "README.md",    born: "2026-07-20T16:00:00Z", at: "2026-07-20T16:00:00Z" },
     { path: "notes.txt",    born: "2026-07-23T19:40:00Z", at: "2026-07-23T19:40:00Z" },
     { path: ".env.local",   born: "2026-05-28T07:00:00Z", at: "2026-05-28T07:00:00Z" }, // pre-dates commit 1
   ];
+  // OPEN #286: what the branch/commit route would return once the repo is confirmed.
+  const BRANCHES = ["main", "layer-1-milestone", "spike/author-timestamps"];
 
   const PX_PER_HOUR = 2.5;  // locked with the user
   const CAP_PX = 24;        // 0.25" at 96dpi — the widest any single gap may render
   const FLOOR_PX = 16;      // the shipped per-gap floor
   const ROW_PX = 22;        // task #251: the height ONE node row (dot + 10px label) needs
   const SCALE = PX_PER_HOUR / 3600000;
+  const MINIMAP_SMOOTH_LIMIT_PX = 4000;   // task #274
+  const EXPAND_ROW_PX = 13;               // OPEN #284: one file name's row inside an expanded tick
+  const LABEL_GAP_PX = 13;                // the least ON-SCREEN room two printed timestamps need
 
   const ms = s => Date.parse(s);
-  const label = t => new Date(t).toISOString().slice(5, 16).replace("T", " ");  // MM-DD HH:MM
+  // task #276: seconds AND hundredths. "MM-DD HH:MM" collapsed instants that were seconds apart
+  // into identical-looking rows, which is what task #268 then had to merge.
+  const label = t => new Date(t).toISOString().slice(5, 22).replace("T", " ");
   const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls;
                                   if (txt != null) n.textContent = txt; return n; };
   const setPx = (n, px) => { n.style.setProperty("--axis-px", px); return n; };
-  const dirOf = p => p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
+  const byId = id => document.getElementById(id);
+  const basename = p => p.slice(p.lastIndexOf("/") + 1);
 
   // tasks #253/#254/#255 — the folder filter's whole state. Empty = show everything.
   const selectedFolders = new Set();
   const inSelection = path => selectedFolders.size === 0 ||
     [...selectedFolders].some(f => path === f || path.startsWith(f + "/"));
+  // OPEN #284: the ruler row currently expanded into its file list, as an instant. One at a time —
+  // the list changes the axis layout, so two open rows would be two stacked shifts to reason about.
+  let expandedInstant = null;
+  // The instants the current selection sits on: what the gutter bolds and what keeps a leader up.
+  let selectedInstants = [];
+  // The bubbles' scale. Declared with the rest of the view state because the gutter's own layout
+  // reads it — the ruler is outside the zoom, so it converts axis px to screen px itself.
+  let zoom = 1;
+  // OPEN #282
+  let timeSource = "committer";
+  const commitInstant = c => ms(timeSource === "author" ? c.wrote : c.at);
 
   // ---- task #251: content-driven ruler spacing -------------------------------------------------
-  // The gap between two ruler entries is no longer a fixed pitch. Each widget declares the node
-  // instants it must render; any two of its CONSECUTIVE nodes are forced at least ROW_PX apart, so
-  // a bubble is always tall enough to show its name, every commit and its on-disk rows without the
-  // squashing in specs/bug screenshots/"squashed bubble contents colliding.png". The linear/capped
-  // rule still sets the baseline; content only ever pushes entries further apart, never closer.
-  function resolveOffsets(instants, rowsAt) {
+  // Any two CONSECUTIVE nodes of one widget are forced at least ROW_PX apart, so a bubble is always
+  // tall enough to show its name, its commits and its on-disk rows. The linear/capped rule sets the
+  // baseline; content only ever pushes entries further apart, never closer.
+  // `extraAt` is task #284's expanded ruler row: the file list it opens lives IN the gutter, so the
+  // rows below it — and therefore every bubble and every node below it — must move down by exactly
+  // the list's height (user, 2026-07-26). Feeding it in HERE rather than positioning the list over
+  // the canvas is what makes a bubble that spans the expanded instant grow instead of being written
+  // over: a widget's span is `last node pos - first node pos`, both read from this one map.
+  function resolveOffsets(instants, rowsAt, extraAt = new Map()) {
     const pos = new Map([[instants[0], 0]]);
     for (let i = 1; i < instants.length; i += 1) {
       const t = instants[i], prev = instants[i - 1];
-      // The cap still bounds the LINEAR term, but the content floor outranks it: an instant that
-      // must render three stacked rows gets 3 x ROW_PX no matter how close the next instant is.
       const linear = Math.min(Math.max((t - prev) * SCALE, FLOOR_PX), CAP_PX);
-      pos.set(t, pos.get(prev) + Math.max(linear, (rowsAt.get(prev) ?? 1) * ROW_PX));
+      pos.set(t, pos.get(prev) + Math.max(linear, (rowsAt.get(prev) ?? 1) * ROW_PX) + (extraAt.get(prev) ?? 0));
     }
     return pos;
   }
 
   function buildModel() {
-    const dir = document.getElementById("dir").value.trim().replace(/\/$/, "");
-    const repo = document.getElementById("repo").value.trim().replace(/\/$/, "");
+    const dir = byId("dir").value.trim().replace(/\/$/, "");
+    const repo = byId("repo").value.trim().replace(/\/$/, "");
     const unrelated = repo !== dir;
 
     const repoPaths = [...new Set(COMMITS.flatMap(c => c.files))];
     const diskPaths = DISK.map(f => f.path);
     const pairedAll = unrelated ? [] : repoPaths.filter(p => diskPaths.includes(p));
 
-    // The filter bites HERE, before instants are collected — which is what makes the timeline
-    // range shrink to the selected folders (#253) rather than just hiding widgets.
+    // The filter bites HERE, before instants are collected — which is what makes the timeline range
+    // shrink to the selected folders (#253) rather than just hiding widgets.
     const paired = pairedAll.filter(inSelection);
     const repoOrphans = repoPaths.filter(p => !pairedAll.includes(p)).filter(inSelection);
     const diskOrphans = DISK.filter(f => !pairedAll.includes(f.path)).filter(f => inSelection(f.path));
@@ -349,22 +575,27 @@
     const widgets = paired.map(path => {
       const disk = DISK.find(f => f.path === path);
       const nodes = COMMITS.filter(c => c.files.includes(path))
-        .map(c => ({ t: ms(c.at), cls: "n-commit", text: c.hash, kind: "commit", hash: c.hash }));
+        .map(c => ({ t: commitInstant(c), cls: "n-commit", text: c.hash.slice(0, 8), kind: "commit", hash: c.hash }));
       // One node when born === modified, two when they differ.
       if (disk.born !== disk.at)
         nodes.push({ t: ms(disk.born), cls: "n-disk n-created", text: "created at", kind: "created" });
       nodes.push({ t: ms(disk.at), cls: "n-disk", text: "on disk", kind: "disk" });
       nodes.sort((a, b) => a.t - b.t);
-      // A commit and an mtime can land on the SAME instant — README.md below does. Drawing both at
-      // one axis position is the `5636d8ec` overprinting `on disk` in the bug screenshots, so tied
-      // nodes get successive row slots and the ruler pays for them (see rowsAt / #251).
+      // A commit and an mtime can land on the SAME instant — README.md does. Drawing both at one
+      // axis position is `5636d8ec` overprinting `on disk` in the bug screenshots, so tied nodes get
+      // successive row slots and the ruler pays for them (#247/#251); #259 then draws the group.
       nodes.forEach((n, i) => { n.slot = i > 0 && nodes[i - 1].t === n.t ? nodes[i - 1].slot + 1 : 0; });
       return { path, nodes };
     });
 
-    const bucketRows = title => title === "repo"
-      ? repoOrphans.map(p => ({ path: p, t: ms(COMMITS.filter(c => c.files.includes(p)).at(-1).at) }))
-      : diskOrphans.map(f => ({ path: f.path, t: ms(f.at) }));
+    // A bucket row carries the SAME shape a node does — kind, instant, and a hash for a commit — so
+    // it can be inspected exactly like a paired file's node (user, 2026-07-26). A repo-only file is
+    // absent from disk but its bytes are still in the repository at its LAST commit, which is the
+    // row's own instant; a disk-only file is read from the working tree.
+    const lastCommitFor = p => COMMITS.filter(c => c.files.includes(p)).sort((a, b) => commitInstant(a) - commitInstant(b)).at(-1);
+    const bucketRows = which => which === "repo"
+      ? repoOrphans.map(p => ({ path: p, t: commitInstant(lastCommitFor(p)), kind: "commit", hash: lastCommitFor(p).hash }))
+      : diskOrphans.map(f => ({ path: f.path, t: ms(f.at), kind: "disk" }));
     const noDisk = bucketRows("repo").sort((a, b) => a.t - b.t);
     const noRepo = bucketRows("disk").sort((a, b) => a.t - b.t);
 
@@ -378,18 +609,48 @@
     for (const w of widgets)
       for (const n of w.nodes) rowsAt.set(n.t, Math.max(rowsAt.get(n.t), n.slot + 1));
 
-    return { widgets, noDisk, noRepo, instants, rowsAt, pairedAll, repoPaths, diskPaths };
+    // task #275: how many events share each instant, which is what a ruler row reports in (n).
+    const countAt = new Map(instants.map(t => [t, 0]));
+    for (const w of widgets) for (const n of w.nodes) countAt.set(n.t, countAt.get(n.t) + 1);
+    for (const r of [...noDisk, ...noRepo]) countAt.set(r.t, countAt.get(r.t) + 1);
+
+    return { widgets, noDisk, noRepo, instants, rowsAt, countAt, pairedAll, repoPaths, diskPaths };
   }
 
+  // ---- tasks #268/#275: which rows the gutter prints ------------------------------------------
+  // Instants whose LABELS read the same collapse into one row carrying the summed count (#268), and
+  // the row keeps the earliest instant's offset. A row also remembers every instant it stands for,
+  // so a click and a leader-line hover answer for all of them, not just the first.
+  function listRulerRows(instants, pos, countAt) {
+    const rows = [];
+    for (const t of instants) {
+      const text = label(t);
+      const last = rows.at(-1);
+      if (last && last.text === text) { last.count += countAt.get(t); last.instants.push(t); continue; }
+      // Distinct labels still too close to read: skip the label, keep the leader (a skipped row
+      // still has bubbles sitting on it). The gap is measured in SCREEN px — the timestamps keep
+      // their size at every zoom, so zooming out is exactly what makes two rows collide, and the
+      // axis distance that clears a label grows as the axis itself shrinks.
+      if (last && (pos.get(t) - last.axisPx) * zoom < LABEL_GAP_PX) {
+        last.instants.push(t); last.count += countAt.get(t); continue;
+      }
+      rows.push({ text, axisPx: pos.get(t), count: countAt.get(t), instants: [t] });
+    }
+    return rows;
+  }
+
+  let model = null;   // the last rendered model, read by the ruler-click and find lookups
+
   function render() {
-    const m = buildModel();
-    const stage = document.getElementById("stage");
-    const ruler = document.getElementById("ruler");
+    const m = model = buildModel();
+    const stage = byId("stage");
+    const ruler = byId("ruler");
     stage.replaceChildren();
     ruler.replaceChildren(el("div", "rail"));
+    byId("leaders").replaceChildren();
 
     renderNav(m);
-    document.getElementById("crumb").textContent =
+    byId("crumb").textContent =
       `${m.widgets.length} pairs · ${m.noDisk.length} repo-only · ${m.noRepo.length} disk-only` +
       (selectedFolders.size ? ` · filtered to ${[...selectedFolders].join(", ")}` : "");
 
@@ -399,29 +660,67 @@
       return;
     }
 
-    const pos = resolveOffsets(m.instants, m.rowsAt);
-    const rowY = n => pos.get(n.t) + n.slot * ROW_PX;   // the node's own row within its instant
+    // TWO passes, and the first one exists only to answer "which instants did the expanded row
+    // absorb?" — a printed row can stand for several instants (task #268's merge and the 13 px
+    // label skip), and the height its file list adds depends on how many files those instants hold.
+    // The layout then has to be redone with that height in it. Cheap, and it keeps the merge rule
+    // and the expansion from having to know about each other.
+    const draft = resolveOffsets(m.instants, m.rowsAt);
+    const expandedRow = listRulerRows(m.instants, draft, m.countAt)
+      .find(row => row.instants.includes(expandedInstant));
+    const expandedEvents = expandedRow === undefined ? [] : listEventsAtInstants(m, expandedRow.instants);
+    // The list is drawn in the gutter, which the zoom does not touch, so its height is screen px —
+    // divided back into axis px, because that is the space `resolveOffsets` deals in.
+    const extraAt = new Map(expandedEvents.length
+      ? [[expandedRow.instants.at(-1), (expandedEvents.length * EXPAND_ROW_PX + 4) / zoom]] : []);
 
-    let lastLabel = -99;
-    for (const t of m.instants) {
-      if (pos.get(t) - lastLabel < 13) continue;
-      lastLabel = pos.get(t);
-      ruler.appendChild(setPx(el("div", "tick", label(t)), pos.get(t)));
+    const pos = resolveOffsets(m.instants, m.rowsAt, extraAt);
+    const rowY = n => pos.get(n.t) + n.slot * ROW_PX;   // the node's own row within its instant
+    m.pos = pos;
+
+    // The gutter. Every printed row is also the navigation control for the instants it stands for.
+    for (const row of listRulerRows(m.instants, pos, m.countAt)) {
+      const tick = setPx(el("div", "tick", `${row.text} (${row.count})`), row.axisPx);
+      tick.dataset.instants = row.instants.join(",");
+      // Marked when the row would EXPAND — the same test the click makes, so the underline never
+      // promises a list the click then refuses to open.
+      if (listEventsAtInstants(m, row.instants).length > 1) tick.classList.add("multi");
+      if (expandedRow !== undefined && row.axisPx === expandedRow.axisPx && expandedEvents.length) {
+        tick.classList.add("expanded");
+        tick.appendChild(buildTickFileList(expandedEvents));
+      }
+      ruler.appendChild(tick);
     }
 
+    // One dashed line per ruler ENTRY, hidden until something asks for it.
+    byId("leaders").replaceChildren(...m.instants.map(t => {
+      const line = setPx(el("div", "leader"), pos.get(t));
+      line.dataset.instant = t;
+      return line;
+    }));
+
     // One widget per pair. EVERY node lives inside its own bubble — the stray hashes below a bubble
-    // (#248) and the stray "on disk" above a bubble (#249) in the bug screenshots are exactly what
-    // this must never produce, so the bubble's height is derived from its own last node.
+    // (#248) and the stray "on disk" above one (#249) are what this must never produce, so the
+    // bubble's height is derived from its own last node.
     for (const w of m.widgets) {
       const start = rowY(w.nodes[0]), end = rowY(w.nodes.at(-1));
       const box = setPx(el("div", "filebox"), start);
-      const name = el("div", "fname", w.path);
-      name.title = w.path;                       // #245: full path on hover, ellipsis in the box
+      box.dataset.path = w.path;
+      box.dataset.instant = w.nodes[0].t;
+      // #280: the full path lives on `data-path`, never on `title` — the native tooltip is delayed,
+      // unstyled and gone on the first mouse move, which the user rejected. The swap below plus the
+      // `.fname:hover` rule is the in-page reveal.
+      const name = el("div", "fname", basename(w.path));
+      name.dataset.path = w.path;
+      name.addEventListener("mouseenter", () => { name.textContent = w.path; });
+      name.addEventListener("mouseleave", () => { name.textContent = basename(w.path); });
       box.append(name, el("div", "sub", `${w.nodes.filter(n => n.kind === "commit").length} commits · on disk`));
 
       const lane = setPx(el("div", "lane"), 0);
       lane.style.setProperty("--span-px", end - start);
       lane.appendChild(el("div", "lrail"));
+      // #259 first, so the rectangle stays behind the dots it groups.
+      for (const marker of tieGroupMarkers(w.nodes, start, rowY)) lane.appendChild(marker);
       for (const n of w.nodes) addNode(lane, rowY(n) - start, n, w.path);
       box.appendChild(lane);
       stage.appendChild(box);
@@ -430,18 +729,40 @@
 
     addBucket(stage, "No on-disk match", m.noDisk, pos, "bucket-disk");
     addBucket(stage, "No repository match", m.noRepo, pos, "bucket-repo");
+    markSelectedTicks();   // the gutter is rebuilt every render; the selection is not
     drawMinimap();
   }
 
-  // task #257: a commit node is always clickable. An on-disk node is clickable only when it is the
-  // LATEST disk node — i.e. the "created at" node is inert unless created === modified, in which
-  // case the file has exactly one disk node and that node IS the latest.
+  // task #259: one dashed rectangle per run of nodes sharing an instant. A single node is not a tie.
+  // `rowY` is the same widget-relative row the nodes themselves are placed at, so the rectangle can
+  // never drift off the dots it groups.
+  function tieGroupMarkers(nodes, startPx, rowY) {
+    const out = [];
+    for (const t of new Set(nodes.map(n => n.t))) {
+      const tied = nodes.filter(n => n.t === t);
+      if (tied.length < 2) continue;
+      const marker = setPx(el("div", "tiegroup"), rowY(tied[0]) - startPx);
+      marker.style.setProperty("--span-px", (tied.length - 1) * ROW_PX);
+      marker.dataset.instant = t;
+      out.push(marker);
+    }
+    return out;
+  }
+
+  // OPEN #257: a commit node is always clickable. An on-disk node is clickable only when it is the
+  // LATEST disk node — the "created at" node is inert unless created === modified, in which case the
+  // file has exactly one disk node and that node IS the latest.
   function addNode(lane, px, node, path) {
     const hot = node.kind !== "created";
     const dot = setPx(el("i", `node ${node.cls}${hot ? " hot" : ""}`), px);
     const tag = setPx(el("span", `nlabel ${hot ? "hot" : "cold"}`, node.text), px);
+    for (const element of [dot, tag]) {
+      element.dataset.instant = node.t;
+      element.dataset.path = path;
+    }
+    if (node.kind === "commit") dot.title = node.hash;
     if (hot) {
-      const open = () => openDrawer(path, node);
+      const open = () => openDrawer(path, node, dot);
       dot.addEventListener("click", open);
       tag.addEventListener("click", open);
     } else {
@@ -450,27 +771,224 @@
     lane.append(dot, tag);
   }
 
+  // A bucket's rows are PLACED, not stacked: each one sits at its own instant, exactly as a pair's
+  // nodes do (user, 2026-07-26 — the second row of "No on-disk match" was drawn immediately under
+  // the first while its timestamp was hours further down the ruler). A row's `--axis-px` is relative
+  // to the bucket's own offset, and the list starts at the same in-box height a `.lane` does, so a
+  // row lands on the same y as the tick for its instant.
   function addBucket(stage, title, rows, pos, id) {
     if (!rows.length) return;
-    const box = setPx(el("div", "filebox bucket"), pos.get(rows[0].t));
+    const start = pos.get(rows[0].t);
+    const box = setPx(el("div", "filebox bucket"), start);
     box.id = id;
+    box.dataset.instant = rows[0].t;
     box.append(el("div", "fname", title), el("div", "sub", `${rows.length} files`));
     const ul = el("ul");
+    ul.style.setProperty("--span-px", pos.get(rows.at(-1).t) - start);
     for (const r of rows) {
-      const li = el("li");
-      const p = el("span", null, r.path); p.title = r.path;   // #245 applies to bucket rows too
+      const li = setPx(el("li"), pos.get(r.t) - start);
+      li.dataset.instant = r.t;
+      li.dataset.path = r.path;
+      const p = el("span", null, r.path); p.title = r.path;
       li.append(p, el("em", null, label(r.t)));
+      // An orphan is inspectable like any node: a repo-only file opens `git show <hash>:<path>` at
+      // its last commit, a disk-only file opens the working tree.
+      li.addEventListener("click", () => openDrawer(r.path, r, li));
       ul.appendChild(li);
     }
     box.appendChild(ul);
     stage.appendChild(box);
   }
 
-  // ---- tasks #252/#253/#254/#255: File Nav --------------------------------------------------
+  // ---- dashed leader lines, ON DEMAND (user, 2026-07-26) ---------------------------------------
+  // The lines are keyed by INSTANT, not by pixel: a bubble, its nodes and the gutter row all carry
+  // `data-instant`, so one delegated hover handler serves all three sources and no geometry is
+  // measured. `pinned` is the selection half — a found bubble, a ruler-clicked node, the node whose
+  // contents the drawer is showing — and survives until the selection changes.
+  const pinnedInstants = new Set();
+  let hoveredInstants = new Set();
+
+  function paintLeaders() {
+    for (const line of document.querySelectorAll(".leader")) {
+      const t = Number(line.dataset.instant);
+      line.classList.toggle("on", pinnedInstants.has(t) || hoveredInstants.has(t));
+    }
+  }
+  function pinInstants(instants) {
+    pinnedInstants.clear();
+    for (const t of instants) pinnedInstants.add(Number(t));
+    paintLeaders();
+  }
+  const instantsOn = element => (element?.dataset.instants ?? element?.dataset.instant ?? "")
+    .split(",").filter(Boolean).map(Number);
+
+  // Hover: the closest ancestor carrying an instant wins, which is the node when the pointer is on a
+  // node and the bubble when it is anywhere else inside one.
+  byId("root").addEventListener("pointerover", event => {
+    const source = event.target.closest?.("[data-instant], [data-instants]");
+    hoveredInstants = new Set(instantsOn(source));
+    paintLeaders();
+  });
+  byId("root").addEventListener("pointerleave", () => { hoveredInstants = new Set(); paintLeaders(); });
+
+  // ---- tasks #260/#266 + OPEN #267/#283/#284: the ruler row as a control -----------------------
+  // ONE selection at a time, and it PERSISTS: it is switched off by the next landing or by emptying
+  // the find box, never by a timer. A mark that fades is gone by the time the reader has finished
+  // scrolling to what it marked.
+  function highlight(elements) {
+    for (const lit of document.querySelectorAll(".found")) lit.classList.remove("found");
+    for (const element of elements) element.classList.add("found");
+    // A bubble carries its FIRST node's instant, so including it here bolded a second gutter row
+    // whenever the picked node was not the first one. When something more precise than the bubble is
+    // in the selection (a node, its label, a bucket row) that is what the gutter follows; the bubble
+    // only speaks for itself when it was selected alone, as by a find-box match.
+    const precise = elements.filter(e => !e.classList.contains("filebox"));
+    selectedInstants = (precise.length ? precise : elements)
+      .map(e => Number(e.dataset.instant)).filter(t => !Number.isNaN(t));
+    pinInstants(selectedInstants);      // the green dashes for the selected row
+    markSelectedTicks();
+  }
+
+  // The gutter half of that selection: the row(s) standing for the selected instant go bold.
+  // Re-applied after every render because the ticks are rebuilt from scratch each time.
+  function markSelectedTicks() {
+    for (const tick of document.querySelectorAll(".ruler .tick"))
+      tick.classList.toggle("selected", instantsOn(tick).some(t => selectedInstants.includes(t)));
+  }
+
+  // Put `target` in the middle of the part of the timeline the reader can actually SEE (user,
+  // 2026-07-26). Two things eat the scrollport and neither moves the scroll box: the sticky ruler
+  // covers its left edge, and the Detail View drawer — a flex sibling — has already narrowed the
+  // pane by the time this runs. So the visible strip is the pane's own box minus the gutter's width,
+  // and the target is centred in THAT, not in the scrollport.
+  // scrollIntoView cannot express this: `inline: "center"` centres on the full scrollport, which is
+  // what left a landed bubble sitting behind the ruler with the drawer open.
+  function centerInVisibleTimeline(target) {
+    const pane = byId("timelines");
+    const paneBox = pane.getBoundingClientRect();
+    const gutter = byId("ruler").getBoundingClientRect().width;
+    const box = target.getBoundingClientRect();
+    pane.scrollBy({
+      left: (box.left + box.width / 2) - (paneBox.left + gutter + (paneBox.width - gutter) / 2),
+      top: (box.top + box.height / 2) - (paneBox.top + paneBox.height / 2),
+      behavior: "smooth",
+    });
+  }
+
+  // Land on a file. What is CENTRED is the node — not the bubble: a bubble is as tall as its own
+  // ladder, so centring one thousands of px tall puts everything on it off screen (#277). A dot is
+  // 15 px, so centring it is unambiguous and its bubble comes with it.
+  function landOnBubble(box, extra = []) {
+    const focus = extra.find(e => e.classList.contains("node") || e.tagName === "LI")
+      ?? box.querySelector(".node") ?? box;
+    centerInVisibleTimeline(focus);
+    highlight([box, ...extra]);
+  }
+
+  // Every EVENT at any of `instants`, one entry each — NOT one per file. The row's own count is an
+  // event count (task #275: "the number of events that occurred at that timestamp"), so a file with
+  // both a commit and its on-disk mtime on one instant contributes TWO, and listing it once made the
+  // list disagree with the (n) beside it (user, 2026-07-26: "(3) is shown but only 2 file names are
+  // displayed"). An orphan's entry is its own PATH with the bucket named as its kind — the bucket's
+  // title used to be listed as though "No on-disk match" were a file.
+  function listEventsAtInstants(m, instants) {
+    const at = t => instants.includes(t);
+    return [
+      // `n.text` is already the node's own name for itself — the short hash, "on disk", "created at".
+      ...m.widgets.flatMap(w => w.nodes.filter(n => at(n.t)).map(n => ({ path: w.path, t: n.t, kind: n.text }))),
+      // An orphan's row is its NAME alone. The bucket's title is not a property of the file and the
+      // user rejected seeing it here twice over (2026-07-26) — the bucket the name jumps to is what
+      // says which direction the orphan is.
+      ...m.noDisk.filter(r => at(r.t)).map(r => ({ path: r.path, t: r.t, kind: "" })),
+      ...m.noRepo.filter(r => at(r.t)).map(r => ({ path: r.path, t: r.t, kind: "" })),
+    ];
+  }
+
+  // The list itself, a child of its tick so it opens directly under the timestamp inside the gutter.
+  // Clicking a name jumps to that file (user, 2026-07-26) — the row stays expanded, so the reader can
+  // walk the list one file at a time without re-opening it.
+  function buildTickFileList(events) {
+    const list = el("div", "tickfiles");
+    for (const hit of events) {
+      const row = el("button", null, `${basename(hit.path)}  ${hit.kind}`.trimEnd());
+      row.title = hit.path;
+      row.addEventListener("click", event => { event.stopPropagation(); jumpToPath(hit.path, hit.t); });
+      list.appendChild(row);
+    }
+    return list;
+  }
+
+  byId("ruler").addEventListener("click", event => {
+    const tick = event.target.closest(".tick");
+    if (!tick) return;
+    const instants = instantsOn(tick);
+    const events = listEventsAtInstants(model, instants);
+    // OPEN #284: more than one EVENT at this row -> expand it into their names rather than silently
+    // jumping to whichever the lookup found first. Re-clicking the open row closes it.
+    if (events.length > 1) {
+      expandedInstant = instants.includes(expandedInstant) ? null : instants[0];
+      pinInstants(expandedInstant === null ? [] : [expandedInstant]);
+      render();
+      return;
+    }
+    if (events.length === 1) jumpToPath(events[0].path, events[0].t);
+  });
+
+  // Land on the one file `path` names, and mark what is drawn for it AT `t` — OPEN #267/#283's
+  // "which node did that row mean". The bucket branch is not a special case bolted on: an orphan has
+  // no bubble of its own, so the thing drawn for it is its ROW inside a bucket, and that row is what
+  // gets marked. Shared by the File Nav leaf click, the expanded ruler row and a single-event tick.
+  function jumpToPath(path, t) {
+    const box = [...document.querySelectorAll(".filebox")].find(b => b.dataset.path === path);
+    if (box) return landOnBubble(box, [...box.querySelectorAll(".node, .nlabel")]
+      .filter(n => Number(n.dataset.instant) === t));
+    const row = [...document.querySelectorAll(".bucket li")].find(li => li.dataset.path === path);
+    if (row) landOnBubble(row.closest(".filebox"), [row]);
+  }
+
+  // Escape closes the expanded row, which is the only page state a click cannot obviously undo.
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape" || expandedInstant === null) return;
+    expandedInstant = null;
+    pinInstants([]);
+    render();
+  });
+
+  // ---- tasks #261/#271/#272/#273/#277/#278: the Find bubble box --------------------------------
+  // Matching is on the BASENAME the bubble displays. The box owns the cycle position; a File Nav
+  // click does NOT come through here (#278) — it targets one exact path and leaves this readout
+  // alone, which is what stopped a `.gitignore` click cycling every gitignore in the render.
+  let cycleTerm = "", cycleIndex = 0;
+  const findMatches = term => [...document.querySelectorAll(".filebox:not(.bucket)")]
+    .filter(b => basename(b.dataset.path ?? "").toLowerCase().includes(term));
+
+  function stepFind(delta) {
+    const term = byId("find-file").value.trim().toLowerCase();
+    if (!term) return clearFind();
+    const matches = findMatches(term);
+    if (!matches.length) { byId("find-status").textContent = "0 of 0"; return; }
+    cycleIndex = term === cycleTerm ? (cycleIndex + delta + matches.length) % matches.length : 0;
+    cycleTerm = term;
+    byId("find-status").textContent = `${cycleIndex + 1} of ${matches.length}`;
+    landOnBubble(matches[cycleIndex]);
+  }
+  function clearFind() {
+    cycleTerm = ""; cycleIndex = 0;
+    byId("find-status").textContent = "";
+    highlight([]);   // #273: the marks, the bolded gutter row and its leader go with the readout
+  }
+  byId("find-file").addEventListener("input", () => { if (!byId("find-file").value.trim()) clearFind(); });
+  byId("find-file").addEventListener("keydown", e => { if (e.key === "Enter") stepFind(1); });
+  byId("find-next").addEventListener("click", () => stepFind(1));
+  byId("find-prev").addEventListener("click", () => stepFind(-1));
+
+  // ---- tasks #252/#253/#254/#255/#278/#281: File Nav -------------------------------------------
   // Shape: the same folder/leaf tree the current webapp renders. Every identified file is here —
   // paired, orphaned, and repo-only paths that no longer exist on disk (rendered .deleted).
   function renderNav(m) {
-    const all = [...new Set([...m.repoPaths, ...m.diskPaths])].sort();
+    const query = byId("nav-search").value.trim().toLowerCase();
+    const all = [...new Set([...m.repoPaths, ...m.diskPaths])].sort()
+      .filter(p => !query || p.toLowerCase().includes(query));   // #281
     const root = { name: "", folders: new Map(), files: [] };
     for (const path of all) {
       let node = root;
@@ -482,9 +1000,9 @@
       }
       node.files.push({ name: segments.at(-1), path, deleted: !m.diskPaths.includes(path) });
     }
-    const nav = document.getElementById("nav");
-    nav.replaceChildren(...renderNavLevel(root, ""));
-    document.getElementById("clear-filter").disabled = selectedFolders.size === 0;
+    const nav = byId("nav");
+    nav.replaceChildren(...(all.length ? renderNavLevel(root, "") : [el("div", "navempty", "no matches")]));
+    byId("clear-filter").disabled = selectedFolders.size === 0;
   }
 
   function renderNavLevel(node, prefix) {
@@ -494,9 +1012,9 @@
       const summary = el("summary", "file-folder-name", folder.name);
       if (selectedFolders.has(full)) summary.classList.add("selected");
       summary.addEventListener("click", event => {
-        // The tree is always expanded (the real component ships no collapse state), so the click
-        // means "filter", never "toggle". Shift extends the selection (#255); a plain click on the
-        // only selected folder clears it (#254).
+        // The tree is always expanded, so a click on the NAME means "filter", never "toggle" — the
+        // triangle is what opens and closes (#253's follow-up). Shift extends the selection (#255);
+        // a plain click on the only selected folder clears it (#254).
         event.preventDefault();
         if (!event.shiftKey) {
           const only = selectedFolders.size === 1 && selectedFolders.has(full);
@@ -514,22 +1032,46 @@
     for (const file of node.files) {
       const item = el("div", `file-item${file.deleted ? " deleted" : ""}`, file.name);
       item.title = file.deleted ? `${file.path} (deleted)` : file.path;
+      // #278: EXACT path, one destination, no cycling and no find-box readout — the same jumpToPath
+      // the expanded ruler row uses, so a leaf and a listed name can never land differently.
+      item.addEventListener("click", () => jumpToPath(file.path));
       out.push(item);
     }
     return out;
   }
 
-  document.getElementById("clear-filter").addEventListener("click", () => {
-    selectedFolders.clear();
-    render();
+  byId("clear-filter").addEventListener("click", () => { selectedFolders.clear(); render(); });
+  byId("nav-search").addEventListener("input", () => renderNav(model));
+  byId("nav-search-clear").addEventListener("click", () => {
+    byId("nav-search").value = "";
+    renderNav(model);
   });
 
-  // ---- task #246: minimap, lower-left, pinned outside the scroll container --------------------
+  // ---- task #279 + OPEN #288: drag the File Nav's right edge -----------------------------------
+  // The width is written ONCE PER FRAME. Writing it on every pointermove reflows a canvas holding
+  // ~800 widgets across ~156,000 px, which is the latency the user reported (#288); rAF coalescing
+  // is the smallest fix that removes it, and the minimap reads the same custom property so it
+  // cannot drift back over the pane.
+  (() => {
+    const grip = byId("filenav-grip"), root = byId("root");
+    let dragging = false, pendingWidth = 0, frame = 0;
+    const commit = () => { frame = 0; root.style.setProperty("--filenav-w", `${pendingWidth}px`); };
+    grip.addEventListener("pointerdown", event => {
+      dragging = true; grip.classList.add("dragging"); grip.setPointerCapture(event.pointerId);
+    });
+    grip.addEventListener("pointermove", event => {
+      if (!dragging) return;
+      pendingWidth = Math.min(Math.max(event.clientX - root.getBoundingClientRect().left, 140), 520);
+      if (!frame) frame = requestAnimationFrame(commit);
+    });
+    grip.addEventListener("pointerup", () => {
+      dragging = false; grip.classList.remove("dragging"); drawMinimap();
+    });
+  })();
+
+  // ---- tasks #246/#269/#274: minimap ------------------------------------------------------------
   function drawMinimap() {
-    const plot = document.getElementById("mm-plot");
-    const pane = document.getElementById("timelines");
-    const canvas = document.getElementById("canvas");
-    const view = document.getElementById("mm-view");
+    const plot = byId("mm-plot"), pane = byId("timelines"), canvas = byId("canvas"), view = byId("mm-view");
     plot.replaceChildren(view);
 
     const w = Math.max(canvas.scrollWidth, pane.scrollWidth, 1);
@@ -553,61 +1095,75 @@
   }
 
   function syncMinimapViewport() {
-    const pane = document.getElementById("timelines");
-    const plot = document.getElementById("mm-plot");
+    const pane = byId("timelines"), plot = byId("mm-plot");
     const scale = Number(plot.dataset.scale || 0);
-    Object.assign(document.getElementById("mm-view").style, {
+    Object.assign(byId("mm-view").style, {
       left: `${pane.scrollLeft * scale}px`, top: `${pane.scrollTop * scale}px`,
       width: `${pane.clientWidth * scale}px`, height: `${pane.clientHeight * scale}px`,
     });
   }
-  document.getElementById("timelines").addEventListener("scroll", syncMinimapViewport);
+  byId("timelines").addEventListener("scroll", syncMinimapViewport);
   window.addEventListener("resize", () => drawMinimap());
 
-  // Click the minimap to centre the view there.
-  document.getElementById("mm-plot").addEventListener("click", event => {
-    const plot = event.currentTarget, pane = document.getElementById("timelines");
+  // Click the minimap to centre the view there. task #274: a smooth scroll across tens of thousands
+  // of px animates every intermediate frame, so a long jump lands instantly instead.
+  byId("mm-plot").addEventListener("click", event => {
+    const plot = event.currentTarget, pane = byId("timelines");
     const scale = Number(plot.dataset.scale || 0);
     if (!scale) return;
     const r = plot.getBoundingClientRect();
-    pane.scrollTo({
-      left: (event.clientX - r.left) / scale - pane.clientWidth / 2,
-      top: (event.clientY - r.top) / scale - pane.clientHeight / 2,
-      behavior: "smooth",
+    const left = (event.clientX - r.left) / scale - pane.clientWidth / 2;
+    const top = (event.clientY - r.top) / scale - pane.clientHeight / 2;
+    const far = Math.abs(top - pane.scrollTop) + Math.abs(left - pane.scrollLeft) > MINIMAP_SMOOTH_LIMIT_PX;
+    pane.scrollTo({ left, top, behavior: far ? "auto" : "smooth" });
+  });
+
+  // ---- task #256: jump to either bucket ---------------------------------------------------------
+  const jumpTo = id => { const box = byId(id); if (box) landOnBubble(box); };
+  byId("jump-repo").addEventListener("click", () => jumpTo("bucket-repo"));
+  byId("jump-disk").addEventListener("click", () => jumpTo("bucket-disk"));
+
+  // ---- OPEN #257 + #258: Detail View drawer -----------------------------------------------------
+  // Real page: a commit node reads `git show <hash>:<path>`; an on-disk node reads the working tree.
+  // Here both return canned text, since the mockup has no server.
+  function openDrawer(path, node, dot) {
+    byId("drawer").classList.add("open");
+    // The header says WHAT is being shown (user, 2026-07-26): "<File Name> — Current on-disk state"
+    // for a disk node, the commit for a commit node. It used to be the bare path, with the
+    // provenance buried in two comment lines at the top of the CONTENTS — which put a description
+    // of the file inside the file, where it read as part of the source.
+    byId("dpath").textContent = node.kind === "commit"
+      ? `${basename(path)} — at commit ${node.hash.slice(0, 8)}`
+      : `${basename(path)} — Current on-disk state`;
+    byId("dpath").title = path;
+    byId("dmeta").textContent = node.kind === "commit"
+      ? `${path}   ·   git show ${node.hash}:${path}   ·   ${label(node.t)}`
+      : `${path}   ·   working tree   ·   modified ${label(node.t)}`;
+    byId("dbody").textContent = fakeContents(path, node);
+    // Clicking a node to inspect it IS selecting it (user, 2026-07-26): the dot gets its [ ] marks,
+    // its ruler row goes bold and its dashed leader turns green — the same language a ruler-tick
+    // landing speaks, so the reader never has to learn two.
+    // The dot's own label is its next sibling (see addNode); a bucket row has none.
+    const twin = dot.nextElementSibling?.classList.contains("nlabel") ? [dot.nextElementSibling] : [];
+    highlight([dot.closest(".filebox"), dot, ...twin].filter(Boolean));
+    // #258: the drawer SHRINKS the timeline pane, so the node just clicked can end up behind the
+    // ruler or off the edge. Re-centre against the POST-reflow layout, never the pre-open one —
+    // which is also why `.drawer` carries no width transition: a re-centre measured mid-animation
+    // aims at a pane width that is already stale.
+    requestAnimationFrame(() => {
+      centerInVisibleTimeline(dot);
+      drawMinimap();
     });
-  });
-
-  // ---- task #256: jump to either bucket -------------------------------------------------------
-  const jumpTo = id => document.getElementById(id)
-    ?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-  document.getElementById("jump-repo").addEventListener("click", () => jumpTo("bucket-repo"));
-  document.getElementById("jump-disk").addEventListener("click", () => jumpTo("bucket-disk"));
-
-  // ---- task #257: Detail View drawer ----------------------------------------------------------
-  // Real page: a commit node reads `git show <hash>:<path>`; an on-disk node reads the working
-  // tree. Here both return canned text, since the mockup has no server.
-  function openDrawer(path, node) {
-    const drawer = document.getElementById("drawer");
-    drawer.classList.add("open");
-    document.getElementById("dpath").textContent = path;
-    document.getElementById("dpath").title = path;
-    document.getElementById("dmeta").textContent = node.kind === "commit"
-      ? `git show ${node.hash}:${path}   ·   ${label(node.t)}`
-      : `working tree   ·   modified ${label(node.t)}`;
-    document.getElementById("dbody").textContent = fakeContents(path, node);
-    drawMinimap();
   }
-  document.getElementById("dclose").addEventListener("click", () => {
-    document.getElementById("drawer").classList.remove("open");
+  byId("dclose").addEventListener("click", () => {
+    byId("drawer").classList.remove("open");
     drawMinimap();
   });
 
+  // The FILE's bytes and nothing else: which file this is and where it came from is the drawer
+  // header's job, so no provenance banner is prepended to the body any more.
   function fakeContents(path, node) {
-    const stamp = node.kind === "commit" ? `at commit ${node.hash}` : "as it is on disk right now";
     return [
-      `// ${path}`,
-      `// ${stamp} — ${label(node.t)}`,
-      "",
       "export function run(input) {",
       node.kind === "commit" ? "  return input.trim();" : "  return input.trim().toLowerCase();",
       "}",
@@ -616,17 +1172,54 @@
     ].join("\n");
   }
 
-  // [Open…] — in the real page this POSTs /api/pick-folder, the local server runs the OS folder
-  // dialog and returns the chosen absolute path. Here it just cycles sample paths.
+  // ---- zoom, and OPEN #282's time-source toggle -------------------------------------------------
+  // A full render, not just a CSS variable: which timestamps the gutter can print depends on how far
+  // apart the zoom has pushed them, so the row list has to be rebuilt at the new scale.
+  const applyZoom = () => {
+    byId("canvas").style.setProperty("--zoom", zoom);
+    byId("zoom-reset").textContent = `${Math.round(zoom * 100)}%`;
+    render();
+  };
+  byId("zoom-in").addEventListener("click", () => { zoom = Math.min(zoom * 1.25, 3); applyZoom(); });
+  byId("zoom-out").addEventListener("click", () => { zoom = Math.max(zoom / 1.25, 0.1); applyZoom(); });
+  byId("zoom-reset").addEventListener("click", () => { zoom = 1; applyZoom(); });
+
+  // On the real page the choice is a fourth query param, because the instants are computed server
+  // side and flipping it re-loads the view. Here it just re-reads the other field of each commit.
+  for (const [id, source] of [["t-committer", "committer"], ["t-author", "author"]])
+    byId(id).addEventListener("click", () => {
+      timeSource = source;
+      byId("t-committer").classList.toggle("current", source === "committer");
+      byId("t-author").classList.toggle("current", source === "author");
+      render();
+    });
+
+  // ---- OPEN #286: branch + commit dropdowns, populated once the repo is confirmed ---------------
+  // The real page needs its own FAST route for this — never a side effect of the ~10 s view build.
+  const option = (text, value) => { const o = el("option", null, text); o.value = value; return o; };
+  function confirmRepo() {
+    byId("root").classList.add("repo-ok");
+    byId("branch").replaceChildren(...BRANCHES.map(b => option(b, b)));
+    // 75 characters of subject plus the timestamp, which is why the control is sized in `ch`.
+    byId("ref").replaceChildren(
+      option("(default branch)", ""),
+      ...[...COMMITS].reverse().map(c =>
+        option(`${c.hash.slice(0, 8)}  ${c.subject.padEnd(75).slice(0, 75)}  ${label(commitInstant(c))}`, c.hash)));
+  }
+
+  // [Open…] — in the real page this POSTs /api/pick-folder and the local server runs the OS folder
+  // dialog. Here it just cycles sample paths.
   const SAMPLES = ["/Users/you/code/demo-app", "/Users/you/code/some-other-repo",
                    "/Users/you/archive/backup-2024"];
   document.querySelectorAll("button.pick").forEach(b => b.addEventListener("click", () => {
-    const box = document.getElementById(b.dataset.for);
+    const box = byId(b.dataset.for);
     box.value = SAMPLES[(SAMPLES.indexOf(box.value) + 1) % SAMPLES.length];
     render();
   }));
-  document.querySelectorAll("#dir, #repo, #ref").forEach(c => c.addEventListener("input", render));
-  document.getElementById("load").addEventListener("click", render);
+  document.querySelectorAll("#dir, #repo").forEach(c => c.addEventListener("input", render));
+  byId("load").addEventListener("click", () => { confirmRepo(); render(); });
+
+  confirmRepo();
   render();
   requestAnimationFrame(drawMinimap);   // geometry is only real after the first layout pass
 </script>
