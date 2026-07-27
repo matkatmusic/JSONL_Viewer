@@ -125,5 +125,10 @@
     "taskNumber": 292,
     "title": "JSONL picker and filter for layer 1 view",
     "description": "similar to the File Nav, but for JSONLs for a project.  clicking on a JSONL in the JSONL picker causes the timeline to only show files touched by that JSONL.  clicking on the JSONL again clears the filter.  Because the engine is able to show all file states for the files, the filtered view should show the full timeline for the touched files, but also graphically indicate the start/end range of the JSONL so the user can see where the JSONL fits in the timeline.  As with the File Nav, the user should be able to shift-click to select multiple JSONLs."
+  },
+  {
+    "taskNumber": 293,
+    "title": "Eliminate overly verbose comments throughout codebase",
+    "description": "The codebase has many comments that are verbose, redundant, or outdated, causing contextual bloat for agents working on the code.  This task is to eliminate all comments and docstrings that are not necessary for understanding the code, and to ensure that all remaining comments are concise, accurate, and relevant.  The goal is to reduce cognitive load and improve readability for future developers. existing comments should be replaced with single-sentence summaries of the code's purpose.  The summary sentence should be less than 30 words long."
   }
 ]
