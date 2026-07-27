@@ -130,5 +130,10 @@
     "taskNumber": 293,
     "title": "Eliminate overly verbose comments throughout codebase",
     "description": "The codebase has many comments that are verbose, redundant, or outdated, causing contextual bloat for agents working on the code.  This task is to eliminate all comments and docstrings that are not necessary for understanding the code, and to ensure that all remaining comments are concise, accurate, and relevant.  The goal is to reduce cognitive load and improve readability for future developers. existing comments should be replaced with single-sentence summaries of the code's purpose.  The summary sentence should be less than 30 words long."
+  },
+  {
+    "taskNumber": 294,
+    "title": "Add syntax highlighting to the Detail view code display",
+    "description": "The Layer 1 Detail view currently displays code in a plain text format.  The original webapp's detail/revision view contains syntax highlighting for known programming languages (ts, js, python, c++, etc).  Incorporate the syntax highlighting mechanism from the original webapp into the Layer 1 Detail view so that code viewed in the Layer 1 detail view is more readable."
   }
 ]
