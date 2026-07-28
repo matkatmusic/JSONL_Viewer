@@ -1,0 +1,1831 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Layer 1 View — Current File State vs Git State (mockup)</title>
+<style>
+  /* Tokens, header/button/ruler/filebox/node styling all lifted from plans/mvp-app-mockup.html
+     so this reads as the same app. Only the parts Layers 1 and 2 need are kept.
+
+     2026-07-27: covers Layers 1 AND 2 (tasks #299-#307). Layer 2 is the FILE-HISTORY SNAPSHOT
+     layer — one 📸 node per version, on the same bubbles and ruler. `[3]` is gone: layers 3+ are
+     unassigned.
+
+     2026-07-25: extended to show tasks #245-#257 — the user's visual-fix round.
+     2026-07-26: brought level with EVERY Layer 1 task now closed (#245-#256, #258-#266, #268-#281)
+     AND with every Layer 1 task still open in tasks.json (#257, #267, #282-#290), which are mocked
+     here as the EXPECTED state so the behaviour can be dialled in before it is signed off. Those
+     carry an "OPEN #n" tag; closed ones just carry their number.
+     Of the open set, #267, #283, #285, #287, #288 and #290 are already BUILT in the jfred working
+     tree (plans/task-287-285-283-267-288-290-layer1-batch) and are only waiting to be closed — so
+     for those, this file and the real page should already agree. Genuinely unbuilt: #257 (the
+     Detail View drawer), #282 (author vs committer time), #284 (a shared tick expanding to its file
+     list) and #286 (the branch and commit dropdowns).
+
+     NEW BEHAVIOUR, user-requested 2026-07-26 and not yet a task: the dashed leader lines are no
+     longer drawn at rest. One is drawn only while the user hovers a ruler timestamp, or hovers /
+     selects a bubble, or hovers / selects a node. Plain scrolling draws none. */
+  .viz-root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb;
+    --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,.10);
+    --c-commit: #2a78d6; --c-snap: #1baf7a; --c-user: #eb6834;
+    --c-echo: #eda100; --c-script: #4a3aa7; --c-anchor: #e87ba4; --c-disk: #0b0b0b;
+    --seg-a: rgba(27,175,122,.12);
+    --sel-edge: #1baf7a; --box: #d98a2b;
+    /* OPEN #287: the hover-revealed full path needs a colour NO resting bubble name uses, or a long
+       path reads as one continuous run of green monospace mixed with its neighbours' names. */
+    --reveal-ink: #7a3ecb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19;
+      --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,.10);
+      --c-commit: #3987e5; --c-snap: #199e70; --c-user: #d95926;
+      --c-echo: #c98500; --c-script: #9085e9; --c-anchor: #d55181; --c-disk: #ffffff;
+      --seg-a: rgba(25,158,112,.15);
+      --sel-edge: #199e70; --box: #b57427;
+      --reveal-ink: #c3a7ff;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19;
+    --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,.10);
+    --c-commit: #3987e5; --c-snap: #199e70; --c-user: #d95926;
+    --c-echo: #c98500; --c-script: #9085e9; --c-anchor: #d55181; --c-disk: #ffffff;
+    --seg-a: rgba(25,158,112,.15);
+    --sel-edge: #199e70; --box: #b57427;
+    --reveal-ink: #c3a7ff;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body { background: var(--page); }
+  .viz-root { font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--page); height: 100vh; display: flex; flex-direction: column;
+    --filenav-w: 232px; }
+
+  header { display: flex; align-items: center; gap: 12px; padding: 8px 16px;
+    border-bottom: 1px solid var(--border); background: var(--surface); flex-wrap: wrap; }
+  header h1 { font-size: 14px; }
+  header .crumb { font-size: 11.5px; color: var(--muted); }
+  button { font: 600 12px system-ui; padding: 4px 10px; border-radius: 6px;
+    border: 1px solid var(--border); background: transparent; color: var(--ink); cursor: pointer; }
+  button:hover { border-color: var(--ink2); }
+  button:disabled { color: var(--muted); cursor: not-allowed; }
+  button:disabled:hover { border-color: var(--border); }
+
+  .layerbar, .zoombar, .timebar { display: flex; align-items: center; gap: 4px; }
+  .layerbar { margin-left: auto; }
+  .layerbar .lbl, .zoombar .lbl, .timebar .lbl { font-size: 11.5px; color: var(--muted); margin-right: 4px; }
+  .layerbar button, .zoombar button, .timebar button { padding: 3px 8px; font-variant-numeric: tabular-nums; }
+  .layerbar button.current, .timebar button.current { background: var(--sel-edge);
+    border-color: var(--sel-edge); color: #fff; }
+  .layerbar button.uncomputed { border-style: dashed; color: var(--muted); }
+
+  /* task #256 + OPEN #285: the two bucket jumps and the Find bubble box share ONE navigation row.
+     #285 moves the find box out of the .sources path row and onto this one. */
+  .navbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 6px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .navbar .lbl { font-size: 11.5px; color: var(--muted); }
+  /* OPEN #289: the input and its ‹ › cycle buttons are ONE non-wrapping group, so no window width
+     can separate a button from the box it drives. */
+  .findgroup { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
+  .findgroup input { font: 11.5px ui-monospace, Menlo, monospace; padding: 4px 8px; color: var(--ink);
+    background: var(--page); border: 1px solid var(--border); border-radius: 6px; width: 210px; }
+  .findgroup input:focus { outline: none; border-color: var(--sel-edge); }
+  .findgroup button { padding: 3px 7px; }
+  /* task #272: the "Enter cycles" guidance is PAGE TEXT, not a `title`. A native tooltip is hidden
+     the moment the user starts typing — exactly when the instruction becomes relevant. */
+  .hint { font-size: 10.5px; color: var(--muted); }
+  /* task #273: emptied box -> this readout is emptied too, so a stale count never outlives its search. */
+  .findstatus { font: 11px ui-monospace, Menlo, monospace; color: var(--ink2); min-width: 40px; }
+
+  /* The whole Layer 1 input surface: two folder paths, a branch and a commit. */
+  .sources { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .sources label { display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11.5px; color: var(--muted); }
+  .sources input, .sources select { font: 11.5px ui-monospace, Menlo, monospace; padding: 4px 8px;
+    color: var(--ink); background: var(--page); border: 1px solid var(--border); border-radius: 6px; }
+  .sources input:focus, .sources select:focus { outline: none; border-color: var(--sel-edge); }
+  /* OPEN #286: the ref textbox becomes a commit-history dropdown sized in ch — 75 characters of
+     subject plus its timestamp — and a branch dropdown appears only once the repo is confirmed.
+     The repo row is `nowrap` (user, 2026-07-26: git repo, branch and commit belong on ONE row), so
+     88ch is the WANTED width, not a floor: `min-width: 0` lets the select give way on a narrow
+     window instead of wrapping the control onto a line of its own. */
+  .sources.repo { flex-wrap: nowrap; }
+  #ref { width: 88ch; min-width: 0; }
+  .sources.repo label:last-of-type { min-width: 0; flex: 0 1 auto; }
+  .confirmed-only { display: none; }
+  .repo-ok .confirmed-only { display: inline-flex; }
+  .repo-flag { font-size: 11px; color: var(--sel-edge); }
+
+  /* S12: legend above the timeline, outside the scroll container. */
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 7px 16px;
+    font-size: 11px; color: var(--ink2); border-bottom: 1px solid var(--border); background: var(--surface); }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+
+  /* Three columns: File Nav (#252) | timeline | Detail View drawer (OPEN #257). */
+  .body { flex: 1; min-height: 0; display: flex; }
+
+  /* ---- task #252: File Nav, LEFT of the ruler. Class names are deliberately the ones the real
+     component already ships in webapp/views/sidebar.ts + views/timeline-file-tree.ts, because the
+     task is to REUSE that component, not to write a second tree. */
+  /* One column, two pickers, a horizontal grip between them (user, 2026-07-27). `--files-share` is
+     the split as a percentage of the column, so the two panes always add up to the column's height
+     and neither can be dragged out of existence. */
+  .filenav { flex: none; width: var(--filenav-w); display: flex; flex-direction: column;
+    overflow: hidden; --files-share: 50;
+    border-right: 1px solid var(--border); background: var(--surface); }
+  .navpane { overflow: auto; padding: 10px 8px 14px; min-height: 0; }
+  #pane-files { flex: var(--files-share) 1 0; }
+  #pane-sessions { flex: calc(100 - var(--files-share)) 1 0; }
+  .pane-grip { flex: none; height: 7px; margin: -3px 0; cursor: row-resize; z-index: 3;
+    background: transparent; }
+  .pane-grip:hover, .pane-grip.dragging { background: color-mix(in srgb, var(--sel-edge) 45%, transparent); }
+  .filenav .pane-title { font: 600 11px system-ui; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--muted); padding: 2px 4px 6px; display: flex; align-items: center; gap: 6px; }
+  .filenav .pane-title button { margin-left: auto; padding: 1px 7px; font-size: 10.5px; }
+  /* task #281: the File Nav's OWN search box — it filters this tree only and shares no code with
+     the find-bubble box, which searches the timeline. Sticky so it survives a long scroll. */
+  .navsearch { position: sticky; top: 0; z-index: 2; display: flex; gap: 4px; align-items: center;
+    padding: 2px 4px 6px; background: var(--surface); }
+  .navsearch input { flex: 1; min-width: 0; font: 11px ui-monospace, Menlo, monospace; padding: 3px 7px;
+    color: var(--ink); background: var(--page); border: 1px solid var(--border); border-radius: 6px; }
+  .navsearch input:focus { outline: none; border-color: var(--sel-edge); }
+  .navsearch button { padding: 1px 6px; font-size: 11px; }
+  .file-folder-name { font: 600 11.5px ui-monospace, Menlo, monospace; color: var(--ink2);
+    padding: 2px 4px; border-radius: 4px; cursor: pointer; list-style: none; }
+  .file-folder-name::-webkit-details-marker { display: none; }
+  .file-folder-name::before { content: "▾ "; color: var(--muted); }
+  .file-folder-name:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+  .file-folder-name.selected { background: var(--sel-edge); color: #fff; }
+  .file-folder-name.selected::before { color: #fff; }
+  .file-folder-kids { margin-left: 9px; padding-left: 7px; border-left: 1px solid var(--border); }
+  .file-item { font: 11px ui-monospace, Menlo, monospace; color: var(--ink2);
+    padding: 1px 4px; border-radius: 4px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .file-item:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+  /* Deleted = in the repo tree, absent on disk. #252 says these MUST still be listed. */
+  .file-item.deleted { color: var(--muted); text-decoration: line-through; }
+  .navempty { font-size: 11px; color: var(--muted); padding: 6px 4px; }
+
+  /* task #292: the JSONL picker is a second SECTION of the File Nav pane, not a third column — it
+     filters the timeline the same way the folder tree does, so it belongs beside it and inherits the
+     pane's width, its scroll and its resize grip. */
+  .session-item { font: 11px ui-monospace, Menlo, monospace; color: var(--ink2); margin-bottom: 3px;
+    padding: 3px 5px; border-radius: 5px; cursor: pointer; border: 1px solid transparent; }
+  .session-item:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+  .session-item.selected { color: var(--ink); border-color: var(--c-script);
+    background: color-mix(in srgb, var(--c-script) 20%, transparent); }
+  .session-item .sname { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .session-item .smeta { display: block; font-size: 9.5px; color: var(--muted); padding-top: 1px; }
+  .session-item.selected .smeta { color: var(--ink2); }
+  /* task #306: the title reads as the row's heading, so it takes the ink the filename has and the
+     timestamp below it keeps its muted footnote size. */
+  .session-item .stitle { display: block; font-size: 10px; color: var(--ink); padding-top: 1px; }
+  /* task #303: the highlight-then-fade. --c-echo, deliberately NOT the --c-script a SELECTED session
+     wears — this mark does not filter anything, and two marks that look alike would say it does.
+     The duration comes from FLASH_MS via the inline --flash-ms, so there is one number to change. */
+  .session-item.flash { animation: session-flash var(--flash-ms, 2600ms) ease-out forwards; }
+  @keyframes session-flash {
+    from { background: color-mix(in srgb, var(--c-echo) 60%, transparent); border-color: var(--c-echo); }
+    to   { background: transparent; border-color: transparent; }
+  }
+
+  /* task #279: drag the File Nav's right edge to resize it. The grip is a sibling overlay rather
+     than a border on the pane, so the drag target is 7 px wide without changing the pane's box. */
+  .filenav-grip { flex: none; width: 7px; margin-left: -4px; cursor: col-resize; z-index: 3;
+    background: transparent; }
+  .filenav-grip:hover, .filenav-grip.dragging { background: color-mix(in srgb, var(--sel-edge) 45%, transparent); }
+
+  .stagewrap { flex: 1; min-width: 0; position: relative; display: flex; }
+  .timelines { flex: 1; min-width: 0; overflow: auto; padding: 18px 12px 40px 0; }
+  /* `zoom`, never `transform: scale()` — zoom participates in layout, so the scroll area shrinks
+     with the content. `isolation` makes this an unconditional stacking context, which the leader
+     layer's negative z-index needs at 100% zoom.
+     --lane-y is the gap between a bubble's border-box top and its first NODE: `.filebox`'s 2 px
+     border plus its 52 px header padding. Declared HERE because it is the nearest common ancestor
+     of both consumers — `.ruler .tick` and `.leader` — and neither may state the literal twice.
+     It is what makes the timestamp and the dashed line land on the dots (task 290). The bubble is
+     NOT pulled up by it: a negative margin put every bubble's box 54 px ABOVE the canvas top, which
+     is above the sticky gutter's own top edge, so bubbles at the earliest instants were drawn OVER
+     the ruler as soon as the canvas was scrolled sideways (user, 2026-07-26). */
+  .canvas { position: relative; display: flex; align-items: flex-start; min-width: max-content;
+    isolation: isolate; --lane-y: 54px; }
+
+  /* Sticky gutter: the ruler stays put while the canvas scrolls left. --rail-x is derived from the
+     widest label — task #276 put seconds and hundredths in ("MM-DD HH:MM:SS.hh") and task #275
+     appended " (n)", so 23 monospace characters at 10 px x 0.6 em = ~140 px, plus 10 px clearance. */
+  .ruler { --rail-x: 150px; position: sticky; left: 0; z-index: 8; flex: none;
+    width: calc(var(--rail-x) + 2px); align-self: stretch; background: var(--page); }
+  .ruler .rail { position: absolute; left: var(--rail-x); top: 0; bottom: 0; border-left: 2px dotted var(--baseline); }
+  /* task #260/#266: a tick is a navigation control, not inert text. */
+  /* The zoom lives on `.stage`, so a tick has to scale the axis itself to keep pointing at its
+     nodes — the timestamp's own size is what the reader asked to hold still. */
+  .ruler .tick { position: absolute; left: 0; width: 140px; text-align: right;
+    top: calc((var(--axis-px) * 1px + var(--lane-y)) * var(--zoom, 1));
+    font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
+    transform: translateY(-50%); cursor: pointer; border-radius: 3px; padding-right: 4px; }
+  .ruler .tick:hover { color: var(--ink); background: color-mix(in srgb, var(--sel-edge) 16%, transparent); }
+  .ruler .tick.multi { text-decoration: underline dotted; }   /* OPEN #284: shared by >1 bubble */
+
+  /* Zoom is the BUBBLES' scale, not the page's: `zoom` (never `transform: scale()`) participates in
+     layout, so zooming out genuinely shrinks the scroll area and more bubbles fit on screen, while
+     the gutter outside it keeps its own font size at every zoom (user, 2026-07-26). */
+  .stage { display: flex; align-items: flex-start; gap: 26px; padding-left: 26px; zoom: var(--zoom, 1); }
+
+  /* --head is the in-box headroom the file name + sub line occupy. The box is pulled UP by exactly
+     that much so node axis 0 lands on its ruler tick.
+     OPEN #290 is the SAME defect stated the other way round: --axis-px alone is NOT where a node
+     sits, so the tick and the leader used to mark a point --head px above the dots. The fix is
+     `+ var(--lane-y)` on the TICK and the LEADER (see `.canvas`), not a negative margin here —
+     pulling the bubble up instead put its box above the canvas's own top edge, and the sticky ruler
+     stretches only to that edge, so early bubbles rode over the gutter under horizontal scroll. */
+  .filebox { --head: 52px; position: relative; flex: none; min-width: 224px; scroll-margin-top: 14px;
+    margin-top: calc(var(--axis-px) * 1px);
+    border: 2px solid var(--box); border-radius: 14px;
+    /* Half-transparent so the JSONL wash behind it reads THROUGH the bubble (user, 2026-07-27) —
+       otherwise the one place the range matters most, over the files it touched, is the one place
+       it cannot be seen. */
+    background: color-mix(in srgb, var(--surface) 52%, transparent);
+    padding: var(--head) 12px 14px; }
+  /* task #245/#270/#280: the label is the BASENAME with the full path on `data-path`, ellipsised to
+     the bubble at rest so it cannot overprint its neighbours. #270's wrapped two-line name was
+     REVERTED on user feedback; truncate-plus-reveal is the settled treatment. */
+  .filebox .fname { position: absolute; top: 7px; left: 12px; max-width: calc(100% - 24px);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font: 600 13px ui-monospace, Menlo, monospace; color: var(--c-snap); cursor: default; }
+  /* task #280: hovering reveals the WHOLE path in-page — not as a native tooltip, which the user
+     rejected. Lifting max-width/overflow is the entire reveal; the opaque background and z-index 7
+     (above .node's 6, below .ruler's 8) stop it being painted over by its neighbours.
+     OPEN #287: the revealed text also changes colour, so it cannot be read as a continuation of the
+     neighbouring bubbles' names sitting at the same y. */
+  .filebox .fname:hover { max-width: none; overflow: visible; z-index: 7;
+    color: var(--reveal-ink); background: var(--surface); padding-right: 6px;
+    border-radius: 4px; box-shadow: 0 0 0 1px var(--border); }
+  .filebox .sub { position: absolute; top: 29px; left: 12px; right: 12px; font-size: 10px;
+    color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ---- tasks #250/#262/#264/#265 + the 2026-07-26 on-demand rule --------------------------------
+     ONE dashed line per ruler ENTRY, in its own layer behind the bubbles (#264) — the per-bubble
+     `.filebox::before` drew 805 overlapping copies and made the page unusable (#263). `inset: 0`
+     against `.canvas`, not `.stage`, is what lets a line reach the sticky gutter with no length
+     guess (#262). `top` is the entry's own --axis-px, which is where its nodes sit (#265/#290).
+
+     ON DEMAND (user, 2026-07-26): opacity 0 at rest. Scrolling draws nothing. `.on` is set by JS
+     only while a ruler timestamp, a bubble or a node is hovered or selected. Kept as an opacity
+     toggle rather than display/none so the lines never re-layout — showing one costs a repaint. */
+  .leaders { position: absolute; inset: 0; pointer-events: none; z-index: -1; }
+  .leader { position: absolute; left: 0; right: 0;
+    top: calc((var(--axis-px) * 1px + var(--lane-y)) * var(--zoom, 1));
+    border-top: 1px dashed var(--baseline); opacity: 0; transition: opacity .08s linear; }
+  .leader.on { opacity: 1; border-top-color: var(--sel-edge); }
+
+  /* task #292: where a selected JSONL starts and ends. The filter keeps each touched file's WHOLE
+     history, so the band is the only thing saying which part of that history the session actually
+     wrote — it rides the same axis-times-zoom conversion the ticks and leaders use. */
+  /* Two marks per picked session, and they answer different questions. The WASH is the overlap: which
+     bubbles, and which of their nodes, the session's window actually covers (user, 2026-07-27) — a
+     14% tint keeps every dot and label under it readable. The BAR is the extent on its own, in the
+     empty column between the gutter and the first bubble, so the range still reads when the wash is
+     scrolled past its bubbles. Text is what a wash cannot carry: a printed name lands across whatever
+     file sits at that instant, so the name is the bar's tooltip. */
+  .ranges { position: absolute; inset: 0; pointer-events: none; z-index: 7; }
+  /* BEHIND the bubbles (user, 2026-07-27), like the leaders: the wash says which nodes the session
+     covers, and a bubble that has to be read through a tint is a bubble the wash has cost something. */
+  .washes { position: absolute; inset: 0; pointer-events: none; z-index: -1; }
+  .range-wash { position: absolute; left: 0; right: 0;
+    top: calc((var(--axis-px) * 1px + var(--lane-y)) * var(--zoom, 1));
+    height: calc(var(--span-px) * 1px * var(--zoom, 1));
+    background: color-mix(in srgb, var(--c-script) 14%, transparent);
+    border-top: 1px dashed var(--c-script); border-bottom: 1px dashed var(--c-script); }
+  .range { position: absolute; width: 7px; border-radius: 4px; pointer-events: auto; cursor: default;
+    left: calc(155px + var(--slot) * 9px);
+    top: calc((var(--axis-px) * 1px + var(--lane-y)) * var(--zoom, 1));
+    height: calc(var(--span-px) * 1px * var(--zoom, 1));
+    background: color-mix(in srgb, var(--c-script) 70%, transparent); }
+  /* The two ends read as ends rather than as a bar that got clipped by a scroll. */
+  .range::before, .range::after { content: ""; position: absolute; left: -3px; right: -3px;
+    height: 2px; background: var(--c-script); border-radius: 2px; }
+  .range::before { top: -1px; }
+  .range::after { bottom: -1px; }
+  /* The gutter is opaque and always on screen, so it carries the range too — a band alone is hidden
+     wherever a bubble sits over it. */
+  .ruler .tick.inrange { color: var(--c-script); }
+
+  .lane { position: relative; margin-left: 6px; min-height: calc(var(--span-px) * 1px + 18px); }
+  .lane .lrail { position: absolute; left: 0; top: 0; bottom: 0; border-left: 1.5px solid var(--baseline); }
+  .node { position: absolute; left: 0; top: calc(var(--axis-px) * 1px); transform: translate(-50%, -50%);
+    z-index: 6; width: 15px; height: 15px; border-radius: 50%;
+    box-shadow: 0 0 0 2.5px var(--surface); }
+  .n-commit { border-radius: 4px; background: var(--c-commit); }
+  .n-disk { background: transparent; border: 3px double var(--c-disk); }
+  .n-created { border-style: dotted; border-color: var(--muted); }
+  /* task #301: a snapshot is a SOLID circle — the commit is a rounded square and the on-disk node is
+     a hollow double ring, so shape alone separates the three before colour is read. */
+  .n-snap { background: var(--c-snap); }
+  .nlabel { position: absolute; left: 14px; top: calc(var(--axis-px) * 1px); transform: translateY(-50%);
+    font: 10px ui-monospace, Menlo, monospace; color: var(--ink2); white-space: nowrap; }
+  /* OPEN #257: only clickable nodes advertise themselves. */
+  .node.hot, .nlabel.hot { cursor: pointer; }
+  .nlabel.hot { text-decoration: underline dotted; }
+  /* `:not(.found)` — a SELECTED node already wears its [ ] brackets, and the hover ring is a second
+     mark in the same colour landing in the same few px (user, 2026-07-27). The selection is the
+     stronger statement, so it wins and the hover says nothing extra. */
+  .node.hot:not(.found):hover { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--sel-edge); }
+  .nlabel.cold { color: var(--muted); }
+
+  /* task #259: two events of ONE file at ONE instant (a commit and the working tree touched in the
+     same second) get their own row slots — the rounded rectangle is what says they are simultaneous
+     rather than merely adjacent. Drawn before the nodes so it stays behind them. */
+  .tiegroup { position: absolute; left: -9px; top: calc(var(--axis-px) * 1px - 9px);
+    height: calc(var(--span-px) * 1px + 18px); width: 132px; border-radius: 9px;
+    border: 1.5px dashed var(--c-anchor); background: color-mix(in srgb, var(--c-anchor) 8%, transparent); }
+
+  /* task #261's highlight convention, reused by every landing: an OUTLINE, never a border — a
+     border would move the bubble's own box, which is the geometry this page exists to inspect.
+     OPEN #267/#283: a NODE is marked with [ ] brackets instead. A dot is 15 px inside a lane of
+     stacked rows, so an outline on it reads as another ring — the brackets sit OUTSIDE the dot in
+     the empty gutter beside the rail, where nothing else on the page draws. The pseudo-elements
+     hang off `.node`, which is already absolutely positioned, so they move nothing. */
+  .filebox.found { outline: 3px solid var(--sel-edge); outline-offset: 3px; }
+  /* The brackets hug the dot: at the original 3 px gap and 5 px width they reached 15.5 px either
+     side of a 15 px dot, which put the left one over the range rails and the right one under the
+     node's own label (user, 2026-07-27). 11.5 px clears both, and the shorter 4 px overhang also
+     stops a bracket touching the node one ROW_PX below it. */
+  .node.found::before, .node.found::after { content: ""; position: absolute; top: -4px; bottom: -4px;
+    width: 3px; border: 2px solid var(--sel-edge); }
+  .node.found::before { right: 100%; margin-right: 1px; border-right: none; }
+  .node.found::after { left: 100%; margin-left: 1px; border-left: none; }
+  .nlabel.found { color: var(--ink); font-weight: 700; }
+  /* The gutter row for whatever is selected reads the same as an expanded row (user, 2026-07-26):
+     bold, in full ink, with its dashed leader up — one selection, one language. */
+  .ruler .tick.selected { color: var(--ink); font-weight: 700; }
+
+  /* Orphan buckets: one per direction, a plain file list, placed at the earliest member instant. */
+  .filebox.bucket { border-style: dashed; border-color: var(--muted); width: 268px; }
+  .filebox.bucket .fname { color: var(--ink2); font-family: inherit; font-size: 12px; }
+  /* Each row is placed at its OWN instant (see addBucket), so the list is a positioning context
+     tall enough to hold the last one. `translateY(-50%)` centres a row on its instant the way a
+     `.node` is centred on its own — otherwise a row hangs half a line below its ruler timestamp. */
+  .bucket ul { list-style: none; position: relative; min-height: calc(var(--span-px) * 1px + 16px); }
+  .bucket li { position: absolute; left: 0; right: 0; top: calc(var(--axis-px) * 1px);
+    transform: translateY(-50%);
+    display: flex; justify-content: space-between; gap: 16px;
+    font: 11px ui-monospace, Menlo, monospace; color: var(--ink2); }
+  /* An orphan row is inspectable like a node (user, 2026-07-26): a repo-only file still has bytes in
+     the repository at its last commit, and a disk-only file has them in the working tree. */
+  .bucket li { cursor: pointer; border-radius: 4px; padding: 0 3px; }
+  .bucket li:hover { background: color-mix(in srgb, var(--sel-edge) 16%, transparent); color: var(--ink); }
+  .bucket li.found { outline: 2px solid var(--sel-edge); outline-offset: 2px; }
+  .bucket li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+  .bucket li em { font-style: normal; color: var(--muted); font-size: 10px; flex: none; }
+  .nopairs { color: var(--muted); font-size: 11.5px; padding: 34px 8px 0; }
+
+  /* ---- OPEN #284: a tick shared by nodes in MORE THAN ONE bubble expands the list of files
+     touched at that instant instead of silently jumping to whichever one the lookup found first.
+     IN THE RULER, not over the canvas (user, 2026-07-26): the list is part of the gutter row, so it
+     opens UNDER its timestamp and pushes the rows below it down — see EXPAND_ROW_PX in the script,
+     which feeds the row's extra height back into the axis layout so the bubbles crossing that
+     timestamp grow and shift with it. A popover floating over the timeline was the first attempt and
+     was wrong twice over: it hid the render it was describing, and its text took the timeline's ink
+     rather than the gutter's.
+     `width: max-content` past the 150 px rail is deliberate — a path is longer than the gutter is
+     wide, and `.ruler` is opaque and z-index 8, so the list paints cleanly over the canvas it
+     overhangs while the timestamps stay put. */
+  /* An OPEN row is not a SELECTED row. It used to be bold, which is exactly what `.selected` looks
+     like, so a row left open under a selection somewhere else read as a second selected row (user,
+     2026-07-26). Bold now means selected and nothing else; the open row is announced by the file
+     list hanging under it, which no other row has. */
+  .ruler .tick.expanded { color: var(--ink); }
+  .tickfiles { position: absolute; left: 12px; top: 100%; width: max-content; max-width: 300px;
+    padding: 2px 0 0; }
+  .tickfiles button { display: block; width: 100%; text-align: left; border: none; border-radius: 3px;
+    padding: 0 4px; font: 10px ui-monospace, Menlo, monospace; color: var(--ink2);
+    background: var(--page); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tickfiles button:hover { background: color-mix(in srgb, var(--sel-edge) 20%, transparent); color: var(--ink); }
+
+  /* ---- task #246: minimap, pinned to the LOWER-LEFT of the timeline pane. It lives in .stagewrap,
+     NOT in the scrolling .timelines, so it does not scroll away.
+     task #269: inset past the sticky ruler — at left: 12px it covered the gutter's timestamps. */
+  .minimap { position: absolute; left: calc(var(--rail-x, 150px) + 14px); bottom: 12px; z-index: 20;
+    width: 176px; height: 124px; padding: 6px; cursor: crosshair;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(3px); }
+  .minimap .mm-title { position: absolute; top: -8px; left: 8px; padding: 0 4px; font-size: 9px;
+    color: var(--muted); background: var(--page); }
+  .mm-plot { position: relative; width: 100%; height: 100%; overflow: hidden; }
+  .mm-box { position: absolute; background: var(--box); opacity: .55; border-radius: 1px; }
+  .mm-box.bucket { background: var(--muted); }
+  .mm-view { position: absolute; border: 1.5px solid var(--sel-edge);
+    background: color-mix(in srgb, var(--sel-edge) 14%, transparent); border-radius: 2px; }
+
+  /* ---- OPEN #295/#296/#297: the source-path picker, and the settings button that watches it. */
+  .savednote { font-size: 10.5px; color: var(--sel-edge); }
+  .modal-wrap { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
+    background: color-mix(in srgb, #000 45%, transparent); }
+  .modal-wrap[hidden] { display: none; }
+  .modal { width: min(560px, 88vw); background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; box-shadow: 0 18px 50px rgba(0,0,0,.45); padding: 12px; position: relative; }
+  .mtitle { font: 600 12px system-ui; color: var(--ink); padding-bottom: 8px; }
+  .mlist { height: 190px; overflow: auto; background: var(--page); border: 1px solid var(--border);
+    border-radius: 7px; padding: 4px; }
+  .mlist div { font: 11px ui-monospace, Menlo, monospace; color: var(--ink2);
+    padding: 3px 6px; border-radius: 4px; cursor: pointer; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .mlist div:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+  .mlist div.picked { background: var(--sel-edge); color: #fff; }
+  .mlist .mempty { color: var(--muted); cursor: default; }
+  .mbuttons { display: flex; gap: 6px; align-items: center; padding-top: 9px; }
+  .mspacer { flex: 1; }
+  /* The folder held no JSONLs. In front of the list, gone on its own a few seconds later. */
+  .malert { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%);
+    background: var(--c-anchor); color: #fff; font: 600 11px system-ui;
+    padding: 6px 12px; border-radius: 16px; }
+  .malert[hidden] { display: none; }
+
+  /* ---- OPEN #257: Detail View drawer, right half of the screen. */
+  .drawer { flex: none; width: 0; overflow: hidden; border-left: 1px solid var(--border);
+    background: var(--surface); }   /* no width transition: #258 re-centres the clicked node against
+                                    the post-reflow pane, and an animating width is never that */
+  .drawer.open { width: 50%; }
+  .drawer .dhead { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    border-bottom: 1px solid var(--border); }
+  .drawer .dpath { font: 600 12px ui-monospace, Menlo, monospace; color: var(--c-snap);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+  .drawer .dmeta { padding: 6px 12px; font: 10.5px ui-monospace, Menlo, monospace; color: var(--muted);
+    border-bottom: 1px solid var(--border); }
+  /* task #294: the drawer's code colours. The real page reuses webapp/highlight.ts, whose renderCodeInto
+     already serves the revision view — these class names are that renderer's output shape, so the port
+     is a swap of the tokeniser and not of the stylesheet. */
+  .tok-com { color: var(--muted); font-style: italic; }
+  .tok-str { color: var(--c-echo); }
+  .tok-key { color: var(--c-script); font-weight: 600; }
+  .tok-num { color: var(--c-anchor); }
+  .tok-typ { color: var(--sel-edge); }
+  .drawer pre { margin: 0; padding: 12px; overflow: auto; height: calc(100% - 76px);
+    font: 11.5px/1.55 ui-monospace, Menlo, monospace; color: var(--ink2); white-space: pre; }
+</style>
+</head>
+<body>
+<div class="viz-root" id="root">
+  <header>
+    <h1 id="layer-h1">Layer 1 View</h1>
+    <span class="crumb" id="crumb"></span>
+    <!-- OPEN #282: which stamp places a bubble. Two commits rewritten in one rebase share a
+         committer instant while their author instants are days apart, so the reading has to be
+         chosen per view rather than assumed. -->
+    <div class="timebar">
+      <span class="lbl">Time:</span>
+      <button id="t-committer" class="current">committer</button>
+      <button id="t-author">author</button>
+    </div>
+    <div class="zoombar">
+      <span class="lbl">Zoom:</span>
+      <button id="zoom-out">−</button><button id="zoom-reset">100%</button><button id="zoom-in">+</button>
+    </div>
+    <div class="layerbar">
+      <span class="lbl">Layer:</span>
+      <!-- task #299/#304: layers 3+ are unassigned, so there is no third button to dim. -->
+      <button class="current" data-layer="1">1</button>
+      <button data-layer="2" title="Layer 2 adds file-history snapshots">2</button>
+    </div>
+  </header>
+
+  <!-- task #256 + OPEN #285/#289: every navigation control on one row. -->
+  <div class="navbar">
+    <span class="lbl">Jump to:</span>
+    <button id="jump-repo">No repository match</button>
+    <button id="jump-disk">No disk match</button>
+    <div class="findgroup">
+      <span class="lbl">Find bubble</span>
+      <input id="find-file" type="text" placeholder="basename">
+      <button id="find-prev" title="previous match">‹</button>
+      <button id="find-next" title="next match">›</button>
+      <span class="findstatus" id="find-status"></span>
+    </div>
+  </div>
+
+  <!-- Two rows, not one (user, 2026-07-26): the project folder is what is on DISK, and everything
+       below it describes the REPOSITORY the disk state is being read against. Splitting them also
+       stops #286's 88ch commit dropdown pushing the folder box off the row. -->
+  <div class="sources">
+    <label>Project folder
+      <input id="dir" type="text" size="34" value="/Users/you/code/demo-app">
+      <button class="pick" data-for="dir">Open…</button></label>
+    <!-- OPEN #295/#296: two lists, one picker. #297's button reports whether either has moved. -->
+    <button id="pick-jsonl">JSONL sources</button>
+    <button id="pick-fh">File History Snapshots</button>
+    <button id="save-settings" disabled>Save project settings</button>
+    <span class="savednote" id="saved-note"></span>
+  </div>
+  <div class="sources repo">
+    <label>Git repo
+      <input id="repo" type="text" size="34" value="/Users/you/code/demo-app">
+      <button class="pick" data-for="repo">Open…</button></label>
+    <span class="repo-flag confirmed-only">✓ git repo</span>
+    <!-- OPEN #286 -->
+    <label class="confirmed-only">Branch <select id="branch"></select></label>
+    <label class="confirmed-only">Commit <select id="ref"></select></label>
+    <!-- <button id="load">Load</button> -->
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--c-commit);border-radius:4px"></i> commit</span>
+    <span><i style="border:3px double var(--c-disk);background:transparent"></i> on-disk</span>
+    <span><i style="border:3px dotted var(--muted);background:transparent"></i> created at</span>
+    <!-- task #301 -->
+    <span><i style="background:var(--c-snap)"></i> 📸 file-history snapshot (Layer 2)</span>
+    <span><i style="border:1.5px dashed var(--c-anchor);background:transparent"></i> same instant</span>
+    <span><i style="border:1.5px dashed var(--muted);background:transparent"></i> orphan bucket</span>
+    <!-- task #292 -->
+    <span><i style="border:1px dashed var(--c-script);background:color-mix(in srgb, var(--c-script) 11%, transparent)"></i> JSONL range</span>
+    <span class="hint">dashed leader: hover a ruler row, a bubble or a node</span>
+  </div>
+
+  <div class="body" id="body">
+    <!-- tasks #252/#281 -->
+    <aside class="filenav" id="filenav">
+      <section class="navpane" id="pane-files">
+        <div class="pane-title">Files
+          <!-- task #254: the deselect. Shift-click folders (#255) to select more than one. -->
+          <button id="clear-filter" disabled>All files</button>
+        </div>
+        <div class="navsearch">
+          <input id="nav-search" type="text" placeholder="search files…">
+          <button id="nav-search-clear" title="clear">(x)</button>
+        </div>
+        <div id="nav"></div>
+      </section>
+      <div class="pane-grip" id="navpane-grip" title="drag to resize"></div>
+      <!-- task #292: the project's JSONLs. Same picker behaviour as the folder tree — click filters,
+           clicking the only selected one clears, shift extends. -->
+      <section class="navpane" id="pane-sessions">
+        <div class="pane-title">JSONLs
+          <button id="clear-sessions" disabled>All sessions</button>
+        </div>
+        <div id="sessions"></div>
+      </section>
+    </aside>
+    <!-- task #279 -->
+    <div class="filenav-grip" id="filenav-grip" title="drag to resize"></div>
+
+    <div class="stagewrap">
+      <main class="timelines" id="timelines"><div class="canvas" id="canvas">
+        <div class="ruler" id="ruler"><div class="rail"></div></div>
+        <div class="leaders" id="leaders"></div>
+        <!-- task #292: the wash rides behind the bubbles, the bars in front of the empty lane -->
+        <div class="washes" id="washes"></div>
+        <div class="ranges" id="ranges"></div>
+        <div class="stage" id="stage"></div>
+      </div></main>
+      <!-- tasks #246/#269/#274 -->
+      <div class="minimap" id="minimap"><span class="mm-title">minimap</span>
+        <div class="mm-plot" id="mm-plot"><div class="mm-view" id="mm-view"></div></div>
+      </div>
+    </div>
+
+    <!-- OPEN #257 -->
+    <aside class="drawer" id="drawer">
+      <div class="dhead"><div class="dpath" id="dpath"></div>
+        <button id="dclose" style="margin-left:auto">Close</button></div>
+      <div class="dmeta" id="dmeta"></div>
+      <pre id="dbody"></pre>
+    </aside>
+  </div>
+
+  <!-- OPEN #295/#296: ONE dialog serves both lists — same widget, same rules, different title and
+       different array. Fixed and centred over everything, so it is in front of the timeline. -->
+  <div class="modal-wrap" id="pathpicker" hidden>
+    <div class="modal">
+      <div class="mtitle" id="pp-title"></div>
+      <div class="mlist" id="pp-list"></div>
+      <div class="malert" id="pp-alert" hidden>no JSONL files found</div>
+      <div class="mbuttons">
+        <button id="pp-add" title="add a folder">+</button>
+        <button id="pp-remove" title="remove the selected folder" disabled>−</button>
+        <span class="mspacer"></span>
+        <button id="pp-cancel">cancel</button>
+        <button id="pp-ok">set and close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Fixed fixture, no clock reads. A commit carries BOTH stamps (OPEN #282): `at` is committer time,
+  // `wrote` is author time. The last two commits deliberately share a committer instant while their
+  // author instants are days apart — that is the rebase case from the user's screenshot, and it is
+  // what makes the header's time toggle visibly change the layout.
+  const COMMITS = [
+    { hash: "a1b2c3d4", at: "2026-06-01T09:00:00Z", wrote: "2026-06-01T09:00:00Z",
+      subject: "seed the demo app with an index and a readme", files: ["src/index.ts", "README.md"] },
+    { hash: "e4f5a6b7", at: "2026-06-01T14:30:00Z", wrote: "2026-06-01T14:30:00Z",
+      subject: "extract the shared trim helper into src/util.ts", files: ["src/index.ts", "src/util.ts"] },
+    { hash: "c7d8e9f0", at: "2026-06-03T11:00:00Z", wrote: "2026-06-02T08:10:00Z",
+      subject: "dispatch run-scenario cases through one table", files: ["src/util.ts",
+        "src/components/interim-run-scenario/test_run_scenario_dispatcher.ts"] },
+    { hash: "0a1b2c3d", at: "2026-06-03T18:20:00Z", wrote: "2026-06-03T18:20:00Z",
+      subject: "lowercase the parsed input before dispatch", files: ["src/index.ts"] },
+    { hash: "4d5e6f70", at: "2026-07-20T16:00:00Z", wrote: "2026-07-20T16:00:00Z",
+      subject: "retire the old API notes", files: ["README.md", "docs/old-api.md"] },
+    { hash: "8a9b0c1d", at: "2026-07-20T21:05:00Z", wrote: "2026-07-20T21:05:00Z",
+      subject: "ship the deploy script", files: ["scripts/deploy.sh"] },
+    { hash: "5636d8ec", at: "2026-07-20T21:20:00Z", wrote: "2026-07-19T13:45:00Z",
+      subject: "cover the dispatcher's error branch", files: [
+        "src/components/interim-run-scenario/test_run_scenario_dispatcher.ts"] },
+  ];
+  const DISK = [
+    // created !== modified -> the created node is NOT clickable, only the latest one is (#257).
+    { path: "src/index.ts", born: "2026-06-01T08:05:00Z", at: "2026-07-24T08:15:00Z" },
+    // The mtime sits inside d4a06b8f's window because that session WROTE this file. At 07-22 it fell
+    // BEFORE the file's own last snapshot, which is impossible (user, 2026-07-27).
+    { path: "src/util.ts",  born: "2026-05-31T14:35:00Z", at: "2026-07-24T08:05:00Z" },
+    { path: "src/components/interim-run-scenario/test_run_scenario_dispatcher.ts",
+      born: "2026-05-31T11:05:00Z", at: "2026-07-24T09:30:00Z" },
+    // created === modified -> the ONE node is the latest, so it IS clickable (#257's exception).
+    // README.md's disk instant also equals commit 4d5e6f70's, which is task #259's tie group.
+    { path: "README.md",    born: "2026-07-20T16:00:00Z", at: "2026-07-20T16:00:00Z" },
+    { path: "notes.txt",    born: "2026-07-23T19:40:00Z", at: "2026-07-23T19:40:00Z" },
+    { path: ".env.local",   born: "2026-05-28T07:00:00Z", at: "2026-05-28T07:00:00Z" }, // pre-dates commit 1
+  ];
+  // OPEN #286: what the branch/commit route would return once the repo is confirmed.
+  const BRANCHES = ["main", "layer-1-milestone", "spike/author-timestamps"];
+
+  // task #292: the project's JSONL transcripts. `started`/`ended` are the session's first and last
+  // record — deliberately NOT the instants of the files it touched, because the band has to be able
+  // to open before the first write and close after the last one. `paths` is what the session wrote,
+  // which is all the filter needs; the timeline it draws for those paths still comes from the repo
+  // and the disk, so a file keeps its whole history even when the session only touched it once.
+  // task #300: `titles` is a LIST of line ranges — a session can be renamed part-way through, so its
+  // title is a function of POSITION (b21d84c5 carries two). An unnamed session carries none.
+  const SESSIONS = [
+    { file: "0f3c9a7e.jsonl", titles: [{ title: "seed the demo app", from: 1, to: 120 }],
+      started: "2026-06-01T08:44:00Z", ended: "2026-06-01T09:12:00Z",
+      paths: ["src/index.ts", "README.md"] },
+    { file: "b21d84c5.jsonl", titles: [
+        { title: "extract the trim helper", from: 1, to: 210 },
+        { title: "dispatch through one table", from: 211, to: 520 }],
+      started: "2026-06-01T14:05:00Z", ended: "2026-06-03T18:40:00Z",
+      paths: ["src/index.ts", "src/util.ts",
+              "src/components/interim-run-scenario/test_run_scenario_dispatcher.ts"] },
+    { file: "7ce50a19.jsonl", titles: [],
+      started: "2026-07-20T15:38:00Z", ended: "2026-07-20T21:30:00Z",
+      paths: ["README.md", "docs/old-api.md", "scripts/deploy.sh"] },
+    { file: "d4a06b8f.jsonl", titles: [{ title: "cover the error branch, take notes", from: 1, to: 260 }],
+      started: "2026-07-23T19:10:00Z", ended: "2026-07-24T09:45:00Z",
+      paths: ["notes.txt", "src/index.ts", "src/util.ts",
+              "src/components/interim-run-scenario/test_run_scenario_dispatcher.ts"] },
+  ];
+
+  // task #300: Layer 2's input. `version` is numbered PER SESSION, so `@v2` alone identifies nothing
+  // — src/util.ts carries one from b21d84c5 and a different one from d4a06b8f.
+  // `line` is where in that transcript it was taken, which selects the title in effect.
+  //
+  // EVERY instant obeys `born <= snapshot <= mtime`, and both bounds are physics: a snapshot is a
+  // copy of bytes that were on disk. One after the mtime could only mean the file was later deleted,
+  // and a deleted file must not show as present in the File Nav (user, 2026-07-27). No deletions are
+  // modelled here, so the upper bound is absolute.
+  //
+  // src/index.ts @v1 pre-dates the first COMMIT, so a snapshot owns a ruler entry above every commit.
+  // @v3 lands exactly ON its mtime — the ordinary case, the snapshot IS the write — inside a #259 tie.
+  const SNAPSHOTS = [
+    { path: "src/index.ts", version: "@v1", at: "2026-06-01T08:50:00Z", session: "0f3c9a7e.jsonl", line: 40 },
+    { path: "src/index.ts", version: "@v2", at: "2026-06-01T09:05:00Z", session: "0f3c9a7e.jsonl", line: 95 },
+    { path: "src/util.ts",  version: "@v1", at: "2026-06-01T14:20:00Z", session: "b21d84c5.jsonl", line: 60 },
+    { path: "src/util.ts",  version: "@v2", at: "2026-06-03T10:30:00Z", session: "b21d84c5.jsonl", line: 300 },
+    { path: "src/util.ts",  version: "@v2", at: "2026-07-24T08:00:00Z", session: "d4a06b8f.jsonl", line: 120 },
+    // ON index.ts's mtime: the hand-made case of a snapshot sharing a tick with another event (#302).
+    { path: "src/index.ts", version: "@v3", at: "2026-07-24T08:15:00Z", session: "d4a06b8f.jsonl", line: 200 },
+    { path: "src/components/interim-run-scenario/test_run_scenario_dispatcher.ts",
+      version: "@v1", at: "2026-07-23T19:55:00Z", session: "d4a06b8f.jsonl", line: 30 },
+  ];
+  const sessionBy = file => SESSIONS.find(s => s.file === file);
+  // The title in effect AT a position — not the session's first and not its last (task #305).
+  const titleAt = (file, line) =>
+    sessionBy(file)?.titles.find(t => line >= t.from && line <= t.to)?.title ?? "untitled session";
+  // task #306: what a nav row prints. Deduped, because two ranges may carry the same name.
+  const titlesOf = session => [...new Set(session.titles.map(t => t.title))];
+
+  const PX_PER_HOUR = 2.5;  // locked with the user
+  const CAP_PX = 24;        // 0.25" at 96dpi — the widest any single gap may render
+  const FLOOR_PX = 16;      // the shipped per-gap floor
+  const ROW_PX = 22;        // task #251: the height ONE node row (dot + 10px label) needs
+  const SCALE = PX_PER_HOUR / 3600000;
+  const MINIMAP_SMOOTH_LIMIT_PX = 4000;   // task #274
+  const EXPAND_ROW_PX = 13;               // OPEN #284: one file name's row inside an expanded tick
+  const LABEL_GAP_PX = 13;                // the least ON-SCREEN room two printed timestamps need
+
+  const ms = s => Date.parse(s);
+  // task #276: seconds AND hundredths. "MM-DD HH:MM" collapsed instants that were seconds apart
+  // into identical-looking rows, which is what task #268 then had to merge.
+  const label = t => new Date(t).toISOString().slice(5, 22).replace("T", " ");
+  const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls;
+                                  if (txt != null) n.textContent = txt; return n; };
+  const setPx = (n, px) => { n.style.setProperty("--axis-px", px); return n; };
+  const byId = id => document.getElementById(id);
+  const basename = p => p.slice(p.lastIndexOf("/") + 1);
+
+  // ---- bulk fixture (user, 2026-07-27) --------------------------------------------------------
+  // ~90 bubbles and ~400 instants, so BOTH scroll axes are real. GENERATED: the literals above are
+  // the crafted cases, and 300 more rows of the same shape would bury them.
+  //
+  // Deterministic arithmetic, no clock and no Math.random — the visual checks compare renders.
+  //
+  // Ordering is the point, not filler: every file gets `born < commits < mtime`, and its snapshots
+  // land ON another event's instant wherever possible — every third file on a COMMIT, every fourth
+  // on its MTIME. That is what gives #302 many mixed ruler rows instead of one hand-made case.
+  const HOUR_MS = 3600000;
+  const BULK_DIRS = ["src/api", "src/ui/panels", "src/ui/widgets", "lib/parse", "tests/unit",
+                     "docs/guides", "scripts/ci"];
+  const BULK_EXTS = ["ts", "ts", "tsx", "py", "sh", "md"];
+  const BULK_FILES = 84;
+  const BULK_BORN0 = ms("2026-06-05T09:00:00Z");
+  const iso = t => new Date(t).toISOString();
+  // Knuth's constant, so neighbouring indexes do not produce neighbouring-looking hashes.
+  const fakeHash = n => ((n * 2654435761) % 4294967296).toString(16).padStart(8, "0").slice(0, 8);
+  const bulkSessions = new Map();
+  for (let i = 0; i < BULK_FILES; i += 1) {
+    const path = `${BULK_DIRS[i % BULK_DIRS.length]}/module_${String(i).padStart(2, "0")}` +
+                 `.${BULK_EXTS[i % BULK_EXTS.length]}`;
+    const born = BULK_BORN0 + i * 7 * HOUR_MS;
+    const commitAt = k => born + (5 + k * 23) * HOUR_MS;
+    const commitCount = 2 + (i % 3);
+    for (let k = 0; k < commitCount; k += 1)
+      COMMITS.push({ hash: fakeHash(i * 17 + k), at: iso(commitAt(k)), wrote: iso(commitAt(k)),
+                     subject: `bulk change ${k + 1} to ${basename(path)}`, files: [path] });
+    const mtime = commitAt(commitCount - 1) + 4 * HOUR_MS;
+    DISK.push({ path, born: iso(born), at: iso(mtime) });
+
+    // `null` entries are skipped, so a file carries one, two, three — or none, which keeps Layer 2's
+    // "a file with no snapshots looks exactly like Layer 1" case visible at scale.
+    const wanted = [
+      i % 3 === 2 ? null : born + 3 * HOUR_MS,          // between born and the first commit
+      i % 3 === 0 ? commitAt(1) : null,                 // exactly ON a commit
+      i % 4 === 0 ? mtime : null,                       // exactly ON the on-disk node
+    ].filter(t => t !== null);
+    const file = `bulk-${Math.floor(i / 12)}.jsonl`;
+    wanted.forEach((t, v) => SNAPSHOTS.push(
+      { path, version: `@v${v + 1}`, at: iso(t), session: file, line: 40 + v * 60 }));
+
+    const group = bulkSessions.get(file) ?? { paths: [], from: born, to: mtime };
+    group.paths.push(path);
+    group.to = Math.max(group.to, mtime);
+    bulkSessions.set(file, group);
+  }
+  for (const [file, group] of bulkSessions)
+    SESSIONS.push({ file, titles: [{ title: `bulk pass over ${group.paths.length} modules`, from: 1, to: 400 }],
+                    started: iso(group.from), ended: iso(group.to), paths: group.paths });
+
+  // tasks #253/#254/#255 — the folder filter's whole state. Empty = show everything.
+  const selectedFolders = new Set();
+  const inSelection = path => selectedFolders.size === 0 ||
+    [...selectedFolders].some(f => path === f || path.startsWith(f + "/"));
+  // task #292: the picked JSONLs, holding the fixture objects themselves. Empty = every session.
+  // Two filters, one rule: a file is drawn only if BOTH pickers admit it.
+  const selectedSessions = new Set();
+  const touchedBySelection = path => selectedSessions.size === 0 ||
+    [...selectedSessions].some(s => s.paths.includes(path));
+  const isShown = path => inSelection(path) && touchedBySelection(path);
+  // OPEN #284: the ruler row currently expanded into its file list, as an instant. One at a time —
+  // the list changes the axis layout, so two open rows would be two stacked shifts to reason about.
+  let expandedInstant = null;
+  // The instants the current selection sits on: what the gutter bolds and what keeps a leader up.
+  let selectedInstants = [];
+  // The bubbles' scale. Declared with the rest of the view state because the gutter's own layout
+  // reads it — the ruler is outside the zoom, so it converts axis px to screen px itself.
+  let zoom = 1;
+  // OPEN #282
+  let timeSource = "committer";
+  const commitInstant = c => ms(timeSource === "author" ? c.wrote : c.at);
+  // task #304: snapshots are left OUT of the model at Layer 1, never hidden in CSS — a hidden node
+  // would still hold its ruler entry, so Layer 1 would not read as Layer 1.
+  let layer = 1;
+  const snapshotsFor = path => layer === 1 ? [] : SNAPSHOTS.filter(s => s.path === path);
+
+  // ---- task #251: content-driven ruler spacing -------------------------------------------------
+  // Any two CONSECUTIVE nodes of one widget are forced at least ROW_PX apart, so a bubble is always
+  // tall enough to show its name, its commits and its on-disk rows. The linear/capped rule sets the
+  // baseline; content only ever pushes entries further apart, never closer.
+  // `extraAt` is task #284's expanded ruler row: the file list it opens lives IN the gutter, so the
+  // rows below it — and therefore every bubble and every node below it — must move down by exactly
+  // the list's height (user, 2026-07-26). Feeding it in HERE rather than positioning the list over
+  // the canvas is what makes a bubble that spans the expanded instant grow instead of being written
+  // over: a widget's span is `last node pos - first node pos`, both read from this one map.
+  function resolveOffsets(instants, rowsAt, extraAt = new Map()) {
+    const pos = new Map([[instants[0], 0]]);
+    for (let i = 1; i < instants.length; i += 1) {
+      const t = instants[i], prev = instants[i - 1];
+      const linear = Math.min(Math.max((t - prev) * SCALE, FLOOR_PX), CAP_PX);
+      pos.set(t, pos.get(prev) + Math.max(linear, (rowsAt.get(prev) ?? 1) * ROW_PX) + (extraAt.get(prev) ?? 0));
+    }
+    return pos;
+  }
+
+  // task #292: where an ARBITRARY time sits on an axis built from events. A session opens and closes
+  // between events, not on them, so its band has to be read off the two entries it falls between —
+  // and read by interpolation, because the axis is capped and floored rather than linear in time.
+  function axisAt(t, pos, instants) {
+    if (t <= instants[0]) return pos.get(instants[0]);
+    const i = instants.findIndex(x => x >= t);
+    if (i < 0) return pos.get(instants.at(-1));
+    const before = instants[i - 1], after = instants[i];
+    if (after === t) return pos.get(after);
+    return pos.get(before) +
+      (pos.get(after) - pos.get(before)) * ((t - before) / (after - before));
+  }
+
+  function buildModel() {
+    const dir = byId("dir").value.trim().replace(/\/$/, "");
+    const repo = byId("repo").value.trim().replace(/\/$/, "");
+    const unrelated = repo !== dir;
+
+    const repoPaths = [...new Set(COMMITS.flatMap(c => c.files))];
+    const diskPaths = DISK.map(f => f.path);
+    const pairedAll = unrelated ? [] : repoPaths.filter(p => diskPaths.includes(p));
+
+    // The filter bites HERE, before instants are collected — which is what makes the timeline range
+    // shrink to the selected folders (#253) rather than just hiding widgets.
+    const paired = pairedAll.filter(isShown);
+    const repoOrphans = repoPaths.filter(p => !pairedAll.includes(p)).filter(isShown);
+    const diskOrphans = DISK.filter(f => !pairedAll.includes(f.path)).filter(f => isShown(f.path));
+
+    const widgets = paired.map(path => {
+      const disk = DISK.find(f => f.path === path);
+      const nodes = COMMITS.filter(c => c.files.includes(path))
+        .map(c => ({ t: commitInstant(c), cls: "n-commit", text: c.hash.slice(0, 8), kind: "commit", hash: c.hash }));
+      // task #301: just another node kind, so it inherits the ladder, the tie groups, the ruler rows
+      // and the leaders with no second code path. No snapshots means no row (S18 retired that).
+      for (const s of snapshotsFor(path))
+        nodes.push({ t: ms(s.at), cls: "n-snap", text: `${s.version} 📸`, kind: "snapshot",
+                     version: s.version, session: s.session, line: s.line });
+      // One node when born === modified, two when they differ.
+      if (disk.born !== disk.at)
+        nodes.push({ t: ms(disk.born), cls: "n-disk n-created", text: "created at", kind: "created" });
+      nodes.push({ t: ms(disk.at), cls: "n-disk", text: "on disk", kind: "disk" });
+      nodes.sort((a, b) => a.t - b.t);
+      // A commit and an mtime can land on the SAME instant — README.md does. Drawing both at one
+      // axis position is `5636d8ec` overprinting `on disk` in the bug screenshots, so tied nodes get
+      // successive row slots and the ruler pays for them (#247/#251); #259 then draws the group.
+      nodes.forEach((n, i) => { n.slot = i > 0 && nodes[i - 1].t === n.t ? nodes[i - 1].slot + 1 : 0; });
+      return { path, nodes };
+    });
+
+    // A bucket row carries the SAME shape a node does — kind, instant, and a hash for a commit — so
+    // it can be inspected exactly like a paired file's node (user, 2026-07-26). A repo-only file is
+    // absent from disk but its bytes are still in the repository at its LAST commit, which is the
+    // row's own instant; a disk-only file is read from the working tree.
+    const lastCommitFor = p => COMMITS.filter(c => c.files.includes(p)).sort((a, b) => commitInstant(a) - commitInstant(b)).at(-1);
+    const bucketRows = which => which === "repo"
+      ? repoOrphans.map(p => ({ path: p, t: commitInstant(lastCommitFor(p)), kind: "commit", hash: lastCommitFor(p).hash }))
+      : diskOrphans.map(f => ({ path: f.path, t: ms(f.at), kind: "disk" }));
+    const noDisk = bucketRows("repo").sort((a, b) => a.t - b.t);
+    const noRepo = bucketRows("disk").sort((a, b) => a.t - b.t);
+
+    const instants = [...new Set([
+      ...widgets.flatMap(w => w.nodes.map(n => n.t)),
+      ...noDisk.map(r => r.t), ...noRepo.map(r => r.t),
+    ])].sort((a, b) => a - b);
+
+    // How many stacked rows any one widget needs at a given instant — the input to #251's spacing.
+    const rowsAt = new Map(instants.map(t => [t, 1]));
+    for (const w of widgets)
+      for (const n of w.nodes) rowsAt.set(n.t, Math.max(rowsAt.get(n.t), n.slot + 1));
+
+    // task #275: how many events share each instant, which is what a ruler row reports in (n).
+    const countAt = new Map(instants.map(t => [t, 0]));
+    for (const w of widgets) for (const n of w.nodes) countAt.set(n.t, countAt.get(n.t) + 1);
+    for (const r of [...noDisk, ...noRepo]) countAt.set(r.t, countAt.get(r.t) + 1);
+
+    return { widgets, noDisk, noRepo, instants, rowsAt, countAt, pairedAll, repoPaths, diskPaths };
+  }
+
+  // ---- tasks #268/#275: which rows the gutter prints ------------------------------------------
+  // Instants whose LABELS read the same collapse into one row carrying the summed count (#268), and
+  // the row keeps the earliest instant's offset. A row also remembers every instant it stands for,
+  // so a click and a leader-line hover answer for all of them, not just the first.
+  function listRulerRows(instants, pos, countAt) {
+    const rows = [];
+    for (const t of instants) {
+      const text = label(t);
+      const last = rows.at(-1);
+      if (last && last.text === text) { last.count += countAt.get(t); last.instants.push(t); continue; }
+      // Distinct labels still too close to read: skip the label, keep the leader (a skipped row
+      // still has bubbles sitting on it). The gap is measured in SCREEN px — the timestamps keep
+      // their size at every zoom, so zooming out is exactly what makes two rows collide, and the
+      // axis distance that clears a label grows as the axis itself shrinks.
+      if (last && (pos.get(t) - last.axisPx) * zoom < LABEL_GAP_PX) {
+        last.instants.push(t); last.count += countAt.get(t); continue;
+      }
+      rows.push({ text, axisPx: pos.get(t), count: countAt.get(t), instants: [t] });
+    }
+    return rows;
+  }
+
+  let model = null;   // the last rendered model, read by the ruler-click and find lookups
+
+  function render() {
+    const m = model = buildModel();
+    const stage = byId("stage");
+    const ruler = byId("ruler");
+    stage.replaceChildren();
+    ruler.replaceChildren(el("div", "rail"));
+    byId("leaders").replaceChildren();
+
+    renderNav(m);
+    renderSessions();
+    syncSourceButtons();
+    byId("crumb").textContent =
+      `${m.widgets.length} pairs · ${m.noDisk.length} repo-only · ${m.noRepo.length} disk-only` +
+      (selectedFolders.size ? ` · filtered to ${[...selectedFolders].join(", ")}` : "") +
+      (selectedSessions.size ? ` · ${[...selectedSessions].map(s => s.file).join(", ")}` : "");
+
+    byId("ranges").replaceChildren();
+    byId("washes").replaceChildren();
+    if (!m.instants.length) {
+      stage.appendChild(el("div", "nopairs", "Nothing selected."));
+      drawMinimap();
+      return;
+    }
+
+    // TWO passes, and the first one exists only to answer "which instants did the expanded row
+    // absorb?" — a printed row can stand for several instants (task #268's merge and the 13 px
+    // label skip), and the height its file list adds depends on how many files those instants hold.
+    // The layout then has to be redone with that height in it. Cheap, and it keeps the merge rule
+    // and the expansion from having to know about each other.
+    const draft = resolveOffsets(m.instants, m.rowsAt);
+    const expandedRow = listRulerRows(m.instants, draft, m.countAt)
+      .find(row => row.instants.includes(expandedInstant));
+    const expandedEvents = expandedRow === undefined ? [] : listEventsAtInstants(m, expandedRow.instants);
+    // The list is drawn in the gutter, which the zoom does not touch, so its height is screen px —
+    // divided back into axis px, because that is the space `resolveOffsets` deals in.
+    const extraAt = new Map(expandedEvents.length
+      ? [[expandedRow.instants.at(-1), (expandedEvents.length * EXPAND_ROW_PX + 4) / zoom]] : []);
+
+    const pos = resolveOffsets(m.instants, m.rowsAt, extraAt);
+    const rowY = n => pos.get(n.t) + n.slot * ROW_PX;   // the node's own row within its instant
+    m.pos = pos;
+
+    // The gutter. Every printed row is also the navigation control for the instants it stands for.
+    for (const row of listRulerRows(m.instants, pos, m.countAt)) {
+      const tick = setPx(el("div", "tick", `${row.text} (${row.count})`), row.axisPx);
+      tick.dataset.instants = row.instants.join(",");
+      // Marked when the row would EXPAND — the same test the click makes, so the underline never
+      // promises a list the click then refuses to open.
+      if (listEventsAtInstants(m, row.instants).length > 1) tick.classList.add("multi");
+      if (expandedRow !== undefined && row.axisPx === expandedRow.axisPx && expandedEvents.length) {
+        tick.classList.add("expanded");
+        tick.appendChild(buildTickFileList(expandedEvents));
+      }
+      // task #292: this row's time falls inside a picked session.
+      if ([...selectedSessions].some(s => row.instants.some(t => t >= ms(s.started) && t <= ms(s.ended))))
+        tick.classList.add("inrange");
+      ruler.appendChild(tick);
+    }
+
+    // task #292: per picked JSONL, a wash over the stretch it covers and a bar for its extent. Both
+    // are the same two numbers, so they are built together; the name is a tooltip rather than printed
+    // text — the lane is 7 px wide, which is the price of never covering a file.
+    const mark = (cls, from, span) => {
+      const node = setPx(el("div", cls), from);
+      node.style.setProperty("--span-px", span);
+      return node;
+    };
+    const spans = [...selectedSessions].map((session, slot) => {
+      const from = axisAt(ms(session.started), pos, m.instants);
+      // The BAR is the session's own two times, wherever they fall between events.
+      const bar = mark("range", from, axisAt(ms(session.ended), pos, m.instants) - from);
+      bar.style.setProperty("--slot", slot);
+      bar.title = `${session.file}\n${label(ms(session.started))} → ${label(ms(session.ended))}`;
+      // The WASH is the NODES those times reach (user, 2026-07-27) — it closes on the first and last
+      // event inside the window, half a row clear of each so the dots and labels sit inside it rather
+      // than on its edge. A session whose window catches no event gets a bar and no wash.
+      const covered = m.instants.filter(t => t >= ms(session.started) && t <= ms(session.ended));
+      if (!covered.length) return { bar };
+      const top = pos.get(covered[0]) - ROW_PX / 2;
+      const foot = pos.get(covered.at(-1)) + (m.rowsAt.get(covered.at(-1)) - 1) * ROW_PX + ROW_PX / 2;
+      return { bar, wash: mark("range-wash", top, foot - top) };
+    });
+    byId("washes").replaceChildren(...spans.map(s => s.wash).filter(Boolean));
+    byId("ranges").replaceChildren(...spans.map(s => s.bar));
+
+    // One dashed line per ruler ENTRY, hidden until something asks for it.
+    byId("leaders").replaceChildren(...m.instants.map(t => {
+      const line = setPx(el("div", "leader"), pos.get(t));
+      line.dataset.instant = t;
+      return line;
+    }));
+
+    // One widget per pair. EVERY node lives inside its own bubble — the stray hashes below a bubble
+    // (#248) and the stray "on disk" above one (#249) are what this must never produce, so the
+    // bubble's height is derived from its own last node.
+    for (const w of m.widgets) {
+      const start = rowY(w.nodes[0]), end = rowY(w.nodes.at(-1));
+      const box = setPx(el("div", "filebox"), start);
+      box.dataset.path = w.path;
+      box.dataset.instant = w.nodes[0].t;
+      // #280: the full path lives on `data-path`, never on `title` — the native tooltip is delayed,
+      // unstyled and gone on the first mouse move, which the user rejected. The swap below plus the
+      // `.fname:hover` rule is the in-page reveal.
+      const name = el("div", "fname", basename(w.path));
+      name.dataset.path = w.path;
+      name.addEventListener("mouseenter", () => { name.textContent = w.path; });
+      name.addEventListener("mouseleave", () => { name.textContent = basename(w.path); });
+      box.append(name, el("div", "sub", `${w.nodes.filter(n => n.kind === "commit").length} commits · on disk`));
+
+      const lane = setPx(el("div", "lane"), 0);
+      lane.style.setProperty("--span-px", end - start);
+      lane.appendChild(el("div", "lrail"));
+      // #259 first, so the rectangle stays behind the dots it groups.
+      for (const marker of tieGroupMarkers(w.nodes, start, rowY)) lane.appendChild(marker);
+      for (const n of w.nodes) addNode(lane, rowY(n) - start, n, w.path);
+      box.appendChild(lane);
+      stage.appendChild(box);
+    }
+    if (!m.widgets.length) stage.appendChild(el("div", "nopairs", "No git ↔ on-disk pairs."));
+
+    addBucket(stage, "No on-disk match", m.noDisk, pos, "bucket-disk");
+    addBucket(stage, "No repository match", m.noRepo, pos, "bucket-repo");
+    markSelectedTicks();   // the gutter is rebuilt every render; the selection is not
+    drawMinimap();
+  }
+
+  // task #259: one dashed rectangle per run of nodes sharing an instant. A single node is not a tie.
+  // `rowY` is the same widget-relative row the nodes themselves are placed at, so the rectangle can
+  // never drift off the dots it groups.
+  function tieGroupMarkers(nodes, startPx, rowY) {
+    const out = [];
+    for (const t of new Set(nodes.map(n => n.t))) {
+      const tied = nodes.filter(n => n.t === t);
+      if (tied.length < 2) continue;
+      const marker = setPx(el("div", "tiegroup"), rowY(tied[0]) - startPx);
+      marker.style.setProperty("--span-px", (tied.length - 1) * ROW_PX);
+      marker.dataset.instant = t;
+      out.push(marker);
+    }
+    return out;
+  }
+
+  // OPEN #257: a commit node is always clickable. An on-disk node is clickable only when it is the
+  // LATEST disk node — the "created at" node is inert unless created === modified, in which case the
+  // file has exactly one disk node and that node IS the latest.
+  function addNode(lane, px, node, path) {
+    const hot = node.kind !== "created";
+    const dot = setPx(el("i", `node ${node.cls}${hot ? " hot" : ""}`), px);
+    const tag = setPx(el("span", `nlabel ${hot ? "hot" : "cold"}`, node.text), px);
+    for (const element of [dot, tag]) {
+      element.dataset.instant = node.t;
+      element.dataset.path = path;
+    }
+    if (node.kind === "commit") dot.title = node.hash;
+    if (hot) {
+      const open = () => openDrawer(path, node, dot);
+      dot.addEventListener("click", open);
+      tag.addEventListener("click", open);
+    } else {
+      tag.title = "created-at is not the latest on-disk state — nothing to show";
+    }
+    lane.append(dot, tag);
+  }
+
+  // A bucket's rows are PLACED, not stacked: each one sits at its own instant, exactly as a pair's
+  // nodes do (user, 2026-07-26 — the second row of "No on-disk match" was drawn immediately under
+  // the first while its timestamp was hours further down the ruler). A row's `--axis-px` is relative
+  // to the bucket's own offset, and the list starts at the same in-box height a `.lane` does, so a
+  // row lands on the same y as the tick for its instant.
+  function addBucket(stage, title, rows, pos, id) {
+    if (!rows.length) return;
+    const start = pos.get(rows[0].t);
+    const box = setPx(el("div", "filebox bucket"), start);
+    box.id = id;
+    box.dataset.instant = rows[0].t;
+    box.append(el("div", "fname", title), el("div", "sub", `${rows.length} files`));
+    const ul = el("ul");
+    ul.style.setProperty("--span-px", pos.get(rows.at(-1).t) - start);
+    for (const r of rows) {
+      const li = setPx(el("li"), pos.get(r.t) - start);
+      li.dataset.instant = r.t;
+      li.dataset.path = r.path;
+      const p = el("span", null, r.path); p.title = r.path;
+      li.append(p, el("em", null, label(r.t)));
+      // An orphan is inspectable like any node: a repo-only file opens `git show <hash>:<path>` at
+      // its last commit, a disk-only file opens the working tree.
+      li.addEventListener("click", () => openDrawer(r.path, r, li));
+      ul.appendChild(li);
+    }
+    box.appendChild(ul);
+    stage.appendChild(box);
+  }
+
+  // ---- dashed leader lines, ON DEMAND (user, 2026-07-26) ---------------------------------------
+  // The lines are keyed by INSTANT, not by pixel: a bubble, its nodes and the gutter row all carry
+  // `data-instant`, so one delegated hover handler serves all three sources and no geometry is
+  // measured. `pinned` is the selection half — a found bubble, a ruler-clicked node, the node whose
+  // contents the drawer is showing — and survives until the selection changes.
+  const pinnedInstants = new Set();
+  let hoveredInstants = new Set();
+
+  function paintLeaders() {
+    for (const line of document.querySelectorAll(".leader")) {
+      const t = Number(line.dataset.instant);
+      line.classList.toggle("on", pinnedInstants.has(t) || hoveredInstants.has(t));
+    }
+  }
+  function pinInstants(instants) {
+    pinnedInstants.clear();
+    for (const t of instants) pinnedInstants.add(Number(t));
+    paintLeaders();
+  }
+  const instantsOn = element => (element?.dataset.instants ?? element?.dataset.instant ?? "")
+    .split(",").filter(Boolean).map(Number);
+
+  // Hover: the closest ancestor carrying an instant wins, which is the node when the pointer is on a
+  // node and the bubble when it is anywhere else inside one.
+  byId("root").addEventListener("pointerover", event => {
+    const source = event.target.closest?.("[data-instant], [data-instants]");
+    hoveredInstants = new Set(instantsOn(source));
+    paintLeaders();
+  });
+  byId("root").addEventListener("pointerleave", () => { hoveredInstants = new Set(); paintLeaders(); });
+
+  // ---- tasks #260/#266 + OPEN #267/#283/#284: the ruler row as a control -----------------------
+  // ONE selection at a time, and it PERSISTS: it is switched off by the next landing or by emptying
+  // the find box, never by a timer. A mark that fades is gone by the time the reader has finished
+  // scrolling to what it marked.
+  function highlight(elements) {
+    for (const lit of document.querySelectorAll(".found")) lit.classList.remove("found");
+    for (const element of elements) element.classList.add("found");
+    // A bubble carries its FIRST node's instant, so including it here bolded a second gutter row
+    // whenever the picked node was not the first one. When something more precise than the bubble is
+    // in the selection (a node, its label, a bucket row) that is what the gutter follows; the bubble
+    // only speaks for itself when it was selected alone, as by a find-box match.
+    const precise = elements.filter(e => !e.classList.contains("filebox"));
+    selectedInstants = (precise.length ? precise : elements)
+      .map(e => Number(e.dataset.instant)).filter(t => !Number.isNaN(t));
+    pinInstants(selectedInstants);      // the green dashes for the selected row
+    markSelectedTicks();
+  }
+
+  // The gutter half of that selection: the row(s) standing for the selected instant go bold.
+  // Re-applied after every render because the ticks are rebuilt from scratch each time.
+  function markSelectedTicks() {
+    for (const tick of document.querySelectorAll(".ruler .tick"))
+      tick.classList.toggle("selected", instantsOn(tick).some(t => selectedInstants.includes(t)));
+  }
+
+  // Put `target` in the middle of the part of the timeline the reader can actually SEE (user,
+  // 2026-07-26). Two things eat the scrollport and neither moves the scroll box: the sticky ruler
+  // covers its left edge, and the Detail View drawer — a flex sibling — has already narrowed the
+  // pane by the time this runs. So the visible strip is the pane's own box minus the gutter's width,
+  // and the target is centred in THAT, not in the scrollport.
+  // scrollIntoView cannot express this: `inline: "center"` centres on the full scrollport, which is
+  // what left a landed bubble sitting behind the ruler with the drawer open.
+  function centerInVisibleTimeline(target) {
+    const pane = byId("timelines");
+    const paneBox = pane.getBoundingClientRect();
+    const gutter = byId("ruler").getBoundingClientRect().width;
+    const box = target.getBoundingClientRect();
+    pane.scrollBy({
+      left: (box.left + box.width / 2) - (paneBox.left + gutter + (paneBox.width - gutter) / 2),
+      top: (box.top + box.height / 2) - (paneBox.top + paneBox.height / 2),
+      behavior: "smooth",
+    });
+  }
+
+  // Land on a file. What is CENTRED is the node — not the bubble: a bubble is as tall as its own
+  // ladder, so centring one thousands of px tall puts everything on it off screen (#277). A dot is
+  // 15 px, so centring it is unambiguous and its bubble comes with it.
+  function landOnBubble(box, extra = []) {
+    const focus = extra.find(e => e.classList.contains("node") || e.tagName === "LI")
+      ?? box.querySelector(".node") ?? box;
+    centerInVisibleTimeline(focus);
+    highlight([box, ...extra]);
+  }
+
+  // Every EVENT at any of `instants`, one entry each — NOT one per file. The row's own count is an
+  // event count (task #275: "the number of events that occurred at that timestamp"), so a file with
+  // both a commit and its on-disk mtime on one instant contributes TWO, and listing it once made the
+  // list disagree with the (n) beside it (user, 2026-07-26: "(3) is shown but only 2 file names are
+  // displayed"). An orphan's entry is its own PATH with the bucket named as its kind — the bucket's
+  // title used to be listed as though "No on-disk match" were a file.
+  function listEventsAtInstants(m, instants) {
+    const at = t => instants.includes(t);
+    return [
+      // `n.text` is already the node's own name — the hash, "on disk", and for #302 `@vN 📸`, so the
+      // row shape needs no snapshot case. `session` is undefined elsewhere; #303's click reads it.
+      ...m.widgets.flatMap(w => w.nodes.filter(n => at(n.t))
+        .map(n => ({ path: w.path, t: n.t, kind: n.text, session: n.session }))),
+      // An orphan's row is its NAME alone. The bucket's title is not a property of the file and the
+      // user rejected seeing it here twice over (2026-07-26) — the bucket the name jumps to is what
+      // says which direction the orphan is.
+      ...m.noDisk.filter(r => at(r.t)).map(r => ({ path: r.path, t: r.t, kind: "" })),
+      ...m.noRepo.filter(r => at(r.t)).map(r => ({ path: r.path, t: r.t, kind: "" })),
+    ];
+  }
+
+  // The list itself, a child of its tick so it opens directly under the timestamp inside the gutter.
+  // Clicking a name jumps to that file (user, 2026-07-26) — the row stays expanded, so the reader can
+  // walk the list one file at a time without re-opening it.
+  function buildTickFileList(events) {
+    const list = el("div", "tickfiles");
+    for (const hit of events) {
+      const row = el("button", null, `${basename(hit.path)}  ${hit.kind}`.trimEnd());
+      row.title = hit.path;
+      // task #303: a snapshot row ALSO answers "which JSONL did this come from" — it flashes that
+      // session in the nav without selecting it, because selecting is what filters the timeline.
+      row.addEventListener("click", event => {
+        event.stopPropagation();
+        jumpToPath(hit.path, hit.t);
+        if (hit.session) flashSession(hit.session);
+      });
+      list.appendChild(row);
+    }
+    return list;
+  }
+
+  byId("ruler").addEventListener("click", event => {
+    const tick = event.target.closest(".tick");
+    if (!tick) return;
+    const instants = instantsOn(tick);
+    const events = listEventsAtInstants(model, instants);
+    // OPEN #284: more than one EVENT at this row -> expand it into their names rather than silently
+    // jumping to whichever the lookup found first. Re-clicking the open row closes it.
+    if (events.length > 1) {
+      expandedInstant = instants.includes(expandedInstant) ? null : instants[0];
+      pinInstants(expandedInstant === null ? [] : [expandedInstant]);
+      render();
+      return;
+    }
+    if (events.length === 1) jumpToPath(events[0].path, events[0].t);
+  });
+
+  // Land on the one file `path` names, and mark what is drawn for it AT `t` — OPEN #267/#283's
+  // "which node did that row mean". The bucket branch is not a special case bolted on: an orphan has
+  // no bubble of its own, so the thing drawn for it is its ROW inside a bucket, and that row is what
+  // gets marked. Shared by the File Nav leaf click, the expanded ruler row and a single-event tick.
+  function jumpToPath(path, t) {
+    const box = [...document.querySelectorAll(".filebox")].find(b => b.dataset.path === path);
+    if (box) return landOnBubble(box, [...box.querySelectorAll(".node, .nlabel")]
+      .filter(n => Number(n.dataset.instant) === t));
+    const row = [...document.querySelectorAll(".bucket li")].find(li => li.dataset.path === path);
+    if (row) landOnBubble(row.closest(".filebox"), [row]);
+  }
+
+  // Escape closes the expanded row, which is the only page state a click cannot obviously undo.
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape" || expandedInstant === null) return;
+    expandedInstant = null;
+    pinInstants([]);
+    render();
+  });
+
+  // ---- tasks #261/#271/#272/#273/#277/#278: the Find bubble box --------------------------------
+  // Matching is on the BASENAME the bubble displays. The box owns the cycle position; a File Nav
+  // click does NOT come through here (#278) — it targets one exact path and leaves this readout
+  // alone, which is what stopped a `.gitignore` click cycling every gitignore in the render.
+  let cycleTerm = "", cycleIndex = 0;
+  const findMatches = term => [...document.querySelectorAll(".filebox:not(.bucket)")]
+    .filter(b => basename(b.dataset.path ?? "").toLowerCase().includes(term));
+
+  function stepFind(delta) {
+    const term = byId("find-file").value.trim().toLowerCase();
+    if (!term) return clearFind();
+    const matches = findMatches(term);
+    if (!matches.length) { byId("find-status").textContent = "0 of 0"; return; }
+    cycleIndex = term === cycleTerm ? (cycleIndex + delta + matches.length) % matches.length : 0;
+    cycleTerm = term;
+    byId("find-status").textContent = `${cycleIndex + 1} of ${matches.length}`;
+    landOnBubble(matches[cycleIndex]);
+  }
+  function clearFind() {
+    cycleTerm = ""; cycleIndex = 0;
+    byId("find-status").textContent = "";
+    highlight([]);   // #273: the marks, the bolded gutter row and its leader go with the readout
+  }
+  byId("find-file").addEventListener("input", () => { if (!byId("find-file").value.trim()) clearFind(); });
+  byId("find-file").addEventListener("keydown", e => { if (e.key === "Enter") stepFind(1); });
+  byId("find-next").addEventListener("click", () => stepFind(1));
+  byId("find-prev").addEventListener("click", () => stepFind(-1));
+
+  // ---- tasks #252/#253/#254/#255/#278/#281: File Nav -------------------------------------------
+  // Shape: the same folder/leaf tree the current webapp renders. Every identified file is here —
+  // paired, orphaned, and repo-only paths that no longer exist on disk (rendered .deleted).
+  function renderNav(m) {
+    const query = byId("nav-search").value.trim().toLowerCase();
+    const all = [...new Set([...m.repoPaths, ...m.diskPaths])].sort()
+      .filter(p => !query || p.toLowerCase().includes(query));   // #281
+    const root = { name: "", folders: new Map(), files: [] };
+    for (const path of all) {
+      let node = root;
+      const segments = path.split("/");
+      for (const segment of segments.slice(0, -1)) {
+        if (!node.folders.has(segment))
+          node.folders.set(segment, { name: segment, folders: new Map(), files: [] });
+        node = node.folders.get(segment);
+      }
+      node.files.push({ name: segments.at(-1), path, deleted: !m.diskPaths.includes(path) });
+    }
+    const nav = byId("nav");
+    nav.replaceChildren(...(all.length ? renderNavLevel(root, "") : [el("div", "navempty", "no matches")]));
+    byId("clear-filter").disabled = selectedFolders.size === 0;
+  }
+
+  function renderNavLevel(node, prefix) {
+    const out = [];
+    for (const folder of node.folders.values()) {
+      const full = prefix ? `${prefix}/${folder.name}` : folder.name;
+      const summary = el("summary", "file-folder-name", folder.name);
+      if (selectedFolders.has(full)) summary.classList.add("selected");
+      summary.addEventListener("click", event => {
+        // The tree is always expanded, so a click on the NAME means "filter", never "toggle" — the
+        // triangle is what opens and closes (#253's follow-up). Shift extends the selection (#255);
+        // a plain click on the only selected folder clears it (#254).
+        event.preventDefault();
+        if (!event.shiftKey) {
+          const only = selectedFolders.size === 1 && selectedFolders.has(full);
+          selectedFolders.clear();
+          if (!only) selectedFolders.add(full);
+        } else if (!selectedFolders.delete(full)) selectedFolders.add(full);
+        render();
+      });
+      const details = el("details", "file-folder");
+      details.open = true;
+      details.append(summary, el("div", "file-folder-kids", null));
+      details.lastChild.append(...renderNavLevel(folder, full));
+      out.push(details);
+    }
+    for (const file of node.files) {
+      const item = el("div", `file-item${file.deleted ? " deleted" : ""}`, file.name);
+      item.title = file.deleted ? `${file.path} (deleted)` : file.path;
+      // #278: EXACT path, one destination, no cycling and no find-box readout — the same jumpToPath
+      // the expanded ruler row uses, so a leaf and a listed name can never land differently.
+      item.addEventListener("click", () => jumpToPath(file.path));
+      out.push(item);
+    }
+    return out;
+  }
+
+  // ---- task #292: the JSONL picker --------------------------------------------------------------
+  // The folder tree's selection rules, applied to sessions: a plain click picks one, a plain click on
+  // the only picked one clears it, shift extends. What it filters is the FILE LIST — each surviving
+  // file keeps its whole history, and the band drawn over the canvas is what says which stretch of
+  // that history the session is answerable for.
+  function renderSessions() {
+    byId("sessions").replaceChildren(...SESSIONS.map(session => {
+      const item = el("div", "session-item");
+      item.dataset.file = session.file;   // task #303: how the flash finds this row again
+      if (selectedSessions.has(session)) item.classList.add("selected");
+      // task #306: the customTitle is what identifies a session to a reader, so it comes before the
+      // timestamp — one row per DISTINCT title, and nothing at all when the session was never named.
+      const titles = titlesOf(session);
+      item.append(el("div", "sname", session.file),
+                  ...titles.map(t => el("div", "stitle", t)),
+                  el("div", "smeta", `${label(ms(session.started)).slice(0, 11)} · ${session.paths.length} files`));
+      item.title = [...titles, `${label(ms(session.started))} → ${label(ms(session.ended))}`,
+                    ...session.paths].join("\n");
+      item.addEventListener("click", event => {
+        if (!event.shiftKey) {
+          const only = selectedSessions.size === 1 && selectedSessions.has(session);
+          selectedSessions.clear();
+          if (!only) selectedSessions.add(session);
+        } else if (!selectedSessions.delete(session)) selectedSessions.add(session);
+        render();
+      });
+      return item;
+    }));
+    byId("clear-sessions").disabled = selectedSessions.size === 0;
+  }
+
+  // ---- task #303: highlight a JSONL, then let it fade. ONE helper, two callers (#303's ruler row,
+  // #305's snapshot node). It must NOT select the session — selecting is what filters the timeline —
+  // so its colour is --c-echo, never the --c-script the selection owns.
+  // FLASH_MS is the one place the duration lives; the CSS reads it back off the element.
+  const FLASH_MS = 2600;
+  function flashSession(file) {
+    // ONE row at a time, as `highlight` keeps one `.found`. Two mid-fade rows would leave the reader
+    // unable to tell which answered the click.
+    for (const lit of byId("sessions").querySelectorAll(".flash")) lit.classList.remove("flash");
+    const item = byId("sessions").querySelector(`[data-file="${file}"]`);
+    if (!item) return;
+    // Re-clicking restarts the fade, and an animation only restarts once the class has been off for
+    // a layout — hence the reflow read.
+    item.classList.remove("flash");
+    void item.offsetWidth;
+    item.style.setProperty("--flash-ms", `${FLASH_MS}ms`);
+    item.classList.add("flash");
+    setTimeout(() => item.classList.remove("flash"), FLASH_MS);
+  }
+  byId("clear-sessions").addEventListener("click", () => { selectedSessions.clear(); render(); });
+
+  byId("clear-filter").addEventListener("click", () => { selectedFolders.clear(); render(); });
+  byId("nav-search").addEventListener("input", () => renderNav(model));
+  byId("nav-search-clear").addEventListener("click", () => {
+    byId("nav-search").value = "";
+    renderNav(model);
+  });
+
+  // ---- task #279 + OPEN #288: drag the File Nav's right edge -----------------------------------
+  // The width is written ONCE PER FRAME. Writing it on every pointermove reflows a canvas holding
+  // ~800 widgets across ~156,000 px, which is the latency the user reported (#288); rAF coalescing
+  // is the smallest fix that removes it, and the minimap reads the same custom property so it
+  // cannot drift back over the pane.
+  (() => {
+    const grip = byId("filenav-grip"), root = byId("root");
+    let dragging = false, pendingWidth = 0, frame = 0;
+    const commit = () => { frame = 0; root.style.setProperty("--filenav-w", `${pendingWidth}px`); };
+    grip.addEventListener("pointerdown", event => {
+      dragging = true; grip.classList.add("dragging"); grip.setPointerCapture(event.pointerId);
+    });
+    grip.addEventListener("pointermove", event => {
+      if (!dragging) return;
+      pendingWidth = Math.min(Math.max(event.clientX - root.getBoundingClientRect().left, 140), 520);
+      if (!frame) frame = requestAnimationFrame(commit);
+    });
+    grip.addEventListener("pointerup", () => {
+      dragging = false; grip.classList.remove("dragging"); drawMinimap();
+    });
+  })();
+
+  // ---- task #292: drag the split between the Files pane and the JSONLs pane ---------------------
+  // A share of the column rather than a pixel height, so the two panes keep filling it exactly when
+  // the window resizes. Clamped well short of 0 and 100 — a pane dragged to nothing is a pane the
+  // reader cannot get back.
+  (() => {
+    const grip = byId("navpane-grip"), nav = byId("filenav");
+    let dragging = false, pendingShare = 50, frame = 0;
+    const commit = () => { frame = 0; nav.style.setProperty("--files-share", pendingShare); };
+    grip.addEventListener("pointerdown", event => {
+      dragging = true; grip.classList.add("dragging"); grip.setPointerCapture(event.pointerId);
+    });
+    grip.addEventListener("pointermove", event => {
+      if (!dragging) return;
+      const box = nav.getBoundingClientRect();
+      pendingShare = Math.min(Math.max((event.clientY - box.top) / box.height * 100, 12), 88);
+      if (!frame) frame = requestAnimationFrame(commit);
+    });
+    grip.addEventListener("pointerup", () => { dragging = false; grip.classList.remove("dragging"); });
+  })();
+
+  // ---- tasks #246/#269/#274: minimap ------------------------------------------------------------
+  function drawMinimap() {
+    const plot = byId("mm-plot"), pane = byId("timelines"), canvas = byId("canvas"), view = byId("mm-view");
+    plot.replaceChildren(view);
+
+    const w = Math.max(canvas.scrollWidth, pane.scrollWidth, 1);
+    const h = Math.max(canvas.scrollHeight, pane.scrollHeight, 1);
+    const scale = Math.min(plot.clientWidth / w, plot.clientHeight / h);
+    const base = canvas.getBoundingClientRect();
+
+    for (const box of document.querySelectorAll(".filebox")) {
+      const r = box.getBoundingClientRect();
+      const mm = el("div", `mm-box${box.classList.contains("bucket") ? " bucket" : ""}`);
+      // `base` is the CANVAS, which scrolls with the boxes, so `r.left - base.left` is already the
+      // box's offset inside the canvas. Adding the pane's scroll on top counted it twice and slid
+      // every box off the plot as soon as anything scrolled the timeline — which opening the Detail
+      // View does, because it re-centres the node it just opened (user, 2026-07-27).
+      Object.assign(mm.style, {
+        left: `${(r.left - base.left) * scale}px`,
+        top: `${(r.top - base.top) * scale}px`,
+        width: `${Math.max(r.width * scale, 1.5)}px`,
+        height: `${Math.max(r.height * scale, 1.5)}px`,
+      });
+      plot.insertBefore(mm, view);
+    }
+    plot.dataset.scale = scale;
+    syncMinimapViewport();
+  }
+
+  function syncMinimapViewport() {
+    const pane = byId("timelines"), plot = byId("mm-plot");
+    const scale = Number(plot.dataset.scale || 0);
+    Object.assign(byId("mm-view").style, {
+      left: `${pane.scrollLeft * scale}px`, top: `${pane.scrollTop * scale}px`,
+      width: `${pane.clientWidth * scale}px`, height: `${pane.clientHeight * scale}px`,
+    });
+  }
+  byId("timelines").addEventListener("scroll", syncMinimapViewport);
+  window.addEventListener("resize", () => drawMinimap());
+
+  // Click the minimap to centre the view there. task #274: a smooth scroll across tens of thousands
+  // of px animates every intermediate frame, so a long jump lands instantly instead.
+  byId("mm-plot").addEventListener("click", event => {
+    const plot = event.currentTarget, pane = byId("timelines");
+    const scale = Number(plot.dataset.scale || 0);
+    if (!scale) return;
+    const r = plot.getBoundingClientRect();
+    const left = (event.clientX - r.left) / scale - pane.clientWidth / 2;
+    const top = (event.clientY - r.top) / scale - pane.clientHeight / 2;
+    const far = Math.abs(top - pane.scrollTop) + Math.abs(left - pane.scrollLeft) > MINIMAP_SMOOTH_LIMIT_PX;
+    pane.scrollTo({ left, top, behavior: far ? "auto" : "smooth" });
+  });
+
+  // ---- task #256: jump to either bucket ---------------------------------------------------------
+  const jumpTo = id => { const box = byId(id); if (box) landOnBubble(box); };
+  byId("jump-repo").addEventListener("click", () => jumpTo("bucket-repo"));
+  byId("jump-disk").addEventListener("click", () => jumpTo("bucket-disk"));
+
+  // ---- OPEN #257 + #258: Detail View drawer -----------------------------------------------------
+  // Real page: a commit node reads `git show <hash>:<path>`; an on-disk node reads the working tree.
+  // Here both return canned text, since the mockup has no server.
+  function openDrawer(path, node, dot) {
+    byId("drawer").classList.add("open");
+    // The header says WHAT is being shown (user, 2026-07-26): "<File Name> — Current on-disk state"
+    // for a disk node, the commit for a commit node. It used to be the bare path, with the
+    // provenance buried in two comment lines at the top of the CONTENTS — which put a description
+    // of the file inside the file, where it read as part of the source.
+    // task #305: a snapshot's header carries the customTitle IN EFFECT AT ITS LINE RANGE — not the
+    // session's first title and not its last. A session renamed part-way through would otherwise
+    // attribute the snapshot to work it has nothing to do with.
+    const heading = {
+      commit: () => `${basename(path)} — at commit ${node.hash.slice(0, 8)}`,
+      snapshot: () => `${basename(path)} Snapshot - ${titleAt(node.session, node.line)}`,
+    }[node.kind] ?? (() => `${basename(path)} — Current on-disk state`);
+    const provenance = {
+      commit: () => `git show ${node.hash}:${path}   ·   ${label(node.t)}`,
+      snapshot: () => `file-history ${node.version} of ${node.session}   ·   ${label(node.t)}`,
+    }[node.kind] ?? (() => `working tree   ·   modified ${label(node.t)}`);
+    byId("dpath").textContent = heading();
+    byId("dpath").title = path;
+    byId("dmeta").textContent = `${path}   ·   ${provenance()}`;
+    byId("dbody").innerHTML = highlightCode(fakeContents(path, node), path);
+    // Clicking a node to inspect it IS selecting it (user, 2026-07-26): the dot gets its [ ] marks,
+    // its ruler row goes bold and its dashed leader turns green — the same language a ruler-tick
+    // landing speaks, so the reader never has to learn two.
+    // The dot's own label is its next sibling (see addNode); a bucket row has none.
+    const twin = dot.nextElementSibling?.classList.contains("nlabel") ? [dot.nextElementSibling] : [];
+    highlight([dot.closest(".filebox"), dot, ...twin].filter(Boolean));
+    // task #305: and it says WHERE the bytes came from, through #303's one helper — a flash, not a
+    // selection, so opening a snapshot never silently filters the timeline to its session.
+    if (node.kind === "snapshot") flashSession(node.session);
+    // #258: the drawer SHRINKS the timeline pane, so the node just clicked can end up behind the
+    // ruler or off the edge. Re-centre against the POST-reflow layout, never the pre-open one —
+    // which is also why `.drawer` carries no width transition: a re-centre measured mid-animation
+    // aims at a pane width that is already stale.
+    requestAnimationFrame(() => {
+      centerInVisibleTimeline(dot);
+      drawMinimap();
+    });
+  }
+  byId("dclose").addEventListener("click", () => {
+    byId("drawer").classList.remove("open");
+    drawMinimap();
+  });
+
+  // The FILE's bytes and nothing else: which file this is and where it came from is the drawer
+  // header's job, so no provenance banner is prepended to the body any more.
+  // One canned body per LANGUAGE rather than one for every file, so #294's colours are visible on
+  // each kind the mockup can open — including the two that must come out plain.
+  function fakeContents(path, node) {
+    // task #300/#305: a snapshot's bytes have to differ per OWNING SESSION, not merely per version
+    // name — src/util.ts carries a `@v2` from two sessions and they are not the same file.
+    const tail = node.kind === "snapshot"
+      ? `trim()  /* ${node.session} ${node.version} */`
+      : node.kind === "commit" ? "trim()" : "trim().toLowerCase()";
+    return {
+      ts: [`import { parse } from "./parse";`, "",
+           "// dispatch one scenario case", `export function run(input: string): string {`,
+           `  const cleaned = input.${tail};`, "  if (cleaned.length > 0) return parse(cleaned);",
+           `  throw new Error("empty input");`, "}"],
+      py: ['"""Dispatch one scenario case."""', "import sys", "",
+           "def run(text):", `    cleaned = text.strip()`, "    if len(cleaned) > 0:",
+           "        return cleaned.lower()", `    raise ValueError("empty input")`],
+      sh: ["#!/usr/bin/env bash", "set -euo pipefail", "",
+           "# push the built bundle", `TARGET="${"${1:-staging}"}"`,
+           `if [ -d dist ]; then`, `  rsync -a dist/ "deploy@host:/srv/$TARGET"`, "fi"],
+      md: ["# demo-app", "", "The notes this repository used to keep for the old API.", "",
+           "- one bullet", "- another"],
+      txt: ["plain text has no grammar to colour,", "so #294 leaves it exactly as it is."],
+    }[languageOf(path)].join("\n");
+  }
+
+  // ---- task #294: syntax highlighting in the Detail View ---------------------------------------
+  // The REAL page reuses webapp/highlight.ts (its renderCodeInto already colours the revision view);
+  // this is the mockup's stand-in, small enough to show what the drawer will look like and no more.
+  // Language comes from the extension, and an unknown one is not an error — it is plain text.
+  const LANGUAGES = { ts: "ts", tsx: "ts", js: "ts", jsx: "ts", py: "py", sh: "sh", bash: "sh",
+                      md: "md", txt: "txt" };
+  const languageOf = path => LANGUAGES[path.slice(path.lastIndexOf(".") + 1)] ?? "txt";
+  // Non-capturing groups THROUGHOUT: the scanner below joins these into one alternation and reads
+  // which rule fired off the group index, so a stray capture inside a rule mislabels every rule after it.
+  const KEYWORDS = {
+    ts: /\b(?:import|export|from|function|const|let|var|return|if|else|throw|new|async|await|class|interface|type)\b/,
+    py: /\b(?:import|from|def|class|return|if|elif|else|raise|for|while|in|not|and|or|None|True|False)\b/,
+    sh: /\b(?:if|then|fi|else|for|in|do|done|set|export|local|function)\b/,
+  };
+  const COMMENTS = { ts: /\/\/[^\n]*/, py: /#[^\n]*/, sh: /#[^\n]*/ };
+  const escapeHtml = text => text.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+  // ONE pass, comments and strings first, so a keyword inside either is left alone — the mistake a
+  // per-rule replace chain always makes.
+  function highlightCode(source, path) {
+    const language = languageOf(path);
+    if (!KEYWORDS[language]) return escapeHtml(source);
+    const rules = [
+      ["tok-com", COMMENTS[language]],
+      ["tok-str", /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/],
+      ["tok-key", KEYWORDS[language]],
+      ["tok-typ", /\b(?:string|number|boolean|void)\b/],
+      ["tok-num", /\b\d+(?:\.\d+)?\b/],
+    ];
+    const scanner = new RegExp(rules.map(([, rule]) => `(${rule.source})`).join("|"), "g");
+    return escapeHtml(source).replace(scanner, (match, ...groups) => {
+      const hit = rules.findIndex((_, i) => groups[i] !== undefined);
+      return `<span class="${rules[hit][0]}">${match}</span>`;
+    });
+  }
+
+  // ---- OPEN #295/#296/#297: source paths, and the settings that hold them -----------------------
+  // The real [+] opens a folder-only native dialog and the chosen folder is then WALKED for nested
+  // files — picking `…/projects/` is meant to pull in every JSONL underneath it. Here the walk is a
+  // fixture: each candidate carries the count that walk would have returned, and a candidate with
+  // zero is refused exactly as the real one must be.
+  const CANDIDATES = {
+    jsonl: [
+      { path: "/Users/you/Programming/jot-recovery/claude-data/projects", found: 148 },
+      { path: "/Users/you/.claude/projects", found: 61 },
+      { path: "/Users/you/Desktop/exports", found: 0 },
+    ],
+    fh: [
+      { path: "/Users/you/.claude/file-history", found: 2104 },
+      { path: "/Users/you/Programming/jot-recovery/claude-data/file-history", found: 890 },
+      { path: "/Users/you/Desktop/exports", found: 0 },
+    ],
+  };
+  const PICKER_TITLES = { jsonl: "JSONL Source Paths", fh: "File History Snapshot Paths" };
+  const SETTINGS_KEY = "layer1-mockup-project-settings";
+  // A project folder implies where its transcripts and snapshots normally live, and that derived
+  // folder is what a first-time list holds (#295). `touched` is what stops a re-derive from throwing
+  // away a list the user has since edited.
+  const deriveFor = (kind, dir) => kind === "jsonl"
+    ? `/Users/you/.claude/projects/${dir.replace(/\//g, "-")}`
+    : "/Users/you/.claude/file-history";
+  const sources = { jsonl: { paths: [], touched: false }, fh: { paths: [], touched: false } };
+  let settingsDirty = false;
+
+  // Re-derived on every render, so a new project folder brings its own default lists with it, and
+  // the two buttons say how many folders each list holds without the dialog having to be opened.
+  function syncSourceButtons() {
+    const dir = byId("dir").value.trim().replace(/\/$/, "");
+    for (const kind of ["jsonl", "fh"])
+      if (!sources[kind].touched) sources[kind].paths = [deriveFor(kind, dir)];
+    byId("pick-jsonl").textContent = `JSONL sources (${sources.jsonl.paths.length})`;
+    byId("pick-fh").textContent = `File History Snapshots (${sources.fh.paths.length})`;
+  }
+  function markDirty() {
+    settingsDirty = true;
+    byId("save-settings").disabled = false;
+    byId("saved-note").textContent = "";
+  }
+
+  // The dialog edits a COPY. Cancel drops it, "set and close" is what commits and rebuilds.
+  let draftKind = null, draftPaths = [], draftPick = -1, alertTimer = 0;
+
+  function openPicker(kind) {
+    draftKind = kind;
+    draftPaths = [...sources[kind].paths];
+    draftPick = -1;
+    byId("pp-title").textContent = PICKER_TITLES[kind];
+    byId("pp-alert").hidden = true;   // a warning about the LAST list is not about this one
+    byId("pathpicker").hidden = false;
+    renderPicker();
+  }
+  function renderPicker() {
+    byId("pp-list").replaceChildren(...(draftPaths.length
+      ? draftPaths.map((path, i) => {
+          const row = el("div", i === draftPick ? "picked" : null, path);
+          row.addEventListener("click", () => { draftPick = i; renderPicker(); });
+          return row;
+        })
+      : [el("div", "mempty", "no source folders")]));
+    byId("pp-remove").disabled = draftPick < 0;
+  }
+  function flashEmptyAlert(kind) {
+    const alert = byId("pp-alert");
+    alert.textContent = kind === "jsonl" ? "no JSONL files found" : "no snapshots found";
+    alert.hidden = false;
+    clearTimeout(alertTimer);
+    alertTimer = setTimeout(() => { alert.hidden = true; }, 2600);
+  }
+  byId("pick-jsonl").addEventListener("click", () => openPicker("jsonl"));
+  byId("pick-fh").addEventListener("click", () => openPicker("fh"));
+  byId("pp-add").addEventListener("click", () => {
+    // Stands in for the native folder dialog: the next candidate this list has not already taken.
+    const next = CANDIDATES[draftKind].find(c => !draftPaths.includes(c.path));
+    if (!next) return;
+    if (next.found === 0) return flashEmptyAlert(draftKind);
+    draftPaths.push(next.path);
+    draftPick = draftPaths.length - 1;
+    renderPicker();
+  });
+  byId("pp-remove").addEventListener("click", () => {
+    if (draftPick < 0) return;
+    draftPaths.splice(draftPick, 1);
+    draftPick = Math.min(draftPick, draftPaths.length - 1);
+    renderPicker();
+  });
+  byId("pp-cancel").addEventListener("click", () => { byId("pathpicker").hidden = true; });
+  byId("pp-ok").addEventListener("click", () => {
+    const changed = draftPaths.join("\n") !== sources[draftKind].paths.join("\n");
+    sources[draftKind] = { paths: draftPaths, touched: true };
+    byId("pathpicker").hidden = true;
+    if (changed) markDirty();
+    render();   // #295: committing the list rebuilds the timeline off the new sources
+  });
+
+  // #297. A mockup has no config file, so localStorage stands in for one — same shape, same moment:
+  // written on demand, read once at boot. The unload prompt is the browser's own; a page cannot word
+  // it, which is why "discard" is the reader leaving anyway rather than a third button of ours.
+  byId("save-settings").addEventListener("click", () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+      dir: byId("dir").value, repo: byId("repo").value,
+      branch: byId("branch").value, ref: byId("ref").value,
+      jsonl: sources.jsonl.paths, fh: sources.fh.paths,
+    }));
+    settingsDirty = false;
+    byId("save-settings").disabled = true;
+    byId("saved-note").textContent = "saved";
+  });
+  addEventListener("beforeunload", event => { if (settingsDirty) event.preventDefault(); });
+  (() => {
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "null");
+    if (!saved) return;
+    byId("dir").value = saved.dir; byId("repo").value = saved.repo;
+    sources.jsonl = { paths: saved.jsonl, touched: true };
+    sources.fh = { paths: saved.fh, touched: true };
+  })();
+
+  // ---- zoom, and OPEN #282's time-source toggle -------------------------------------------------
+  // A full render, not just a CSS variable: which timestamps the gutter can print depends on how far
+  // apart the zoom has pushed them, so the row list has to be rebuilt at the new scale.
+  const applyZoom = () => {
+    byId("canvas").style.setProperty("--zoom", zoom);
+    byId("zoom-reset").textContent = `${Math.round(zoom * 100)}%`;
+    render();
+  };
+  byId("zoom-in").addEventListener("click", () => { zoom = Math.min(zoom * 1.25, 3); applyZoom(); });
+  byId("zoom-out").addEventListener("click", () => { zoom = Math.max(zoom / 1.25, 0.1); applyZoom(); });
+  byId("zoom-reset").addEventListener("click", () => { zoom = 1; applyZoom(); });
+
+  // On the real page the choice is a fourth query param, because the instants are computed server
+  // side and flipping it re-loads the view. Here it just re-reads the other field of each commit.
+  for (const [id, source] of [["t-committer", "committer"], ["t-author", "author"]])
+    byId(id).addEventListener("click", () => {
+      timeSource = source;
+      byId("t-committer").classList.toggle("current", source === "committer");
+      byId("t-author").classList.toggle("current", source === "author");
+      render();
+    });
+
+  // ---- task #304: the layer switcher ------------------------------------------------------------
+  // A full render off the same fixture, which is what makes 1 -> 2 -> 1 land back exactly where it
+  // started: Layer 1 is rebuilt, not a Layer 2 with things removed. The expanded row is dropped —
+  // one opened on a snapshot-only instant has nothing left to stand for at Layer 1.
+  for (const button of document.querySelectorAll(".layerbar button"))
+    button.addEventListener("click", () => {
+      layer = Number(button.dataset.layer);
+      for (const other of document.querySelectorAll(".layerbar button"))
+        other.classList.toggle("current", other === button);
+      byId("layer-h1").textContent = `Layer ${layer} View`;
+      expandedInstant = null;
+      pinInstants([]);
+      render();
+    });
+
+  // ---- OPEN #286: branch + commit dropdowns, populated once the repo is confirmed ---------------
+  // The real page needs its own FAST route for this — never a side effect of the ~10 s view build.
+  const option = (text, value) => { const o = el("option", null, text); o.value = value; return o; };
+  function confirmRepo() {
+    byId("root").classList.add("repo-ok");
+    byId("branch").replaceChildren(...BRANCHES.map(b => option(b, b)));
+    // 75 characters of subject plus the timestamp, which is why the control is sized in `ch`.
+    byId("ref").replaceChildren(
+      option("(default branch)", ""),
+      ...[...COMMITS].reverse().map(c =>
+        option(`${c.hash.slice(0, 8)}  ${c.subject.padEnd(75).slice(0, 75)}  ${label(commitInstant(c))}`, c.hash)));
+  }
+
+  // [Open…] — in the real page this POSTs /api/pick-folder and the local server runs the OS folder
+  // dialog. Here it just cycles sample paths.
+  const SAMPLES = ["/Users/you/code/demo-app", "/Users/you/code/some-other-repo",
+                   "/Users/you/archive/backup-2024"];
+  document.querySelectorAll("button.pick").forEach(b => b.addEventListener("click", () => {
+    const box = byId(b.dataset.for);
+    box.value = SAMPLES[(SAMPLES.indexOf(box.value) + 1) % SAMPLES.length];
+    render();
+  }));
+  document.querySelectorAll("#dir, #repo").forEach(c => c.addEventListener("input", render));
+  //byId("load").addEventListener("click", () => { confirmRepo(); render(); });
+
+  confirmRepo();
+  render();
+  requestAnimationFrame(drawMinimap);   // geometry is only real after the first layout pass
+</script>
+</body>
+</html>

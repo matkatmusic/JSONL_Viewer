@@ -532,5 +532,5 @@ ranges**, with a snapshot inside each, so a drawer header that grabs the
 session's first or last title instead of the one in effect is visibly wrong.
 
 - Verify: the modified mockup opens standalone in a browser with no server, and the user signs off on the layout — the same bar S14 and S18's mockup were held to. Concretely reviewable in the page: the `[2]` button is live and `[3]` is gone; toggling 1 ↔ 2 adds and removes snapshot nodes with nothing else moving except bubbles whose anchor a pre-commit snapshot pulls earlier; a snapshot node carries 📸, and clicking it opens the drawer headed `<filename> Snapshot - <the customTitle in effect at that point in the session>` while flashing its JSONL in the nav; an expanded ruler tick lists snapshot rows as `<filename> @vN 📸`; clicking one highlights its JSONL in a non-selection colour that fades; JSONL Nav rows read filename / customTitles / timestamp · files; the two same-`@vN`-different-bytes snapshots are distinguishable; a snapshot-free file is unchanged from Layer 1.
-- Tasks: #299, #300, #301, #302, #303, #304, #305, #306, #307
+- Tasks: #299, #300, #301, #302, #303, #304, #305, #306, #307, #308, #309
 - Status: open — mockup stage; implementation tasks are NOT created until sign-off.
