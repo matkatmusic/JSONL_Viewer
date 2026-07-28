@@ -2717,5 +2717,37 @@
       "2402cf1"
     ],
     "closureNote": "Closed by the user after reviewing the mockup: the current styling and positioning of bubbles is fine and looks good, so no alignment option needs to be chosen or ported."
+  },
+  {
+    "taskNumber": 292,
+    "title": "JSONL picker and filter for layer 1 view",
+    "description": "similar to the File Nav, but for JSONLs for a project.  clicking on a JSONL in the JSONL picker causes the timeline to only show files touched by that JSONL.  clicking on the JSONL again clears the filter.  Because the engine is able to show all file states for the files, the filtered view should show the full timeline for the touched files, but also graphically indicate the start/end range of the JSONL so the user can see where the JSONL fits in the timeline.  As with the File Nav, the user should be able to shift-click to select multiple JSONLs.",
+    "completionDate": "2026-07-27",
+    "commitHashes": [],
+    "closureNote": "Implemented: a JSONLs pane below the File Nav (webapp/layer1-sessions.ts) fed by a new GET /api/layer1-sessions that scans the picked JSONL source folders per transcript for its first/last record and touched paths; clicking a JSONL filters the timeline to those files (intersected with the folder filter by intersectFilterTargets in layer1-page.ts), shift-click extends, and webapp/layer1-ranges.ts draws the session's start/end bar plus a wash over the events it covers, with the .filebox background dropped to 52% so the wash reads through the bubbles."
+  },
+  {
+    "taskNumber": 295,
+    "title": "add 'JSONL sources' picker that lets you pick multiple JSONL source folders.",
+    "description": "Purpose: This component allows the user to select multiple locations for JSONL files.  Implementation Details: This component should be implemented as a scrollable list view with [+][-][set and close][cancel] buttons along the bottom to add/remove folders, confirm the JSONL source folder list, or cancel the updated list.  Trigger: The picker will be accessed using a button titled 'JSONL sources' placed on the same row as the 'Project folder' row. When the button is clicked, the widget with the title 'JSONL Source Paths' will be centered in the browser window, as the front-most item (z-order), rendered in front of the timeline.  Modifying the list: Clicking the [+] button shows a native file browser, with a filter to choose folder types only. Selecting a folder in the native file browser then adds that folder to the list.  [-].onClick removes the selected item from the list. OnListChange: Chosen Folders are scanned for nested JSONL files.  This allows the user to pick, for example, '~/Programming/jot-recover/claude-date/projects/', which would pick up every JSONL file in the subdirectories. Folders that do not contain JSONL files (at any nested level) are not added to the list. If the folder contains no JSONLs (at any nested level), a small alert bubble is displayed in front of the list with the text 'no JSONL files found' for a few seconds, then is removed.  Default list date: When the user first picks a project folder, the jsonl list is default-populated with the derived JSONL source folder for that project.  [set and close].onClick: the timeline should be rebuilt to incorporate the new sources.",
+    "completionDate": "2026-07-27",
+    "commitHashes": [],
+    "closureNote": "Implemented: a 'JSONL sources' button opening a shared modal path picker (webapp/layer1-path-picker.ts) with [+][-][cancel][set and close]; [+] uses the existing native folder chooser then the new GET /api/scan-source, refusing a folder holding no nested JSONLs with a transient 'no JSONL files found' bubble, and an untouched list default-seeds from the project folder's derived projects dir. [set and close] rebuilds the timeline."
+  },
+  {
+    "taskNumber": 296,
+    "title": "Add 'File History Snapshots' picker that lets you pick multiple file-history snapshot folders.",
+    "description": "This component uses the same mechanism and look as the 'JSONL sources' picker, and is placed next to the 'JSONL sources' button.  The component's title with displayed will be 'File History Snapshot Paths'.  Purpose: This component allows the user to select multiple locations for file history snapshots. [set and close].onClick: the timeline should be rebuilt to incorporate the new sources.",
+    "completionDate": "2026-07-27",
+    "commitHashes": [],
+    "closureNote": "Implemented: the same picker widget and rules as task 295, reached from a 'File History Snapshots' button beside it and titled 'File History Snapshot Paths'; [set and close] rebuilds the timeline."
+  },
+  {
+    "taskNumber": 297,
+    "title": "add a 'save project settings' button.",
+    "description": "This button will save the current project settings (project folder, JSONL sources, file-history snapshot sources, git repo path, git branch, git commit) to a local configuration file.  The configuration file will be read on startup to restore the last used project settings.  When the user changes any data source list for a particular project folder, this button will be enabled.  before the user closes the browser window, the user will be prompted to save the project settings if they have changed.  The user can also choose to discard the changes.",
+    "completionDate": "2026-07-27",
+    "commitHashes": [],
+    "closureNote": "Implemented: a 'Save project settings' button backed by a new GET/POST /api/layer1-settings writing ~/.jfred-layer1-settings.json keyed per project folder; it arms on any change to the boxes or either source list, restores the last project at boot (a ?dir=/?repo= link wins over the file), and a beforeunload prompt catches an unsaved exit."
   }
 ]
