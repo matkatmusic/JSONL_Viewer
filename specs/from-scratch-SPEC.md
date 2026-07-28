@@ -312,7 +312,21 @@ shorter history.
 **Ruler bounds.** Start = the oldest first-commit instant across all pairs,
 pulled earlier if any disk-orphan's timestamp predates it. End = the newest
 mtime in `current file state`. mtime is used throughout, including for
-orphans (birthtime is not portable).
+orphans.
+
+**Created-at node (task 298, 2026-07-27).** A pair also draws a dotted
+`created at` node from the file's birthtime, placed FIRST in its ladder.
+Birthtime is not portable, so it is only believed when it is later than epoch 0
+and strictly EARLIER than that file's mtime — macOS/APFS records a real one,
+while ext4 often reports 0 or echoes the mtime, and a copied file can claim a
+birth later than its mtime. A birth later than the file's own FIRST COMMIT is
+rejected on the same grounds: it is a checkout or copy time, since the file
+demonstrably existed before that commit, and every `git clone` reports one.
+That rejection is also what keeps a surviving created node the EARLIEST node in
+its bubble, i.e. always at the top. Any other answer draws no created node, so a
+file born and last modified at the same instant keeps its single `on disk` node.
+The created node is INERT: it is never the latest on-disk state, so it opens no
+Detail View and says so in its hover title.
 
 **Ruler scale — floored linear, capped (revised 2026-07-25).** Position is
 linear in UTC-ms at **2.5 px per hour**, except that any single gap between
