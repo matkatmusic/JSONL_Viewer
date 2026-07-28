@@ -621,7 +621,11 @@ import { BRANCHES, COMMITS, DISK, SESSIONS, SNAPSHOTS, basename, ms, titleAt, ti
   // file keeps its whole history, and the band drawn over the canvas is what says which stretch of
   // that history the session is answerable for.
   function renderSessions() {
-    byId("sessions").replaceChildren(...SESSIONS.map(session => {
+    // task #309: filters the LIST, never the timeline — filtering the timeline is what CLICKING a row
+    // does, and the two must stay separate. A session with no customTitle matches only an empty box.
+    const query = byId("session-search").value.trim().toLowerCase();
+    const shown = SESSIONS.filter(s => !query || titlesOf(s).some(t => t.toLowerCase().includes(query)));
+    byId("sessions").replaceChildren(...(shown.length ? shown : []).map(session => {
       const item = el("div", "session-item");
       item.dataset.file = session.file;   // task #303: how the flash finds this row again
       if (selectedSessions.has(session)) item.classList.add("selected");
@@ -643,6 +647,7 @@ import { BRANCHES, COMMITS, DISK, SESSIONS, SNAPSHOTS, basename, ms, titleAt, ti
       });
       return item;
     }));
+    if (!shown.length) byId("sessions").appendChild(el("div", "navempty", "no matches"));
     byId("clear-sessions").disabled = selectedSessions.size === 0;
   }
 
@@ -651,22 +656,59 @@ import { BRANCHES, COMMITS, DISK, SESSIONS, SNAPSHOTS, basename, ms, titleAt, ti
   // so its colour is --c-echo, never the --c-script the selection owns.
   // FLASH_MS is the one place the duration lives; the CSS reads it back off the element.
   const FLASH_MS = 2600;
-  function flashSession(file) {
-    // ONE row at a time, as `highlight` keeps one `.found`. Two mid-fade rows would leave the reader
-    // unable to tell which answered the click.
-    for (const lit of byId("sessions").querySelectorAll(".flash")) lit.classList.remove("flash");
-    const item = byId("sessions").querySelector(`[data-file="${file}"]`);
-    if (!item) return;
-    // Re-clicking restarts the fade, and an animation only restarts once the class has been off for
-    // a layout — hence the reflow read.
-    item.classList.remove("flash");
-    void item.offsetWidth;
-    item.style.setProperty("--flash-ms", `${FLASH_MS}ms`);
-    item.classList.add("flash");
+  // task #308: one click can answer for SEVERAL JSONLs, so every named row lights together and the
+  // caller passes its best match FIRST — that is the one the scroll follows. A row filtered out by
+  // #309's search simply is not there to light.
+  function flashSession(...files) {
+    const pane = byId("sessions");
+    for (const lit of pane.querySelectorAll(".flash, .flash-lead")) lit.classList.remove("flash", "flash-lead");
+    const rows = files.map(f => pane.querySelector(`[data-file="${f}"]`)).filter(Boolean);
+    for (const item of rows) {
+      // Re-clicking restarts the fade, and an animation only restarts once the class has been off for
+      // a layout — hence the reflow read.
+      item.classList.remove("flash");
+      void item.offsetWidth;
+      item.style.setProperty("--flash-ms", `${FLASH_MS}ms`);
+      item.classList.add("flash");
+      setTimeout(() => item.classList.remove("flash"), FLASH_MS);
+    }
     // The pane holds every session, so the answer is often below the fold — a flash nobody can see
-    // answers nothing (user, 2026-07-27). `nearest` scrolls the JSONL list and not the whole page.
-    item.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    setTimeout(() => item.classList.remove("flash"), FLASH_MS);
+    // answers nothing (user, 2026-07-27). Nothing scrolls while one lit row is already readable.
+    // The lead is the caller's best match and the only row a scroll ever follows — marked so the
+    // headless run can read which session answered, which a scroll offset does not say.
+    rows[0]?.classList.add("flash-lead");
+    setTimeout(() => rows[0]?.classList.remove("flash-lead"), FLASH_MS);
+    if (rows.length && !rows.some(isInSessionsView))
+      rows[0].scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+  const isInSessionsView = row => {
+    const pane = byId("pane-sessions").getBoundingClientRect(), r = row.getBoundingClientRect();
+    return r.bottom > pane.top && r.top < pane.bottom;
+  };
+
+  // ---- task #308: a bubble click highlights the JSONLs that touched that file -------------------
+  // HIGHLIGHT, not select — selecting is what filters the timeline. The clicked POINT is load-bearing:
+  // a bubble can span months and its sessions are spread across that span, so the row that gets
+  // scrolled to is the session nearest the instant under the cursor, not the first one in the list.
+  byId("stage").addEventListener("click", event => {
+    const box = event.target.closest(".filebox");
+    if (!box?.dataset.path || event.target.closest(".node, .nlabel")) return;
+    const touched = SESSIONS.filter(s => s.paths.includes(box.dataset.path));
+    if (!touched.length) return;
+    const t = instantUnder(box, event.clientY);
+    flashSession(...touched.sort((a, b) => sessionGap(a, t) - sessionGap(b, t)).map(s => s.file));
+  });
+  // 0 while the instant is inside the session's window, else how far outside it falls.
+  const sessionGap = (s, t) => Math.max(0, ms(s.started) - t, t - ms(s.ended));
+  // The ruler's own map, read backwards: the click's axis offset -> the nearest entry on the axis.
+  // The rect is in SCREEN px and the map is in axis px, so the zoom has to come back out.
+  function instantUnder(box, clientY) {
+    // Measured from the LANE, not the box: the box carries a 52 px header above its first node, so
+    // its own top edge is not the anchor instant's position.
+    const axisPx = model.pos.get(Number(box.dataset.instant)) +
+                   (clientY - box.querySelector(".lane").getBoundingClientRect().top) / zoom;
+    return model.instants.reduce((best, t) =>
+      Math.abs(model.pos.get(t) - axisPx) < Math.abs(model.pos.get(best) - axisPx) ? t : best);
   }
   byId("clear-sessions").addEventListener("click", () => { selectedSessions.clear(); render(); });
 
@@ -675,6 +717,12 @@ import { BRANCHES, COMMITS, DISK, SESSIONS, SNAPSHOTS, basename, ms, titleAt, ti
   byId("nav-search-clear").addEventListener("click", () => {
     byId("nav-search").value = "";
     renderNav(model);
+  });
+  // task #309: the list only — no render(), because the timeline is not what this filters.
+  byId("session-search").addEventListener("input", () => renderSessions());
+  byId("session-search-clear").addEventListener("click", () => {
+    byId("session-search").value = "";
+    renderSessions();
   });
 
   // ---- task #279 + OPEN #288: drag the File Nav's right edge -----------------------------------

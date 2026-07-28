@@ -4,8 +4,10 @@ Distilled from the 2026-07-23 design interview (Q1–Q21). Decision ledger:
 [`../from-scratch-reconstruction.hpp`](../from-scratch-reconstruction.hpp);
 goal input: [`../plans/from-scratch-reconstruction-goal.md`](../plans/from-scratch-reconstruction-goal.md);
 decided layout: [`../plans/mvp-app-mockup.html`](../plans/mvp-app-mockup.html);
-Layer 1 View layout (S18, signed off 2026-07-25):
-[`../plans/layer1-mockup.html`](../plans/layer1-mockup.html).
+Layer 1 + Layer 2 View layout (S18 signed off 2026-07-25, S19 signed off 2026-07-27):
+[`../plans/layer2-mockup/`](../plans/layer2-mockup/) — served, not opened off `file://`.
+The pre-split single-file original is kept at
+[`../plans/archived/layer1-mockup.html`](../plans/archived/layer1-mockup.html).
 
 ## Goal
 
@@ -40,8 +42,8 @@ above describes. Everything else is deferred behind this milestone.
   Git State** (on-disk file list paired against the repo tree, commit nodes on
   the ruler, plus the JSONL surface — session list and picker, multi-folder
   source paths, selected-session time-range wash), specified in **S18** and
-  SHIPPED; **Layer 2 = adds file-history snapshots**, specified in **S19** and
-  at the mockup stage. Layers 3+ are UNASSIGNED — the user's direction was
+  SHIPPED; **Layer 2 = adds file-history snapshots**, specified in **S19**, whose
+  mockup was signed off 2026-07-27 (engine and page work not yet specified). Layers 3+ are UNASSIGNED — the user's direction was
   "just do snapshots", so nothing above Layer 2 is specified and no task exists
   for one. A JSONL layer was briefly numbered separately and then DROPPED, not
   deferred: the Layer 1 mockup already carried the whole JSONL surface, and a
@@ -196,7 +198,7 @@ a disabled one — a greyed row of unassigned numbers promises a ladder that no
 longer exists. A button appears when a layer is specified, not before.
 - Verify: DOM test — selecting a layer changes the rendered node set; the control renders exactly the assigned layers and no placeholder buttons; each button exposes its what-it-adds tooltip text.
 - Tasks: #209
-- Status: open — the mockup half of this is #299/#304 under S19; #209 is the port into the real page.
+- Status: open — the mockup half of this is #299/#304 under S19, DONE 2026-07-27; #209 is the port into the real page.
 
 ### S10. Condense button
 Toggles per-session lanes into a single all-nodes column per file and back;
@@ -531,6 +533,7 @@ One fixture session also carries **two `customTitle` values over two line
 ranges**, with a snapshot inside each, so a drawer header that grabs the
 session's first or last title instead of the one in effect is visibly wrong.
 
-- Verify: the modified mockup opens standalone in a browser with no server, and the user signs off on the layout — the same bar S14 and S18's mockup were held to. Concretely reviewable in the page: the `[2]` button is live and `[3]` is gone; toggling 1 ↔ 2 adds and removes snapshot nodes with nothing else moving except bubbles whose anchor a pre-commit snapshot pulls earlier; a snapshot node carries 📸, and clicking it opens the drawer headed `<filename> Snapshot - <the customTitle in effect at that point in the session>` while flashing its JSONL in the nav; an expanded ruler tick lists snapshot rows as `<filename> @vN 📸`; clicking one highlights its JSONL in a non-selection colour that fades; JSONL Nav rows read filename / customTitles / timestamp · files; the two same-`@vN`-different-bytes snapshots are distinguishable; a snapshot-free file is unchanged from Layer 1.
+- Verify: the user signs off on the layout — the same bar S14 and S18's mockup were held to. The mockup is served rather than opened standalone (`cd plans/layer2-mockup && python3 -m http.server 8000`): it was split into `index.html` + `fixture.js` + `app.js` on 2026-07-27 at the user's request, and ES modules do not load off `file://`. Concretely reviewable in the page: the `[2]` button is live and `[3]` is gone; toggling 1 ↔ 2 adds and removes snapshot nodes and the ruler entries only a snapshot occupies, and nothing else changes; a snapshot node carries 📸, and clicking it opens the drawer headed `<filename> Snapshot - <the customTitle in effect at that point in the session>` while flashing its JSONL in the nav; an expanded ruler tick lists snapshot rows as `<filename> @vN 📸`; clicking one highlights its JSONL in a non-selection colour that fades; JSONL Nav rows read filename / customTitles / timestamp · files; the two same-`@vN`-different-bytes snapshots are distinguishable; a snapshot-free file is unchanged from Layer 1.
+- CORRECTION (2026-07-27, found while building #301): a pre-commit snapshot does **not** pull a bubble's anchor earlier. `born <= snapshot` is a standing fixture rule and `born` is itself a node, so no snapshot can ever be a bubble's earliest node. What a pre-commit snapshot does instead is take a ruler entry above every commit, which lengthens the ladder below it. The fixture's own ordering rule gained an upper bound too: `snapshot <= mtime`, since a snapshot after the last write could only mean the file was deleted, and a deleted file must not show as present in the File Nav.
 - Tasks: #299, #300, #301, #302, #303, #304, #305, #306, #307, #308, #309
-- Status: open — mockup stage; implementation tasks are NOT created until sign-off.
+- Status: #299-#307 DONE 2026-07-27 (RevEng 66dd668, jfred 825f36b), signed off by the user and covered by 43 headless checks in `jfred/scripts/visual/mockup.ts` (`npm run visual:mockup`). #308/#309 are follow-on mockup polish. Engine and page implementation tasks are still NOT created.
