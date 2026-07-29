@@ -219,5 +219,10 @@
     "blockedBy": [
       323
     ]
+  },
+  {
+    "taskNumber": 325,
+    "title": "Layer 1 File Nav click selects the file's on-disk node and shows it in the Detail view",
+    "description": "Bug (user feedback 2026-07-29 while reviewing tasks 319/320/323): clicking a file in the File Nav should deselect whatever is selected in the timeline, select the 'on-disk' node of the clicked file's bubble, and reveal that node's contents in the Detail view — opening the Detail view if it is not already shown. Relevant files: jfred/webapp/layer1-filenav.ts (file row clicks), jfred/webapp/layer1-find-file.ts (selection marks), jfred/webapp/layer1-drawer.ts (openNodeDrawer)."
   }
 ]
