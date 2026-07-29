@@ -65,3 +65,22 @@ Applies to every discriminant: `RecordType`, `BlockType`, `ToolName`,
 
 Name a function for what it does. `resolveToolResult` (not `typeToolResult`);
 `getContentBlocks`, `hydrateWriteResult`, `loadRecords`, `readNonEmptyLines`.
+
+## 6. Anything slow shows a progress bar
+
+User rule, 2026-07-27: **for anything that takes a while to load, show a progress
+bar to the user.**
+
+- Any fetch or build that can exceed roughly a second gets a visible indicator for
+  its whole duration — *including* work started with a bare `void promise` so it
+  does not block the main render. That case is what produced this rule.
+- A "nothing found" / empty-state message may only render once the work has
+  actually completed. Loading and empty are different states, and showing one for
+  the other tells the reader the work is done and produced nothing. The JSONLs pane
+  displayed "no JSONLs touched this project's files" for the ~4 s its scan was still
+  running, which read as the pane being broken (task 304).
+- Prefer an incrementing **counter** to a static label for per-item stages: an
+  advancing number is what distinguishes slow from hung (tasks 163, 303).
+- Reuse the page's existing loadbar rather than adding a second idiom —
+  `webapp/layer1-progress.ts` (`.loadbar` / `.loadbar-fill` / `.loadbar-label`), fed
+  by the NDJSON `?progress=1` stream pattern in `src/viewer_api_layer1_route.ts`.
