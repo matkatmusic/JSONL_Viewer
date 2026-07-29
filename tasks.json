@@ -122,26 +122,26 @@
     "description": "The codebase has many comments that are verbose, redundant, or outdated, causing contextual bloat for agents working on the code.  This task is to eliminate all comments and docstrings that are not necessary for understanding the code, and to ensure that all remaining comments are concise, accurate, and relevant.  The goal is to reduce cognitive load and improve readability for future developers. existing comments should be replaced with single-sentence summaries of the code's purpose.  The summary sentence should be less than 30 words long."
   },
   {
-    "taskNumber": 307,
+    "taskNumber": 319,
     "title": "Split (side-by-side) diff: lead every cell with its +/-/space marker, per the signed-off mockup",
     "description": "Layer 1 / classic viewer split diff: add the +/- /space marker to every side-by-side cell. The signed-off mockup (plans/layer1-mockup.html ~1492, sign wiring ~1507-1527) leads EVERY text cell with its marker in both diff modes; the shipped shared renderer keeps markers inline-only — jfred/webapp/diff-vs-base-model.ts strips the one-char unified prefix at lines 92/96/100 and appendSplitCellPair in jfred/webapp/diff-render.ts:67-84 renders no marker, so split view shows only the dc-add/dc-del washes. Fix in the shared renderer so BOTH the Layer 1 drawer and the classic Revision Viewer side-by-side gain the markers. Found by the 2026-07-28 mockup parity audit (the single FAIL, 20/21 passed)."
   },
   {
-    "taskNumber": 308,
+    "taskNumber": 320,
     "title": "Layer 1 drawer: 'full content' shows the full file WITH diff decorations, like the Revision Viewer",
     "description": "Layer 1 Detail View drawer: 'full content' must be a TOGGLE, not a mode button (user refinement 2026-07-28). What it does: toggles the display of the full file content SURROUNDING the diff, in whichever diff layout is active (inline or side-by-side) — the diff must remain shown while the toggle is active. The existing Revision Viewer behaves exactly this way, so the drawer must match it. NOTE the distinction: the full-content toggle's effect is different from clicking a single node and viewing that node's contents at its instant — that single-node view stays as it is. Current wrong behavior: the drawer (task 305, jfred/webapp/layer1-drawer-diff.ts + shared jfred/webapp/diff-render.ts) treats 'full content' as a separate plain view that replaces and hides the diff. Requested by the user 2026-07-28 during the Layer 1 close-out parity review."
   },
   {
-    "taskNumber": 311,
+    "taskNumber": 323,
     "title": "Layer 1 File Detail view: up/down arrows cycle the selected node through the file's timeline",
     "description": "Layer 1 File Detail view (drawer with ONE node selected): add 'up/down' arrow buttons that select the previous/next node in that file's timeline, to enable cycling through the revisions of that file without going back to the lane. User request 2026-07-28. Rules for how the selection cycles at the ends of the file's timeline (wrap vs stop) need to be defined, but can be defined later. Relevant files: jfred/webapp/layer1-drawer.ts (openNodeDrawer + header strip), jfred/webapp/layer1-widgets.ts (the lane's node list/order), jfred/webapp/layer1-find-file.ts (highlightLandedElement marks should follow the newly selected node)."
   },
   {
-    "taskNumber": 312,
+    "taskNumber": 324,
     "title": "Layer 1 Diff Detail view: up/down arrows move the base and target nodes independently",
     "description": "Layer 1 Diff Detail view (drawer with TWO nodes selected): add 'up/down' arrow buttons for BOTH the first (base) and second (target) node of the file's timeline, to enable easily changing which two nodes are selected for the diff without re-shift-clicking on the lane. User request 2026-07-28. Rules regarding whether base/target may land on the same node, and exactly how the up/down buttons move each side through the file's node list, need to be defined — but can be defined later. Relevant files: jfred/webapp/layer1-drawer-diff.ts (pair state + header strip), jfred/webapp/layer1-drawer.ts, jfred/webapp/layer1-widgets.ts (node order on the lane), jfred/webapp/layer1-find-file.ts (base/target marks must follow the new selection). Related: task 311 adds the single-node version of these arrows.",
     "blockedBy": [
-      311
+      323
     ]
   }
 ]

@@ -2857,7 +2857,7 @@
     "closureNote": "Diagnosis proved the geometry honest — centisecond labels merged distinct millisecond instants; fixed with millisecond ruler labels per the user's choice."
   },
   {
-    "taskNumber": 309,
+    "taskNumber": 321,
     "title": "Layer 1 View: 'resolving the ruler' progress bar shows no progress in the real app",
     "description": "User bug report 2026-07-28, immediately after the Layer 1 close-out merges: the 'resolving the ruler' progress bar doesn't show progress in the real app. NOTE: the same-day headless CDP parity audit on the merged layer-1-milestone tree PASSED this check (60 painted, monotonically increasing 'resolving the ruler — n / 300' frames), so FIRST verify the user was running a restarted server (src/viewer_api_layer1.ts changed — a stale viewer process serves the old counterless stage) and a hard-reloaded page. If it still reproduces fresh: the counter is fed by the onLadderPlaced callback layOutNodeLadders fires per ladder (jfred/webapp/layer1-ruler-axis.ts) which src/viewer_api_layer1.ts forwards as counted LAYER1_PROGRESS_LABEL_RESOLVING_RULER NDJSON events; check the events reach the client (jfred/webapp/layer1-progress.ts paint path) and that the stream isn't buffering them into one flush on the user's real ~900-ladder project.",
     "completionDate": "2026-07-28",
@@ -2867,7 +2867,7 @@
     "closureNote": "Real cause was markMultiEventTicks' O(rows×bubbles) render stall; snapshot + chunked render with a painted drawing-the-timeline counter. User-verified 2026-07-28."
   },
   {
-    "taskNumber": 310,
+    "taskNumber": 322,
     "title": "Layer 1 View: the Cancel load button stays visible after the load completes",
     "description": "User bug report 2026-07-28, immediately after the Layer 1 close-out merges: the 'Cancel' load button is still displayed after the load completes — it must be hidden the moment the load finishes, fails, or is cancelled (the task-302 contract). NOTE: the same-day headless CDP parity audit PASSED this check on the merged tree (Cancel visible only while /api/layer1-view streamed; hidden after finish and after cancel), so FIRST verify against a restarted viewer server and hard-reloaded page (stale-viewer trap). If it still reproduces fresh: loadLayer1View's finally calls hideLayer1Progress (jfred/webapp/layer1-page.ts), and hideLayer1Progress also resets the confirm state (jfred/webapp/layer1-progress.ts wireLayer1CancelButton) — look for a path that repaints or re-shows the loadbar after that hide (e.g. the task-304 sessions pane loadbar sharing .loadbar styling or a late progress event painting after the terminal view line), leaving the button visible.",
     "completionDate": "2026-07-28",
