@@ -3129,5 +3129,18 @@
       "RevEng@fada700"
     ],
     "closureNote": "Implemented as jfred/src/layer1_sessions.ts (buildSessionMetadata + titleInEffectAtLine) with unit tests; full suite green and user verified."
+  },
+  {
+    "taskNumber": 312,
+    "title": "Layer 2 engine: snapshot nodes on the Layer 1 wire, ruler and shared axis",
+    "description": "Spec S19. Extend jfred/src/viewer_api_layer1.ts's Layer1WireView so every pair — and every DISK ORPHAN, since a file can be snapshotted without being in the repo — carries `snapshots: Layer1WireSnapshot[]`, where Layer1WireSnapshot extends Layer1WireInstant with { version, sessionFile, sessionId, line }. The route gains `?jsonl=` and `?snapshots=` params for the session and file-history roots (task 310's inputs) and round-trips them through the URL exactly as ?dir=&repo=&ref=&time= already do, so a Layer 2 view stays one shareable link; tasks 295 and 296's pickers write into these same params.\n\nThe payload ALWAYS carries snapshots regardless of the selected layer. The layer switcher is a client-side show/hide (task 314), and refetching on toggle would pay the ~10 s build twice.\n\nSnapshot instants are REAL ruler entries: they join the capped-gap ladder, they get ticks, and they count toward Layer1WireRulerTick.eventCount. So they must flow through layOutNodeLadders in jfred/webapp/layer1-ruler-axis.ts — the module the server and the client SHARE — not be bolted on afterwards. Per the S19 CORRECTION of 2026-07-27, a pre-commit snapshot does NOT pull a bubble's anchor earlier: `born <= snapshot <= mtime` is physics and `born` is itself a node, so no snapshot can ever be a bubble's earliest node; what it does instead is take a ruler entry above every commit, which lengthens the ladder below it. Add a progress label for the new stage beside the existing LAYER1_PROGRESS_LABEL_* constants — the snapshot read is new cost in a build that already runs ~10 s, and this project's standing rule is that anything slow shows progress.\n\nTRAPS. (1) jfred/webapp/layer1-wire.ts and jfred/webapp/layer1-filter.ts MIRROR the server's ladder so a folder filter can re-layout client-side; if the mirror does not add snapshots identically, a filtered view's offsets silently disagree with the shipped ones. (2) Task 259's tie-group markers read instants off the ladder, so extra nodes change which nodes group. (3) countRowsPerInstant in layer1-ruler-axis.ts measures per-instant row demand from the ladders, so adding nodes changes ruler spacing and every offset after it — the existing placement tests' hand-derived ladders will have to be redone. (4) viewer_api_layer1.ts is near the 250-line cap, so the new behaviour goes in a NEW module.\n\nVERIFY: unit tests — an instant occupied ONLY by a snapshot appears in `ruler`; eventCount at a shared instant counts the snapshot alongside the commit or disk node (the mockup's src/index.ts @v3 lands exactly ON its mtime, inside a task-259 tie); a snapshot-free pair's wire shape is unchanged from today; the same fixture through the client mirror produces the same offsets as the server.",
+    "completionDate": "2026-07-29",
+    "commitHashes": [
+      "jfred@ef53db8",
+      "jfred@e390529",
+      "RevEng@38b843d",
+      "RevEng@fa2c391"
+    ],
+    "closureNote": "Snapshots on the wire via layer1_snapshot_wire.ts (?jsonl= param, client mirror, 8 tests); full-payload wire-contract check PASS on real data after the owner+blob dedupe fix; user verified via the Network inspector."
   }
 ]
