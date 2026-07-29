@@ -3061,5 +3061,38 @@
       "b1a8421"
     ],
     "closureNote": "Drawer ↑/↓ arrows cycle the selected node through the file's lane via openNodeDrawer, disabled at the ends (stop, no wrap); user-verified 2026-07-29."
+  },
+  {
+    "taskNumber": 324,
+    "title": "Layer 1 Diff Detail view: up/down arrows move the base and target nodes independently",
+    "description": "Layer 1 Diff Detail view (drawer with TWO nodes selected): add 'up/down' arrow buttons for BOTH the first (base) and second (target) node of the file's timeline, to enable easily changing which two nodes are selected for the diff without re-shift-clicking on the lane. User request 2026-07-28. Rules regarding whether base/target may land on the same node, and exactly how the up/down buttons move each side through the file's node list, need to be defined — but can be defined later. Relevant files: jfred/webapp/layer1-drawer-diff.ts (pair state + header strip), jfred/webapp/layer1-drawer.ts, jfred/webapp/layer1-widgets.ts (node order on the lane), jfred/webapp/layer1-find-file.ts (base/target marks must follow the new selection). Related: task 311 adds the single-node version of these arrows. DESIGN SETTLED (user, 2026-07-29, reviewing task 323): the current single pair of arrows behaves identically to 323 — wrong for a diff pair. Correct drawer header layout, two rows: row 1 = `<file name> [^][v] <base hash> - <target hash> [^][v]` (one arrow pair moves the BASE node, the second pair moves the TARGET node); row 2 = `[diff side-by-side][inline] [√]Full content [export as patch][close]` — the diff buttons live on their own row, full content renders as a checkbox toggle.",
+    "completionDate": "2026-07-29",
+    "commitHashes": [
+      "c253307",
+      "5d3659a"
+    ],
+    "closureNote": "Pair mode gained independent base/target cycling arrows (stop at ends, never collide) with the two-row drawer header and full-content checkbox per the settled design; user-verified 2026-07-29."
+  },
+  {
+    "taskNumber": 325,
+    "title": "Layer 1 File Nav click selects the file's on-disk node and shows it in the Detail view",
+    "description": "Bug (user feedback 2026-07-29 while reviewing tasks 319/320/323): clicking a file in the File Nav should deselect whatever is selected in the timeline, select the 'on-disk' node of the clicked file's bubble, and reveal that node's contents in the Detail view — opening the Detail view if it is not already shown. Relevant files: jfred/webapp/layer1-filenav.ts (file row clicks), jfred/webapp/layer1-find-file.ts (selection marks), jfred/webapp/layer1-drawer.ts (openNodeDrawer).",
+    "completionDate": "2026-07-29",
+    "commitHashes": [
+      "c253307",
+      "5d3659a"
+    ],
+    "closureNote": "A File Nav file click deselects the timeline, selects the file's on-disk node and opens the Detail drawer, with a retry over async filter repaints; user-verified 2026-07-29."
+  },
+  {
+    "taskNumber": 327,
+    "title": "Layer 1 node selection indicator [ ] overlaps the node text; move it closer to the node",
+    "description": "Bug (user feedback 2026-07-29): the [ ] indicator that marks a selected timeline node overlaps the node text and should sit closer to the node. The mockup (plans/archived/layer1-mockup.html) demonstrates the correct visual for the node selection indicator. Relevant files: jfred/webapp/layer1-styles.css (indicator geometry), jfred/webapp/layer1-find-file.ts (highlightLandedElement applies the marks).",
+    "completionDate": "2026-07-29",
+    "commitHashes": [
+      "c253307",
+      "5d3659a"
+    ],
+    "closureNote": "The [ ] selection brackets sit flush against the node, clear of the label text; user-verified 2026-07-29."
   }
 ]

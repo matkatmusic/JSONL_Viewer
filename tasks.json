@@ -198,24 +198,9 @@
     ]
   },
   {
-    "taskNumber": 324,
-    "title": "Layer 1 Diff Detail view: up/down arrows move the base and target nodes independently",
-    "description": "Layer 1 Diff Detail view (drawer with TWO nodes selected): add 'up/down' arrow buttons for BOTH the first (base) and second (target) node of the file's timeline, to enable easily changing which two nodes are selected for the diff without re-shift-clicking on the lane. User request 2026-07-28. Rules regarding whether base/target may land on the same node, and exactly how the up/down buttons move each side through the file's node list, need to be defined — but can be defined later. Relevant files: jfred/webapp/layer1-drawer-diff.ts (pair state + header strip), jfred/webapp/layer1-drawer.ts, jfred/webapp/layer1-widgets.ts (node order on the lane), jfred/webapp/layer1-find-file.ts (base/target marks must follow the new selection). Related: task 311 adds the single-node version of these arrows. DESIGN SETTLED (user, 2026-07-29, reviewing task 323): the current single pair of arrows behaves identically to 323 — wrong for a diff pair. Correct drawer header layout, two rows: row 1 = `<file name> [^][v] <base hash> - <target hash> [^][v]` (one arrow pair moves the BASE node, the second pair moves the TARGET node); row 2 = `[diff side-by-side][inline] [√]Full content [export as patch][close]` — the diff buttons live on their own row, full content renders as a checkbox toggle."
-  },
-  {
-    "taskNumber": 325,
-    "title": "Layer 1 File Nav click selects the file's on-disk node and shows it in the Detail view",
-    "description": "Bug (user feedback 2026-07-29 while reviewing tasks 319/320/323): clicking a file in the File Nav should deselect whatever is selected in the timeline, select the 'on-disk' node of the clicked file's bubble, and reveal that node's contents in the Detail view — opening the Detail view if it is not already shown. Relevant files: jfred/webapp/layer1-filenav.ts (file row clicks), jfred/webapp/layer1-find-file.ts (selection marks), jfred/webapp/layer1-drawer.ts (openNodeDrawer)."
-  },
-  {
     "taskNumber": 326,
     "title": "Layer 1 File Nav: 'Show Only Selected' button filters the timeline to the selected files",
-    "description": "Feature (user feedback 2026-07-29): add a 'Show Only Selected' button to the Layer 1 File Nav that filters the timeline to only show the bubbles of the selected files. If nothing is selected in the File Nav, show all files in the Timeline. Relevant files: jfred/webapp/layer1-filenav.ts (selection state), jfred/webapp/layer1-folder-filter.ts (existing folder-filter mechanism to reuse), jfred/webapp/layer1-page.ts (re-render wiring)."
-  },
-  {
-    "taskNumber": 327,
-    "title": "Layer 1 node selection indicator [ ] overlaps the node text; move it closer to the node",
-    "description": "Bug (user feedback 2026-07-29): the [ ] indicator that marks a selected timeline node overlaps the node text and should sit closer to the node. The mockup (plans/archived/layer1-mockup.html) demonstrates the correct visual for the node selection indicator. Relevant files: jfred/webapp/layer1-styles.css (indicator geometry), jfred/webapp/layer1-find-file.ts (highlightLandedElement applies the marks)."
+    "description": "Feature (user feedback 2026-07-29): add a 'Show Only Selected' button to the Layer 1 File Nav that filters the timeline to only show the bubbles of the selected files. If nothing is selected in the File Nav, show all files in the Timeline. Relevant files: jfred/webapp/layer1-filenav.ts (selection state), jfred/webapp/layer1-folder-filter.ts (existing folder-filter mechanism to reuse), jfred/webapp/layer1-page.ts (re-render wiring). STATUS 2026-07-29 (do not assume working): first pass shipped at jfred c253307 — folder + shift-click file selection reported via listSelectedNavTargets (webapp/views/sidebar.ts), #filenav-only-selected toggle gating folderTargets in webapp/layer1-page.ts — and passed headless CDP checks, but the USER reports the live timeline and minimap are NOT filtered as expected. Left open for another agent; do not close on the CDP evidence."
   },
   {
     "taskNumber": 328,
