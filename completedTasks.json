@@ -3028,5 +3028,82 @@
       "15770e4"
     ],
     "closureNote": ".loadbar's class display:flex overrode the hidden attribute; explicit .loadbar[hidden] rule hides bar and Cancel after load. User-verified 2026-07-28."
+  },
+  {
+    "taskNumber": 319,
+    "title": "Split (side-by-side) diff: lead every cell with its +/-/space marker, per the signed-off mockup",
+    "description": "Layer 1 / classic viewer split diff: add the +/- /space marker to every side-by-side cell. The signed-off mockup (plans/layer1-mockup.html ~1492, sign wiring ~1507-1527) leads EVERY text cell with its marker in both diff modes; the shipped shared renderer keeps markers inline-only — jfred/webapp/diff-vs-base-model.ts strips the one-char unified prefix at lines 92/96/100 and appendSplitCellPair in jfred/webapp/diff-render.ts:67-84 renders no marker, so split view shows only the dc-add/dc-del washes. Fix in the shared renderer so BOTH the Layer 1 drawer and the classic Revision Viewer side-by-side gain the markers. Found by the 2026-07-28 mockup parity audit (the single FAIL, 20/21 passed).",
+    "completionDate": "2026-07-29",
+    "commitHashes": [
+      "a2d1efc",
+      "b1a8421"
+    ],
+    "closureNote": "Split-diff cells now lead with their +/-/space marker via the shared renderer (appendSplitCellPair → appendMarkedCode); verified by 11/11 headless CDP checks and the user in the live server 2026-07-29."
+  },
+  {
+    "taskNumber": 320,
+    "title": "Layer 1 drawer: 'full content' shows the full file WITH diff decorations, like the Revision Viewer",
+    "description": "Layer 1 Detail View drawer: 'full content' must be a TOGGLE, not a mode button (user refinement 2026-07-28). What it does: toggles the display of the full file content SURROUNDING the diff, in whichever diff layout is active (inline or side-by-side) — the diff must remain shown while the toggle is active. The existing Revision Viewer behaves exactly this way, so the drawer must match it. NOTE the distinction: the full-content toggle's effect is different from clicking a single node and viewing that node's contents at its instant — that single-node view stays as it is. Current wrong behavior: the drawer (task 305, jfred/webapp/layer1-drawer-diff.ts + shared jfred/webapp/diff-render.ts) treats 'full content' as a separate plain view that replaces and hides the diff. Requested by the user 2026-07-28 during the Layer 1 close-out parity review.",
+    "completionDate": "2026-07-29",
+    "commitHashes": [
+      "a2d1efc",
+      "b1a8421"
+    ],
+    "closureNote": "Drawer 'full content' is now a context-width toggle (/api/layer1-diff?context=full → FULL_FILE_CONTEXT_LINES) keeping the diff shown in the active layout; user-verified 2026-07-29."
+  },
+  {
+    "taskNumber": 323,
+    "title": "Layer 1 File Detail view: up/down arrows cycle the selected node through the file's timeline",
+    "description": "Layer 1 File Detail view (drawer with ONE node selected): add 'up/down' arrow buttons that select the previous/next node in that file's timeline, to enable cycling through the revisions of that file without going back to the lane. User request 2026-07-28. Rules for how the selection cycles at the ends of the file's timeline (wrap vs stop) need to be defined, but can be defined later. Relevant files: jfred/webapp/layer1-drawer.ts (openNodeDrawer + header strip), jfred/webapp/layer1-widgets.ts (the lane's node list/order), jfred/webapp/layer1-find-file.ts (highlightLandedElement marks should follow the newly selected node).",
+    "completionDate": "2026-07-29",
+    "commitHashes": [
+      "a2d1efc",
+      "b1a8421"
+    ],
+    "closureNote": "Drawer ↑/↓ arrows cycle the selected node through the file's lane via openNodeDrawer, disabled at the ends (stop, no wrap); user-verified 2026-07-29."
+  },
+  {
+    "taskNumber": 324,
+    "title": "Layer 1 Diff Detail view: up/down arrows move the base and target nodes independently",
+    "description": "Layer 1 Diff Detail view (drawer with TWO nodes selected): add 'up/down' arrow buttons for BOTH the first (base) and second (target) node of the file's timeline, to enable easily changing which two nodes are selected for the diff without re-shift-clicking on the lane. User request 2026-07-28. Rules regarding whether base/target may land on the same node, and exactly how the up/down buttons move each side through the file's node list, need to be defined — but can be defined later. Relevant files: jfred/webapp/layer1-drawer-diff.ts (pair state + header strip), jfred/webapp/layer1-drawer.ts, jfred/webapp/layer1-widgets.ts (node order on the lane), jfred/webapp/layer1-find-file.ts (base/target marks must follow the new selection). Related: task 311 adds the single-node version of these arrows. DESIGN SETTLED (user, 2026-07-29, reviewing task 323): the current single pair of arrows behaves identically to 323 — wrong for a diff pair. Correct drawer header layout, two rows: row 1 = `<file name> [^][v] <base hash> - <target hash> [^][v]` (one arrow pair moves the BASE node, the second pair moves the TARGET node); row 2 = `[diff side-by-side][inline] [√]Full content [export as patch][close]` — the diff buttons live on their own row, full content renders as a checkbox toggle.",
+    "completionDate": "2026-07-29",
+    "commitHashes": [
+      "c253307",
+      "5d3659a"
+    ],
+    "closureNote": "Pair mode gained independent base/target cycling arrows (stop at ends, never collide) with the two-row drawer header and full-content checkbox per the settled design; user-verified 2026-07-29."
+  },
+  {
+    "taskNumber": 325,
+    "title": "Layer 1 File Nav click selects the file's on-disk node and shows it in the Detail view",
+    "description": "Bug (user feedback 2026-07-29 while reviewing tasks 319/320/323): clicking a file in the File Nav should deselect whatever is selected in the timeline, select the 'on-disk' node of the clicked file's bubble, and reveal that node's contents in the Detail view — opening the Detail view if it is not already shown. Relevant files: jfred/webapp/layer1-filenav.ts (file row clicks), jfred/webapp/layer1-find-file.ts (selection marks), jfred/webapp/layer1-drawer.ts (openNodeDrawer).",
+    "completionDate": "2026-07-29",
+    "commitHashes": [
+      "c253307",
+      "5d3659a"
+    ],
+    "closureNote": "A File Nav file click deselects the timeline, selects the file's on-disk node and opens the Detail drawer, with a retry over async filter repaints; user-verified 2026-07-29."
+  },
+  {
+    "taskNumber": 327,
+    "title": "Layer 1 node selection indicator [ ] overlaps the node text; move it closer to the node",
+    "description": "Bug (user feedback 2026-07-29): the [ ] indicator that marks a selected timeline node overlaps the node text and should sit closer to the node. The mockup (plans/archived/layer1-mockup.html) demonstrates the correct visual for the node selection indicator. Relevant files: jfred/webapp/layer1-styles.css (indicator geometry), jfred/webapp/layer1-find-file.ts (highlightLandedElement applies the marks).",
+    "completionDate": "2026-07-29",
+    "commitHashes": [
+      "c253307",
+      "5d3659a"
+    ],
+    "closureNote": "The [ ] selection brackets sit flush against the node, clear of the label text; user-verified 2026-07-29."
+  },
+  {
+    "taskNumber": 326,
+    "title": "Layer 1 File Nav: 'Show Only Selected' button filters the timeline to the selected files",
+    "description": "Feature (user feedback 2026-07-29): add a 'Show Only Selected' button to the Layer 1 File Nav that filters the timeline to only show the bubbles of the selected files. If nothing is selected in the File Nav, show all files in the Timeline. Relevant files: jfred/webapp/layer1-filenav.ts (selection state), jfred/webapp/layer1-folder-filter.ts (existing folder-filter mechanism to reuse), jfred/webapp/layer1-page.ts (re-render wiring). STATUS 2026-07-29 (do not assume working): first pass shipped at jfred c253307 — folder + shift-click file selection reported via listSelectedNavTargets (webapp/views/sidebar.ts), #filenav-only-selected toggle gating folderTargets in webapp/layer1-page.ts — and passed headless CDP checks, but the USER reports the live timeline and minimap are NOT filtered as expected. Left open for another agent; do not close on the CDP evidence.",
+    "completionDate": "2026-07-29",
+    "commitHashes": [
+      "c2533076335a78d052f3864cfd9d939d2bdd4896",
+      "3c060e0b11361681124453f5c0461e7e6e46efda"
+    ],
+    "closureNote": "User-verified completed as defined in the spec: first pass at jfred c253307; follow-up at jfred 3c060e0 makes an empty File-Nav/session intersection draw an empty stage (undefined = no filter), with CDP-verified timeline+minimap filtering (943->1)."
   }
 ]

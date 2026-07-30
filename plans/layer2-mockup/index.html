@@ -144,7 +144,8 @@
   .filenav { flex: none; width: var(--filenav-w); display: flex; flex-direction: column;
     overflow: hidden; --files-share: 50;
     border-right: 1px solid var(--border); background: var(--surface); }
-  .navpane { overflow: auto; padding: 10px 8px 14px; min-height: 0; }
+  /* No padding-TOP: a padded scroll container would hold the sticky .panehead that far down. */
+  .navpane { overflow: auto; padding: 0 8px 14px; min-height: 0; }
   #pane-files { flex: var(--files-share) 1 0; }
   #pane-sessions { flex: calc(100 - var(--files-share)) 1 0; }
   .pane-grip { flex: none; height: 7px; margin: -3px 0; cursor: row-resize; z-index: 3;
@@ -152,10 +153,21 @@
   .pane-grip:hover, .pane-grip.dragging { background: color-mix(in srgb, var(--sel-edge) 45%, transparent); }
   .filenav .pane-title { font: 600 11px system-ui; text-transform: uppercase; letter-spacing: .04em;
     color: var(--muted); padding: 2px 4px 6px; display: flex; align-items: center; gap: 6px; }
-  .filenav .pane-title button { margin-left: auto; padding: 1px 7px; font-size: 10.5px; }
+  /* Only the FIRST button takes the free space: with task #326's toggle there are now two, and two
+     auto margins would SPLIT the gap and strand one of them mid-row. */
+  .filenav .pane-title button { padding: 1px 7px; font-size: 10.5px; text-transform: none;
+    letter-spacing: normal; }
+  .filenav .pane-title button:first-of-type { margin-left: auto; }
+  /* task #326: the toggle paints like every other active control on the page. */
+  .filenav .pane-title button.current { background: var(--sel-edge); border-color: var(--sel-edge);
+    color: #fff; }
+  /* Title and search stay put while the tree scrolls under; negative margins reach the pane's edges. */
+  .panehead { position: sticky; top: 0; z-index: 3; background: var(--surface);
+    margin: 0 -8px; padding: 10px 8px 0; }
+
   /* task #281: the File Nav's OWN search box — it filters this tree only and shares no code with
-     the find-bubble box, which searches the timeline. Sticky so it survives a long scroll. */
-  .navsearch { position: sticky; top: 0; z-index: 2; display: flex; gap: 4px; align-items: center;
+     the find-bubble box, which searches the timeline. */
+  .navsearch { display: flex; gap: 4px; align-items: center;
     padding: 2px 4px 6px; background: var(--surface); }
   .navsearch input { flex: 1; min-width: 0; font: 11px ui-monospace, Menlo, monospace; padding: 3px 7px;
     color: var(--ink); background: var(--page); border: 1px solid var(--border); border-radius: 6px; }
@@ -164,17 +176,24 @@
   .file-folder-name { font: 600 11.5px ui-monospace, Menlo, monospace; color: var(--ink2);
     padding: 2px 4px; border-radius: 4px; cursor: pointer; list-style: none; }
   .file-folder-name::-webkit-details-marker { display: none; }
-  .file-folder-name::before { content: "▾ "; color: var(--muted); }
+  /* A REAL element, not a ::before, so the triangle's click can be told from the name's. */
+  .file-folder > summary > .file-folder-toggle { order: -1; display: inline-block; width: 13px;
+    color: var(--muted); cursor: pointer; }
+  .file-folder > summary > .file-folder-toggle::before { content: "▸"; }
+  .file-folder[open] > summary > .file-folder-toggle::before { content: "▾"; }
   .file-folder-name:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
   .file-folder-name.selected { background: var(--sel-edge); color: #fff; }
-  .file-folder-name.selected::before { color: #fff; }
+  .file-folder-name.selected > .file-folder-toggle { color: #fff; }
   .file-folder-kids { margin-left: 9px; padding-left: 7px; border-left: 1px solid var(--border); }
   .file-item { font: 11px ui-monospace, Menlo, monospace; color: var(--ink2);
     padding: 1px 4px; border-radius: 4px; white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
   .file-item:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+  /* The clicked row says so; a deleted file has no bubble, so this is its only answer. */
+  .file-item.selected { background: var(--sel-edge); color: #fff; }
   /* Deleted = in the repo tree, absent on disk. #252 says these MUST still be listed. */
   .file-item.deleted { color: var(--muted); text-decoration: line-through; }
+  .file-item.deleted.selected { color: #fff; }
   .navempty { font-size: 11px; color: var(--muted); padding: 6px 4px; }
 
   /* task #292: the JSONL picker is a second SECTION of the File Nav pane, not a third column — it
@@ -453,12 +472,16 @@
   .malert[hidden] { display: none; }
 
   /* ---- OPEN #257: Detail View drawer, right half of the screen. */
+  /* A flex COLUMN since task #324 gave the header a second row: the body can no longer subtract a
+     fixed header height, because whether row 2 is there depends on what is selected. */
   .drawer { flex: none; width: 0; overflow: hidden; border-left: 1px solid var(--border);
-    background: var(--surface); }   /* no width transition: #258 re-centres the clicked node against
+    background: var(--surface); display: flex; flex-direction: column; }
+                                 /* no width transition: #258 re-centres the clicked node against
                                     the post-reflow pane, and an animating width is never that */
   .drawer.open { width: 50%; }
   .drawer .dhead { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-    border-bottom: 1px solid var(--border); }
+    border-bottom: 1px solid var(--border); flex: none; }
+  .drawer .dhead[hidden] { display: none; }
   .drawer .dpath { font: 600 12px ui-monospace, Menlo, monospace; color: var(--c-snap);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
   .drawer .dmeta { padding: 6px 12px; font: 10.5px ui-monospace, Menlo, monospace; color: var(--muted);
@@ -471,8 +494,46 @@
   .tok-key { color: var(--c-script); font-weight: 600; }
   .tok-num { color: var(--c-anchor); }
   .tok-typ { color: var(--sel-edge); }
-  .drawer pre { margin: 0; padding: 12px; overflow: auto; height: calc(100% - 76px);
-    font: 11.5px/1.55 ui-monospace, Menlo, monospace; color: var(--ink2); white-space: pre; }
+  .drawer pre { margin: 0; padding: 12px; font: 11.5px/1.55 ui-monospace, Menlo, monospace;
+    color: var(--ink2); white-space: pre; }
+
+  /* ---- tasks #323/#324: the drawer's control strips.
+     Row 1 carries identity and navigation, row 2 the diff tools — and row 2 exists ONLY for a pair,
+     so a single-node view spends none of the drawer's height on buttons it cannot use. */
+  .dtools { display: flex; gap: 4px; flex: none; align-items: center; }
+  .dtools[hidden] { display: none; }
+  .dtools button.current { background: var(--sel-edge); border-color: var(--sel-edge); color: #fff; }
+  .dpair { font: 11px ui-monospace, Menlo, monospace; color: var(--ink2); padding: 0 4px; }
+  .dfull-toggle { font: 11px system-ui; color: var(--ink2); display: inline-flex; align-items: center;
+    gap: 4px; white-space: nowrap; }
+
+  /* task #305: the pair's marks on the lane. They REPLACE the [ ] brackets rather than joining them
+     — one selection language at a time — so they are rings, and the two ends differ in colour
+     because "which of these two is the base" is the question the header answers in words. */
+  .node.diff-base { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--c-anchor); }
+  .node.diff-target { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--sel-edge); }
+
+  /* ---- tasks #319/#320: the diff body. `.dbody` is a div, not a <pre>: it holds rows, and the
+     single-node view puts its own <pre> inside it. */
+  .dbody { flex: 1; overflow: auto; min-height: 0; }
+  .dbinary { padding: 16px 12px; color: var(--muted); font-size: 11.5px; }
+  .diff-cols { display: grid; grid-template-columns: 1fr 1fr; }
+  .dcell { display: flex; gap: 8px; padding: 0 8px; white-space: pre; overflow: hidden;
+    font: 11.5px/1.55 ui-monospace, Menlo, monospace; color: var(--ink2); }
+  .dcell .dnum { flex: none; width: 26px; text-align: right; color: var(--muted); user-select: none; }
+  .dcell .dsign { flex: none; width: 8px; color: var(--muted); user-select: none; }
+  .d-add { background: color-mix(in srgb, var(--c-echo) 20%, transparent); }
+  .d-del { background: color-mix(in srgb, var(--c-snap) 20%, transparent); }
+  /* The side with no counterpart on a changed row: hatched-empty, so the eye reads "nothing here"
+     rather than "a blank line here". */
+  .d-nil { background: color-mix(in srgb, var(--muted) 9%, transparent); }
+  .d-gap { color: var(--muted); }
+
+  /* task #305: the cross-bubble refusal, said out loud rather than swallowed. */
+  .dtoast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 40;
+    background: var(--ink); color: var(--surface); font: 11.5px system-ui; padding: 7px 14px;
+    border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+  .dtoast[hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -554,13 +615,18 @@
     <!-- tasks #252/#281 -->
     <aside class="filenav" id="filenav">
       <section class="navpane" id="pane-files">
-        <div class="pane-title">Files
-          <!-- task #254: the deselect. Shift-click folders (#255) to select more than one. -->
-          <button id="clear-filter" disabled>All files</button>
-        </div>
-        <div class="navsearch">
-          <input id="nav-search" type="text" placeholder="search files…">
-          <button id="nav-search-clear" title="clear">(x)</button>
+        <!-- The title and the search box stay put while the tree scrolls under them. -->
+        <div class="panehead">
+          <div class="pane-title">Files
+            <!-- task #326: the folder selection is only STORED until this is on; see app.js's inSelection. -->
+            <button id="only-selected" title="Filter the timeline to the selected folders' files">Show Only Selected</button>
+            <!-- task #254: the deselect. Shift-click folders (#255) to select more than one. -->
+            <button id="clear-filter" disabled>All files</button>
+          </div>
+          <div class="navsearch">
+            <input id="nav-search" type="text" placeholder="search files…">
+            <button id="nav-search-clear" title="clear">(x)</button>
+          </div>
         </div>
         <div id="nav"></div>
       </section>
@@ -568,13 +634,15 @@
       <!-- task #292: the project's JSONLs. Same picker behaviour as the folder tree — click filters,
            clicking the only selected one clears, shift extends. -->
       <section class="navpane" id="pane-sessions">
-        <div class="pane-title">JSONLs
-          <button id="clear-sessions" disabled>All sessions</button>
-        </div>
-        <!-- task #309: the Files pane's own search control, pointed at the customTitles. -->
-        <div class="navsearch">
-          <input id="session-search" type="text" placeholder="search titles…">
-          <button id="session-search-clear" title="clear">(x)</button>
+        <div class="panehead">
+          <div class="pane-title">JSONLs
+            <button id="clear-sessions" disabled>All sessions</button>
+          </div>
+          <!-- task #309: the Files pane's own search control, pointed at the customTitles. -->
+          <div class="navsearch">
+            <input id="session-search" type="text" placeholder="search titles…">
+            <button id="session-search-clear" title="clear">(x)</button>
+          </div>
         </div>
         <div id="sessions"></div>
       </section>
@@ -597,12 +665,27 @@
       </div>
     </div>
 
-    <!-- OPEN #257 -->
+    <!-- OPEN #257 + tasks #323/#324. Row 1 = what is shown and how to step through it; row 2 = the
+         diff tools, revealed only when TWO nodes are selected. The Close button stays in row 1: it
+         serves every drawer mode, and moving it per-mode would make it jump around. -->
     <aside class="drawer" id="drawer">
       <div class="dhead"><div class="dpath" id="dpath"></div>
+        <!-- task #323: step ONE node along this file's lane. -->
+        <span class="dtools"><button id="dprev" title="previous revision">↑</button><button id="dnext" title="next revision">↓</button></span>
+        <!-- task #324: the FIRST pair moves the base, the SECOND moves the target. -->
+        <span class="dtools" id="pairtools" hidden>
+          <button id="dbprev" title="previous base revision">↑</button><button id="dbnext" title="next base revision">↓</button>
+          <span class="dpair" id="dpairlabel"></span>
+          <button id="dtprev" title="previous target revision">↑</button><button id="dtnext" title="next target revision">↓</button>
+        </span>
         <button id="dclose" style="margin-left:auto">Close</button></div>
+      <div class="dhead" id="dhead2" hidden><span class="dtools" id="difftools">
+          <button data-mode="side" class="current">side-by-side</button><button data-mode="inline">inline</button>
+          <label class="dfull-toggle"><input type="checkbox" id="dfull"> full content</label>
+          <button id="dexport">export as patch</button>
+        </span></div>
       <div class="dmeta" id="dmeta"></div>
-      <pre id="dbody"></pre>
+      <div class="dbody" id="dbody"></div>
     </aside>
   </div>
 
@@ -622,6 +705,10 @@
       </div>
     </div>
   </div>
+
+  <!-- task #305: the diff pair's refusal. Fixed to the viewport, not the drawer — the thing being
+       refused is a click out on the timeline, which is where the reader is looking. -->
+  <div class="dtoast" id="dtoast" hidden></div>
 </div>
 
 <script type="module" src="app.js"></script>
