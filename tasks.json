@@ -156,5 +156,34 @@
     "taskNumber": 338,
     "title": "Investigate /btw-forked transcript: engine handling of post-fork file changes",
     "description": "Investigate the tasks-[328,329,330,331] transcript (base RevEng project path): ~/.claude/projects/-Users-matkatmusicllc-Desktop-claude-code-src-RevEng/f7d5bed5-6831-4332-912e-e19fe5396350.jsonl. That conversation was forked from a /btw event (the /btw record is a type:\"system\", subtype:\"local_command\" line at ~record 1425) and file changes occurred after the conversation fork. The user does not think the engine knows how to process these kinds of JSONL lines yet — verify whether the engine handles the fork + post-fork file changes correctly, and fix or log the gap."
+  },
+  {
+    "taskNumber": 339,
+    "title": "timeline node type icons and colors",
+    "description": "tool result [r], tool call [t], extracted edit [e], script execution [x], script execution result [x, but a different color?], commit [c], snapshot [<camera emoji>, conversation branch split [y], conversation branch rewind [<back arrow emoji?>, code rewind, user prompt [u], agent response [a], system info[s or i], etc.  The full list will make itself known when we look at what the original reconstruction engine parses already, since it covers everything there.  The final list needs colors defined.  the agents are currently just picking random colors when adding node types to the timeline as timeline layers are developed, which is a fine approach for now. "
+  },
+  {
+    "taskNumber": 340,
+    "title": "Mockup: Layers 3-9 on top of the layer1/2 live webapp",
+    "description": "Build a mockup from the existing layer1/2 live webapp that demonstrates the following layers: L3: timeline nodes for code-changes-extracted-from-jsonl; L4: timeline nodes for script executions; L5: branches in timeline bubbles built; L6: actual script execution result nodes; L7: any remaining node types built; L8: node type timeline filtering (e.g. \"show only snapshots\", \"show only commits\", etc); L9: the ability to mark a section on the timeline ruler as \"export this timeline ruler range as a git patch | commit this timeline ruler range onto the 'jfred' branch\". Existing mockup precedent: plans/layer2-mockup/; live webapp: jfred webapp/ layer1 pages."
+  },
+  {
+    "taskNumber": 341,
+    "title": "Global header button: compact the timeline gaps",
+    "description": "User-decided 2026-07-30 during the task-340 L8 grilling round: node-type filtering (L8) will be CSS-hide only — hiding node kinds leaves dead gaps in the capped-gap ruler because offsets never shift. Add a button in the global header that re-runs the ladder layout (relayOutLayer1View in jfred/webapp/layer1-filter.ts, the same re-layout the File Nav path filter already performs) over only the currently VISIBLE nodes, compacting the dead gaps on demand. One-shot compaction, not a live mode: filtering stays instant CSS, and the user explicitly opts into the ~800-bubble re-render by clicking.",
+    "blockedBy": [
+      340
+    ]
+  },
+  {
+    "taskNumber": 342,
+    "title": "Repeatable interaction-level verification of webapp features against real jfred conversations",
+    "description": "Build better verification approaches against the real jfred repo conversations to ensure that the webapp features perform and function as expected. i.e. specific moves by the user that are repeatable programmatically and produce specific rendered content or component state in the various parts of the webapp GUI. Starting point: extend jfred scripts/visual/ (npm run visual, cold-start CDP harness) from whole-render geometry checks to scripted interaction scenarios (click/shift-click/filter/etc.) with assertions on the resulting rendered content and component state, driven by real session JSONLs from the jfred repo."
+  },
+  {
+    "taskNumber": 343,
+    "title": "Mockup: Layer 3 extracted Edit/Write nodes, fixture-mode on the real layer1 page",
+    "description": "Spec item S20 in specs/from-scratch-SPEC.md (written 2026-07-30; recon plans/340-recon/L3-extracted-changes.md, decisions plans/340-recon/DECISIONS.md). Scope: jfred/src fixture files + webapp page + a new visual-checks file ONLY — no engine JSONL parsing yet (the mockup cans the endpoint's payload). Add FIXTURE_EDITS beside SNAPSHOTS in jfred/src/viewer_api_layer1_fixture_data.ts (self-check: born ≤ event ≤ mtime, inside its session window; one pair with edits from two sessions; one Edit whose hunk mismatches its base so the unverified render is exercised), a canned JSONL-events fixture route, a [3] switcher button, .n-edit [e] nodes carrying the sessionId/sessionFile/line flash trio, drawer showing hunk/body per S20, and the first-switch fetch+re-layout behaviour simulated against the canned route. New visual-checks file (250-line cap) wired into the fixture-mode runner covering S20's verify list. Ends at: user tweaks until sign-off — engine build-out tasks are created only after approval. Part of task 340's L3 slice.",
+    "blockedBy": [340]
   }
 ]
