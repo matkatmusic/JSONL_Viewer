@@ -200,11 +200,6 @@
     ]
   },
   {
-    "taskNumber": 326,
-    "title": "Layer 1 File Nav: 'Show Only Selected' button filters the timeline to the selected files",
-    "description": "Feature (user feedback 2026-07-29): add a 'Show Only Selected' button to the Layer 1 File Nav that filters the timeline to only show the bubbles of the selected files. If nothing is selected in the File Nav, show all files in the Timeline. Relevant files: jfred/webapp/layer1-filenav.ts (selection state), jfred/webapp/layer1-folder-filter.ts (existing folder-filter mechanism to reuse), jfred/webapp/layer1-page.ts (re-render wiring). STATUS 2026-07-29 (do not assume working): first pass shipped at jfred c253307 — folder + shift-click file selection reported via listSelectedNavTargets (webapp/views/sidebar.ts), #filenav-only-selected toggle gating folderTargets in webapp/layer1-page.ts — and passed headless CDP checks, but the USER reports the live timeline and minimap are NOT filtered as expected. Left open for another agent; do not close on the CDP evidence."
-  },
-  {
     "taskNumber": 328,
     "title": "Layer 1 Detail view: render multiple selected files, alphabetical and collapsible (mockup first)",
     "description": "User decision 2026-07-29 while confirming task 326's file-selection extension: the Detail view (drawer) should show the on-disk state of whatever is selected in the File Nav, including multi-selections — each selected item rendered in alphabetical order as a collapsible section. MOCK UP FIRST (like the Layer 1 and Layer 2 mockups) before implementation. Until this lands, the drawer shows the last plainly-clicked file only. Relevant files: jfred/webapp/layer1-drawer.ts, jfred/webapp/layer1-file-view.ts, jfred/webapp/views/sidebar.ts (selection state)."

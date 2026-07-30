@@ -3094,5 +3094,16 @@
       "5d3659a"
     ],
     "closureNote": "The [ ] selection brackets sit flush against the node, clear of the label text; user-verified 2026-07-29."
+  },
+  {
+    "taskNumber": 326,
+    "title": "Layer 1 File Nav: 'Show Only Selected' button filters the timeline to the selected files",
+    "description": "Feature (user feedback 2026-07-29): add a 'Show Only Selected' button to the Layer 1 File Nav that filters the timeline to only show the bubbles of the selected files. If nothing is selected in the File Nav, show all files in the Timeline. Relevant files: jfred/webapp/layer1-filenav.ts (selection state), jfred/webapp/layer1-folder-filter.ts (existing folder-filter mechanism to reuse), jfred/webapp/layer1-page.ts (re-render wiring). STATUS 2026-07-29 (do not assume working): first pass shipped at jfred c253307 — folder + shift-click file selection reported via listSelectedNavTargets (webapp/views/sidebar.ts), #filenav-only-selected toggle gating folderTargets in webapp/layer1-page.ts — and passed headless CDP checks, but the USER reports the live timeline and minimap are NOT filtered as expected. Left open for another agent; do not close on the CDP evidence.",
+    "completionDate": "2026-07-29",
+    "commitHashes": [
+      "c2533076335a78d052f3864cfd9d939d2bdd4896",
+      "3c060e0b11361681124453f5c0461e7e6e46efda"
+    ],
+    "closureNote": "User-verified completed as defined in the spec: first pass at jfred c253307; follow-up at jfred 3c060e0 makes an empty File-Nav/session intersection draw an empty stage (undefined = no filter), with CDP-verified timeline+minimap filtering (943->1)."
   }
 ]
