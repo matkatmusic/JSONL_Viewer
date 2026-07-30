@@ -1,8 +1,8 @@
-// Layer 1 + Layer 2 mockup — THE CODE. Split out of plans/layer1-mockup.html on 2026-07-27; the data
-// lives in fixture.js and the markup and CSS in index.html.
+// Layer 1 + Layer 2 mockup code; data lives in fixture.js, markup and CSS in index.html.
 import { BRANCHES, COMMITS, DISK, SESSIONS, SNAPSHOTS, basename, ms, titleAt, titlesOf }
   from "./fixture.js";
-import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } from "./diff.js";
+import { clearDiffPair, diffLines, extendDiffSelection, initDiffDrawer, renderInline, setDrawerTools,
+         windowOps } from "./diff.js";
 
   // tasks #323/#324: the fixture node a dot stands for; a WeakMap, so discarded dots are collected.
   const nodeForDot = new WeakMap();
@@ -18,8 +18,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   const EXPAND_ROW_PX = 13;               // OPEN #284: one file name's row inside an expanded tick
   const LABEL_GAP_PX = 13;                // the least ON-SCREEN room two printed timestamps need
 
-  // task #276: seconds AND hundredths. "MM-DD HH:MM" collapsed instants that were seconds apart
-  // into identical-looking rows, which is what task #268 then had to merge.
+  // task #276: seconds AND hundredths, so instants seconds apart never render identically.
   const label = t => new Date(t).toISOString().slice(5, 22).replace("T", " ");
   const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls;
                                   if (txt != null) n.textContent = txt; return n; };
@@ -28,41 +27,32 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
 
   // tasks #253/#254/#255 — the folder filter's whole state. Empty = show everything.
   const selectedFolders = new Set();
+  // task #328: file leaves join the nav selection like folders; shift toggles membership.
+  const selectedFiles = new Set();
   // task #326: a folder click only STORES the selection; the timeline narrows while the toggle is on.
   let onlySelectedIsOn = false;
   const inSelection = path => !onlySelectedIsOn || selectedFolders.size === 0 ||
     [...selectedFolders].some(f => path === f || path.startsWith(f + "/"));
-  // task #292: the picked JSONLs, holding the fixture objects themselves. Empty = every session.
-  // Two filters, one rule: a file is drawn only if BOTH pickers admit it.
+  // task #292: the picked JSONLs, holding the fixture objects themselves. Empty = every session.  Two filters, one rule: a file is drawn only if BOTH pickers admit it.
   const selectedSessions = new Set();
   const touchedBySelection = path => selectedSessions.size === 0 ||
     [...selectedSessions].some(s => s.paths.includes(path));
   const isShown = path => inSelection(path) && touchedBySelection(path);
-  // OPEN #284: the ruler row currently expanded into its file list, as an instant. One at a time —
-  // the list changes the axis layout, so two open rows would be two stacked shifts to reason about.
+  // OPEN #284: the ruler row currently expanded into its file list, as an instant. One at a time — the list changes the axis layout, so two open rows would be two stacked shifts to reason about.
   let expandedInstant = null;
   // The instants the current selection sits on: what the gutter bolds and what keeps a leader up.
   let selectedInstants = [];
-  // The bubbles' scale. Declared with the rest of the view state because the gutter's own layout
-  // reads it — the ruler is outside the zoom, so it converts axis px to screen px itself.
+  // The bubbles' scale. Declared with the rest of the view state because the gutter's own layout reads it — the ruler is outside the zoom, so it converts axis px to screen px itself.
   let zoom = 1;
   // OPEN #282
   let timeSource = "committer";
   const commitInstant = c => ms(timeSource === "author" ? c.wrote : c.at);
-  // task #304: snapshots are left OUT of the model at Layer 1, never hidden in CSS — a hidden node
-  // would still hold its ruler entry, so Layer 1 would not read as Layer 1.
+  // task #304: snapshots are left OUT of the model at Layer 1, never hidden in CSS — a hidden node would still hold its ruler entry, so Layer 1 would not read as Layer 1.
   let layer = 1;
   const snapshotsFor = path => layer === 1 ? [] : SNAPSHOTS.filter(s => s.path === path);
 
   // ---- task #251: content-driven ruler spacing -------------------------------------------------
-  // Any two CONSECUTIVE nodes of one widget are forced at least ROW_PX apart, so a bubble is always
-  // tall enough to show its name, its commits and its on-disk rows. The linear/capped rule sets the
-  // baseline; content only ever pushes entries further apart, never closer.
-  // `extraAt` is task #284's expanded ruler row: the file list it opens lives IN the gutter, so the
-  // rows below it — and therefore every bubble and every node below it — must move down by exactly
-  // the list's height (user, 2026-07-26). Feeding it in HERE rather than positioning the list over
-  // the canvas is what makes a bubble that spans the expanded instant grow instead of being written
-  // over: a widget's span is `last node pos - first node pos`, both read from this one map.
+  // Any two CONSECUTIVE nodes of one widget are forced at least ROW_PX apart, so a bubble is always tall enough to show its name, its commits and its on-disk rows. The linear/capped rule sets the baseline; content only ever pushes entries further apart, never closer.  `extraAt` is task #284's expanded ruler row: the file list it opens lives IN the gutter, so the rows below it — and therefore every bubble and every node below it — must move down by exactly the list's height (user, 2026-07-26). Feeding it in HERE rather than positioning the list over the canvas is what makes a bubble that spans the expanded instant grow instead of being written over: a widget's span is `last node pos - first node pos`, both read from this one map.
   function resolveOffsets(instants, rowsAt, extraAt = new Map()) {
     const pos = new Map([[instants[0], 0]]);
     for (let i = 1; i < instants.length; i += 1) {
@@ -73,9 +63,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     return pos;
   }
 
-  // task #292: where an ARBITRARY time sits on an axis built from events. A session opens and closes
-  // between events, not on them, so its band has to be read off the two entries it falls between —
-  // and read by interpolation, because the axis is capped and floored rather than linear in time.
+  // task #292: where an ARBITRARY time sits on an axis built from events. A session opens and closes between events, not on them, so its band has to be read off the two entries it falls between — and read by interpolation, because the axis is capped and floored rather than linear in time.
   function axisAt(t, pos, instants) {
     if (t <= instants[0]) return pos.get(instants[0]);
     const i = instants.findIndex(x => x >= t);
@@ -95,8 +83,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     const diskPaths = DISK.map(f => f.path);
     const pairedAll = unrelated ? [] : repoPaths.filter(p => diskPaths.includes(p));
 
-    // The filter bites HERE, before instants are collected — which is what makes the timeline range
-    // shrink to the selected folders (#253) rather than just hiding widgets.
+    // The filter bites HERE, before instants are collected — which is what makes the timeline range shrink to the selected folders (#253) rather than just hiding widgets.
     const paired = pairedAll.filter(isShown);
     const repoOrphans = repoPaths.filter(p => !pairedAll.includes(p)).filter(isShown);
     const diskOrphans = DISK.filter(f => !pairedAll.includes(f.path)).filter(f => isShown(f.path));
@@ -105,8 +92,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
       const disk = DISK.find(f => f.path === path);
       const nodes = COMMITS.filter(c => c.files.includes(path))
         .map(c => ({ t: commitInstant(c), cls: "n-commit", text: c.hash.slice(0, 8), kind: "commit", hash: c.hash }));
-      // task #301: just another node kind, so it inherits the ladder, the tie groups, the ruler rows
-      // and the leaders with no second code path. No snapshots means no row (S18 retired that).
+      // task #301: just another node kind, so it inherits the ladder, the tie groups, the ruler rows and the leaders with no second code path. No snapshots means no row (S18 retired that).
       for (const s of snapshotsFor(path))
         nodes.push({ t: ms(s.at), cls: "n-snap", text: `${s.version} 📸`, kind: "snapshot",
                      version: s.version, session: s.session, line: s.line });
@@ -115,17 +101,12 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
         nodes.push({ t: ms(disk.born), cls: "n-disk n-created", text: "created at", kind: "created" });
       nodes.push({ t: ms(disk.at), cls: "n-disk", text: "on disk", kind: "disk" });
       nodes.sort((a, b) => a.t - b.t);
-      // A commit and an mtime can land on the SAME instant — README.md does. Drawing both at one
-      // axis position is `5636d8ec` overprinting `on disk` in the bug screenshots, so tied nodes get
-      // successive row slots and the ruler pays for them (#247/#251); #259 then draws the group.
+      // A commit and an mtime can land on the SAME instant — README.md does. Drawing both at one axis position is `5636d8ec` overprinting `on disk` in the bug screenshots, so tied nodes get successive row slots and the ruler pays for them (#247/#251); #259 then draws the group.
       nodes.forEach((n, i) => { n.slot = i > 0 && nodes[i - 1].t === n.t ? nodes[i - 1].slot + 1 : 0; });
       return { path, nodes };
     });
 
-    // A bucket row carries the SAME shape a node does — kind, instant, and a hash for a commit — so
-    // it can be inspected exactly like a paired file's node (user, 2026-07-26). A repo-only file is
-    // absent from disk but its bytes are still in the repository at its LAST commit, which is the
-    // row's own instant; a disk-only file is read from the working tree.
+    // A bucket row carries the SAME shape a node does — kind, instant, and a hash for a commit — so it can be inspected exactly like a paired file's node (user, 2026-07-26). A repo-only file is absent from disk but its bytes are still in the repository at its LAST commit, which is the row's own instant; a disk-only file is read from the working tree.
     const lastCommitFor = p => COMMITS.filter(c => c.files.includes(p)).sort((a, b) => commitInstant(a) - commitInstant(b)).at(-1);
     const bucketRows = which => which === "repo"
       ? repoOrphans.map(p => ({ path: p, t: commitInstant(lastCommitFor(p)), kind: "commit", hash: lastCommitFor(p).hash }))
@@ -152,19 +133,14 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   }
 
   // ---- tasks #268/#275: which rows the gutter prints ------------------------------------------
-  // Instants whose LABELS read the same collapse into one row carrying the summed count (#268), and
-  // the row keeps the earliest instant's offset. A row also remembers every instant it stands for,
-  // so a click and a leader-line hover answer for all of them, not just the first.
+  // Instants whose LABELS read the same collapse into one row carrying the summed count (#268), and the row keeps the earliest instant's offset. A row also remembers every instant it stands for, so a click and a leader-line hover answer for all of them, not just the first.
   function listRulerRows(instants, pos, countAt) {
     const rows = [];
     for (const t of instants) {
       const text = label(t);
       const last = rows.at(-1);
       if (last && last.text === text) { last.count += countAt.get(t); last.instants.push(t); continue; }
-      // Distinct labels still too close to read: skip the label, keep the leader (a skipped row
-      // still has bubbles sitting on it). The gap is measured in SCREEN px — the timestamps keep
-      // their size at every zoom, so zooming out is exactly what makes two rows collide, and the
-      // axis distance that clears a label grows as the axis itself shrinks.
+      // Distinct labels still too close to read: skip the label, keep the leader (a skipped row still has bubbles sitting on it). The gap is measured in SCREEN px — the timestamps keep their size at every zoom, so zooming out is exactly what makes two rows collide, and the axis distance that clears a label grows as the axis itself shrinks.
       if (last && (pos.get(t) - last.axisPx) * zoom < LABEL_GAP_PX) {
         last.instants.push(t); last.count += countAt.get(t); continue;
       }
@@ -199,17 +175,12 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
       return;
     }
 
-    // TWO passes, and the first one exists only to answer "which instants did the expanded row
-    // absorb?" — a printed row can stand for several instants (task #268's merge and the 13 px
-    // label skip), and the height its file list adds depends on how many files those instants hold.
-    // The layout then has to be redone with that height in it. Cheap, and it keeps the merge rule
-    // and the expansion from having to know about each other.
+    // TWO passes, and the first one exists only to answer "which instants did the expanded row absorb?" — a printed row can stand for several instants (task #268's merge and the 13 px label skip), and the height its file list adds depends on how many files those instants hold.  The layout then has to be redone with that height in it. Cheap, and it keeps the merge rule and the expansion from having to know about each other.
     const draft = resolveOffsets(m.instants, m.rowsAt);
     const expandedRow = listRulerRows(m.instants, draft, m.countAt)
       .find(row => row.instants.includes(expandedInstant));
     const expandedEvents = expandedRow === undefined ? [] : listEventsAtInstants(m, expandedRow.instants);
-    // The list is drawn in the gutter, which the zoom does not touch, so its height is screen px —
-    // divided back into axis px, because that is the space `resolveOffsets` deals in.
+    // The list is drawn in the gutter, which the zoom does not touch, so its height is screen px — divided back into axis px, because that is the space `resolveOffsets` deals in.
     const extraAt = new Map(expandedEvents.length
       ? [[expandedRow.instants.at(-1), (expandedEvents.length * EXPAND_ROW_PX + 4) / zoom]] : []);
 
@@ -221,8 +192,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     for (const row of listRulerRows(m.instants, pos, m.countAt)) {
       const tick = setPx(el("div", "tick", `${row.text} (${row.count})`), row.axisPx);
       tick.dataset.instants = row.instants.join(",");
-      // Marked when the row would EXPAND — the same test the click makes, so the underline never
-      // promises a list the click then refuses to open.
+      // Marked when the row would EXPAND — the same test the click makes, so the underline never promises a list the click then refuses to open.
       if (listEventsAtInstants(m, row.instants).length > 1) tick.classList.add("multi");
       if (expandedRow !== undefined && row.axisPx === expandedRow.axisPx && expandedEvents.length) {
         tick.classList.add("expanded");
@@ -234,9 +204,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
       ruler.appendChild(tick);
     }
 
-    // task #292: per picked JSONL, a wash over the stretch it covers and a bar for its extent. Both
-    // are the same two numbers, so they are built together; the name is a tooltip rather than printed
-    // text — the lane is 7 px wide, which is the price of never covering a file.
+    // task #292: per picked JSONL, a wash over the stretch it covers and a bar for its extent. Both are the same two numbers, so they are built together; the name is a tooltip rather than printed text — the lane is 7 px wide, which is the price of never covering a file.
     const mark = (cls, from, span) => {
       const node = setPx(el("div", cls), from);
       node.style.setProperty("--span-px", span);
@@ -248,9 +216,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
       const bar = mark("range", from, axisAt(ms(session.ended), pos, m.instants) - from);
       bar.style.setProperty("--slot", slot);
       bar.title = `${session.file}\n${label(ms(session.started))} → ${label(ms(session.ended))}`;
-      // The WASH is the NODES those times reach (user, 2026-07-27) — it closes on the first and last
-      // event inside the window, half a row clear of each so the dots and labels sit inside it rather
-      // than on its edge. A session whose window catches no event gets a bar and no wash.
+      // The WASH is the NODES those times reach (user, 2026-07-27) — it closes on the first and last event inside the window, half a row clear of each so the dots and labels sit inside it rather than on its edge. A session whose window catches no event gets a bar and no wash.
       const covered = m.instants.filter(t => t >= ms(session.started) && t <= ms(session.ended));
       if (!covered.length) return { bar };
       const top = pos.get(covered[0]) - ROW_PX / 2;
@@ -267,17 +233,13 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
       return line;
     }));
 
-    // One widget per pair. EVERY node lives inside its own bubble — the stray hashes below a bubble
-    // (#248) and the stray "on disk" above one (#249) are what this must never produce, so the
-    // bubble's height is derived from its own last node.
+    // One widget per pair. EVERY node lives inside its own bubble — the stray hashes below a bubble (#248) and the stray "on disk" above one (#249) are what this must never produce, so the bubble's height is derived from its own last node.
     for (const w of m.widgets) {
       const start = rowY(w.nodes[0]), end = rowY(w.nodes.at(-1));
       const box = setPx(el("div", "filebox"), start);
       box.dataset.path = w.path;
       box.dataset.instant = w.nodes[0].t;
-      // #280: the full path lives on `data-path`, never on `title` — the native tooltip is delayed,
-      // unstyled and gone on the first mouse move, which the user rejected. The swap below plus the
-      // `.fname:hover` rule is the in-page reveal.
+      // #280: the full path lives on `data-path`, never on `title` — the native tooltip is delayed, unstyled and gone on the first mouse move, which the user rejected. The swap below plus the `.fname:hover` rule is the in-page reveal.
       const name = el("div", "fname", basename(w.path));
       name.dataset.path = w.path;
       name.addEventListener("mouseenter", () => { name.textContent = w.path; });
@@ -301,9 +263,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     drawMinimap();
   }
 
-  // task #259: one dashed rectangle per run of nodes sharing an instant. A single node is not a tie.
-  // `rowY` is the same widget-relative row the nodes themselves are placed at, so the rectangle can
-  // never drift off the dots it groups.
+  // task #259: one dashed rectangle per run of nodes sharing an instant. A single node is not a tie.  `rowY` is the same widget-relative row the nodes themselves are placed at, so the rectangle can never drift off the dots it groups.
   function tieGroupMarkers(nodes, startPx, rowY) {
     const out = [];
     for (const t of new Set(nodes.map(n => n.t))) {
@@ -317,9 +277,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     return out;
   }
 
-  // OPEN #257: a commit node is always clickable. An on-disk node is clickable only when it is the
-  // LATEST disk node — the "created at" node is inert unless created === modified, in which case the
-  // file has exactly one disk node and that node IS the latest.
+  // OPEN #257: a commit node is always clickable. An on-disk node is clickable only when it is the LATEST disk node — the "created at" node is inert unless created === modified, in which case the file has exactly one disk node and that node IS the latest.
   function addNode(lane, px, node, path) {
     const hot = node.kind !== "created";
     const dot = setPx(el("i", `node ${node.cls}${hot ? " hot" : ""}`), px);
@@ -347,11 +305,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     lane.append(dot, tag);
   }
 
-  // A bucket's rows are PLACED, not stacked: each one sits at its own instant, exactly as a pair's
-  // nodes do (user, 2026-07-26 — the second row of "No on-disk match" was drawn immediately under
-  // the first while its timestamp was hours further down the ruler). A row's `--axis-px` is relative
-  // to the bucket's own offset, and the list starts at the same in-box height a `.lane` does, so a
-  // row lands on the same y as the tick for its instant.
+  // A bucket's rows are PLACED, not stacked: each one sits at its own instant, exactly as a pair's nodes do (user, 2026-07-26 — the second row of "No on-disk match" was drawn immediately under the first while its timestamp was hours further down the ruler). A row's `--axis-px` is relative to the bucket's own offset, and the list starts at the same in-box height a `.lane` does, so a row lands on the same y as the tick for its instant.
   function addBucket(stage, title, rows, pos, id) {
     if (!rows.length) return;
     const start = pos.get(rows[0].t);
@@ -367,8 +321,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
       li.dataset.path = r.path;
       const p = el("span", null, r.path); p.title = r.path;
       li.append(p, el("em", null, label(r.t)));
-      // An orphan is inspectable like any node: a repo-only file opens `git show <hash>:<path>` at
-      // its last commit, a disk-only file opens the working tree.
+      // An orphan is inspectable like any node: a repo-only file opens `git show <hash>:<path>` at its last commit, a disk-only file opens the working tree.
       li.addEventListener("click", () => openDrawer(r.path, r, li));
       ul.appendChild(li);
     }
@@ -377,10 +330,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   }
 
   // ---- dashed leader lines, ON DEMAND (user, 2026-07-26) ---------------------------------------
-  // The lines are keyed by INSTANT, not by pixel: a bubble, its nodes and the gutter row all carry
-  // `data-instant`, so one delegated hover handler serves all three sources and no geometry is
-  // measured. `pinned` is the selection half — a found bubble, a ruler-clicked node, the node whose
-  // contents the drawer is showing — and survives until the selection changes.
+  // The lines are keyed by INSTANT, not by pixel: a bubble, its nodes and the gutter row all carry `data-instant`, so one delegated hover handler serves all three sources and no geometry is measured. `pinned` is the selection half — a found bubble, a ruler-clicked node, the node whose contents the drawer is showing — and survives until the selection changes.
   const pinnedInstants = new Set();
   let hoveredInstants = new Set();
 
@@ -398,8 +348,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   const instantsOn = element => (element?.dataset.instants ?? element?.dataset.instant ?? "")
     .split(",").filter(Boolean).map(Number);
 
-  // Hover: the closest ancestor carrying an instant wins, which is the node when the pointer is on a
-  // node and the bubble when it is anywhere else inside one.
+  // Hover: the closest ancestor carrying an instant wins, which is the node when the pointer is on a node and the bubble when it is anywhere else inside one.
   byId("root").addEventListener("pointerover", event => {
     const source = event.target.closest?.("[data-instant], [data-instants]");
     hoveredInstants = new Set(instantsOn(source));
@@ -408,16 +357,11 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   byId("root").addEventListener("pointerleave", () => { hoveredInstants = new Set(); paintLeaders(); });
 
   // ---- tasks #260/#266 + OPEN #267/#283/#284: the ruler row as a control -----------------------
-  // ONE selection at a time, and it PERSISTS: it is switched off by the next landing or by emptying
-  // the find box, never by a timer. A mark that fades is gone by the time the reader has finished
-  // scrolling to what it marked.
+  // ONE selection at a time, and it PERSISTS: it is switched off by the next landing or by emptying the find box, never by a timer. A mark that fades is gone by the time the reader has finished scrolling to what it marked.
   function highlight(elements) {
     for (const lit of document.querySelectorAll(".found")) lit.classList.remove("found");
     for (const element of elements) element.classList.add("found");
-    // A bubble carries its FIRST node's instant, so including it here bolded a second gutter row
-    // whenever the picked node was not the first one. When something more precise than the bubble is
-    // in the selection (a node, its label, a bucket row) that is what the gutter follows; the bubble
-    // only speaks for itself when it was selected alone, as by a find-box match.
+    // A bubble carries its FIRST node's instant, so including it here bolded a second gutter row whenever the picked node was not the first one. When something more precise than the bubble is in the selection (a node, its label, a bucket row) that is what the gutter follows; the bubble only speaks for itself when it was selected alone, as by a find-box match.
     const precise = elements.filter(e => !e.classList.contains("filebox"));
     selectedInstants = (precise.length ? precise : elements)
       .map(e => Number(e.dataset.instant)).filter(t => !Number.isNaN(t));
@@ -425,20 +369,13 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     markSelectedTicks();
   }
 
-  // The gutter half of that selection: the row(s) standing for the selected instant go bold.
-  // Re-applied after every render because the ticks are rebuilt from scratch each time.
+  // The gutter half of that selection: the row(s) standing for the selected instant go bold.  Re-applied after every render because the ticks are rebuilt from scratch each time.
   function markSelectedTicks() {
     for (const tick of document.querySelectorAll(".ruler .tick"))
       tick.classList.toggle("selected", instantsOn(tick).some(t => selectedInstants.includes(t)));
   }
 
-  // Put `target` in the middle of the part of the timeline the reader can actually SEE (user,
-  // 2026-07-26). Two things eat the scrollport and neither moves the scroll box: the sticky ruler
-  // covers its left edge, and the Detail View drawer — a flex sibling — has already narrowed the
-  // pane by the time this runs. So the visible strip is the pane's own box minus the gutter's width,
-  // and the target is centred in THAT, not in the scrollport.
-  // scrollIntoView cannot express this: `inline: "center"` centres on the full scrollport, which is
-  // what left a landed bubble sitting behind the ruler with the drawer open.
+  // Put `target` in the middle of the part of the timeline the reader can actually SEE (user, 2026-07-26). Two things eat the scrollport and neither moves the scroll box: the sticky ruler covers its left edge, and the Detail View drawer — a flex sibling — has already narrowed the pane by the time this runs. So the visible strip is the pane's own box minus the gutter's width, and the target is centred in THAT, not in the scrollport.  scrollIntoView cannot express this: `inline: "center"` centres on the full scrollport, which is what left a landed bubble sitting behind the ruler with the drawer open.
   function centerInVisibleTimeline(target) {
     const pane = byId("timelines");
     const paneBox = pane.getBoundingClientRect();
@@ -451,9 +388,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     });
   }
 
-  // Land on a file. What is CENTRED is the node — not the bubble: a bubble is as tall as its own
-  // ladder, so centring one thousands of px tall puts everything on it off screen (#277). A dot is
-  // 15 px, so centring it is unambiguous and its bubble comes with it.
+  // Land on a file. What is CENTRED is the node — not the bubble: a bubble is as tall as its own ladder, so centring one thousands of px tall puts everything on it off screen (#277). A dot is 15 px, so centring it is unambiguous and its bubble comes with it.
   function landOnBubble(box, extra = []) {
     const focus = extra.find(e => e.classList.contains("node") || e.tagName === "LI")
       ?? box.querySelector(".node") ?? box;
@@ -461,37 +396,26 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     highlight([box, ...extra]);
   }
 
-  // Every EVENT at any of `instants`, one entry each — NOT one per file. The row's own count is an
-  // event count (task #275: "the number of events that occurred at that timestamp"), so a file with
-  // both a commit and its on-disk mtime on one instant contributes TWO, and listing it once made the
-  // list disagree with the (n) beside it (user, 2026-07-26: "(3) is shown but only 2 file names are
-  // displayed"). An orphan's entry is its own PATH with the bucket named as its kind — the bucket's
-  // title used to be listed as though "No on-disk match" were a file.
+  // Every EVENT at any of `instants`, one entry each — NOT one per file. The row's own count is an event count (task #275: "the number of events that occurred at that timestamp"), so a file with both a commit and its on-disk mtime on one instant contributes TWO, and listing it once made the list disagree with the (n) beside it (user, 2026-07-26: "(3) is shown but only 2 file names are displayed"). An orphan's entry is its own PATH with the bucket named as its kind — the bucket's title used to be listed as though "No on-disk match" were a file.
   function listEventsAtInstants(m, instants) {
     const at = t => instants.includes(t);
     return [
-      // `n.text` is already the node's own name — the hash, "on disk", and for #302 `@vN 📸`, so the
-      // row shape needs no snapshot case. `session` is undefined elsewhere; #303's click reads it.
+      // `n.text` is already the node's own name — the hash, "on disk", and for #302 `@vN 📸`, so the row shape needs no snapshot case. `session` is undefined elsewhere; #303's click reads it.
       ...m.widgets.flatMap(w => w.nodes.filter(n => at(n.t))
         .map(n => ({ path: w.path, t: n.t, kind: n.text, session: n.session }))),
-      // An orphan's row is its NAME alone. The bucket's title is not a property of the file and the
-      // user rejected seeing it here twice over (2026-07-26) — the bucket the name jumps to is what
-      // says which direction the orphan is.
+      // An orphan's row is its NAME alone. The bucket's title is not a property of the file and the user rejected seeing it here twice over (2026-07-26) — the bucket the name jumps to is what says which direction the orphan is.
       ...m.noDisk.filter(r => at(r.t)).map(r => ({ path: r.path, t: r.t, kind: "" })),
       ...m.noRepo.filter(r => at(r.t)).map(r => ({ path: r.path, t: r.t, kind: "" })),
     ];
   }
 
-  // The list itself, a child of its tick so it opens directly under the timestamp inside the gutter.
-  // Clicking a name jumps to that file (user, 2026-07-26) — the row stays expanded, so the reader can
-  // walk the list one file at a time without re-opening it.
+  // The list itself, a child of its tick so it opens directly under the timestamp inside the gutter.  Clicking a name jumps to that file (user, 2026-07-26) — the row stays expanded, so the reader can walk the list one file at a time without re-opening it.
   function buildTickFileList(events) {
     const list = el("div", "tickfiles");
     for (const hit of events) {
       const row = el("button", null, `${basename(hit.path)}  ${hit.kind}`.trimEnd());
       row.title = hit.path;
-      // task #303: a snapshot row ALSO answers "which JSONL did this come from" — it flashes that
-      // session in the nav without selecting it, because selecting is what filters the timeline.
+      // task #303: a snapshot row ALSO answers "which JSONL did this come from" — it flashes that session in the nav without selecting it, because selecting is what filters the timeline.
       row.addEventListener("click", event => {
         event.stopPropagation();
         jumpToPath(hit.path, hit.t, hit.kind);
@@ -507,8 +431,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     if (!tick) return;
     const instants = instantsOn(tick);
     const events = listEventsAtInstants(model, instants);
-    // OPEN #284: more than one EVENT at this row -> expand it into their names rather than silently
-    // jumping to whichever the lookup found first. Re-clicking the open row closes it.
+    // OPEN #284: more than one EVENT at this row -> expand it into their names rather than silently jumping to whichever the lookup found first. Re-clicking the open row closes it.
     if (events.length > 1) {
       expandedInstant = instants.includes(expandedInstant) ? null : instants[0];
       pinInstants(expandedInstant === null ? [] : [expandedInstant]);
@@ -518,14 +441,9 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     if (events.length === 1) jumpToPath(events[0].path, events[0].t, events[0].kind);
   });
 
-  // Land on the one file `path` names, and mark what is drawn for it AT `t` — OPEN #267/#283's
-  // "which node did that row mean". The bucket branch is not a special case bolted on: an orphan has
-  // no bubble of its own, so the thing drawn for it is its ROW inside a bucket, and that row is what
-  // gets marked. Shared by the File Nav leaf click, the expanded ruler row and a single-event tick.
+  // Land on the one file `path` names, and mark what is drawn for it AT `t` — OPEN #267/#283's "which node did that row mean". The bucket branch is not a special case bolted on: an orphan has no bubble of its own, so the thing drawn for it is its ROW inside a bucket, and that row is what gets marked. Shared by the File Nav leaf click, the expanded ruler row and a single-event tick.
   //
-  // `event` is the row's own name for the node — the hash, "on disk", "@v3 📸". Without it a path and
-  // an instant name TWO nodes whenever a file's commit and its snapshot share a second, so clicking
-  // one ruler row lit both (user, 2026-07-27). The File Nav passes none and still means the file.
+  // `event` is the row's own name for the node — the hash, "on disk", "@v3 📸". Without it a path and an instant name TWO nodes whenever a file's commit and its snapshot share a second, so clicking one ruler row lit both (user, 2026-07-27). The File Nav passes none and still means the file.
   function jumpToPath(path, t, event = null) {
     const box = [...document.querySelectorAll(".filebox")].find(b => b.dataset.path === path);
     if (box) return landOnBubble(box, [...box.querySelectorAll(".node, .nlabel")]
@@ -544,9 +462,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   });
 
   // ---- tasks #261/#271/#272/#273/#277/#278: the Find bubble box --------------------------------
-  // Matching is on the BASENAME the bubble displays. The box owns the cycle position; a File Nav
-  // click does NOT come through here (#278) — it targets one exact path and leaves this readout
-  // alone, which is what stopped a `.gitignore` click cycling every gitignore in the render.
+  // Matching is on the BASENAME the bubble displays. The box owns the cycle position; a File Nav click does NOT come through here (#278) — it targets one exact path and leaves this readout alone, which is what stopped a `.gitignore` click cycling every gitignore in the render.
   let cycleTerm = "", cycleIndex = 0;
   const findMatches = term => [...document.querySelectorAll(".filebox:not(.bucket)")]
     .filter(b => basename(b.dataset.path ?? "").toLowerCase().includes(term));
@@ -572,8 +488,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   byId("find-prev").addEventListener("click", () => stepFind(-1));
 
   // ---- tasks #252/#253/#254/#255/#278/#281: File Nav -------------------------------------------
-  // Shape: the same folder/leaf tree the current webapp renders. Every identified file is here —
-  // paired, orphaned, and repo-only paths that no longer exist on disk (rendered .deleted).
+  // Shape: the same folder/leaf tree the current webapp renders. Every identified file is here — paired, orphaned, and repo-only paths that no longer exist on disk (rendered .deleted).
   function renderNav(m) {
     const query = byId("nav-search").value.trim().toLowerCase();
     const all = [...new Set([...m.repoPaths, ...m.diskPaths])].sort()
@@ -614,6 +529,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
           if (!only) selectedFolders.add(full);
         } else if (!selectedFolders.delete(full)) selectedFolders.add(full);
         render();
+        refreshMultiDrawer();
       });
       const details = el("details", "file-folder");
       details.open = true;
@@ -624,12 +540,18 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     for (const file of node.files) {
       const item = el("div", `file-item${file.deleted ? " deleted" : ""}`, file.name);
       item.title = file.deleted ? `${file.path} (deleted)` : file.path;
-      // #278: EXACT path, one destination, no cycling and no find-box readout — the same jumpToPath
-      // the expanded ruler row uses, so a leaf and a listed name can never land differently.
-      // task #325: also selects the on-disk node, by dispatching the click the stage already handles.
-      // `:not(.n-created)` is load-bearing: created-at also carries `.n-disk`, sorts first, and is inert.
-      // The clicked ROW marks itself: a deleted file has no bubble, so nothing else answers the click.
-      item.addEventListener("click", () => {
+      // #278: EXACT path, one destination, no cycling and no find-box readout — the same jumpToPath the expanded ruler row uses, so a leaf and a listed name can never land differently.  task #325: also selects the on-disk node, by dispatching the click the stage already handles.  `:not(.n-created)` is load-bearing: created-at also carries `.n-disk`, sorts first, and is inert.  The clicked ROW marks itself: a deleted file has no bubble, so nothing else answers the click.
+      if (selectedFiles.has(file.path)) item.classList.add("selected");
+      item.addEventListener("click", event => {
+        // task #328: shift toggles this leaf's membership without clearing others or moving the stage.
+        if (event.shiftKey) {
+          if (!selectedFiles.delete(file.path)) selectedFiles.add(file.path);
+          item.classList.toggle("selected", selectedFiles.has(file.path));
+          refreshMultiDrawer();
+          return;
+        }
+        selectedFiles.clear();
+        selectedFiles.add(file.path);
         for (const lit of document.querySelectorAll("#nav .file-item.selected")) lit.classList.remove("selected");
         item.classList.add("selected");
         jumpToPath(file.path);
@@ -642,21 +564,16 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   }
 
   // ---- task #292: the JSONL picker --------------------------------------------------------------
-  // The folder tree's selection rules, applied to sessions: a plain click picks one, a plain click on
-  // the only picked one clears it, shift extends. What it filters is the FILE LIST — each surviving
-  // file keeps its whole history, and the band drawn over the canvas is what says which stretch of
-  // that history the session is answerable for.
+  // The folder tree's selection rules, applied to sessions: a plain click picks one, a plain click on the only picked one clears it, shift extends. What it filters is the FILE LIST — each surviving file keeps its whole history, and the band drawn over the canvas is what says which stretch of that history the session is answerable for.
   function renderSessions() {
-    // task #309: filters the LIST, never the timeline — filtering the timeline is what CLICKING a row
-    // does, and the two must stay separate. A session with no customTitle matches only an empty box.
+    // task #309: filters the LIST, never the timeline — filtering the timeline is what CLICKING a row does, and the two must stay separate. A session with no customTitle matches only an empty box.
     const query = byId("session-search").value.trim().toLowerCase();
     const shown = SESSIONS.filter(s => !query || titlesOf(s).some(t => t.toLowerCase().includes(query)));
     byId("sessions").replaceChildren(...(shown.length ? shown : []).map(session => {
       const item = el("div", "session-item");
       item.dataset.file = session.file;   // task #303: how the flash finds this row again
       if (selectedSessions.has(session)) item.classList.add("selected");
-      // task #306: the customTitle is what identifies a session to a reader, so it comes before the
-      // timestamp — one row per DISTINCT title, and nothing at all when the session was never named.
+      // task #306: the customTitle is what identifies a session to a reader, so it comes before the timestamp — one row per DISTINCT title, and nothing at all when the session was never named.
       const titles = titlesOf(session);
       item.append(el("div", "sname", session.file),
                   ...titles.map(t => el("div", "stitle", t)),
@@ -678,30 +595,22 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   }
 
   // ---- task #303: highlight a JSONL, then let it fade. ONE helper, two callers (#303's ruler row,
-  // #305's snapshot node). It must NOT select the session — selecting is what filters the timeline —
-  // so its colour is --c-echo, never the --c-script the selection owns.
-  // FLASH_MS is the one place the duration lives; the CSS reads it back off the element.
+  // #305's snapshot node). It must NOT select the session — selecting is what filters the timeline — so its colour is --c-echo, never the --c-script the selection owns.  FLASH_MS is the one place the duration lives; the CSS reads it back off the element.
   const FLASH_MS = 2600;
-  // task #308: one click can answer for SEVERAL JSONLs, so every named row lights together and the
-  // caller passes its best match FIRST — that is the one the scroll follows. A row filtered out by
-  // #309's search simply is not there to light.
+  // task #308: one click can answer for SEVERAL JSONLs, so every named row lights together and the caller passes its best match FIRST — that is the one the scroll follows. A row filtered out by #309's search simply is not there to light.
   function flashSession(...files) {
     const pane = byId("sessions");
     for (const lit of pane.querySelectorAll(".flash, .flash-lead")) lit.classList.remove("flash", "flash-lead");
     const rows = files.map(f => pane.querySelector(`[data-file="${f}"]`)).filter(Boolean);
     for (const item of rows) {
-      // Re-clicking restarts the fade, and an animation only restarts once the class has been off for
-      // a layout — hence the reflow read.
+      // Re-clicking restarts the fade, and an animation only restarts once the class has been off for a layout — hence the reflow read.
       item.classList.remove("flash");
       void item.offsetWidth;
       item.style.setProperty("--flash-ms", `${FLASH_MS}ms`);
       item.classList.add("flash");
       setTimeout(() => item.classList.remove("flash"), FLASH_MS);
     }
-    // The pane holds every session, so the answer is often below the fold — a flash nobody can see
-    // answers nothing (user, 2026-07-27). Nothing scrolls while one lit row is already readable.
-    // The lead is the caller's best match and the only row a scroll ever follows — marked so the
-    // headless run can read which session answered, which a scroll offset does not say.
+    // The pane holds every session, so the answer is often below the fold — a flash nobody can see answers nothing (user, 2026-07-27). Nothing scrolls while one lit row is already readable.  The lead is the caller's best match and the only row a scroll ever follows — marked so the headless run can read which session answered, which a scroll offset does not say.
     rows[0]?.classList.add("flash-lead");
     setTimeout(() => rows[0]?.classList.remove("flash-lead"), FLASH_MS);
     if (rows.length && !rows.some(isInSessionsView))
@@ -713,9 +622,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   };
 
   // ---- task #308: a bubble click highlights the JSONLs that touched that file -------------------
-  // HIGHLIGHT, not select — selecting is what filters the timeline. The clicked POINT is load-bearing:
-  // a bubble can span months and its sessions are spread across that span, so the row that gets
-  // scrolled to is the session nearest the instant under the cursor, not the first one in the list.
+  // HIGHLIGHT, not select — selecting is what filters the timeline. The clicked POINT is load-bearing: a bubble can span months and its sessions are spread across that span, so the row that gets scrolled to is the session nearest the instant under the cursor, not the first one in the list.
   byId("stage").addEventListener("click", event => {
     const box = event.target.closest(".filebox");
     if (!box?.dataset.path || event.target.closest(".node, .nlabel")) return;
@@ -726,11 +633,9 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   });
   // 0 while the instant is inside the session's window, else how far outside it falls.
   const sessionGap = (s, t) => Math.max(0, ms(s.started) - t, t - ms(s.ended));
-  // The ruler's own map, read backwards: the click's axis offset -> the nearest entry on the axis.
-  // The rect is in SCREEN px and the map is in axis px, so the zoom has to come back out.
+  // The ruler's own map, read backwards: the click's axis offset -> the nearest entry on the axis.  The rect is in SCREEN px and the map is in axis px, so the zoom has to come back out.
   function instantUnder(box, clientY) {
-    // Measured from the LANE, not the box: the box carries a 52 px header above its first node, so
-    // its own top edge is not the anchor instant's position.
+    // Measured from the LANE, not the box: the box carries a 52 px header above its first node, so its own top edge is not the anchor instant's position.
     const axisPx = model.pos.get(Number(box.dataset.instant)) +
                    (clientY - box.querySelector(".lane").getBoundingClientRect().top) / zoom;
     return model.instants.reduce((best, t) =>
@@ -758,10 +663,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   });
 
   // ---- task #279 + OPEN #288: drag the File Nav's right edge -----------------------------------
-  // The width is written ONCE PER FRAME. Writing it on every pointermove reflows a canvas holding
-  // ~800 widgets across ~156,000 px, which is the latency the user reported (#288); rAF coalescing
-  // is the smallest fix that removes it, and the minimap reads the same custom property so it
-  // cannot drift back over the pane.
+  // The width is written ONCE PER FRAME. Writing it on every pointermove reflows a canvas holding ~800 widgets across ~156,000 px, which is the latency the user reported (#288); rAF coalescing is the smallest fix that removes it, and the minimap reads the same custom property so it cannot drift back over the pane.
   (() => {
     const grip = byId("filenav-grip"), root = byId("root");
     let dragging = false, pendingWidth = 0, frame = 0;
@@ -780,9 +682,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   })();
 
   // ---- task #292: drag the split between the Files pane and the JSONLs pane ---------------------
-  // A share of the column rather than a pixel height, so the two panes keep filling it exactly when
-  // the window resizes. Clamped well short of 0 and 100 — a pane dragged to nothing is a pane the
-  // reader cannot get back.
+  // A share of the column rather than a pixel height, so the two panes keep filling it exactly when the window resizes. Clamped well short of 0 and 100 — a pane dragged to nothing is a pane the reader cannot get back.
   (() => {
     const grip = byId("navpane-grip"), nav = byId("filenav");
     let dragging = false, pendingShare = 50, frame = 0;
@@ -812,10 +712,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     for (const box of document.querySelectorAll(".filebox")) {
       const r = box.getBoundingClientRect();
       const mm = el("div", `mm-box${box.classList.contains("bucket") ? " bucket" : ""}`);
-      // `base` is the CANVAS, which scrolls with the boxes, so `r.left - base.left` is already the
-      // box's offset inside the canvas. Adding the pane's scroll on top counted it twice and slid
-      // every box off the plot as soon as anything scrolled the timeline — which opening the Detail
-      // View does, because it re-centres the node it just opened (user, 2026-07-27).
+      // `base` is the CANVAS, which scrolls with the boxes, so `r.left - base.left` is already the box's offset inside the canvas. Adding the pane's scroll on top counted it twice and slid every box off the plot as soon as anything scrolled the timeline — which opening the Detail View does, because it re-centres the node it just opened (user, 2026-07-27).
       Object.assign(mm.style, {
         left: `${(r.left - base.left) * scale}px`,
         top: `${(r.top - base.top) * scale}px`,
@@ -839,8 +736,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   byId("timelines").addEventListener("scroll", syncMinimapViewport);
   window.addEventListener("resize", () => drawMinimap());
 
-  // Click the minimap to centre the view there. task #274: a smooth scroll across tens of thousands
-  // of px animates every intermediate frame, so a long jump lands instantly instead.
+  // Click the minimap to centre the view there. task #274: a smooth scroll across tens of thousands of px animates every intermediate frame, so a long jump lands instantly instead.
   byId("mm-plot").addEventListener("click", event => {
     const plot = event.currentTarget, pane = byId("timelines");
     const scale = Number(plot.dataset.scale || 0);
@@ -858,22 +754,16 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   byId("jump-disk").addEventListener("click", () => jumpTo("bucket-disk"));
 
   // ---- OPEN #257 + #258: Detail View drawer -----------------------------------------------------
-  // Real page: a commit node reads `git show <hash>:<path>`; an on-disk node reads the working tree.
-  // Here both return canned text, since the mockup has no server.
+  // Real page: a commit node reads `git show <hash>:<path>`; an on-disk node reads the working tree.  Here both return canned text, since the mockup has no server.
   function openDrawer(path, node, dot) {
     // task #305: a plain click RESETS to a one-node selection and re-anchors the next shift-click.
     clearDiffPair();
     anchor = { dot, path };
     setDrawerTools("none");
+    byId("dmulti").hidden = true;
     paintSingleArrows();
     byId("drawer").classList.add("open");
-    // The header says WHAT is being shown (user, 2026-07-26): "<File Name> — Current on-disk state"
-    // for a disk node, the commit for a commit node. It used to be the bare path, with the
-    // provenance buried in two comment lines at the top of the CONTENTS — which put a description
-    // of the file inside the file, where it read as part of the source.
-    // task #305: a snapshot's header carries the customTitle IN EFFECT AT ITS LINE RANGE — not the
-    // session's first title and not its last. A session renamed part-way through would otherwise
-    // attribute the snapshot to work it has nothing to do with.
+    // The header says WHAT is being shown (user, 2026-07-26): "<File Name> — Current on-disk state" for a disk node, the commit for a commit node. It used to be the bare path, with the provenance buried in two comment lines at the top of the CONTENTS — which put a description of the file inside the file, where it read as part of the source.  task #305: a snapshot's header carries the customTitle IN EFFECT AT ITS LINE RANGE — not the session's first title and not its last. A session renamed part-way through would otherwise attribute the snapshot to work it has nothing to do with.
     const heading = {
       commit: () => `${basename(path)} — at commit ${node.hash.slice(0, 8)}`,
       snapshot: () => `${basename(path)} Snapshot - ${titleAt(node.session, node.line)}`,
@@ -887,19 +777,12 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     byId("dmeta").textContent = `${path}   ·   ${provenance()}`;
     // #dbody holds ROWS since task #319 put a diff in it, so the single-node view brings its own <pre>.
     byId("dbody").innerHTML = `<pre>${highlightCode(fakeContents(path, node), path)}</pre>`;
-    // Clicking a node to inspect it IS selecting it (user, 2026-07-26): the dot gets its [ ] marks,
-    // its ruler row goes bold and its dashed leader turns green — the same language a ruler-tick
-    // landing speaks, so the reader never has to learn two.
-    // The dot's own label is its next sibling (see addNode); a bucket row has none.
+    // Clicking a node to inspect it IS selecting it (user, 2026-07-26): the dot gets its [ ] marks, its ruler row goes bold and its dashed leader turns green — the same language a ruler-tick landing speaks, so the reader never has to learn two.  The dot's own label is its next sibling (see addNode); a bucket row has none.
     const twin = dot.nextElementSibling?.classList.contains("nlabel") ? [dot.nextElementSibling] : [];
     highlight([dot.closest(".filebox"), dot, ...twin].filter(Boolean));
-    // task #305: and it says WHERE the bytes came from, through #303's one helper — a flash, not a
-    // selection, so opening a snapshot never silently filters the timeline to its session.
+    // task #305: and it says WHERE the bytes came from, through #303's one helper — a flash, not a selection, so opening a snapshot never silently filters the timeline to its session.
     if (node.kind === "snapshot") flashSession(node.session);
-    // #258: the drawer SHRINKS the timeline pane, so the node just clicked can end up behind the
-    // ruler or off the edge. Re-centre against the POST-reflow layout, never the pre-open one —
-    // which is also why `.drawer` carries no width transition: a re-centre measured mid-animation
-    // aims at a pane width that is already stale.
+    // #258: the drawer SHRINKS the timeline pane, so the node just clicked can end up behind the ruler or off the edge. Re-centre against the POST-reflow layout, never the pre-open one — which is also why `.drawer` carries no width transition: a re-centre measured mid-animation aims at a pane width that is already stale.
     requestAnimationFrame(() => {
       centerInVisibleTimeline(dot);
       drawMinimap();
@@ -907,15 +790,94 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   }
   byId("dclose").addEventListener("click", () => {
     byId("drawer").classList.remove("open");
+    byId("dmulti").hidden = true;
     clearDiffPair();
     anchor = null;
     drawMinimap();
   });
 
+  // ---- task #328: multi-selection drawer — every nav-selected file, alphabetical ---------------
+  function listNavSelectionTargets() {
+    const all = [...new Set([...model.repoPaths, ...model.diskPaths])];
+    const fromFolders = all.filter(p => [...selectedFolders].some(f => p === f || p.startsWith(f + "/")));
+    return [...new Set([...selectedFiles, ...fromFolders])].sort();
+  }
+  // Every recorded revision of one path, oldest -> newest, from the FIXTURE (never the DOM).
+  function nodeLadderFor(path) {
+    const ladder = COMMITS.filter(c => c.files.includes(path))
+      .map(c => ({ kind: "commit", t: commitInstant(c), hash: c.hash }));
+    for (const s of snapshotsFor(path))
+      ladder.push({ kind: "snapshot", t: ms(s.at), version: s.version, session: s.session, line: s.line });
+    const disk = DISK.find(f => f.path === path);
+    if (disk) ladder.push({ kind: "disk", t: ms(disk.at) });
+    return ladder.sort((a, b) => a.t - b.t);
+  }
+  // The revision-marker vocabulary; future layers add kinds here, and only here.
+  const markerOf = node => node.kind === "commit" ? node.hash.slice(0, 8)
+    : node.kind === "snapshot" ? `${node.version} 📸 ${node.session}` : "on disk";
+  const stampOf = node => `${markerOf(node)} · ${label(node.t)}`;
+
+  // One section: summary bar, base/target pickers, diff body; identical sides show the whole file.
+  function buildFileSection(path) {
+    const ladder = nodeLadderFor(path);
+    const details = el("details", "dfile");
+    details.open = true;
+    const stamp = el("span", "dfile-stamp");
+    const summary = el("summary", "dfile-head");
+    summary.append(el("span", "dfile-path", path), stamp);
+    const selects = ["base", "target"].map(() => {
+      const select = el("select", "dfile-select");
+      ladder.forEach((node, i) => {
+        const option = el("option", null, stampOf(node));
+        option.value = String(i);
+        select.appendChild(option);
+      });
+      select.value = String(ladder.length - 1);   // newest = on disk when the file still exists
+      return select;
+    });
+    const controls = el("div", "dfile-controls");
+    controls.append(el("span", null, "base"), selects[0], el("span", null, "→ target"), selects[1]);
+    const body = el("div", "dfile-body");
+    const renderSection = () => {
+      const base = ladder[Number(selects[0].value)];
+      const target = ladder[Number(selects[1].value)];
+      stamp.textContent = base === target ? stampOf(target) : `${stampOf(base)}  →  ${stampOf(target)}`;
+      const ops = windowOps(diffLines(contentLines(path, base), contentLines(path, target)),
+                            base === target ? null : MULTI_DIFF_CONTEXT_LINES);
+      renderInline(body, ops, path);
+    };
+    for (const select of selects) select.addEventListener("change", renderSection);
+    renderSection();
+    details.append(summary, controls, body);
+    return details;
+  }
+
+  function openMultiDrawer(targets) {
+    clearDiffPair();
+    anchor = null;
+    paintSingleArrows();
+    setDrawerTools("none");
+    byId("dmulti").hidden = false;
+    byId("drawer").classList.add("open");
+    byId("dpath").textContent = `${targets.length} files — Current on-disk state`;
+    byId("dpath").title = targets.join("\n");
+    byId("dmeta").textContent = `working tree   ·   ${targets.length} selected`;
+    byId("dbody").replaceChildren(...targets.map(buildFileSection));
+  }
+  const setEverySectionOpen = open => {
+    for (const section of document.querySelectorAll("#dbody details.dfile")) section.open = open;
+  };
+  byId("dcollapse-all").addEventListener("click", () => setEverySectionOpen(false));
+  byId("dshow-all").addEventListener("click", () => setEverySectionOpen(true));
+  // A selection of 0 or 1 leaves the drawer showing whatever it showed — the single-click path owns it.
+  function refreshMultiDrawer() {
+    const targets = listNavSelectionTargets();
+    if (targets.length > 1) openMultiDrawer(targets);
+  }
+
   // ---- task #323: step ONE node along the anchored file's lane ---------------------------------
 
-  // Lane DOM order is the timeline; created-at has no bytes, so cycling skips it.
-  // STOP at the ends: a missing neighbour disables that arrow rather than wrapping.
+  // Lane DOM order is the timeline; created-at has no bytes, so cycling skips it.  STOP at the ends: a missing neighbour disables that arrow rather than wrapping.
   function findAdjacentDot(offset) {
     if (!anchor) return null;
     const dots = [...anchor.dot.parentElement.querySelectorAll(".node:not(.n-created)")];
@@ -937,11 +899,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   initDiffDrawer({ byId, el, basename, highlightCode,
                    linesOf: contentLines, nodeOf: dot => nodeForDot.get(dot) });
 
-  // The FILE's bytes and nothing else: which file this is and where it came from is the drawer
-  // header's job, so no provenance banner is prepended to the body any more.
-  // One canned body per LANGUAGE rather than one for every file, so #294's colours are visible on
-  // each kind the mockup can open — including the two that must come out plain.
-  // Long enough that a 3-line context window drops something; at 8 lines #320 had nothing to reveal.
+  // The FILE's bytes and nothing else: which file this is and where it came from is the drawer header's job, so no provenance banner is prepended to the body any more.  One canned body per LANGUAGE rather than one for every file, so #294's colours are visible on each kind the mockup can open — including the two that must come out plain.  Long enough that a 3-line context window drops something; at 8 lines #320 had nothing to reveal.
   const TEMPLATES = {
     ts: [`import { parse } from "./parse";`, `import { Logger } from "./logger";`, "",
          "// dispatch one scenario case", `export function run(input: string): string {`,
@@ -977,6 +935,10 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
           "and what the full-content toggle restores.", "", "one", "two", "three", "four", "five"],
   };
   const LINE_COMMENT = { ts: "//", py: "#", sh: "#" };
+  // task #328: the one deliberately long file, so the multi-view's pane heights face real lengths.
+  const LONG_FILE = "src/index.ts";
+  const LONG_FILE_PAD_LINES = 150;
+  const MULTI_DIFF_CONTEXT_LINES = 3;   // git's default, matching the pair diff
 
   // What one node's bytes are called; #300/#305: a snapshot differs per owning SESSION, not by name.
   const revisionStamp = node => node.kind === "snapshot" ? `${node.version} of ${node.session}`
@@ -999,19 +961,21 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     if (seed % 2 === 0) lines.push(note ? `${note} TODO(${seed % 100}): revisit before release`
                                         : `TODO(${seed % 100}): revisit before release`);
     if (seed % 3 === 0) lines.splice(2, 1);
+    // task #328: one >150-line file; identical padding in every revision, like real unchanged code.
+    if (path === LONG_FILE)
+      for (let i = 1; i <= LONG_FILE_PAD_LINES; i += 1)
+        lines.push(note ? `${note} padding line ${i} of the long-file layout fixture`
+                        : `padding line ${i} of the long-file layout fixture`);
     return lines;
   }
   const fakeContents = (path, node) => contentLines(path, node).join("\n");
 
   // ---- task #294: syntax highlighting in the Detail View ---------------------------------------
-  // The REAL page reuses webapp/highlight.ts (its renderCodeInto already colours the revision view);
-  // this is the mockup's stand-in, small enough to show what the drawer will look like and no more.
-  // Language comes from the extension, and an unknown one is not an error — it is plain text.
+  // The REAL page reuses webapp/highlight.ts (its renderCodeInto already colours the revision view); this is the mockup's stand-in, small enough to show what the drawer will look like and no more.  Language comes from the extension, and an unknown one is not an error — it is plain text.
   const LANGUAGES = { ts: "ts", tsx: "ts", js: "ts", jsx: "ts", py: "py", sh: "sh", bash: "sh",
                       md: "md", txt: "txt" };
   const languageOf = path => LANGUAGES[path.slice(path.lastIndexOf(".") + 1)] ?? "txt";
-  // Non-capturing groups THROUGHOUT: the scanner below joins these into one alternation and reads
-  // which rule fired off the group index, so a stray capture inside a rule mislabels every rule after it.
+  // Non-capturing groups THROUGHOUT: the scanner below joins these into one alternation and reads which rule fired off the group index, so a stray capture inside a rule mislabels every rule after it.
   const KEYWORDS = {
     ts: /\b(?:import|export|from|function|const|let|var|return|if|else|throw|new|async|await|class|interface|type)\b/,
     py: /\b(?:import|from|def|class|return|if|elif|else|raise|for|while|in|not|and|or|None|True|False)\b/,
@@ -1020,8 +984,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   const COMMENTS = { ts: /\/\/[^\n]*/, py: /#[^\n]*/, sh: /#[^\n]*/ };
   const escapeHtml = text => text.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
-  // ONE pass, comments and strings first, so a keyword inside either is left alone — the mistake a
-  // per-rule replace chain always makes.
+  // ONE pass, comments and strings first, so a keyword inside either is left alone — the mistake a per-rule replace chain always makes.
   function highlightCode(source, path) {
     const language = languageOf(path);
     if (!KEYWORDS[language]) return escapeHtml(source);
@@ -1040,10 +1003,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   }
 
   // ---- OPEN #295/#296/#297: source paths, and the settings that hold them -----------------------
-  // The real [+] opens a folder-only native dialog and the chosen folder is then WALKED for nested
-  // files — picking `…/projects/` is meant to pull in every JSONL underneath it. Here the walk is a
-  // fixture: each candidate carries the count that walk would have returned, and a candidate with
-  // zero is refused exactly as the real one must be.
+  // The real [+] opens a folder-only native dialog and the chosen folder is then WALKED for nested files — picking `…/projects/` is meant to pull in every JSONL underneath it. Here the walk is a fixture: each candidate carries the count that walk would have returned, and a candidate with zero is refused exactly as the real one must be.
   const CANDIDATES = {
     jsonl: [
       { path: "/Users/you/Programming/jot-recovery/claude-data/projects", found: 148 },
@@ -1058,17 +1018,14 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   };
   const PICKER_TITLES = { jsonl: "JSONL Source Paths", fh: "File History Snapshot Paths" };
   const SETTINGS_KEY = "layer1-mockup-project-settings";
-  // A project folder implies where its transcripts and snapshots normally live, and that derived
-  // folder is what a first-time list holds (#295). `touched` is what stops a re-derive from throwing
-  // away a list the user has since edited.
+  // A project folder implies where its transcripts and snapshots normally live, and that derived folder is what a first-time list holds (#295). `touched` is what stops a re-derive from throwing away a list the user has since edited.
   const deriveFor = (kind, dir) => kind === "jsonl"
     ? `/Users/you/.claude/projects/${dir.replace(/\//g, "-")}`
     : "/Users/you/.claude/file-history";
   const sources = { jsonl: { paths: [], touched: false }, fh: { paths: [], touched: false } };
   let settingsDirty = false;
 
-  // Re-derived on every render, so a new project folder brings its own default lists with it, and
-  // the two buttons say how many folders each list holds without the dialog having to be opened.
+  // Re-derived on every render, so a new project folder brings its own default lists with it, and the two buttons say how many folders each list holds without the dialog having to be opened.
   function syncSourceButtons() {
     const dir = byId("dir").value.trim().replace(/\/$/, "");
     for (const kind of ["jsonl", "fh"])
@@ -1137,9 +1094,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     render();   // #295: committing the list rebuilds the timeline off the new sources
   });
 
-  // #297. A mockup has no config file, so localStorage stands in for one — same shape, same moment:
-  // written on demand, read once at boot. The unload prompt is the browser's own; a page cannot word
-  // it, which is why "discard" is the reader leaving anyway rather than a third button of ours.
+  // #297. A mockup has no config file, so localStorage stands in for one — same shape, same moment: written on demand, read once at boot. The unload prompt is the browser's own; a page cannot word it, which is why "discard" is the reader leaving anyway rather than a third button of ours.
   byId("save-settings").addEventListener("click", () => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({
       dir: byId("dir").value, repo: byId("repo").value,
@@ -1160,8 +1115,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   })();
 
   // ---- zoom, and OPEN #282's time-source toggle -------------------------------------------------
-  // A full render, not just a CSS variable: which timestamps the gutter can print depends on how far
-  // apart the zoom has pushed them, so the row list has to be rebuilt at the new scale.
+  // A full render, not just a CSS variable: which timestamps the gutter can print depends on how far apart the zoom has pushed them, so the row list has to be rebuilt at the new scale.
   const applyZoom = () => {
     byId("canvas").style.setProperty("--zoom", zoom);
     byId("zoom-reset").textContent = `${Math.round(zoom * 100)}%`;
@@ -1171,8 +1125,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   byId("zoom-out").addEventListener("click", () => { zoom = Math.max(zoom / 1.25, 0.1); applyZoom(); });
   byId("zoom-reset").addEventListener("click", () => { zoom = 1; applyZoom(); });
 
-  // On the real page the choice is a fourth query param, because the instants are computed server
-  // side and flipping it re-loads the view. Here it just re-reads the other field of each commit.
+  // On the real page the choice is a fourth query param, because the instants are computed server side and flipping it re-loads the view. Here it just re-reads the other field of each commit.
   for (const [id, source] of [["t-committer", "committer"], ["t-author", "author"]])
     byId(id).addEventListener("click", () => {
       timeSource = source;
@@ -1182,9 +1135,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
     });
 
   // ---- task #304: the layer switcher ------------------------------------------------------------
-  // A full render off the same fixture, which is what makes 1 -> 2 -> 1 land back exactly where it
-  // started: Layer 1 is rebuilt, not a Layer 2 with things removed. The expanded row is dropped —
-  // one opened on a snapshot-only instant has nothing left to stand for at Layer 1.
+  // A full render off the same fixture, which is what makes 1 -> 2 -> 1 land back exactly where it started: Layer 1 is rebuilt, not a Layer 2 with things removed. The expanded row is dropped — one opened on a snapshot-only instant has nothing left to stand for at Layer 1.
   for (const button of document.querySelectorAll(".layerbar button"))
     button.addEventListener("click", () => {
       layer = Number(button.dataset.layer);
@@ -1209,8 +1160,7 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
         option(`${c.hash.slice(0, 8)}  ${c.subject.padEnd(75).slice(0, 75)}  ${label(commitInstant(c))}`, c.hash)));
   }
 
-  // [Open…] — in the real page this POSTs /api/pick-folder and the local server runs the OS folder
-  // dialog. Here it just cycles sample paths.
+  // [Open…] — in the real page this POSTs /api/pick-folder and the local server runs the OS folder dialog. Here it just cycles sample paths.
   const SAMPLES = ["/Users/you/code/demo-app", "/Users/you/code/some-other-repo",
                    "/Users/you/archive/backup-2024"];
   document.querySelectorAll("button.pick").forEach(b => b.addEventListener("click", () => {
@@ -1225,6 +1175,5 @@ import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } fr
   render();
   requestAnimationFrame(drawMinimap);   // geometry is only real after the first layout pass
 
-// The CDP checks in jfred/scripts/visual/mockup.ts read the fixture straight off the page. Modules
-// have no globals, so this is the one deliberate hand-off — nothing in the page reads it.
+// The CDP checks in jfred/scripts/visual/mockup.ts read the fixture straight off the page. Modules have no globals, so this is the one deliberate hand-off — nothing in the page reads it.
 window.__fixture = { COMMITS, DISK, SESSIONS, SNAPSHOTS };

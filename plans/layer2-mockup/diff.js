@@ -91,7 +91,7 @@ function renderColumns(container, ops, path) {
   container.replaceChildren(grid);
 }
 
-function renderInline(container, ops, path) {
+export function renderInline(container, ops, path) {
   const list = deps.el("div", "diff-inline");
   let baseLine = 0, targetLine = 0;
   for (const entry of ops) {
@@ -124,6 +124,8 @@ export function clearDiffPair() {
 
 // One strip at a time (#324): pair mode swaps single arrows for two pairs, revealing row 2.
 export function setDrawerTools(kind) {
+  // task #328: the pair view owns the drawer, so the multi-view strip leaves with it.
+  if (kind === "diff") deps.byId("dmulti").hidden = true;
   deps.byId("difftools").hidden = kind !== "diff";
   deps.byId("dhead2").hidden = kind !== "diff";
   deps.byId("pairtools").hidden = kind !== "diff";

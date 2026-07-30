@@ -5,27 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Layer 1 + Layer 2 View — File State vs Git State vs Snapshots (mockup)</title>
 <style>
-  /* Tokens, header/button/ruler/filebox/node styling all lifted from plans/mvp-app-mockup.html
-     so this reads as the same app. Only the parts Layers 1 and 2 need are kept.
+  /*
+    Styling lifted from plans/mvp-app-mockup.html; only what Layers 1 and 2 need is kept.
 
-     2026-07-27: covers Layers 1 AND 2 (tasks #299-#307). Layer 2 is the FILE-HISTORY SNAPSHOT
-     layer — one 📸 node per version, on the same bubbles and ruler. `[3]` is gone: layers 3+ are
-     unassigned.
+    Covers Layers 1 AND 2; Layer 2 adds one 📸 snapshot node per version. Layers 3+ unassigned.
 
-     2026-07-25: extended to show tasks #245-#257 — the user's visual-fix round.
-     2026-07-26: brought level with EVERY Layer 1 task now closed (#245-#256, #258-#266, #268-#281)
-     AND with every Layer 1 task still open in tasks.json (#257, #267, #282-#290), which are mocked
-     here as the EXPECTED state so the behaviour can be dialled in before it is signed off. Those
-     carry an "OPEN #n" tag; closed ones just carry their number.
-     Of the open set, #267, #283, #285, #287, #288 and #290 are already BUILT in the jfred working
-     tree (plans/task-287-285-283-267-288-290-layer1-batch) and are only waiting to be closed — so
-     for those, this file and the real page should already agree. Genuinely unbuilt: #257 (the
-     Detail View drawer), #282 (author vs committer time), #284 (a shared tick expanding to its file
-     list) and #286 (the branch and commit dropdowns).
+    2026-07-25: extended to show tasks #245-#257 — the user's visual-fix round.  2026-07-26: brought level with EVERY Layer 1 task now closed (#245-#256, #258-#266, #268-#281) AND with every Layer 1 task still open in tasks.json (#257, #267, #282-#290), which are mocked here as the EXPECTED state so the behaviour can be dialled in before it is signed off. Those carry an "OPEN #n" tag; closed ones just carry their number.  Of the open set, #267, #283, #285, #287, #288 and #290 are already BUILT in the jfred working tree (plans/task-287-285-283-267-288-290-layer1-batch) and are only waiting to be closed — so for those, this file and the real page should already agree. Genuinely unbuilt: #257 (the Detail View drawer), #282 (author vs committer time), #284 (a shared tick expanding to its file list) and #286 (the branch and commit dropdowns).
 
-     NEW BEHAVIOUR, user-requested 2026-07-26 and not yet a task: the dashed leader lines are no
-     longer drawn at rest. One is drawn only while the user hovers a ruler timestamp, or hovers /
-     selects a bubble, or hovers / selects a node. Plain scrolling draws none. */
+    NEW BEHAVIOUR, user-requested 2026-07-26 and not yet a task: the dashed leader lines are no longer drawn at rest. One is drawn only while the user hovers a ruler timestamp, or hovers / selects a bubble, or hovers / selects a node. Plain scrolling draws none.
+  */
   .viz-root {
     color-scheme: light;
     --page: #f9f9f7; --surface: #fcfcfb;
@@ -35,8 +23,9 @@
     --c-echo: #eda100; --c-script: #4a3aa7; --c-anchor: #e87ba4; --c-disk: #0b0b0b;
     --seg-a: rgba(27,175,122,.12);
     --sel-edge: #1baf7a; --box: #d98a2b;
-    /* OPEN #287: the hover-revealed full path needs a colour NO resting bubble name uses, or a long
-       path reads as one continuous run of green monospace mixed with its neighbours' names. */
+    /*
+      OPEN #287: the hover-revealed full path needs a colour NO resting bubble name uses, or a long path reads as one continuous run of green monospace mixed with its neighbours' names.
+    */
     --reveal-ink: #7a3ecb;
   }
   @media (prefers-color-scheme: dark) {
@@ -88,25 +77,32 @@
     border-color: var(--sel-edge); color: #fff; }
   .layerbar button.uncomputed { border-style: dashed; color: var(--muted); }
 
-  /* task #256 + OPEN #285: the two bucket jumps and the Find bubble box share ONE navigation row.
-     #285 moves the find box out of the .sources path row and onto this one. */
+  /*
+    task #256 + OPEN #285: the two bucket jumps and the Find bubble box share ONE navigation row.  #285 moves the find box out of the .sources path row and onto this one.
+  */
   .navbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     padding: 6px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
   .navbar .lbl { font-size: 11.5px; color: var(--muted); }
-  /* OPEN #289: the input and its ‹ › cycle buttons are ONE non-wrapping group, so no window width
-     can separate a button from the box it drives. */
+  /*
+    OPEN #289: the input and its ‹ › cycle buttons are ONE non-wrapping group, so no window width can separate a button from the box it drives.
+  */
   .findgroup { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
   .findgroup input { font: 11.5px ui-monospace, Menlo, monospace; padding: 4px 8px; color: var(--ink);
     background: var(--page); border: 1px solid var(--border); border-radius: 6px; width: 210px; }
   .findgroup input:focus { outline: none; border-color: var(--sel-edge); }
   .findgroup button { padding: 3px 7px; }
-  /* task #272: the "Enter cycles" guidance is PAGE TEXT, not a `title`. A native tooltip is hidden
-     the moment the user starts typing — exactly when the instruction becomes relevant. */
+  /*
+    task #272: the "Enter cycles" guidance is PAGE TEXT, not a `title`. A native tooltip is hidden the moment the user starts typing — exactly when the instruction becomes relevant.
+  */
   .hint { font-size: 10.5px; color: var(--muted); }
-  /* task #273: emptied box -> this readout is emptied too, so a stale count never outlives its search. */
+  /*
+    task #273: emptied box -> this readout is emptied too, so a stale count never outlives its search.
+  */
   .findstatus { font: 11px ui-monospace, Menlo, monospace; color: var(--ink2); min-width: 40px; }
 
-  /* The whole Layer 1 input surface: two folder paths, a branch and a commit. */
+  /*
+    The whole Layer 1 input surface: two folder paths, a branch and a commit.
+  */
   .sources { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
     padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
   .sources label { display: inline-flex; align-items: center; gap: 6px;
@@ -114,11 +110,9 @@
   .sources input, .sources select { font: 11.5px ui-monospace, Menlo, monospace; padding: 4px 8px;
     color: var(--ink); background: var(--page); border: 1px solid var(--border); border-radius: 6px; }
   .sources input:focus, .sources select:focus { outline: none; border-color: var(--sel-edge); }
-  /* OPEN #286: the ref textbox becomes a commit-history dropdown sized in ch — 75 characters of
-     subject plus its timestamp — and a branch dropdown appears only once the repo is confirmed.
-     The repo row is `nowrap` (user, 2026-07-26: git repo, branch and commit belong on ONE row), so
-     88ch is the WANTED width, not a floor: `min-width: 0` lets the select give way on a narrow
-     window instead of wrapping the control onto a line of its own. */
+  /*
+    OPEN #286: the ref textbox becomes a commit-history dropdown sized in ch — 75 characters of subject plus its timestamp — and a branch dropdown appears only once the repo is confirmed.  The repo row is `nowrap` (user, 2026-07-26: git repo, branch and commit belong on ONE row), so 88ch is the WANTED width, not a floor: `min-width: 0` lets the select give way on a narrow window instead of wrapping the control onto a line of its own.
+  */
   .sources.repo { flex-wrap: nowrap; }
   #ref { width: 88ch; min-width: 0; }
   .sources.repo label:last-of-type { min-width: 0; flex: 0 1 auto; }
@@ -126,25 +120,31 @@
   .repo-ok .confirmed-only { display: inline-flex; }
   .repo-flag { font-size: 11px; color: var(--sel-edge); }
 
-  /* S12: legend above the timeline, outside the scroll container. */
+  /*
+    S12: legend above the timeline, outside the scroll container.
+  */
   .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 7px 16px;
     font-size: 11px; color: var(--ink2); border-bottom: 1px solid var(--border); background: var(--surface); }
   .legend span { display: inline-flex; align-items: center; gap: 5px; }
   .legend i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
 
-  /* Three columns: File Nav (#252) | timeline | Detail View drawer (OPEN #257). */
+  /*
+    Three columns: File Nav (#252) | timeline | Detail View drawer (OPEN #257).
+  */
   .body { flex: 1; min-height: 0; display: flex; }
 
-  /* ---- task #252: File Nav, LEFT of the ruler. Class names are deliberately the ones the real
-     component already ships in webapp/views/sidebar.ts + views/timeline-file-tree.ts, because the
-     task is to REUSE that component, not to write a second tree. */
-  /* One column, two pickers, a horizontal grip between them (user, 2026-07-27). `--files-share` is
-     the split as a percentage of the column, so the two panes always add up to the column's height
-     and neither can be dragged out of existence. */
+  /*
+    ---- task #252: File Nav, LEFT of the ruler. Class names are deliberately the ones the real component already ships in webapp/views/sidebar.ts + views/timeline-file-tree.ts, because the task is to REUSE that component, not to write a second tree.
+  */
+  /*
+    One column, two pickers, a horizontal grip between them (user, 2026-07-27). `--files-share` is the split as a percentage of the column, so the two panes always add up to the column's height and neither can be dragged out of existence.
+  */
   .filenav { flex: none; width: var(--filenav-w); display: flex; flex-direction: column;
     overflow: hidden; --files-share: 50;
     border-right: 1px solid var(--border); background: var(--surface); }
-  /* No padding-TOP: a padded scroll container would hold the sticky .panehead that far down. */
+  /*
+    No padding-TOP: a padded scroll container would hold the sticky .panehead that far down.
+  */
   .navpane { overflow: auto; padding: 0 8px 14px; min-height: 0; }
   #pane-files { flex: var(--files-share) 1 0; }
   #pane-sessions { flex: calc(100 - var(--files-share)) 1 0; }
@@ -153,20 +153,26 @@
   .pane-grip:hover, .pane-grip.dragging { background: color-mix(in srgb, var(--sel-edge) 45%, transparent); }
   .filenav .pane-title { font: 600 11px system-ui; text-transform: uppercase; letter-spacing: .04em;
     color: var(--muted); padding: 2px 4px 6px; display: flex; align-items: center; gap: 6px; }
-  /* Only the FIRST button takes the free space: with task #326's toggle there are now two, and two
-     auto margins would SPLIT the gap and strand one of them mid-row. */
+  /*
+    Only the FIRST button takes the free space: with task #326's toggle there are now two, and two auto margins would SPLIT the gap and strand one of them mid-row.
+  */
   .filenav .pane-title button { padding: 1px 7px; font-size: 10.5px; text-transform: none;
     letter-spacing: normal; }
   .filenav .pane-title button:first-of-type { margin-left: auto; }
-  /* task #326: the toggle paints like every other active control on the page. */
+  /*
+    task #326: the toggle paints like every other active control on the page.
+  */
   .filenav .pane-title button.current { background: var(--sel-edge); border-color: var(--sel-edge);
     color: #fff; }
-  /* Title and search stay put while the tree scrolls under; negative margins reach the pane's edges. */
+  /*
+    Title and search stay put while the tree scrolls under; negative margins reach the pane's edges.
+  */
   .panehead { position: sticky; top: 0; z-index: 3; background: var(--surface);
     margin: 0 -8px; padding: 10px 8px 0; }
 
-  /* task #281: the File Nav's OWN search box — it filters this tree only and shares no code with
-     the find-bubble box, which searches the timeline. */
+  /*
+    task #281: the File Nav's OWN search box — it filters this tree only and shares no code with the find-bubble box, which searches the timeline.
+  */
   .navsearch { display: flex; gap: 4px; align-items: center;
     padding: 2px 4px 6px; background: var(--surface); }
   .navsearch input { flex: 1; min-width: 0; font: 11px ui-monospace, Menlo, monospace; padding: 3px 7px;
@@ -176,7 +182,9 @@
   .file-folder-name { font: 600 11.5px ui-monospace, Menlo, monospace; color: var(--ink2);
     padding: 2px 4px; border-radius: 4px; cursor: pointer; list-style: none; }
   .file-folder-name::-webkit-details-marker { display: none; }
-  /* A REAL element, not a ::before, so the triangle's click can be told from the name's. */
+  /*
+    A REAL element, not a ::before, so the triangle's click can be told from the name's.
+  */
   .file-folder > summary > .file-folder-toggle { order: -1; display: inline-block; width: 13px;
     color: var(--muted); cursor: pointer; }
   .file-folder > summary > .file-folder-toggle::before { content: "▸"; }
@@ -189,16 +197,20 @@
     padding: 1px 4px; border-radius: 4px; white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
   .file-item:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
-  /* The clicked row says so; a deleted file has no bubble, so this is its only answer. */
+  /*
+    The clicked row says so; a deleted file has no bubble, so this is its only answer.
+  */
   .file-item.selected { background: var(--sel-edge); color: #fff; }
-  /* Deleted = in the repo tree, absent on disk. #252 says these MUST still be listed. */
+  /*
+    Deleted = in the repo tree, absent on disk. #252 says these MUST still be listed.
+  */
   .file-item.deleted { color: var(--muted); text-decoration: line-through; }
   .file-item.deleted.selected { color: #fff; }
   .navempty { font-size: 11px; color: var(--muted); padding: 6px 4px; }
 
-  /* task #292: the JSONL picker is a second SECTION of the File Nav pane, not a third column — it
-     filters the timeline the same way the folder tree does, so it belongs beside it and inherits the
-     pane's width, its scroll and its resize grip. */
+  /*
+    task #292: the JSONL picker is a second SECTION of the File Nav pane, not a third column — it filters the timeline the same way the folder tree does, so it belongs beside it and inherits the pane's width, its scroll and its resize grip.
+  */
   .session-item { font: 11px ui-monospace, Menlo, monospace; color: var(--ink2); margin-bottom: 3px;
     padding: 3px 5px; border-radius: 5px; cursor: pointer; border: 1px solid transparent; }
   .session-item:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
@@ -207,48 +219,46 @@
   .session-item .sname { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .session-item .smeta { display: block; font-size: 9.5px; color: var(--muted); padding-top: 1px; }
   .session-item.selected .smeta { color: var(--ink2); }
-  /* task #306: the title reads as the row's heading, so it takes the ink the filename has and the
-     timestamp below it keeps its muted footnote size. */
+  /*
+    task #306: the title reads as the row's heading, so it takes the ink the filename has and the timestamp below it keeps its muted footnote size.
+  */
   .session-item .stitle { display: block; font-size: 10px; color: var(--ink); padding-top: 1px; }
-  /* task #303: the highlight-then-fade. --c-echo, deliberately NOT the --c-script a SELECTED session
-     wears — this mark does not filter anything, and two marks that look alike would say it does.
-     The duration comes from FLASH_MS via the inline --flash-ms, so there is one number to change. */
+  /*
+    task #303: the highlight-then-fade. --c-echo, deliberately NOT the --c-script a SELECTED session wears — this mark does not filter anything, and two marks that look alike would say it does.  The duration comes from FLASH_MS via the inline --flash-ms, so there is one number to change.
+  */
   .session-item.flash { animation: session-flash var(--flash-ms, 2600ms) ease-out forwards; }
   @keyframes session-flash {
     from { background: color-mix(in srgb, var(--c-echo) 60%, transparent); border-color: var(--c-echo); }
     to   { background: transparent; border-color: transparent; }
   }
 
-  /* task #279: drag the File Nav's right edge to resize it. The grip is a sibling overlay rather
-     than a border on the pane, so the drag target is 7 px wide without changing the pane's box. */
+  /*
+    task #279: drag the File Nav's right edge to resize it. The grip is a sibling overlay rather than a border on the pane, so the drag target is 7 px wide without changing the pane's box.
+  */
   .filenav-grip { flex: none; width: 7px; margin-left: -4px; cursor: col-resize; z-index: 3;
     background: transparent; }
   .filenav-grip:hover, .filenav-grip.dragging { background: color-mix(in srgb, var(--sel-edge) 45%, transparent); }
 
   .stagewrap { flex: 1; min-width: 0; position: relative; display: flex; }
   .timelines { flex: 1; min-width: 0; overflow: auto; padding: 18px 12px 40px 0; }
-  /* `zoom`, never `transform: scale()` — zoom participates in layout, so the scroll area shrinks
-     with the content. `isolation` makes this an unconditional stacking context, which the leader
-     layer's negative z-index needs at 100% zoom.
-     --lane-y is the gap between a bubble's border-box top and its first NODE: `.filebox`'s 2 px
-     border plus its 52 px header padding. Declared HERE because it is the nearest common ancestor
-     of both consumers — `.ruler .tick` and `.leader` — and neither may state the literal twice.
-     It is what makes the timestamp and the dashed line land on the dots (task 290). The bubble is
-     NOT pulled up by it: a negative margin put every bubble's box 54 px ABOVE the canvas top, which
-     is above the sticky gutter's own top edge, so bubbles at the earliest instants were drawn OVER
-     the ruler as soon as the canvas was scrolled sideways (user, 2026-07-26). */
+  /*
+    `zoom`, never `transform: scale()` — zoom participates in layout, so the scroll area shrinks with the content. `isolation` makes this an unconditional stacking context, which the leader layer's negative z-index needs at 100% zoom.  --lane-y is the gap between a bubble's border-box top and its first NODE: `.filebox`'s 2 px border plus its 52 px header padding. Declared HERE because it is the nearest common ancestor of both consumers — `.ruler .tick` and `.leader` — and neither may state the literal twice.  It is what makes the timestamp and the dashed line land on the dots (task 290). The bubble is NOT pulled up by it: a negative margin put every bubble's box 54 px ABOVE the canvas top, which is above the sticky gutter's own top edge, so bubbles at the earliest instants were drawn OVER the ruler as soon as the canvas was scrolled sideways (user, 2026-07-26).
+  */
   .canvas { position: relative; display: flex; align-items: flex-start; min-width: max-content;
     isolation: isolate; --lane-y: 54px; }
 
-  /* Sticky gutter: the ruler stays put while the canvas scrolls left. --rail-x is derived from the
-     widest label — task #276 put seconds and hundredths in ("MM-DD HH:MM:SS.hh") and task #275
-     appended " (n)", so 23 monospace characters at 10 px x 0.6 em = ~140 px, plus 10 px clearance. */
+  /*
+    Sticky gutter: the ruler stays put while the canvas scrolls left. --rail-x is derived from the widest label — task #276 put seconds and hundredths in ("MM-DD HH:MM:SS.hh") and task #275 appended " (n)", so 23 monospace characters at 10 px x 0.6 em = ~140 px, plus 10 px clearance.
+  */
   .ruler { --rail-x: 150px; position: sticky; left: 0; z-index: 8; flex: none;
     width: calc(var(--rail-x) + 2px); align-self: stretch; background: var(--page); }
   .ruler .rail { position: absolute; left: var(--rail-x); top: 0; bottom: 0; border-left: 2px dotted var(--baseline); }
-  /* task #260/#266: a tick is a navigation control, not inert text. */
-  /* The zoom lives on `.stage`, so a tick has to scale the axis itself to keep pointing at its
-     nodes — the timestamp's own size is what the reader asked to hold still. */
+  /*
+    task #260/#266: a tick is a navigation control, not inert text.
+  */
+  /*
+    The zoom lives on `.stage`, so a tick has to scale the axis itself to keep pointing at its nodes — the timestamp's own size is what the reader asked to hold still.
+  */
   .ruler .tick { position: absolute; left: 0; width: 140px; text-align: right;
     top: calc((var(--axis-px) * 1px + var(--lane-y)) * var(--zoom, 1));
     font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
@@ -256,70 +266,58 @@
   .ruler .tick:hover { color: var(--ink); background: color-mix(in srgb, var(--sel-edge) 16%, transparent); }
   .ruler .tick.multi { text-decoration: underline dotted; }   /* OPEN #284: shared by >1 bubble */
 
-  /* Zoom is the BUBBLES' scale, not the page's: `zoom` (never `transform: scale()`) participates in
-     layout, so zooming out genuinely shrinks the scroll area and more bubbles fit on screen, while
-     the gutter outside it keeps its own font size at every zoom (user, 2026-07-26). */
+  /*
+    Zoom is the BUBBLES' scale, not the page's: `zoom` (never `transform: scale()`) participates in layout, so zooming out genuinely shrinks the scroll area and more bubbles fit on screen, while the gutter outside it keeps its own font size at every zoom (user, 2026-07-26).
+  */
   .stage { display: flex; align-items: flex-start; gap: 26px; padding-left: 26px; zoom: var(--zoom, 1); }
 
-  /* --head is the in-box headroom the file name + sub line occupy. The box is pulled UP by exactly
-     that much so node axis 0 lands on its ruler tick.
-     OPEN #290 is the SAME defect stated the other way round: --axis-px alone is NOT where a node
-     sits, so the tick and the leader used to mark a point --head px above the dots. The fix is
-     `+ var(--lane-y)` on the TICK and the LEADER (see `.canvas`), not a negative margin here —
-     pulling the bubble up instead put its box above the canvas's own top edge, and the sticky ruler
-     stretches only to that edge, so early bubbles rode over the gutter under horizontal scroll. */
+  /*
+    --head is the in-box headroom the file name + sub line occupy. The box is pulled UP by exactly that much so node axis 0 lands on its ruler tick.  OPEN #290 is the SAME defect stated the other way round: --axis-px alone is NOT where a node sits, so the tick and the leader used to mark a point --head px above the dots. The fix is `+ var(--lane-y)` on the TICK and the LEADER (see `.canvas`), not a negative margin here — pulling the bubble up instead put its box above the canvas's own top edge, and the sticky ruler stretches only to that edge, so early bubbles rode over the gutter under horizontal scroll.
+  */
   .filebox { --head: 52px; position: relative; flex: none; min-width: 224px; scroll-margin-top: 14px;
     margin-top: calc(var(--axis-px) * 1px);
     border: 2px solid var(--box); border-radius: 14px;
-    /* Half-transparent so the JSONL wash behind it reads THROUGH the bubble (user, 2026-07-27) —
-       otherwise the one place the range matters most, over the files it touched, is the one place
-       it cannot be seen. */
+    /*
+      Half-transparent so the JSONL wash behind it reads THROUGH the bubble (user, 2026-07-27) — otherwise the one place the range matters most, over the files it touched, is the one place it cannot be seen.
+    */
     background: color-mix(in srgb, var(--surface) 52%, transparent);
     padding: var(--head) 12px 14px; }
-  /* task #245/#270/#280: the label is the BASENAME with the full path on `data-path`, ellipsised to
-     the bubble at rest so it cannot overprint its neighbours. #270's wrapped two-line name was
-     REVERTED on user feedback; truncate-plus-reveal is the settled treatment. */
+  /*
+    task #245/#270/#280: the label is the BASENAME with the full path on `data-path`, ellipsised to the bubble at rest so it cannot overprint its neighbours. #270's wrapped two-line name was REVERTED on user feedback; truncate-plus-reveal is the settled treatment.
+  */
   .filebox .fname { position: absolute; top: 7px; left: 12px; max-width: calc(100% - 24px);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     font: 600 13px ui-monospace, Menlo, monospace; color: var(--c-snap); cursor: default; }
-  /* task #280: hovering reveals the WHOLE path in-page — not as a native tooltip, which the user
-     rejected. Lifting max-width/overflow is the entire reveal; the opaque background and z-index 7
-     (above .node's 6, below .ruler's 8) stop it being painted over by its neighbours.
-     OPEN #287: the revealed text also changes colour, so it cannot be read as a continuation of the
-     neighbouring bubbles' names sitting at the same y. */
+  /*
+    task #280: hovering reveals the WHOLE path in-page — not as a native tooltip, which the user rejected. Lifting max-width/overflow is the entire reveal; the opaque background and z-index 7 (above .node's 6, below .ruler's 8) stop it being painted over by its neighbours.  OPEN #287: the revealed text also changes colour, so it cannot be read as a continuation of the neighbouring bubbles' names sitting at the same y.
+  */
   .filebox .fname:hover { max-width: none; overflow: visible; z-index: 7;
     color: var(--reveal-ink); background: var(--surface); padding-right: 6px;
     border-radius: 4px; box-shadow: 0 0 0 1px var(--border); }
   .filebox .sub { position: absolute; top: 29px; left: 12px; right: 12px; font-size: 10px;
     color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  /* ---- tasks #250/#262/#264/#265 + the 2026-07-26 on-demand rule --------------------------------
-     ONE dashed line per ruler ENTRY, in its own layer behind the bubbles (#264) — the per-bubble
-     `.filebox::before` drew 805 overlapping copies and made the page unusable (#263). `inset: 0`
-     against `.canvas`, not `.stage`, is what lets a line reach the sticky gutter with no length
-     guess (#262). `top` is the entry's own --axis-px, which is where its nodes sit (#265/#290).
+  /*
+    ---- tasks #250/#262/#264/#265 + the 2026-07-26 on-demand rule -------------------------------- ONE dashed line per ruler ENTRY, in its own layer behind the bubbles (#264) — the per-bubble `.filebox::before` drew 805 overlapping copies and made the page unusable (#263). `inset: 0` against `.canvas`, not `.stage`, is what lets a line reach the sticky gutter with no length guess (#262). `top` is the entry's own --axis-px, which is where its nodes sit (#265/#290).
 
-     ON DEMAND (user, 2026-07-26): opacity 0 at rest. Scrolling draws nothing. `.on` is set by JS
-     only while a ruler timestamp, a bubble or a node is hovered or selected. Kept as an opacity
-     toggle rather than display/none so the lines never re-layout — showing one costs a repaint. */
+    ON DEMAND (user, 2026-07-26): opacity 0 at rest. Scrolling draws nothing. `.on` is set by JS only while a ruler timestamp, a bubble or a node is hovered or selected. Kept as an opacity toggle rather than display/none so the lines never re-layout — showing one costs a repaint.
+  */
   .leaders { position: absolute; inset: 0; pointer-events: none; z-index: -1; }
   .leader { position: absolute; left: 0; right: 0;
     top: calc((var(--axis-px) * 1px + var(--lane-y)) * var(--zoom, 1));
     border-top: 1px dashed var(--baseline); opacity: 0; transition: opacity .08s linear; }
   .leader.on { opacity: 1; border-top-color: var(--sel-edge); }
 
-  /* task #292: where a selected JSONL starts and ends. The filter keeps each touched file's WHOLE
-     history, so the band is the only thing saying which part of that history the session actually
-     wrote — it rides the same axis-times-zoom conversion the ticks and leaders use. */
-  /* Two marks per picked session, and they answer different questions. The WASH is the overlap: which
-     bubbles, and which of their nodes, the session's window actually covers (user, 2026-07-27) — a
-     14% tint keeps every dot and label under it readable. The BAR is the extent on its own, in the
-     empty column between the gutter and the first bubble, so the range still reads when the wash is
-     scrolled past its bubbles. Text is what a wash cannot carry: a printed name lands across whatever
-     file sits at that instant, so the name is the bar's tooltip. */
+  /*
+    task #292: where a selected JSONL starts and ends. The filter keeps each touched file's WHOLE history, so the band is the only thing saying which part of that history the session actually wrote — it rides the same axis-times-zoom conversion the ticks and leaders use.
+  */
+  /*
+    Two marks per picked session, and they answer different questions. The WASH is the overlap: which bubbles, and which of their nodes, the session's window actually covers (user, 2026-07-27) — a 14% tint keeps every dot and label under it readable. The BAR is the extent on its own, in the empty column between the gutter and the first bubble, so the range still reads when the wash is scrolled past its bubbles. Text is what a wash cannot carry: a printed name lands across whatever file sits at that instant, so the name is the bar's tooltip.
+  */
   .ranges { position: absolute; inset: 0; pointer-events: none; z-index: 7; }
-  /* BEHIND the bubbles (user, 2026-07-27), like the leaders: the wash says which nodes the session
-     covers, and a bubble that has to be read through a tint is a bubble the wash has cost something. */
+  /*
+    BEHIND the bubbles (user, 2026-07-27), like the leaders: the wash says which nodes the session covers, and a bubble that has to be read through a tint is a bubble the wash has cost something.
+  */
   .washes { position: absolute; inset: 0; pointer-events: none; z-index: -1; }
   .range-wash { position: absolute; left: 0; right: 0;
     top: calc((var(--axis-px) * 1px + var(--lane-y)) * var(--zoom, 1));
@@ -331,13 +329,16 @@
     top: calc((var(--axis-px) * 1px + var(--lane-y)) * var(--zoom, 1));
     height: calc(var(--span-px) * 1px * var(--zoom, 1));
     background: color-mix(in srgb, var(--c-script) 70%, transparent); }
-  /* The two ends read as ends rather than as a bar that got clipped by a scroll. */
+  /*
+    The two ends read as ends rather than as a bar that got clipped by a scroll.
+  */
   .range::before, .range::after { content: ""; position: absolute; left: -3px; right: -3px;
     height: 2px; background: var(--c-script); border-radius: 2px; }
   .range::before { top: -1px; }
   .range::after { bottom: -1px; }
-  /* The gutter is opaque and always on screen, so it carries the range too — a band alone is hidden
-     wherever a bubble sits over it. */
+  /*
+    The gutter is opaque and always on screen, so it carries the range too — a band alone is hidden wherever a bubble sits over it.
+  */
   .ruler .tick.inrange { color: var(--c-script); }
 
   .lane { position: relative; margin-left: 6px; min-height: calc(var(--span-px) * 1px + 18px); }
@@ -348,60 +349,63 @@
   .n-commit { border-radius: 4px; background: var(--c-commit); }
   .n-disk { background: transparent; border: 3px double var(--c-disk); }
   .n-created { border-style: dotted; border-color: var(--muted); }
-  /* task #301: a snapshot is a SOLID circle — the commit is a rounded square and the on-disk node is
-     a hollow double ring, so shape alone separates the three before colour is read. */
+  /*
+    task #301: a snapshot is a SOLID circle — the commit is a rounded square and the on-disk node is a hollow double ring, so shape alone separates the three before colour is read.
+  */
   .n-snap { background: var(--c-snap); }
   .nlabel { position: absolute; left: 14px; top: calc(var(--axis-px) * 1px); transform: translateY(-50%);
     font: 10px ui-monospace, Menlo, monospace; color: var(--ink2); white-space: nowrap; }
-  /* OPEN #257: only clickable nodes advertise themselves. */
+  /*
+    OPEN #257: only clickable nodes advertise themselves.
+  */
   .node.hot, .nlabel.hot { cursor: pointer; }
   .nlabel.hot { text-decoration: underline dotted; }
-  /* `:not(.found)` — a SELECTED node already wears its [ ] brackets, and the hover ring is a second
-     mark in the same colour landing in the same few px (user, 2026-07-27). The selection is the
-     stronger statement, so it wins and the hover says nothing extra. */
+  /*
+    `:not(.found)` — a SELECTED node already wears its [ ] brackets, and the hover ring is a second mark in the same colour landing in the same few px (user, 2026-07-27). The selection is the stronger statement, so it wins and the hover says nothing extra.
+  */
   .node.hot:not(.found):hover { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--sel-edge); }
   .nlabel.cold { color: var(--muted); }
 
-  /* task #259: two events of ONE file at ONE instant (a commit and the working tree touched in the
-     same second) get their own row slots — the rounded rectangle is what says they are simultaneous
-     rather than merely adjacent. Drawn before the nodes so it stays behind them. */
+  /*
+    task #259: two events of ONE file at ONE instant (a commit and the working tree touched in the same second) get their own row slots — the rounded rectangle is what says they are simultaneous rather than merely adjacent. Drawn before the nodes so it stays behind them.
+  */
   .tiegroup { position: absolute; left: -9px; top: calc(var(--axis-px) * 1px - 9px);
     height: calc(var(--span-px) * 1px + 18px); width: 132px; border-radius: 9px;
     border: 1.5px dashed var(--c-anchor); background: color-mix(in srgb, var(--c-anchor) 8%, transparent); }
 
-  /* task #261's highlight convention, reused by every landing: an OUTLINE, never a border — a
-     border would move the bubble's own box, which is the geometry this page exists to inspect.
-     OPEN #267/#283: a NODE is marked with [ ] brackets instead. A dot is 15 px inside a lane of
-     stacked rows, so an outline on it reads as another ring — the brackets sit OUTSIDE the dot in
-     the empty gutter beside the rail, where nothing else on the page draws. The pseudo-elements
-     hang off `.node`, which is already absolutely positioned, so they move nothing. */
+  /*
+    task #261's highlight convention, reused by every landing: an OUTLINE, never a border — a border would move the bubble's own box, which is the geometry this page exists to inspect.  OPEN #267/#283: a NODE is marked with [ ] brackets instead. A dot is 15 px inside a lane of stacked rows, so an outline on it reads as another ring — the brackets sit OUTSIDE the dot in the empty gutter beside the rail, where nothing else on the page draws. The pseudo-elements hang off `.node`, which is already absolutely positioned, so they move nothing.
+  */
   .filebox.found { outline: 3px solid var(--sel-edge); outline-offset: 3px; }
-  /* The brackets hug the dot: at the original 3 px gap and 5 px width they reached 15.5 px either
-     side of a 15 px dot, which put the left one over the range rails and the right one under the
-     node's own label (user, 2026-07-27). 11.5 px clears both, and the shorter 4 px overhang also
-     stops a bracket touching the node one ROW_PX below it. */
+  /*
+    The brackets hug the dot: at the original 3 px gap and 5 px width they reached 15.5 px either side of a 15 px dot, which put the left one over the range rails and the right one under the node's own label (user, 2026-07-27). 11.5 px clears both, and the shorter 4 px overhang also stops a bracket touching the node one ROW_PX below it.
+  */
   .node.found::before, .node.found::after { content: ""; position: absolute; top: -4px; bottom: -4px;
     width: 3px; border: 2px solid var(--sel-edge); }
   .node.found::before { right: 100%; margin-right: 1px; border-right: none; }
   .node.found::after { left: 100%; margin-left: 1px; border-left: none; }
   .nlabel.found { color: var(--ink); font-weight: 700; }
-  /* The gutter row for whatever is selected reads the same as an expanded row (user, 2026-07-26):
-     bold, in full ink, with its dashed leader up — one selection, one language. */
+  /*
+    The gutter row for whatever is selected reads the same as an expanded row (user, 2026-07-26): bold, in full ink, with its dashed leader up — one selection, one language.
+  */
   .ruler .tick.selected { color: var(--ink); font-weight: 700; }
 
-  /* Orphan buckets: one per direction, a plain file list, placed at the earliest member instant. */
+  /*
+    Orphan buckets: one per direction, a plain file list, placed at the earliest member instant.
+  */
   .filebox.bucket { border-style: dashed; border-color: var(--muted); width: 268px; }
   .filebox.bucket .fname { color: var(--ink2); font-family: inherit; font-size: 12px; }
-  /* Each row is placed at its OWN instant (see addBucket), so the list is a positioning context
-     tall enough to hold the last one. `translateY(-50%)` centres a row on its instant the way a
-     `.node` is centred on its own — otherwise a row hangs half a line below its ruler timestamp. */
+  /*
+    Each row is placed at its OWN instant (see addBucket), so the list is a positioning context tall enough to hold the last one. `translateY(-50%)` centres a row on its instant the way a `.node` is centred on its own — otherwise a row hangs half a line below its ruler timestamp.
+  */
   .bucket ul { list-style: none; position: relative; min-height: calc(var(--span-px) * 1px + 16px); }
   .bucket li { position: absolute; left: 0; right: 0; top: calc(var(--axis-px) * 1px);
     transform: translateY(-50%);
     display: flex; justify-content: space-between; gap: 16px;
     font: 11px ui-monospace, Menlo, monospace; color: var(--ink2); }
-  /* An orphan row is inspectable like a node (user, 2026-07-26): a repo-only file still has bytes in
-     the repository at its last commit, and a disk-only file has them in the working tree. */
+  /*
+    An orphan row is inspectable like a node (user, 2026-07-26): a repo-only file still has bytes in the repository at its last commit, and a disk-only file has them in the working tree.
+  */
   .bucket li { cursor: pointer; border-radius: 4px; padding: 0 3px; }
   .bucket li:hover { background: color-mix(in srgb, var(--sel-edge) 16%, transparent); color: var(--ink); }
   .bucket li.found { outline: 2px solid var(--sel-edge); outline-offset: 2px; }
@@ -409,21 +413,12 @@
   .bucket li em { font-style: normal; color: var(--muted); font-size: 10px; flex: none; }
   .nopairs { color: var(--muted); font-size: 11.5px; padding: 34px 8px 0; }
 
-  /* ---- OPEN #284: a tick shared by nodes in MORE THAN ONE bubble expands the list of files
-     touched at that instant instead of silently jumping to whichever one the lookup found first.
-     IN THE RULER, not over the canvas (user, 2026-07-26): the list is part of the gutter row, so it
-     opens UNDER its timestamp and pushes the rows below it down — see EXPAND_ROW_PX in the script,
-     which feeds the row's extra height back into the axis layout so the bubbles crossing that
-     timestamp grow and shift with it. A popover floating over the timeline was the first attempt and
-     was wrong twice over: it hid the render it was describing, and its text took the timeline's ink
-     rather than the gutter's.
-     `width: max-content` past the 150 px rail is deliberate — a path is longer than the gutter is
-     wide, and `.ruler` is opaque and z-index 8, so the list paints cleanly over the canvas it
-     overhangs while the timestamps stay put. */
-  /* An OPEN row is not a SELECTED row. It used to be bold, which is exactly what `.selected` looks
-     like, so a row left open under a selection somewhere else read as a second selected row (user,
-     2026-07-26). Bold now means selected and nothing else; the open row is announced by the file
-     list hanging under it, which no other row has. */
+  /*
+    ---- OPEN #284: a tick shared by nodes in MORE THAN ONE bubble expands the list of files touched at that instant instead of silently jumping to whichever one the lookup found first.  IN THE RULER, not over the canvas (user, 2026-07-26): the list is part of the gutter row, so it opens UNDER its timestamp and pushes the rows below it down — see EXPAND_ROW_PX in the script, which feeds the row's extra height back into the axis layout so the bubbles crossing that timestamp grow and shift with it. A popover floating over the timeline was the first attempt and was wrong twice over: it hid the render it was describing, and its text took the timeline's ink rather than the gutter's.  `width: max-content` past the 150 px rail is deliberate — a path is longer than the gutter is wide, and `.ruler` is opaque and z-index 8, so the list paints cleanly over the canvas it overhangs while the timestamps stay put.
+  */
+  /*
+    An OPEN row is not a SELECTED row. It used to be bold, which is exactly what `.selected` looks like, so a row left open under a selection somewhere else read as a second selected row (user, 2026-07-26). Bold now means selected and nothing else; the open row is announced by the file list hanging under it, which no other row has.
+  */
   .ruler .tick.expanded { color: var(--ink); }
   .tickfiles { position: absolute; left: 12px; top: 100%; width: max-content; max-width: 300px;
     padding: 2px 0 0; }
@@ -432,9 +427,9 @@
     background: var(--page); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tickfiles button:hover { background: color-mix(in srgb, var(--sel-edge) 20%, transparent); color: var(--ink); }
 
-  /* ---- task #246: minimap, pinned to the LOWER-LEFT of the timeline pane. It lives in .stagewrap,
-     NOT in the scrolling .timelines, so it does not scroll away.
-     task #269: inset past the sticky ruler — at left: 12px it covered the gutter's timestamps. */
+  /*
+    ---- task #246: minimap, pinned to the LOWER-LEFT of the timeline pane. It lives in .stagewrap, NOT in the scrolling .timelines, so it does not scroll away.  task #269: inset past the sticky ruler — at left: 12px it covered the gutter's timestamps.
+  */
   .minimap { position: absolute; left: calc(var(--rail-x, 150px) + 14px); bottom: 12px; z-index: 20;
     width: 176px; height: 124px; padding: 6px; cursor: crosshair;
     border: 1px solid var(--border); border-radius: 8px;
@@ -447,7 +442,9 @@
   .mm-view { position: absolute; border: 1.5px solid var(--sel-edge);
     background: color-mix(in srgb, var(--sel-edge) 14%, transparent); border-radius: 2px; }
 
-  /* ---- OPEN #295/#296/#297: the source-path picker, and the settings button that watches it. */
+  /*
+    ---- OPEN #295/#296/#297: the source-path picker, and the settings button that watches it.
+  */
   .savednote { font-size: 10.5px; color: var(--sel-edge); }
   .modal-wrap { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
     background: color-mix(in srgb, #000 45%, transparent); }
@@ -465,19 +462,25 @@
   .mlist .mempty { color: var(--muted); cursor: default; }
   .mbuttons { display: flex; gap: 6px; align-items: center; padding-top: 9px; }
   .mspacer { flex: 1; }
-  /* The folder held no JSONLs. In front of the list, gone on its own a few seconds later. */
+  /*
+    The folder held no JSONLs. In front of the list, gone on its own a few seconds later.
+  */
   .malert { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%);
     background: var(--c-anchor); color: #fff; font: 600 11px system-ui;
     padding: 6px 12px; border-radius: 16px; }
   .malert[hidden] { display: none; }
 
-  /* ---- OPEN #257: Detail View drawer, right half of the screen. */
-  /* A flex COLUMN since task #324 gave the header a second row: the body can no longer subtract a
-     fixed header height, because whether row 2 is there depends on what is selected. */
+  /*
+    ---- OPEN #257: Detail View drawer, right half of the screen.
+  */
+  /*
+    A flex COLUMN since task #324 gave the header a second row: the body can no longer subtract a fixed header height, because whether row 2 is there depends on what is selected.
+  */
   .drawer { flex: none; width: 0; overflow: hidden; border-left: 1px solid var(--border);
     background: var(--surface); display: flex; flex-direction: column; }
-                                 /* no width transition: #258 re-centres the clicked node against
-                                    the post-reflow pane, and an animating width is never that */
+                                 /*
+                                   no width transition: #258 re-centres the clicked node against the post-reflow pane, and an animating width is never that
+                                 */
   .drawer.open { width: 50%; }
   .drawer .dhead { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
     border-bottom: 1px solid var(--border); flex: none; }
@@ -486,9 +489,9 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
   .drawer .dmeta { padding: 6px 12px; font: 10.5px ui-monospace, Menlo, monospace; color: var(--muted);
     border-bottom: 1px solid var(--border); }
-  /* task #294: the drawer's code colours. The real page reuses webapp/highlight.ts, whose renderCodeInto
-     already serves the revision view — these class names are that renderer's output shape, so the port
-     is a swap of the tokeniser and not of the stylesheet. */
+  /*
+    task #294: the drawer's code colours. The real page reuses webapp/highlight.ts, whose renderCodeInto already serves the revision view — these class names are that renderer's output shape, so the port is a swap of the tokeniser and not of the stylesheet.
+  */
   .tok-com { color: var(--muted); font-style: italic; }
   .tok-str { color: var(--c-echo); }
   .tok-key { color: var(--c-script); font-weight: 600; }
@@ -496,10 +499,28 @@
   .tok-typ { color: var(--sel-edge); }
   .drawer pre { margin: 0; padding: 12px; font: 11.5px/1.55 ui-monospace, Menlo, monospace;
     color: var(--ink2); white-space: pre; }
+  /*
+    task #328: one collapsible section per selected file; native <details> is the collapse.
+  */
+  .drawer details.dfile { border-bottom: 1px solid var(--border); }
+  .drawer .dfile-head { display: flex; justify-content: space-between; align-items: baseline;
+    gap: 8px; padding: 6px 12px; cursor: pointer;
+    background: color-mix(in srgb, var(--c-snap) 12%, var(--surface));
+    font: 600 12px ui-monospace, Menlo, monospace; }
+  .drawer .dfile-stamp { color: var(--muted); font-weight: 400; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .drawer .dfile-controls { display: flex; gap: 6px; align-items: center; padding: 4px 12px;
+    border-bottom: 1px solid var(--border); font: 10.5px ui-monospace, Menlo, monospace;
+    color: var(--muted); }
+  .drawer .dfile-select { font: 10.5px ui-monospace, Menlo, monospace; max-width: 45%; }
+  /*
+    Capped pane: a long file scrolls inside its own section instead of burying the ones below.
+  */
+  .drawer .dfile-body { max-height: 40vh; overflow-y: auto; }
 
-  /* ---- tasks #323/#324: the drawer's control strips.
-     Row 1 carries identity and navigation, row 2 the diff tools — and row 2 exists ONLY for a pair,
-     so a single-node view spends none of the drawer's height on buttons it cannot use. */
+  /*
+    ---- tasks #323/#324: the drawer's control strips.  Row 1 carries identity and navigation, row 2 the diff tools — and row 2 exists ONLY for a pair, so a single-node view spends none of the drawer's height on buttons it cannot use.
+  */
   .dtools { display: flex; gap: 4px; flex: none; align-items: center; }
   .dtools[hidden] { display: none; }
   .dtools button.current { background: var(--sel-edge); border-color: var(--sel-edge); color: #fff; }
@@ -507,14 +528,15 @@
   .dfull-toggle { font: 11px system-ui; color: var(--ink2); display: inline-flex; align-items: center;
     gap: 4px; white-space: nowrap; }
 
-  /* task #305: the pair's marks on the lane. They REPLACE the [ ] brackets rather than joining them
-     — one selection language at a time — so they are rings, and the two ends differ in colour
-     because "which of these two is the base" is the question the header answers in words. */
+  /*
+    task #305: the pair's marks on the lane. They REPLACE the [ ] brackets rather than joining them — one selection language at a time — so they are rings, and the two ends differ in colour because "which of these two is the base" is the question the header answers in words.
+  */
   .node.diff-base { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--c-anchor); }
   .node.diff-target { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--sel-edge); }
 
-  /* ---- tasks #319/#320: the diff body. `.dbody` is a div, not a <pre>: it holds rows, and the
-     single-node view puts its own <pre> inside it. */
+  /*
+    ---- tasks #319/#320: the diff body. `.dbody` is a div, not a <pre>: it holds rows, and the single-node view puts its own <pre> inside it.
+  */
   .dbody { flex: 1; overflow: auto; min-height: 0; }
   .dbinary { padding: 16px 12px; color: var(--muted); font-size: 11.5px; }
   .diff-cols { display: grid; grid-template-columns: 1fr 1fr; }
@@ -524,12 +546,15 @@
   .dcell .dsign { flex: none; width: 8px; color: var(--muted); user-select: none; }
   .d-add { background: color-mix(in srgb, var(--c-echo) 20%, transparent); }
   .d-del { background: color-mix(in srgb, var(--c-snap) 20%, transparent); }
-  /* The side with no counterpart on a changed row: hatched-empty, so the eye reads "nothing here"
-     rather than "a blank line here". */
+  /*
+    The side with no counterpart on a changed row: hatched-empty, so the eye reads "nothing here" rather than "a blank line here".
+  */
   .d-nil { background: color-mix(in srgb, var(--muted) 9%, transparent); }
   .d-gap { color: var(--muted); }
 
-  /* task #305: the cross-bubble refusal, said out loud rather than swallowed. */
+  /*
+    task #305: the cross-bubble refusal, said out loud rather than swallowed.
+  */
   .dtoast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 40;
     background: var(--ink); color: var(--surface); font: 11.5px system-ui; padding: 7px 14px;
     border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
@@ -541,9 +566,9 @@
   <header>
     <h1 id="layer-h1">Layer 1 View</h1>
     <span class="crumb" id="crumb"></span>
-    <!-- OPEN #282: which stamp places a bubble. Two commits rewritten in one rebase share a
-         committer instant while their author instants are days apart, so the reading has to be
-         chosen per view rather than assumed. -->
+    <!--
+      OPEN #282: which stamp places a bubble. Two commits rewritten in one rebase share a committer instant while their author instants are days apart, so the reading has to be chosen per view rather than assumed.
+    -->
     <div class="timebar">
       <span class="lbl">Time:</span>
       <button id="t-committer" class="current">committer</button>
@@ -555,13 +580,17 @@
     </div>
     <div class="layerbar">
       <span class="lbl">Layer:</span>
-      <!-- task #299/#304: layers 3+ are unassigned, so there is no third button to dim. -->
+      <!--
+        task #299/#304: layers 3+ are unassigned, so there is no third button to dim.
+      -->
       <button class="current" data-layer="1">1</button>
       <button data-layer="2" title="Layer 2 adds file-history snapshots">2</button>
     </div>
   </header>
 
-  <!-- task #256 + OPEN #285/#289: every navigation control on one row. -->
+  <!--
+    task #256 + OPEN #285/#289: every navigation control on one row.
+  -->
   <div class="navbar">
     <span class="lbl">Jump to:</span>
     <button id="jump-repo">No repository match</button>
@@ -575,14 +604,16 @@
     </div>
   </div>
 
-  <!-- Two rows, not one (user, 2026-07-26): the project folder is what is on DISK, and everything
-       below it describes the REPOSITORY the disk state is being read against. Splitting them also
-       stops #286's 88ch commit dropdown pushing the folder box off the row. -->
+  <!--
+    Two rows, not one (user, 2026-07-26): the project folder is what is on DISK, and everything below it describes the REPOSITORY the disk state is being read against. Splitting them also stops #286's 88ch commit dropdown pushing the folder box off the row.
+  -->
   <div class="sources">
     <label>Project folder
       <input id="dir" type="text" size="34" value="/Users/you/code/demo-app">
       <button class="pick" data-for="dir">Open…</button></label>
-    <!-- OPEN #295/#296: two lists, one picker. #297's button reports whether either has moved. -->
+    <!--
+      OPEN #295/#296: two lists, one picker. #297's button reports whether either has moved.
+    -->
     <button id="pick-jsonl">JSONL sources</button>
     <button id="pick-fh">File History Snapshots</button>
     <button id="save-settings" disabled>Save project settings</button>
@@ -593,7 +624,9 @@
       <input id="repo" type="text" size="34" value="/Users/you/code/demo-app">
       <button class="pick" data-for="repo">Open…</button></label>
     <span class="repo-flag confirmed-only">✓ git repo</span>
-    <!-- OPEN #286 -->
+    <!--
+      OPEN #286
+    -->
     <label class="confirmed-only">Branch <select id="branch"></select></label>
     <label class="confirmed-only">Commit <select id="ref"></select></label>
     <!-- <button id="load">Load</button> -->
@@ -602,25 +635,37 @@
     <span><i style="background:var(--c-commit);border-radius:4px"></i> commit</span>
     <span><i style="border:3px double var(--c-disk);background:transparent"></i> on-disk</span>
     <span><i style="border:3px dotted var(--muted);background:transparent"></i> created at</span>
-    <!-- task #301 -->
+    <!--
+      task #301
+    -->
     <span><i style="background:var(--c-snap)"></i> 📸 file-history snapshot (Layer 2)</span>
     <span><i style="border:1.5px dashed var(--c-anchor);background:transparent"></i> same instant</span>
     <span><i style="border:1.5px dashed var(--muted);background:transparent"></i> orphan bucket</span>
-    <!-- task #292 -->
+    <!--
+      task #292
+    -->
     <span><i style="border:1px dashed var(--c-script);background:color-mix(in srgb, var(--c-script) 11%, transparent)"></i> JSONL range</span>
     <span class="hint">dashed leader: hover a ruler row, a bubble or a node</span>
   </div>
 
   <div class="body" id="body">
-    <!-- tasks #252/#281 -->
+    <!--
+      tasks #252/#281
+    -->
     <aside class="filenav" id="filenav">
       <section class="navpane" id="pane-files">
-        <!-- The title and the search box stay put while the tree scrolls under them. -->
+        <!--
+          The title and the search box stay put while the tree scrolls under them.
+        -->
         <div class="panehead">
           <div class="pane-title">Files
-            <!-- task #326: the folder selection is only STORED until this is on; see app.js's inSelection. -->
+            <!--
+              task #326: the folder selection is only STORED until this is on; see app.js's inSelection.
+            -->
             <button id="only-selected" title="Filter the timeline to the selected folders' files">Show Only Selected</button>
-            <!-- task #254: the deselect. Shift-click folders (#255) to select more than one. -->
+            <!--
+              task #254: the deselect. Shift-click folders (#255) to select more than one.
+            -->
             <button id="clear-filter" disabled>All files</button>
           </div>
           <div class="navsearch">
@@ -631,14 +676,17 @@
         <div id="nav"></div>
       </section>
       <div class="pane-grip" id="navpane-grip" title="drag to resize"></div>
-      <!-- task #292: the project's JSONLs. Same picker behaviour as the folder tree — click filters,
-           clicking the only selected one clears, shift extends. -->
+      <!--
+        task #292: the project's JSONLs. Same picker behaviour as the folder tree — click filters, clicking the only selected one clears, shift extends.
+      -->
       <section class="navpane" id="pane-sessions">
         <div class="panehead">
           <div class="pane-title">JSONLs
             <button id="clear-sessions" disabled>All sessions</button>
           </div>
-          <!-- task #309: the Files pane's own search control, pointed at the customTitles. -->
+          <!--
+            task #309: the Files pane's own search control, pointed at the customTitles.
+          -->
           <div class="navsearch">
             <input id="session-search" type="text" placeholder="search titles…">
             <button id="session-search-clear" title="clear">(x)</button>
@@ -647,32 +695,46 @@
         <div id="sessions"></div>
       </section>
     </aside>
-    <!-- task #279 -->
+    <!--
+      task #279
+    -->
     <div class="filenav-grip" id="filenav-grip" title="drag to resize"></div>
 
     <div class="stagewrap">
       <main class="timelines" id="timelines"><div class="canvas" id="canvas">
         <div class="ruler" id="ruler"><div class="rail"></div></div>
         <div class="leaders" id="leaders"></div>
-        <!-- task #292: the wash rides behind the bubbles, the bars in front of the empty lane -->
+        <!--
+          task #292: the wash rides behind the bubbles, the bars in front of the empty lane
+        -->
         <div class="washes" id="washes"></div>
         <div class="ranges" id="ranges"></div>
         <div class="stage" id="stage"></div>
       </div></main>
-      <!-- tasks #246/#269/#274 -->
+      <!--
+        tasks #246/#269/#274
+      -->
       <div class="minimap" id="minimap"><span class="mm-title">minimap</span>
         <div class="mm-plot" id="mm-plot"><div class="mm-view" id="mm-view"></div></div>
       </div>
     </div>
 
-    <!-- OPEN #257 + tasks #323/#324. Row 1 = what is shown and how to step through it; row 2 = the
-         diff tools, revealed only when TWO nodes are selected. The Close button stays in row 1: it
-         serves every drawer mode, and moving it per-mode would make it jump around. -->
+    <!--
+      OPEN #257 + tasks #323/#324. Row 1 = what is shown and how to step through it; row 2 = the diff tools, revealed only when TWO nodes are selected. The Close button stays in row 1: it serves every drawer mode, and moving it per-mode would make it jump around.
+    -->
     <aside class="drawer" id="drawer">
       <div class="dhead"><div class="dpath" id="dpath"></div>
-        <!-- task #323: step ONE node along this file's lane. -->
+        <!--
+          task #323: step ONE node along this file's lane.
+        -->
         <span class="dtools"><button id="dprev" title="previous revision">↑</button><button id="dnext" title="next revision">↓</button></span>
-        <!-- task #324: the FIRST pair moves the base, the SECOND moves the target. -->
+        <!--
+          task #328: drives every multi-view section at once.
+        -->
+        <span class="dtools" id="dmulti" hidden><button id="dcollapse-all">collapse all</button><button id="dshow-all">show all</button></span>
+        <!--
+          task #324: the FIRST pair moves the base, the SECOND moves the target.
+        -->
         <span class="dtools" id="pairtools" hidden>
           <button id="dbprev" title="previous base revision">↑</button><button id="dbnext" title="next base revision">↓</button>
           <span class="dpair" id="dpairlabel"></span>
@@ -689,8 +751,9 @@
     </aside>
   </div>
 
-  <!-- OPEN #295/#296: ONE dialog serves both lists — same widget, same rules, different title and
-       different array. Fixed and centred over everything, so it is in front of the timeline. -->
+  <!--
+    OPEN #295/#296: ONE dialog serves both lists — same widget, same rules, different title and different array. Fixed and centred over everything, so it is in front of the timeline.
+  -->
   <div class="modal-wrap" id="pathpicker" hidden>
     <div class="modal">
       <div class="mtitle" id="pp-title"></div>
@@ -706,8 +769,9 @@
     </div>
   </div>
 
-  <!-- task #305: the diff pair's refusal. Fixed to the viewport, not the drawer — the thing being
-       refused is a click out on the timeline, which is where the reader is looking. -->
+  <!--
+    task #305: the diff pair's refusal. Fixed to the viewport, not the drawer — the thing being refused is a click out on the timeline, which is where the reader is looking.
+  -->
   <div class="dtoast" id="dtoast" hidden></div>
 </div>
 
