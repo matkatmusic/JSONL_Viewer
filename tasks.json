@@ -144,5 +144,40 @@
     "taskNumber": 331,
     "title": "Single-source the wire vocabulary that webapp/ re-declares from src/",
     "description": "User request 2026-07-29: solve the 'redeclared because webapp cannot import from src' issue with duplicated code. Maybe a build option that performs copies to the webapp/ folder? Known duplication sites (grep for 'cannot import from src' / 're-spelled' / 'Mirrors src/'): jfred/webapp/layer1-refs.ts:5 re-declares the /api/layer1-refs wire shape; jfred/webapp/layer1-source-paths.ts:7 re-spells SourceKind from src/structures/vocabulary.ts; jfred/webapp/layer1-sources.ts:8 re-spells CommitTimeSource (and notes Instant re-declared atop layer1-ruler-axis.ts); jfred/webapp/layer1-filter.ts:19 mirrors src/viewer_api_layer1.ts's listPairNodeLadder; jfred/webapp/layer1-wire.ts mirrors the Layer1Wire* shapes. Constraints discovered so far: webapp/ is compiled by tsconfig.webapp.json for the browser; webapp modules are ALSO loaded by node's type-stripping test runner, which rejects TS `enum` (so shared vocab must be const objects); the direction layer1-ruler-axis.ts already works — a webapp/ file imported BY src/ — is the existing precedent for sharing without copying. Candidate shapes to evaluate: (a) the user's suggestion, a build step that copies/generates the shared files into webapp/; (b) a shared folder both tsconfigs include (extending the layer1-ruler-axis precedent); note the repo rule against forwarding/re-export layers — one canonical home. This also serves plans/coding-requirements.md's 'single-source wire vocabulary' requirement."
+  },
+  {
+    "taskNumber": 332,
+    "title": "FileNav: persist folder collapsed/expanded state per project",
+    "description": "Remember which folders are collapsed/expanded in FileNav component when loading a project that has been previously loaded, and apply that remembered collapsed/expanded state to the file nav when opening the project."
+  },
+  {
+    "taskNumber": 333,
+    "title": "File Nav selection also paints a wash over the selected files' revision range",
+    "description": "User request 2026-07-30: File Nav Selection also defines wash range in timeline. The purpose is to see where in the timeline the selected files were revised. Gotchas: wash start/end position is relative to the selected files' oldest node/newest node, and if 'Show Only Selected' is toggled, then the wash spans the entire range of the timeline, which is the expected behavior. Builds on task 329's generic wash primitive: spawn via spawnWash (jfred/webapp/layer1-wash.ts) with its own color + marker class so clearing it never touches the session or diff washes. Wire point: the File Nav selection callback in jfred/webapp/layer1-page.ts (the same place showDetailViewForFiles fires); range = min/max instant across each selected file's ladder in the DRAWN view (pairs' created/commits/onDisk/snapshots + disk orphans), resolved to pixels the way jfred/webapp/layer1-diff-wash.ts does. Note the 'Show Only Selected' case falls out naturally — the filtered view's ruler spans exactly the selected files' events.",
+    "blockedBy": [329]
+  },
+  {
+    "taskNumber": 334,
+    "title": "Show washes in the minimap",
+    "description": "User request 2026-07-30: Show washes in minimap so you can see at a glance how much of the timeline is covered by the time-range represented by the wash. Applies to every wash kind uniformly — session (task 292), diff range (task 329), and the coming File-Nav wash (task 333) — by reading the generic `.wash` elements in #washes (each carries --axis-px, --span-px and --wash-color, spawned by jfred/webapp/layer1-wash.ts) and drawing each as a scaled band in the minimap, tinted by its own --wash-color. Wire point: jfred/webapp/layer1-minimap.ts (drawLayer1Minimap), which already runs after every stage render and after drawer open/close reflows.",
+    "blockedBy": [329]
+  },
+  {
+    "taskNumber": 335,
+    "title": "Diff wash may filter the File Nav to the files it covers (design question inside)",
+    "description": "User request 2026-07-30: When a Diff wash is active, consider filtering the File Nav to only show the files covered by the wash. This behavior is different from 'Show Selected Only', though it could be implemented as: if diff wash becomes active: clearFileNavSelection(); for (file in fileNav.fileList) { if wash overlaps file.bubble: addToFileNavSelection(file); }. 'Covered by the wash' = the file has at least one node whose instant falls inside [baseInstant, targetInstant] — decide instants from the DRAWN view (jfred/webapp/layer1-diff-wash.ts owns the range; resolveRangeStepIndexes is the same inside-the-range test), never pixel overlap. CAUTION, confirm with the user before implementing: the sketch rewrites the nav SELECTION, and per task 326 selection changes feed the stage filter and auto-arm 'Show Only Selected' (jfred/webapp/layer1-page.ts nav callback), which would re-layout the stage and re-place the wash the user just drew — the design must say whether wash-driven selection triggers that filter chain or only highlights rows. It is a 'consider' task: startpoint is a design decision, not code. Relevant files: jfred/webapp/layer1-filenav.ts, jfred/webapp/views/sidebar.ts (selection state), jfred/webapp/layer1-drawer-multi.ts (extendDiffSelection), jfred/webapp/layer1-page.ts.",
+    "blockedBy": [329]
+  },
+  {
+    "taskNumber": 336,
+    "title": "Diff wash drawer lists every file the wash touches, not just selected/clicked ones",
+    "description": "User request 2026-07-30: include every file bubble that the diff wash touches when defining the file list that is shown in the DetailView's diff view panes. Current behavior: only the files that had nodes selected are shown in the DetailView's diff view panes (task 329 builds the list as nav targets + the two clicked paths). New rule: the list also includes every path in the DRAWN view with at least one node instant inside [baseInstant, targetInstant] — the same inside-the-range test resolveRangeStepIndexes applies (jfred/webapp/layer1-diff-wash.ts), never pixel overlap. Wire point: the `files` construction in extendDiffSelection (jfred/webapp/layer1-drawer-multi.ts). Related: task 335 asks whether the File Nav SELECTION should follow the wash — this task is only about the drawer's file list and stands alone.",
+    "blockedBy": [329]
+  },
+  {
+    "taskNumber": 337,
+    "title": "Write a UI component glossary mapping the user's names to codebase identifiers",
+    "description": "User request 2026-07-30: create a document that provides the actual codebase class/object name of each visual component in the client side, because the user keeps referring to them by their incorrect name (JSONL nav, fileNav, DetailView, timeline, ruler, Diff View, git header row, diff viewer row #3, diff wash, jsonl wash, etc), which forces the agent to assume which component is actually meant. Deliverable: one table per visual component of the Layer 1 page — the name(s) the user uses, the canonical name, the owning module (jfred/webapp/layer1-*.ts), the DOM id / CSS class, and one line on what it does — covering at least: File Nav pane, JSONLs pane, timeline stage + bubbles/lanes/nodes, ruler/gutter + ticks, leaders, minimap, session range bar + wash, diff wash, Detail View drawer (header rows, DiffView sections, diff pane tool rows), find box, layer switcher, source boxes/pickers. Suggested home: jfred/docs/ui-component-glossary.md, with a pointer added to the project CLAUDE.md so agents load it when the user names a component. Keep each entry short; the point is disambiguation, not documentation prose.",
+    "blockedBy": []
   }
 ]
