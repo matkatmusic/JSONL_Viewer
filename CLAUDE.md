@@ -10,6 +10,12 @@ the project's mandatory coding-style requirements (domain types over primitives,
 single-source wire vocabulary, DRY/generic helpers, enum-member comparisons,
 verb-named functions).
 
+## UI Component Names
+When the user names a Layer 1 UI component by a loose name (e.g. "fileNav", "diff wash",
+"git header row"), consult [`jfred/docs/ui-component-glossary.md`](jfred/docs/ui-component-glossary.md)
+to map it to the canonical name, module, and DOM id/class before assuming which component
+is meant.
+
 ## Task Bookkeeping
 When closing tasks in completedTasks.json, always populate commitHashes with real hashes — if the user hasn't committed yet, leave the task open or ask, rather than closing with empty hashes and backfilling later.
 
