@@ -43,11 +43,29 @@ above describes. Everything else is deferred behind this milestone.
   the ruler, plus the JSONL surface — session list and picker, multi-folder
   source paths, selected-session time-range wash), specified in **S18** and
   SHIPPED; **Layer 2 = adds file-history snapshots**, specified in **S19**, whose
-  mockup was signed off 2026-07-27 (engine and page work not yet specified). Layers 3+ are UNASSIGNED — the user's direction was
-  "just do snapshots", so nothing above Layer 2 is specified and no task exists
-  for one. A JSONL layer was briefly numbered separately and then DROPPED, not
+  mockup was signed off 2026-07-27 (engine and page work not yet specified).
+  **Layers 3–9 ASSIGNED by task #340 (user-ordered 2026-07-30):** L3 =
+  extracted Edit/Write nodes (S20), L4 = script runs located, L5 = branches
+  in bubbles, L6 = script execution results (consent + execute-once cache),
+  L7 = remaining node types, L8 = node-type filtering, L9 = ruler range →
+  git patch export / commit onto a created 'jfred' branch. Spec items are
+  written one layer at a time as each is grilled (recon in
+  `plans/340-recon/`, decisions in `plans/340-recon/DECISIONS.md`); L6 and
+  L9 are design-discussion-pending on the user's Excalidraw mockups. A JSONL
+  layer was briefly numbered separately and then DROPPED, not
   deferred: the Layer 1 mockup already carried the whole JSONL surface, and a
   layer that adds nothing is not a layer.
+- **Mockup home moved to fixture mode (user-directed 2026-07-30).** From L3
+  on, a new layer is mocked as canned payloads served by the REAL
+  `layer1.html` behind the `--fixture` flag (#330) — the approved mockup IS
+  the page skeleton. `plans/layer2-mockup/` stops growing; the "one mockup,
+  modified in place" rule now names the fixture as that one mockup.
+- **Layer ≥ 3 data is lazy-fetched (user-directed 2026-07-30).** layer1.html
+  reads no JSONL at load. The first switch to a layer ≥ 3 fetches a new
+  JSONL-parsing endpoint (NDJSON progress, the `?progress=1` framing),
+  merges the new instants and re-runs the ladder layout client-side
+  (`relayOutLayer1View`), then caches — later switches are pure CSS, keeping
+  the #314 no-refetch convention for everything already loaded.
 - **ONE layer numbering, and the spec plus the mockup own it (user-directed
   2026-07-27).** The engine once carried its own *internal* layer numbers that
   drifted out of step with the user-facing ones — S3 was titled "Layer 2 —
@@ -553,3 +571,55 @@ session's first or last title instead of the one in effect is visibly wrong.
 - CORRECTION (2026-07-27, found while building #301): a pre-commit snapshot does **not** pull a bubble's anchor earlier. `born <= snapshot` is a standing fixture rule and `born` is itself a node, so no snapshot can ever be a bubble's earliest node. What a pre-commit snapshot does instead is take a ruler entry above every commit, which lengthens the ladder below it. The fixture's own ordering rule gained an upper bound too: `snapshot <= mtime`, since a snapshot after the last write could only mean the file was deleted, and a deleted file must not show as present in the File Nav.
 - Tasks: #299, #300, #301, #302, #303, #304, #305, #306, #307, #308, #309
 - Status: #299-#307 DONE 2026-07-27 (RevEng 66dd668, jfred 825f36b), signed off by the user and covered by 43 headless checks in `jfred/scripts/visual/mockup.ts` (`npm run visual:mockup`). #308/#309 also DONE 2026-07-27 (RevEng 7498bc0, jfred 64310f1): a bubble click flashes every JSONL that touched that file, leading with the session nearest the clicked instant, and the JSONLs pane has a customTitle search box that filters the list without filtering the timeline — 9 further checks in `jfred/scripts/visual/mockup-checks-nav.ts`. The build-out this mockup gates is tasks **#310-#318**, created 2026-07-27: engine #310 (snapshot discovery per owning session, reusing `collectSnapshotBeaconNodes` from S4/#201) — DONE 2026-07-29 (jfred 47b04ef, RevEng b1acfa7), #311 (session metadata + `titleInEffectAtLine`) — DONE 2026-07-29 (jfred 2d9f121, RevEng fada700), #312 (snapshots on the wire, ruler and the shared axis) — DONE 2026-07-29 (jfred ef53db8+e390529, RevEng 38b843d+fa2c391), #313 (`/api/layer1-file` third form for snapshot bytes) — DONE 2026-07-29 (jfred 5d0a678+2e85473); page #314 (live `[2]`, `[3]` dropped) — DONE 2026-07-29 (jfred 999b7fd), #315 (📸 nodes on the bubbles) — DONE 2026-07-29 (jfred 6a88d8f), #316 (ruler snapshot rows + the JSONL Nav flash mechanism) — DONE 2026-07-29 (jfred 09330bc, basename flash fix in 8183945), #317 (snapshot click → drawer headed with the title in effect + flash) — DONE 2026-07-29 (jfred 2e85473); verification #318 (the mockup's checks re-pointed at the real page with real data) — DONE 2026-07-29 (jfred 8183945, `npm run visual:layer2`, 22/22). #316 and #317 also leaned on **#292**, the JSONL Nav, which was already live (closed 2026-07-27). Layer 2 build-out COMPLETE: full suite 1475/0, `npm run visual` 0 violations, mockup checks still green.
+
+### S20. Layer 3 — extracted Edit/Write nodes (task #340 L3)
+User-directed 2026-07-30; recon in `plans/340-recon/L3-extracted-changes.md`,
+decisions in `plans/340-recon/DECISIONS.md`. One node per **Edit** and
+**Write** tool call extracted from JSONL — **guaranteed data only**: an
+Edit's oldString/newString `structuredPatch` hunks, a Write's full body.
+Bash file ops (rename/copy/append/overwrite/delete) and `edited_text_file`
+user edits are NOT Layer 3 (the L7 catch-all rules on them). Marked `[e]`
+per #339; placeholder color acceptable until #339 settles the palette.
+
+**Data path (lazy, per the Key Decision above).** The first switch to `[3]`
+calls the new JSONL-events endpoint (NDJSON progress), which runs the
+EXISTING `extractFileEvents` (reconstruction_extract.ts) over the configured
+sessions, keeps `EventKind.edit`/`EventKind.write` only, joins each event's
+absolute `target` to a pair via `relativizeToProjectFolder`
+(layer1_snapshot_wire.ts) — the same join snapshots use — and returns
+per-pair edit lists. The page merges the new instants and re-runs
+`relayOutLayer1View`, then toggles by CSS forever after. A pair with no
+edits is byte-identical to today.
+
+**Wire.** `edits?: WireEditOf<I,P,U>[]` on `WirePairOf` (the `snapshots?`
+precedent): instant, kind (edit|write), changeId, and the session
+attribution trio `sessionId`/`sessionFile`/`line` so a node click flashes
+its owning JSONL in the JSONL Nav (the `flashSession` mechanism, reused
+unchanged, per S19).
+
+**Node + drawer.** New `.n-edit` class gated by the cumulative `data-layer`
+CSS pattern. Clicking an edit node opens the #257 drawer showing the hunk
+diff directly (Edit) or the written body (Write) — parse-only, no replay.
+**Verification is LAZY (Q15 restated):** on demand, the hunk is
+content-checked at its recorded line position against the reconstructed
+base (`firstHunkMatchesBase` / `applyEdit`, in-memory; BackupReader only on
+the stale-base fallback); a mismatch means the base below is wrong and is
+repaired from evidence — never a silently wrong render. Unverified nodes
+render honestly as unverified; no attribution is invented.
+
+**Fixture discipline.** `FIXTURE_EDITS` beside `SNAPSHOTS` in
+viewer_api_layer1_fixture_data.ts with the standing self-check (born ≤
+event ≤ mtime, inside its session window); at least one pair carries edits
+from two sessions, and one Edit whose hunk does NOT match its fixture base,
+so the unverified rendering is visibly exercised.
+
+- Verify: fixture checks (new visual-checks file, run via the fixture-mode
+  page): first `[3]` switch fetches once with a visible progress strip and
+  re-lays-out the ruler to include edit instants; subsequent 1↔2↔3 switches
+  are instant with no network; an edit node renders `[e]` at its instant,
+  click opens the drawer on the hunk/body and flashes the owning JSONL; an
+  edit-free pair renders byte-identically to Layer 2; the mismatched-hunk
+  fixture node shows the unverified state.
+- Tasks: #343 (mockup slice); engine build-out tasks after mockup approval
+- Status: SPEC WRITTEN 2026-07-30 — mockup tasks next; engine build-out
+  tasks follow mockup approval.
