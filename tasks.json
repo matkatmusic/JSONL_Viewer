@@ -147,12 +147,6 @@
     "description": "User request 2026-07-30: include every file bubble that the diff wash touches when defining the file list that is shown in the DetailView's diff view panes. Current behavior: only the files that had nodes selected are shown in the DetailView's diff view panes (task 329 builds the list as nav targets + the two clicked paths). New rule: the list also includes every path in the DRAWN view with at least one node instant inside [baseInstant, targetInstant] — the same inside-the-range test resolveRangeStepIndexes applies (jfred/webapp/layer1-diff-wash.ts), never pixel overlap. Wire point: the `files` construction in extendDiffSelection (jfred/webapp/layer1-drawer-multi.ts). Related: task 335 asks whether the File Nav SELECTION should follow the wash — this task is only about the drawer's file list and stands alone."
   },
   {
-    "taskNumber": 337,
-    "title": "Write a UI component glossary mapping the user's names to codebase identifiers",
-    "description": "User request 2026-07-30: create a document that provides the actual codebase class/object name of each visual component in the client side, because the user keeps referring to them by their incorrect name (JSONL nav, fileNav, DetailView, timeline, ruler, Diff View, git header row, diff viewer row #3, diff wash, jsonl wash, etc), which forces the agent to assume which component is actually meant. Deliverable: one table per visual component of the Layer 1 page — the name(s) the user uses, the canonical name, the owning typescript source code module (jfred/webapp/layer1-*.ts), the DOM id / CSS class, and one line on what it does — covering at least: File Nav pane, JSONLs pane, timeline stage + bubbles/lanes/nodes, ruler/gutter + ticks, leaders, minimap, session range bar + wash, diff wash, Detail View drawer (header rows, DiffView sections, diff pane tool rows), find box, layer switcher, source boxes/pickers. Suggested home: jfred/docs/ui-component-glossary.md, with a pointer added to the project CLAUDE.md so agents load it when the user names a component. Keep each entry short (under 30 words); the point is disambiguation, not documentation prose.  The user just needs to know what to call the element in the front end when telling the agent about an issue or a bug.  The glossary is not a spec, so it does not need to describe the component's behavior or implementation details.",
-    "blockedBy": []
-  },
-  {
     "taskNumber": 338,
     "title": "Investigate /btw-forked transcript: engine handling of post-fork file changes",
     "description": "Investigate the tasks-[328,329,330,331] transcript (base RevEng project path): ~/.claude/projects/-Users-matkatmusicllc-Desktop-claude-code-src-RevEng/f7d5bed5-6831-4332-912e-e19fe5396350.jsonl. That conversation was forked from a /btw event (the /btw record is a type:\"system\", subtype:\"local_command\" line at ~record 1425) and file changes occurred after the conversation fork. The user does not think the engine knows how to process these kinds of JSONL lines yet — verify whether the engine handles the fork + post-fork file changes correctly, and fix or log the gap."
@@ -184,6 +178,8 @@
     "taskNumber": 343,
     "title": "Mockup: Layer 3 extracted Edit/Write nodes, fixture-mode on the real layer1 page",
     "description": "Spec item S20 in specs/from-scratch-SPEC.md (written 2026-07-30; recon plans/340-recon/L3-extracted-changes.md, decisions plans/340-recon/DECISIONS.md). Scope: jfred/src fixture files + webapp page + a new visual-checks file ONLY — no engine JSONL parsing yet (the mockup cans the endpoint's payload). Add FIXTURE_EDITS beside SNAPSHOTS in jfred/src/viewer_api_layer1_fixture_data.ts (self-check: born ≤ event ≤ mtime, inside its session window; one pair with edits from two sessions; one Edit whose hunk mismatches its base so the unverified render is exercised), a canned JSONL-events fixture route, a [3] switcher button, .n-edit [e] nodes carrying the sessionId/sessionFile/line flash trio, drawer showing hunk/body per S20, and the first-switch fetch+re-layout behaviour simulated against the canned route. New visual-checks file (250-line cap) wired into the fixture-mode runner covering S20's verify list. Ends at: user tweaks until sign-off — engine build-out tasks are created only after approval. Part of task 340's L3 slice.",
-    "blockedBy": [340]
+    "blockedBy": [
+      340
+    ]
   }
 ]
