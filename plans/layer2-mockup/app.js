@@ -2,6 +2,12 @@
 // lives in fixture.js and the markup and CSS in index.html.
 import { BRANCHES, COMMITS, DISK, SESSIONS, SNAPSHOTS, basename, ms, titleAt, titlesOf }
   from "./fixture.js";
+import { clearDiffPair, extendDiffSelection, initDiffDrawer, setDrawerTools } from "./diff.js";
+
+  // tasks #323/#324: the fixture node a dot stands for; a WeakMap, so discarded dots are collected.
+  const nodeForDot = new WeakMap();
+  // task #305: the last PLAINLY clicked node — the anchor a shift-click extends into a pair.
+  let anchor = null;
 
   const PX_PER_HOUR = 2.5;  // locked with the user
   const CAP_PX = 24;        // 0.25" at 96dpi — the widest any single gap may render
@@ -22,7 +28,9 @@ import { BRANCHES, COMMITS, DISK, SESSIONS, SNAPSHOTS, basename, ms, titleAt, ti
 
   // tasks #253/#254/#255 — the folder filter's whole state. Empty = show everything.
   const selectedFolders = new Set();
-  const inSelection = path => selectedFolders.size === 0 ||
+  // task #326: a folder click only STORES the selection; the timeline narrows while the toggle is on.
+  let onlySelectedIsOn = false;
+  const inSelection = path => !onlySelectedIsOn || selectedFolders.size === 0 ||
     [...selectedFolders].some(f => path === f || path.startsWith(f + "/"));
   // task #292: the picked JSONLs, holding the fixture objects themselves. Empty = every session.
   // Two filters, one rule: a file is drawn only if BOTH pickers admit it.
@@ -324,7 +332,13 @@ import { BRANCHES, COMMITS, DISK, SESSIONS, SNAPSHOTS, basename, ms, titleAt, ti
     }
     if (node.kind === "commit") dot.title = node.hash;
     if (hot) {
-      const open = () => openDrawer(path, node, dot);
+      nodeForDot.set(dot, node);
+      // task #305: shift extends the anchor into a pair; a plain click resets to one node.
+      const open = event => {
+        if (event.shiftKey && anchor && byId("drawer").classList.contains("open"))
+          return extendDiffSelection(anchor, dot, path);
+        openDrawer(path, node, dot);
+      };
       dot.addEventListener("click", open);
       tag.addEventListener("click", open);
     } else {
@@ -586,10 +600,13 @@ import { BRANCHES, COMMITS, DISK, SESSIONS, SNAPSHOTS, basename, ms, titleAt, ti
       const full = prefix ? `${prefix}/${folder.name}` : folder.name;
       const summary = el("summary", "file-folder-name", folder.name);
       if (selectedFolders.has(full)) summary.classList.add("selected");
+      // A REAL element, not a ::before, so `event.target` can tell the triangle from the name.
+      const toggle = el("span", "file-folder-toggle");
+      summary.prepend(toggle);
       summary.addEventListener("click", event => {
-        // The tree is always expanded, so a click on the NAME means "filter", never "toggle" — the
-        // triangle is what opens and closes (#253's follow-up). Shift extends the selection (#255);
-        // a plain click on the only selected folder clears it (#254).
+        // Expanding is this click's default action, so return rather than cancel — cancelling killed it.
+        if (event.target === toggle) return;
+        // A click on the NAME filters. Shift extends (#255); clicking the only selected one clears (#254).
         event.preventDefault();
         if (!event.shiftKey) {
           const only = selectedFolders.size === 1 && selectedFolders.has(full);
@@ -609,7 +626,16 @@ import { BRANCHES, COMMITS, DISK, SESSIONS, SNAPSHOTS, basename, ms, titleAt, ti
       item.title = file.deleted ? `${file.path} (deleted)` : file.path;
       // #278: EXACT path, one destination, no cycling and no find-box readout — the same jumpToPath
       // the expanded ruler row uses, so a leaf and a listed name can never land differently.
-      item.addEventListener("click", () => jumpToPath(file.path));
+      // task #325: also selects the on-disk node, by dispatching the click the stage already handles.
+      // `:not(.n-created)` is load-bearing: created-at also carries `.n-disk`, sorts first, and is inert.
+      // The clicked ROW marks itself: a deleted file has no bubble, so nothing else answers the click.
+      item.addEventListener("click", () => {
+        for (const lit of document.querySelectorAll("#nav .file-item.selected")) lit.classList.remove("selected");
+        item.classList.add("selected");
+        jumpToPath(file.path);
+        const box = [...document.querySelectorAll(".filebox")].find(b => b.dataset.path === file.path);
+        box?.querySelector(".node.n-disk:not(.n-created)")?.click();
+      });
       out.push(item);
     }
     return out;
@@ -713,6 +739,12 @@ import { BRANCHES, COMMITS, DISK, SESSIONS, SNAPSHOTS, basename, ms, titleAt, ti
   byId("clear-sessions").addEventListener("click", () => { selectedSessions.clear(); render(); });
 
   byId("clear-filter").addEventListener("click", () => { selectedFolders.clear(); render(); });
+  // task #326: makes the stored selection bite; it re-renders, so the timeline's range shrinks (#253).
+  byId("only-selected").addEventListener("click", () => {
+    onlySelectedIsOn = !onlySelectedIsOn;
+    byId("only-selected").classList.toggle("current", onlySelectedIsOn);
+    render();
+  });
   byId("nav-search").addEventListener("input", () => renderNav(model));
   byId("nav-search-clear").addEventListener("click", () => {
     byId("nav-search").value = "";
@@ -829,6 +861,11 @@ import { BRANCHES, COMMITS, DISK, SESSIONS, SNAPSHOTS, basename, ms, titleAt, ti
   // Real page: a commit node reads `git show <hash>:<path>`; an on-disk node reads the working tree.
   // Here both return canned text, since the mockup has no server.
   function openDrawer(path, node, dot) {
+    // task #305: a plain click RESETS to a one-node selection and re-anchors the next shift-click.
+    clearDiffPair();
+    anchor = { dot, path };
+    setDrawerTools("none");
+    paintSingleArrows();
     byId("drawer").classList.add("open");
     // The header says WHAT is being shown (user, 2026-07-26): "<File Name> — Current on-disk state"
     // for a disk node, the commit for a commit node. It used to be the bare path, with the
@@ -848,7 +885,8 @@ import { BRANCHES, COMMITS, DISK, SESSIONS, SNAPSHOTS, basename, ms, titleAt, ti
     byId("dpath").textContent = heading();
     byId("dpath").title = path;
     byId("dmeta").textContent = `${path}   ·   ${provenance()}`;
-    byId("dbody").innerHTML = highlightCode(fakeContents(path, node), path);
+    // #dbody holds ROWS since task #319 put a diff in it, so the single-node view brings its own <pre>.
+    byId("dbody").innerHTML = `<pre>${highlightCode(fakeContents(path, node), path)}</pre>`;
     // Clicking a node to inspect it IS selecting it (user, 2026-07-26): the dot gets its [ ] marks,
     // its ruler row goes bold and its dashed leader turns green — the same language a ruler-tick
     // landing speaks, so the reader never has to learn two.
@@ -869,35 +907,101 @@ import { BRANCHES, COMMITS, DISK, SESSIONS, SNAPSHOTS, basename, ms, titleAt, ti
   }
   byId("dclose").addEventListener("click", () => {
     byId("drawer").classList.remove("open");
+    clearDiffPair();
+    anchor = null;
     drawMinimap();
   });
+
+  // ---- task #323: step ONE node along the anchored file's lane ---------------------------------
+
+  // Lane DOM order is the timeline; created-at has no bytes, so cycling skips it.
+  // STOP at the ends: a missing neighbour disables that arrow rather than wrapping.
+  function findAdjacentDot(offset) {
+    if (!anchor) return null;
+    const dots = [...anchor.dot.parentElement.querySelectorAll(".node:not(.n-created)")];
+    return dots[dots.indexOf(anchor.dot) + offset] ?? null;
+  }
+  function paintSingleArrows() {
+    byId("dprev").disabled = findAdjacentDot(-1) === null;
+    byId("dnext").disabled = findAdjacentDot(1) === null;
+  }
+  for (const [id, offset] of [["dprev", -1], ["dnext", 1]]) {
+    byId(id).addEventListener("click", () => {
+      const dot = findAdjacentDot(offset);
+      // Cycling never leaves the lane, so the anchored path carries over.
+      if (dot) openDrawer(anchor.path, nodeForDot.get(dot), dot);
+    });
+  }
+
+  // tasks #305/#319/#320/#324: the diff half — it owns the pair, the header rows and the arrows.
+  initDiffDrawer({ byId, el, basename, highlightCode,
+                   linesOf: contentLines, nodeOf: dot => nodeForDot.get(dot) });
 
   // The FILE's bytes and nothing else: which file this is and where it came from is the drawer
   // header's job, so no provenance banner is prepended to the body any more.
   // One canned body per LANGUAGE rather than one for every file, so #294's colours are visible on
   // each kind the mockup can open — including the two that must come out plain.
-  function fakeContents(path, node) {
-    // task #300/#305: a snapshot's bytes have to differ per OWNING SESSION, not merely per version
-    // name — src/util.ts carries a `@v2` from two sessions and they are not the same file.
-    const tail = node.kind === "snapshot"
-      ? `trim()  /* ${node.session} ${node.version} */`
-      : node.kind === "commit" ? "trim()" : "trim().toLowerCase()";
-    return {
-      ts: [`import { parse } from "./parse";`, "",
-           "// dispatch one scenario case", `export function run(input: string): string {`,
-           `  const cleaned = input.${tail};`, "  if (cleaned.length > 0) return parse(cleaned);",
-           `  throw new Error("empty input");`, "}"],
-      py: ['"""Dispatch one scenario case."""', "import sys", "",
-           "def run(text):", `    cleaned = text.strip()`, "    if len(cleaned) > 0:",
-           "        return cleaned.lower()", `    raise ValueError("empty input")`],
-      sh: ["#!/usr/bin/env bash", "set -euo pipefail", "",
-           "# push the built bundle", `TARGET="${"${1:-staging}"}"`,
-           `if [ -d dist ]; then`, `  rsync -a dist/ "deploy@host:/srv/$TARGET"`, "fi"],
-      md: ["# demo-app", "", "The notes this repository used to keep for the old API.", "",
-           "- one bullet", "- another"],
-      txt: ["plain text has no grammar to colour,", "so #294 leaves it exactly as it is."],
-    }[languageOf(path)].join("\n");
+  // Long enough that a 3-line context window drops something; at 8 lines #320 had nothing to reveal.
+  const TEMPLATES = {
+    ts: [`import { parse } from "./parse";`, `import { Logger } from "./logger";`, "",
+         "// dispatch one scenario case", `export function run(input: string): string {`,
+         `  const cleaned = input.trim();`, "  if (cleaned.length > 0) return parse(cleaned);",
+         `  throw new Error("empty input");`, "}", "",
+         "// the settled middle of the file: nothing below here changes between revisions, which is",
+         "// what gives the full-content toggle something to reveal.", "",
+         "export function describe(kind: string): string {", "  switch (kind) {",
+         `    case "commit": return "a commit";`, `    case "snapshot": return "a snapshot";`,
+         `    default: return "the working tree";`, "  }", "}", "",
+         "export const VERSION = 1;"],
+    py: ['"""Dispatch one scenario case."""', "import sys", "",
+         "def run(text):", `    cleaned = text.strip()`, "    if len(cleaned) > 0:",
+         "        return cleaned.lower()", `    raise ValueError("empty input")`, "",
+         "# the settled middle of the file: unchanged between revisions.", "",
+         "def describe(kind):", `    if kind == "commit":`, `        return "a commit"`,
+         `    if kind == "snapshot":`, `        return "a snapshot"`,
+         `    return "the working tree"`, "", "VERSION = 1"],
+    sh: ["#!/usr/bin/env bash", "set -euo pipefail", "",
+         "# push the built bundle", `TARGET="${"${1:-staging}"}"`,
+         `if [ -d dist ]; then`, `  rsync -a dist/ "deploy@host:/srv/$TARGET"`, "fi", "",
+         "# the settled middle of the file: unchanged between revisions.", "",
+         "describe() {", `  case "$1" in`, `    commit) echo "a commit" ;;`,
+         `    snapshot) echo "a snapshot" ;;`, `    *) echo "the working tree" ;;`, "  esac", "}", "",
+         "VERSION=1"],
+    md: ["# demo-app", "", "The notes this repository used to keep for the old API.", "",
+         "- one bullet", "- another", "", "## Unchanged section", "",
+         "The paragraphs below are the same in every revision, so a windowed diff hides them",
+         "and the full-content toggle brings them back.", "", "- stable", "- stable", "- stable", "",
+         "## End"],
+    txt: ["plain text has no grammar to colour,", "so #294 leaves it exactly as it is.", "",
+          "the lines below never change between revisions,", "which is what a windowed diff drops",
+          "and what the full-content toggle restores.", "", "one", "two", "three", "four", "five"],
+  };
+  const LINE_COMMENT = { ts: "//", py: "#", sh: "#" };
+
+  // What one node's bytes are called; #300/#305: a snapshot differs per owning SESSION, not by name.
+  const revisionStamp = node => node.kind === "snapshot" ? `${node.version} of ${node.session}`
+    : node.kind === "commit" ? node.hash.slice(0, 8) : "working tree";
+  // Stable, and no clock is read: the headless checks compare one render against another.
+  const seedOf = text => [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7);
+
+  // One node's bytes, derived from its identity — canned text would diff to nothing every time.
+
+  // Three edits give variety: a stamped line, a modified line, and a sometimes-added or removed one.
+  function contentLines(path, node) {
+    const language = languageOf(path);
+    const lines = [...TEMPLATES[language]];
+    const stamp = revisionStamp(node);
+    const seed = seedOf(stamp);
+    const note = LINE_COMMENT[language];
+    lines.splice(1, 0, note ? `${note} revision ${stamp}` : `revision ${stamp}`);
+    const changed = 3 + (seed % Math.max(1, lines.length - 4));
+    lines[changed] += note ? `  ${note} r${seed % 100}` : ` (r${seed % 100})`;
+    if (seed % 2 === 0) lines.push(note ? `${note} TODO(${seed % 100}): revisit before release`
+                                        : `TODO(${seed % 100}): revisit before release`);
+    if (seed % 3 === 0) lines.splice(2, 1);
+    return lines;
   }
+  const fakeContents = (path, node) => contentLines(path, node).join("\n");
 
   // ---- task #294: syntax highlighting in the Detail View ---------------------------------------
   // The REAL page reuses webapp/highlight.ts (its renderCodeInto already colours the revision view);
