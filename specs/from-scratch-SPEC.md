@@ -1046,3 +1046,134 @@ are already present via L1–L7's fixture data.
 - Status: SPEC WRITTEN 2026-07-31, spec-only — no build task exists yet for
   L8 at time of writing; a follow-up edit links this item to a build task
   once one is created.
+
+### S24. Layer 9 — ruler range export to a jfred git branch (task #340 L9)
+User-directed 2026-07-30; recon in `plans/340-recon/L9-ruler-range-export.md`
+(all eleven ambiguities SETTLED), decisions in
+`plans/340-recon/DECISIONS.md`. **This item amends S16/S17 above, it does not
+replace them.** S16/S17's per-file at-or-before snap rule (Q17a/b) and
+segment-to-git-diff concatenation are unchanged and still apply exactly as
+written. What changes is the segmentation/coverage model and the addition of
+an actual commit step: S16's "n marks -> n+1 contiguous segments covering the
+whole ruler" is superseded by the growing-prefix model below. L9 is also the
+only layer that **writes** — every git call in the engine today is
+read-only.
+
+**Not a layer.** Like L8, L9 adds no node kind. It is a mode the user arms;
+arming enables cut-mark affordances on the ruler. It is not a row in the
+show-row checkbox list.
+
+**The model: a growing prefix, not a partition.** One marked range = one
+segment = one commit. The first commit's base is the commit chosen by a new
+**ruler base marker**. Every later commit's base is the jfred branch's own
+current tip, not the ruler base again. The user may stop at any point — full
+ruler coverage is never required — but may not start a range mid-ruler: each
+new chunk only ever extends the prefix forward from the current base.
+Skipping a stretch does not omit it from history: because each commit diffs
+jfred-tip -> new mark, the skipped interval's changes land inside the next
+commit that does get made, whose message must state this using the literal
+phrase `includes N unmarked changes` (N = the actual count).
+
+**The jfred branch.** Forks from an existing commit on the timeline — the
+ruler base marker's commit — never an orphan root, never current HEAD.
+Created lazily: only on the first commit, not at arming time. The base is
+immutable once chosen; to change it the branch must be deleted entirely and
+the mode re-armed from scratch. Append-only forever: no amend, no reset, no
+force-push — deleting the branch is the only undo path. Hidden from the
+branch picker: a one-line exclusion filter belongs in `buildLayer1RefsView`
+(`viewer_api_layer1_refs.ts:41-53`), which today runs
+`git for-each-ref refs/heads` with no exclusions — this is the single point
+where the filter belongs; no second exclusion should be added elsewhere.
+`jfred/docs/ui-component-glossary.md` currently has no "Branch picker" row;
+that is a gap this work must close, not an oversight to leave silent.
+
+**What may go in a commit (v1 hard constraint).** A marker may only be
+placed on a beacon node, never on a derived node. This is what makes "any
+jfred commit counts as a beacon on a later pass" sound rather than
+self-certifying — every committed byte was independently verified before
+commit, so a later pass can safely treat the commit as new evidence. Each
+file in a chunk contributes its nearest verified state at-or-before the
+mark — this is S16/S17's existing per-file snap rule, restated here as
+unchanged, not redefined. A file with nothing verified yet by that point is
+simply absent from the commit until its own first beacon arrives in a later
+chunk. Per-file snap variance (which file snapped to which earlier instant)
+is written into the commit message. Bytes are pinned at mark time, not
+re-read at commit time: what the user saw on the timeline at mark-placement
+is exactly what lands in git, even if something upstream changes before the
+commit actually runs.
+
+**Dates.** Author date = the mark's instant (always a real evidenced moment
+in v1, since markers are beacon-only). Committer date = wall clock at
+export time. The commit message carries a footnote in the literal form
+`reconstructed by JFRED @ <real timestamp>`.
+
+**UI surface.** jfred commits render in a dedicated strip beside the
+ruler — a new render surface with its own layout, hit-testing, and scroll
+sync; nothing renders on the ruler itself today. v1 is commit-only: no
+multi-file patch export in this item. The existing per-file patch download
+(`exportPatch`, `layer1-diff-pane.ts:140-152`) stays exactly where it is,
+unchanged.
+
+**What already exists — reusable as-is.** `runGitUnifiedDiff`
+(`src/render_git_diff.ts:19`) — per-file unified diff via
+`git diff --no-index`, strips preamble to hunks — reached through
+`buildLayer1DiffPayload` (`viewer_api_layer1_diff.ts`; `GET /api/layer1-diff`
++ `POST /api/layer1-diff-content`). `exportPatch()`
+(`layer1-diff-pane.ts:140-152`) — client-side-only, wraps hunks with
+synthetic `diff --git`/`---`/`+++` headers into a downloadable Blob, per
+file, per pane; no multi-file concatenation and no server-side `git apply`
+exists anywhere yet. The two-instant range gesture — shift-click two lane
+nodes triggers `extendDiffSelection` -> `.diff-wash` band +
+`createDetailViewsForFiles(view, files, {baseInstant, targetInstant})` — and
+`resolveRangeStepIndexes` (`layer1-diff-wash.ts:31-50`), which already
+implements the per-file at-or-before snap, for exactly 2 instants; this
+needs generalizing to n commits under the growing-prefix model, snapping
+only to `n-commit`/`n-disk`/`n-snap` kinds, never `n-created`.
+`readLayer1FileBytes` (`viewer_api_layer1_file.ts:55-62`) dispatches by
+kind: commit (`git show`), disk (`readFileSync` + escape check), snapshot
+(sidecar). `.n-created` is the existing no-bytes node kind the drawer
+already refuses to open (`:not(.n-created)`) — the direct precedent for
+refusing a marker on an unbacked/derived node.
+
+**What does not exist yet.** Zero `git commit` / `git apply` / `git branch` /
+`checkout -b` calls exist anywhere in `src/` today — every git spawn in the
+engine is currently read-only. New write calls must follow the existing
+argument-array `spawnSync` pattern used by the read-only calls, never shell
+string interpolation.
+
+**Thin adapters needed.** An arming-state + mark-placement branch inside
+`layer1-ruler-click.ts` (`makeRulerTickClickable`,
+`layer1-ruler-click.ts:74-92` — currently single-click-only: expand row or
+scroll to bubble, no drag gesture exists); the generalized
+`resolveRangeStepIndexes` above; a server-side per-file-per-segment diff
+loop plus concatenation, reusing `exportPatch`'s header-wrapping logic moved
+from client to server; a new route performing apply-and-commit (`git apply`
+then `git commit --date` per segment, strictly in commit order); the
+one-line branch filter in `buildLayer1RefsView`; a new ruler-strip node
+class and placement logic for jfred-branch commits — the first render
+surface of its kind.
+
+- Verify: this is the one layer with real filesystem/git side effects, so
+  verification must go beyond DOM assertions and must run against a
+  throwaway/scratch git working tree, never the user's real repo,
+  consistent with how other engine tests in this project already isolate
+  git state. Arming the mode shows a cut-mark affordance on ruler ticks;
+  placing a mark succeeds only on beacon-backed nodes and is refused (with
+  a visible reason) on a derived or `.n-created` node; a first commit's
+  base is exactly the ruler-base-marker commit, verified via `git log`; a
+  second commit's base is the jfred tip, not the original ruler base,
+  verified via parentage; skipping a stretch between two marks produces a
+  commit message containing `includes N unmarked changes` with the correct
+  N; author date on each commit equals its mark's instant and committer
+  date equals wall clock, both checked via `git log --format`; the
+  `reconstructed by JFRED @ <timestamp>` footnote is present; the jfred
+  branch is created only after the first commit (not at arming time) and
+  never appears in the repo branch picker dropdown; deleting the jfred
+  branch is the only way to change its base, and doing so allows re-arming
+  against a new base; concatenated per-segment patches `git apply --check`
+  cleanly in sequence; the new ruler-adjacent commit strip renders one
+  entry per jfred commit with independent scroll sync from the node lanes;
+  the existing per-file patch download still works unchanged.
+- Tasks: #361 (engine build-out, gated on this spec item)
+- Status: SPEC WRITTEN 2026-07-31, spec-only — no build task has started;
+  #361 gates on this item being signed off.
