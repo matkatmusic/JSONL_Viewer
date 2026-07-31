@@ -93,7 +93,29 @@ JSONL rows correctly. Revisit only if real data shows a problem.
 `[4]` implies `[3]` is present: `layer >= N` gating. **This rule applies to
 every future layer**, not just L4.
 
-## STILL OPEN
+## RESOLVED (grilling, 2026-07-30) — nothing open
+
+Answers first; the questions and their evidence are kept below as the record.
+
+- **A — yes, `never-provable` is one of seven confidence states.** A genuine
+  bash run is marked as unprovable-by-replay, distinct from a python run that
+  merely has not run yet. Port the existing `.kind-pre-anchor-stub` dashed
+  hollow ring (layered-styles.css:135) rather than inventing a style.
+- **B — label reads `<language icon> <filenameOfExecutedScript>`.** The detail
+  pane shows the resolved body that actually ran, with a provenance header
+  naming the file and instant. An inline script (`python3 -c`, heredoc) has no
+  filename, so it gets the language icon plus a short generated label.
+- **C — no logic needed.** `ScriptExecutionEvent`
+  (reconstruction_script_execution.ts:11-17) already carries its own `content`
+  and `timestamp` per run, so five runs of one filename already resolve to five
+  bodies. The label above is the whole answer.
+- **D — `viewer_api_layer4_fixture_data.ts`**, per the one-file-per-layer
+  convention. Canned script bodies cannot ride on `FixtureRevisionNode`
+  (identity only); they need a branch in `contentLines`
+  (viewer_api_layer1_fixture_content.ts:73) ahead of the generic template
+  fallback.
+
+## The questions, as asked
 
 **A. Should a bash run look different from a python run?**
 

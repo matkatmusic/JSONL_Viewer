@@ -94,7 +94,26 @@ presumption node.)
 
 Fully covered by L6. L7 owns no slice of it.
 
-## STILL OPEN
+## RESOLVED (grilling, 2026-07-30) — nothing open
+
+Answers first; the questions and their evidence are kept below as the record.
+
+- **A — a new session annotation track.** Prompts, responses and the ~54k
+  non-file metadata rows get their own shared lane on the same ruler, rather
+  than being duplicated onto every touched file. This is new UI — layer 1 has
+  no non-file lane that can host a node — and it needs windowing before it can
+  render at all.
+- **B — no rewind node, and no code-rewind inference.** A rewind shows as
+  dimmed nodes plus a dashed elbow in the bubble (`mvp-app-mockup.html`
+  layer 8). Confirmed against the s7 transcript that code-vs-conv is not
+  derivable: zero `edited_text_file` records, no restore marker, only a shared
+  `parentUuid` that a conv-only rewind produces identically.
+- **C — equal to the previous stamped record.** Matches the task-224
+  precedent's reasoning: avoid inventing an instant no evidence supports. The
+  three conflicting behaviours in code (drop / sort-first / sort-last) converge
+  on this one rule.
+
+## The questions, as asked
 
 **A. User prompts and agent responses get nodes — but placed where?**
 

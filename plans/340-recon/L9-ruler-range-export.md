@@ -61,24 +61,63 @@ no existing node kind renders ON the ruler.
 - One-line branch filter in buildLayer1RefsView.
 - New ruler-node class + placement for jfred-branch commits.
 
-## AMBIGUITIES (grilling)
+## SETTLED (grilling, 2026-07-30) — nothing open
 
-1. Range model: full S16/S17 n-cut partition, or v1 = extend the SHIPPED
-   2-point diff wash (one range = one segment) and defer multi-segment?
-2. jfred branch base: anchor-built root (Q17) or fork of current HEAD?
-3. "Mark a section" = one 2-cut range → how many commits? One for the span,
-   or Q17's literal one-per-segment (n+1)?
-4. WHERE do special ruler nodes live — ruler gutter row, a dedicated strip,
-   or a new lane? (No node renders on the ruler today.)
-5. Branch created lazily on first commit, or exists-empty up front?
-6. Export vs commit: two independent actions on a marked range, or export
-   always + commit opt-in? One control or two?
-7. Idempotency: jfred branch append-only, or can a re-mark amend/reset?
-8. Disk races: apply-and-commit re-reads live disk, or pins the verified
-   bytes captured at mark time?
-9. Do jfred-branch commits need kept/rejoin visual treatment vs the bubbles
-   they were cut from?
-10. Author-date when per-file snap instants differ: earliest, latest, or
-    the mark's nominal instant?
-11. Is the refs-route filter the only exclusion point needed (only
-    branch-listing route today) — confirm as a spec invariant.
+L9 is the only layer that **writes**. Every git call in the engine today is
+read-only; this adds `git apply` and `git commit`.
+
+### The model: a growing prefix, not a partition
+
+**This amends the S16/S17 text above.** "n marks → n+1 contiguous segments
+covering the whole ruler" is replaced by:
+
+- One marked range = one segment = **one commit**.
+- The first commit's base is the commit chosen by the **ruler base** marker.
+  Each later commit's base is the jfred tip.
+- You may **stop at any time**. The timeline does not need full coverage.
+- You may **not** start in the middle. Chunks extend the prefix.
+- Skipping a stretch does not omit it: because each commit diffs the jfred tip
+  against the new mark, anything in between is **absorbed into the next
+  commit**. Its message must say so — "includes N unmarked changes".
+
+### The branch
+
+- jfred **forks from an existing commit on the timeline**, selected by a new
+  **ruler base marker**. Not an orphan root, not current HEAD.
+- Created lazily, on the first commit.
+- The base is **immutable**. To change it, delete the jfred branch entirely.
+- **Append-only.** No amend, no reset, no force-push. Deleting the branch is
+  the only undo — so the app never rewrites history it did not just create.
+- **Hidden from the repo branch picker** (one filter line in
+  `buildLayer1RefsView`), so a reconstruction can never be loaded against a
+  synthetic branch. The strip is where it is seen and deleted.
+
+### What goes in a commit
+
+- **v1: markers may only be placed on beacon nodes.** No derived node can carry
+  a marker. This is what makes "any jfred commit is a beacon" sound rather than
+  self-certifying — every committed byte was already verified.
+- Each file in the chunk contributes its **nearest verified state at-or-before**
+  the mark (S16/S17 as written). A file with nothing verified yet is absent
+  until its first beacon. Per-file snap variance goes in the commit message.
+- Bytes are **pinned at mark time**, not re-read at commit time — what you saw
+  on the timeline is what lands in git.
+- **Any jfred commit counts as a beacon** on the next pass. That is the point:
+  committing verified chunks creates real git state, which resolves previously
+  unverified stretches when the branch is extended.
+
+### Dates
+
+Author date = the mark's instant, which under the beacon-only rule is always a
+real evidenced moment. Committer date = export wall clock. The message carries
+a footnote: `reconstructed by JFRED @ <real timestamp>`.
+
+### UI
+
+- jfred commits render in a **dedicated strip beside the ruler** — a new render
+  surface with its own layout, hit-testing and scroll sync. Nothing renders on
+  the ruler today.
+- **Commit only for v1.** No multi-file patch export; per-file patch download
+  stays where it already is (`exportPatch`, layer1-diff-pane.ts:140-152).
+- L9 is **not a layer** — it adds no node kind. It is a mode you arm. See
+  DECISIONS.md.

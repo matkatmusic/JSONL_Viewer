@@ -131,7 +131,29 @@ layer buttons are essentially node-type filters — the extra job they do is
 replaying that node type on top of the previous layer's beacons / computed
 state.
 
-## STILL OPEN
+## RESOLVED (grilling, 2026-07-30) — nothing open
+
+Answers first; the questions and their evidence are kept below as the record.
+
+- **A(a) — lazy.** Computation happens when a node becomes visible, so the
+  sidecar read is per-request. Copy `readSnapshotFileContent` →
+  `createSidecarReader` (viewer_api_layer1_snapshot.ts:66-73), already
+  dispatched per HTTP request.
+- **A(b) — `reseeded` is one of seven confidence states**, each visually
+  distinct. See DECISIONS.md.
+- **B — per-session lanes, always.** Not a branch feature: a bubble holds a
+  64px column per session (`plans/mvp-app-mockup.html`). Edit nodes go in their
+  own session's lane and carry `data-session-*` per the existing
+  `appendSnapshotNode` ↔ `describeNode` contract.
+- **C — both halves, with real hunks, in a new per-layer file.** Fixtures live
+  in `viewer_api_layer3_fixture_data.ts`. Crafted edits go in the 4 hand-written
+  sessions; generated edits go in the bulk loop, because 84 of the 88 bubbles
+  are bulk. Every edit fixture carries a real `structuredPatch` —
+  `reconstruction_extract.ts:133-135` builds no event without one, so
+  `oldString`/`newString` alone yields no node. The import-time self-check
+  extends to hunks.
+
+## The questions, as asked
 
 **A. When an edit's base can't be trusted, the engine silently swaps in a
 backup blob — should L3 keep it silent?**

@@ -119,7 +119,27 @@ interactivity, purely to pick a direction. Lane scope (a lane per session vs a
 conversation-wide tree spanning forked subagents) rides on that choice and
 stays open until then.
 
-## STILL OPEN
+## RESOLVED (grilling, 2026-07-30)
+
+Answers first; the questions and their evidence are kept below as the record.
+
+- **A — no break marker. The clamp stays silent.** Reframed during grilling:
+  the 16–120px clamp is not a rewind feature, it applies to every gap, so a
+  rewind-only marker would be arbitrary and marking every clamped gap would be
+  a global ruler change that fires constantly on a long project.
+- **B — still contingent**, but narrower: lanes are per-session columns
+  (`mvp-app-mockup.html`), so whether a tie-group rectangle spans them is
+  answered by the branch-rendering mockup below, not before it.
+- **C — write the rule.** One line in `plans/coding-requirements.md`: if the
+  engine computes it, consume it — never re-derive branch membership, rewind
+  points, or file state in the webapp. Verified that no such general rule
+  exists today, only per-feature statements.
+
+Also settled here: **there is no rewind node.** A rewind renders as dimmed
+nodes plus a dashed elbow connector (`mvp-app-mockup.html` layer 8). A code
+rewind is not separable from a conv-only rewind in the data anyway — see L7.
+
+## The questions, as asked
 
 **A. The ruler silently squashes long time gaps. Does a rewind point survive
 that?**

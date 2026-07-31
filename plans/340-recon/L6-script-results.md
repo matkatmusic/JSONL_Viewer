@@ -117,7 +117,26 @@ Deliverable: **2–3 non-interactive mockups** of that console/popup before a
 design is picked. _(Joins the L5 branch-rendering mockup as the second visual
 decision outstanding.)_
 
-## STILL OPEN
+## RESOLVED (grilling, 2026-07-30) — only the console mockup remains
+
+Answers first; the questions and their evidence are kept below as the record.
+
+- **A — one beacon definition across all layers.** L6 verifies against whatever
+  L3 calls a beacon: file-history backups, full-file Reads, `Bash(cat)` output,
+  commits, snapshots — nearest after the run. Extending
+  `getPostExecutionBeacon` past the backup timeline is real engine work, taken
+  deliberately so "beacon" never means two things in two layers.
+- **B — yes, tell them apart.** `original-failed` is one of the seven
+  confidence states. Cost objection withdrawn: `executeRunOnce` already
+  receives `records` and `ScriptRun` already carries `toolUseId`, so honouring
+  `is_error` is ~10-15 lines with no signature change.
+- **C — read the live working tree, but only to confirm.** A match promotes the
+  node to verified. A mismatch or a missing file changes nothing and shows no
+  marker, because the file may have been edited many times since — a difference
+  is not evidence. This is a first-ever capability: `process.cwd()` appears
+  nowhere in src today.
+
+## The questions, as asked
 
 **A. What counts as the "next known-good state" to verify a replay against?**
 

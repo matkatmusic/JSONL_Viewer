@@ -101,7 +101,25 @@ Filter state is stored persistently with the rest of the settings data. **No
   `.n-snap`) — this was a note, not a question, and hide-only makes it moot:
   nothing redraws, so the wash keeps inspecting the same DOM it always did.
 
-## STILL OPEN
+## RESOLVED (grilling, 2026-07-30) — nothing open
+
+Answers first; the question and its evidence are kept below as the record.
+
+- **A — buttons 1–7 stay as presets; the `data-layer` gate retires.** The
+  checkboxes are the single source of truth. Blast radius is fully enumerated
+  below and includes one unit test and three visual/CDP probes that must change
+  in the same commit.
+- **L8 and L9 are not layers.** Neither adds a node kind, so neither has
+  checkboxes to toggle. The show row is always present; range-export is a mode
+  you arm. The L1–L9 numbering stops matching the UI at 8, deliberately.
+- **Computation is triggered by visibility, not by the button.** A kind's data
+  is computed the first time it becomes visible, however it was turned on — so
+  ticking a checkbox can start a slow job, and the progress bar must be able to
+  fire from the show row.
+- **Confidence is display-only.** The show row filters by node kind alone; the
+  seven confidence states are read off a node, not filtered by.
+
+## The question, as asked
 
 **A. Do the layer buttons survive as their own mechanism, or become pure
 presets?**
