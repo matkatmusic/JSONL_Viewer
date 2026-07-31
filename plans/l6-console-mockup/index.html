@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L6 Execution Console — Mockup</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb;
+    --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --border: rgba(11,11,11,.10);
+    --add: #0ca30c; --del: #d03b3b; --amber: #b5860b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19;
+      --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --border: rgba(255,255,255,.10);
+      --add: #3fbf3f; --del: #e46a6a; --amber: #d9a63a;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19;
+    --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --border: rgba(255,255,255,.10);
+    --add: #3fbf3f; --del: #e46a6a; --amber: #d9a63a;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--page); }
+  .viz-root { font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--page); padding: 20px 24px 60px; max-width: 900px; }
+  h1 { font-size: 18px; margin-bottom: 8px; }
+  .intro { color: var(--ink2); margin-bottom: 28px; max-width: 70ch; }
+  section { border-top: 1px solid var(--border); padding-top: 18px; margin-top: 18px; }
+  section h2 { font-size: 15px; margin-bottom: 4px; }
+  .variant-citation { font-size: 11.5px; color: var(--muted); margin-bottom: 12px; max-width: 68ch; }
+  .state-caption { font-size: 11.5px; color: var(--muted); margin: 14px 0 6px; }
+
+  /*
+    Output panel: `.details`/`.dpane` precedent (mvp-app-mockup.html:126-157).
+  */
+  .console-output { border: 1px solid var(--grid); border-radius: 8px; background: var(--surface);
+    padding: 10px 12px; }
+  .console-pre { font: 11.5px/1.55 ui-monospace, Menlo, monospace; color: var(--ink2);
+    white-space: pre; overflow-x: auto; }
+  .console-caption { font-size: 11px; color: var(--muted); font-style: italic; margin-top: 8px; }
+
+  .cancel-state-row, .terminal-state-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .state-frame { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+  .state-label { font-size: 10.5px; color: var(--muted); }
+  .cancel-btn { font: 600 12px system-ui; padding: 4px 10px; border-radius: 6px;
+    border: 1px solid var(--border); background: transparent; color: var(--ink); }
+  .cancel-btn.btn-idle { opacity: .5; }
+  .cancel-btn.btn-live { border-color: var(--del); color: var(--del); }
+  .cancel-btn.btn-cancelled { opacity: .5; text-decoration: line-through; }
+
+  .terminal-block { border: 1px solid var(--grid); border-radius: 8px; padding: 8px 10px;
+    min-width: 160px; flex: 1 1 160px; background: var(--surface); }
+  .terminal-title { display: block; font-size: 12px; margin-bottom: 4px; }
+  .terminal-desc { font-size: 11px; color: var(--ink2); }
+  .term-cancelled .terminal-title { color: var(--muted); }
+  .term-verified .terminal-title { color: var(--add); }
+  .term-mismatch .terminal-title { color: var(--del); }
+  .term-original-failed .terminal-title { color: var(--amber); }
+
+  .fake-timeline { display: flex; gap: 10px; align-items: center; padding: 14px;
+    border: 1px dashed var(--grid); border-radius: 8px; margin-bottom: 12px; }
+  .fake-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); opacity: .5; }
+
+  .popup-stage { position: relative; }
+  .mock-popup { border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+    box-shadow: 0 6px 24px rgba(0,0,0,.18); max-width: 560px; margin: 0 auto; }
+  .mock-popup-head { font-weight: 600; font-size: 12.5px; padding: 10px 14px;
+    border-bottom: 1px solid var(--border); }
+  .mock-popup-body { padding: 14px; }
+
+  .anchored-stage { position: relative; }
+  .anchored-panel { border: 1px solid var(--border); border-radius: 10px 0 0 10px;
+    background: var(--surface); max-width: 380px; margin-left: auto; }
+
+  .mock-drawer { border: 1px solid var(--border); border-left: 3px solid var(--ink2);
+    background: var(--surface); max-width: 420px; margin-left: auto; }
+  .mock-drawer-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    border-bottom: 1px solid var(--border); }
+  .mock-drawer-path { font: 600 12px ui-monospace, Menlo, monospace; flex: 1; }
+  .mock-drawer-close { margin-left: auto; border: 1px solid var(--border); background: transparent;
+    color: var(--ink); border-radius: 4px; padding: 0 8px; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <h1>L6 execution console — placement mockups</h1>
+  <p class="intro">
+    Three static variants for the Layer 6 execution console's output/cancel UI only. The
+    global load bar that already reports overall progress is unchanged and out of scope; none
+    of this is wired to <code>jfred/src/reconstruction_script_sandbox.ts</code> or any real
+    sandbox process — every block below is fixed fixture data.
+  </p>
+
+  <section>
+    <h2>Popup over timeline (baseline placement)</h2>
+    <div id="popup-mount"></div>
+  </section>
+
+  <section>
+    <h2>Anchored panel docked to a screen edge</h2>
+    <div id="anchored-mount"></div>
+  </section>
+
+  <section>
+    <h2>Drawer reusing the Detail drawer chrome</h2>
+    <div id="drawer-mount"></div>
+  </section>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
