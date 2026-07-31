@@ -543,5 +543,19 @@
       "jfred/webapp/layer1-page.ts",
       "plans/task-374-tall-bubbles/"
     ]
+  },
+  {
+    "taskNumber": 375,
+    "title": "Engine: discover and load <sessionId>/subagents/ transcripts so fork-subagent file edits are not silently dropped",
+    "description": "Engine: descend into <sessionId>/subagents/ so file edits made inside /btw fork subagents are not silently dropped. Task 338 verified this gap and documented it in plans/task-338-findings.md. The engine never reads the subagents folder next to a session JSONL, so any Edit or Write performed by a forked subagent is invisible to the timeline. Distinct from task 362, which covers subagents/workflows/wf_* only.\n\nVERIFIED ROOT CAUSE (from plans/task-338-findings.md): listJsonlFiles in jfred/src/viewer_api_projects.ts does a single-level readdirSync filtering on .jsonl and never recurses; scanProjects treats only the immediate children of the projects root as loose files or named projects, so a session's own <sessionId>/subagents/ folder is structurally never visited. No loader in layered_load.ts or reconstruction_cli.ts resolves forkContextRef.parentSessionId / .parentLastUuid back to a subagent file either. The parser side already works: RecordType.forkContextRef is modeled in structures/vocabulary.ts and allow-listed in parse/recordKeys.ts, so a subagents/agent-*.jsonl file would parse fine if anything fed it to loadTranscript. No test anywhere exercises loading a real subagents/agent-*.jsonl.\n\nAPPROACH RECOMMENDED BY THE FINDINGS DOC: (1) add a listSubagentTranscripts(projectDir, sessionId) helper near listJsonlFiles in viewer_api_projects.ts that finds <projectDir>/<sessionId>/subagents/agent-*.jsonl and returns them as an explicit SEPARATE source list — do not silently merge into scanProjects' per-project listing, since these are per-session not per-project. (2) In reconstruction_cli.ts / layered_load.ts, when a subagent transcript's fork-context-ref line has a parentSessionId/parentLastUuid matching the session being reconstructed, load it through the existing loadTranscript path (no parser change needed) and run its tool-use records through the normal file-event extraction in reconstruction_extract.ts, attributing resulting EditEvent/FileEvent to the tree at parentLastUuid, tagged as a sidechain — mirroring how isSidechain:true is already carried.\n\nREAL SAMPLE ON DISK for a fixture: ~/.claude/projects/-Users-matkatmusicllc-Desktop-claude-code-src-RevEng/f7d5bed5-6831-4332-912e-e19fe5396350/subagents/agent-aim-not-seeing-22b231f10bbede01.jsonl with sibling .meta.json {\"agentType\":\"fork\",\"isFork\":true,\"name\":\"im-not-seeing\",\"spawnDepth\":1}. Note that particular fork made zero tool calls, so a fixture proving the dropped-edit case must be constructed with at least one Edit or Write in the subagent transcript.",
+    "files": [
+      "jfred/src/viewer_api_projects.ts",
+      "jfred/src/layered_load.ts",
+      "jfred/src/reconstruction_cli.ts",
+      "jfred/src/reconstruction_extract.ts",
+      "jfred/tests/viewer_api_projects.test.ts",
+      "jfred/tests/layered_load.test.ts",
+      "plans/task-338-findings.md"
+    ]
   }
 ]
