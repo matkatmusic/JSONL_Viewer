@@ -1435,8 +1435,11 @@
     "title": "Investigate: s85 script renames missing from the Files nav ('core_one.py <- one.py (renamed)' badge absent)",
     "description": "In s85-git-commit-csv-and-move-scripts, files renamed by the script (one.py -> core_one.py etc. via shutil.move) do not show the rename representation in the Files nav column that other projects get (rename badge: renameBadgeLabel stamped by applyRenameBadgeLabels, jfred/webapp/views/timeline-file-tree.ts:45, fed by each history revision's rename?.from — see also renamedFrom in details.ts:56). Likely engine-side: the file tree only shows a badge when the file's history contains a rename REVISION; s85's evidence flows through beaconlessScriptExecutions + the git-commit BLOB channel (reconstruction_git_evidence.ts, placeGitCommitEvidence — see s85 ground truth), which may seed the renamed file's history at its final path with no rename revision. CHECK FIRST (known s85 HAZARD): the s85 repo is resolved via the recorded TEMP cwd (/var/folders/.../run-scenario.*) — if that tmpdir was cleaned, s85 reconstruction regresses wholesale and this symptom (plus task 146) may just be that regression, not a new gap. Run the CLI sweep on s85 before touching the webapp.",
     "completionDate": "2026-07-21",
-    "commitHashes": [],
-    "closureNote": "Investigated and fixed: not the tmpdir hazard (checker 10/10 without it) — the surviving-trunk walk dropped parallel-tool-call sibling records (shared message.id), starving script discovery so core_*.py had no histories; absorbParallelToolCallSiblings restores them (plumbing-only subtree gate keeps real rewinds dimmed) and the Files sidebar badges script moves from renamedPaths. Rename REVISIONS for moved-away sources filed as follow-up in the implementation notes. Staged in jfred, awaiting commit."
+    "commitHashes": [
+      "84eab29171ba51bd5173dc86895fdf1bdb8c2640",
+      "479deff2256b10f5d2886e83460514e8b278440b"
+    ],
+    "closureNote": "Investigated and fixed: not the tmpdir hazard (checker 10/10 without it) — the surviving-trunk walk dropped parallel-tool-call sibling records (shared message.id), starving script discovery so core_*.py had no histories; absorbParallelToolCallSiblings restores them (plumbing-only subtree gate keeps real rewinds dimmed) and the Files sidebar badges script moves from renamedPaths. Rename REVISIONS for moved-away sources filed as follow-up in the implementation notes (tracked as task 155, closed). See plans/sibling-absorption.md for the durable mechanism write-up."
   },
   {
     "taskNumber": 146,
