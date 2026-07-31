@@ -84,3 +84,14 @@ bar to the user.**
 - Reuse the page's existing loadbar rather than adding a second idiom —
   `webapp/layer1-progress.ts` (`.loadbar` / `.loadbar-fill` / `.loadbar-label`), fed
   by the NDJSON `?progress=1` stream pattern in `src/viewer_api_layer1_route.ts`.
+
+## 7. Reuse the engine, never re-derive in the webapp
+
+If the engine already computes a value, the webapp consumes it — it never re-derives
+branch membership, rewind points, or file state client-side.
+
+Example: reimplementing `absorbParallelToolCallSiblings` (jfred/src/) incorrectly in the
+webapp would render every ordinary parallel tool call as a fake abandoned branch. This is
+the same class of bug the rule exists to prevent for Layer 5's branch rendering
+(kept-vs-reverted, via `reconstructBranches` + `findWorkingTreeOwner`), Layer 6's
+replay/verification state, and any future layer that touches file state.
