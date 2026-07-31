@@ -3,43 +3,47 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>L5 branch mockup — Variant 3: inline badge</title>
+<title>L5 branch mockup — conversation-only rewind (rejoin)</title>
 <style>
   * { box-sizing: border-box; margin: 0; }
   body { font: 13px/1.5 system-ui, -apple-system, sans-serif; color: #0b0b0b; background: #f9f9f7; padding: 20px; }
   h1 { font-size: 15px; margin-bottom: 6px; }
   .caption { font-size: 12px; color: #52514e; max-width: 640px; margin-bottom: 18px; }
+  .caption code { background: #eceae2; padding: 0 3px; border-radius: 3px; }
   .bubble { position: relative; border: 2px solid #d98a2b; border-radius: 14px; background: #fcfcfb;
     padding: 30px 10px 20px; display: inline-block; }
   .lanes { display: flex; position: relative; height: 320px; }
   .lane { width: 64px; flex: none; position: relative; }
-  .lane .lrail { position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1.5px solid #c3c2b7; }
+  .fork-gutter { width: 64px; }
   .sname { position: absolute; top: -6px; left: 50%; transform: rotate(90deg) translateX(6px);
     transform-origin: left top; font-size: 10px; color: #898781; white-space: nowrap; }
+  .g-rail { position: absolute; left: 50%; }
+  .g-l1 { top: 0; bottom: 0; width: 3px; transform: translateX(-1.5px); background: #4a3aa7; border-radius: 2px; }
+  .g-l2 { width: 0; border-left: 2px dashed #4a3aa7; opacity: .45; }
+  .fork-node { position: absolute; width: 10px; height: 10px; transform: translate(-50%, -50%) rotate(45deg);
+    background: #4a3aa7; box-shadow: 0 0 0 2.5px #fcfcfb; }
+  .split-elbow { position: absolute; height: 16px; border-top: 2px dashed #4a3aa7;
+    border-right: 2px dashed #4a3aa7; border-top-right-radius: 10px; opacity: .6; pointer-events: none; }
+  .merge-elbow { position: absolute; height: 16px; border-bottom: 2px dashed #4a3aa7;
+    border-right: 2px dashed #4a3aa7; border-bottom-right-radius: 10px; opacity: .6; pointer-events: none; }
   .node { position: absolute; left: 50%; transform: translate(-50%, -50%); width: 15px; height: 15px;
     border-radius: 50%; box-shadow: 0 0 0 2.5px #fcfcfb; }
   .n-user { background: #eb6834; }
   .n-snap { background: #1baf7a; }
-  .branch-badge { position: absolute; left: calc(50% - 18px); transform: translateY(-50%);
-    width: 14px; height: 14px; border-radius: 4px; background: #4a3aa7; opacity: .5;
-    color: #fff; font-size: 9px; display: flex; align-items: center; justify-content: center; }
-  .mini-dot { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: #4a3aa7;
-    opacity: .5; transform: translateY(-50%); }
   a.back { display: inline-block; margin-top: 16px; font-size: 12px; }
 </style>
 </head>
 <body>
-<h1>Variant 3 — inline badge (no extra lane)</h1>
+<h1>Conversation-only rewind — the branch rejoins the trunk</h1>
 <p class="caption">
-  A new idea, not a coined term: instead of a dimmed lane column (variant 1) or a forked track
-  (variant 2), the abandoned branch collapses into a small badge next to the trunk node showing
-  how many nodes it had, plus a compact row of mini dots. The bubble does not widen for the
-  abandoned branch — only unrelated concurrent sessions (like <code>ww455.jsonl</code> below)
-  still add a full lane. This fell out of comparing variants 1 and 2 side by side (task 346, task 5);
-  it deliberately contrasts with the settled "bubble widens" rule those two variants exercise.
+  Same forked-track design as the code-rewind case (<code>variant2/</code>): solid unmoved trunk
+  rail, dashed dimmed branch lane, dashed split elbow at the fork node. Here the rewind only
+  discarded conversation turns — the branch's file edits survive on disk — so a
+  <code>.merge-elbow</code>, the mirror of the split elbow, runs from the bottom of the branch lane
+  back into the trunk instead of dead-ending.
 </p>
 <div class="bubble" id="bubble"></div>
-<p><a class="back" href="../index.html">&larr; back to variant comparison</a></p>
+<p><a class="back" href="../index.html">&larr; back to overview</a></p>
 <script type="module" src="./app.js"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
-// Variant 3 — inline badge next to the trunk node, no lane column. Emerged comparing variants 1 and 2.
+// Same forked-track renderer as variant2/app.js, plus a mirrored elbow rejoining the trunk.
 import { BUBBLE } from "./fixture.js";
 
-const TOP = 24, PXM = 4;
+const TOP = 24, PXM = 4, LANE_W = 64, DIM = 0.45;
 const y = t => TOP + t * PXM;
 
 function el(tag, attrs, ...children) {
@@ -11,36 +11,50 @@ function el(tag, attrs, ...children) {
   return node;
 }
 
-function renderLane(lane) {
-  const col = el("div", { class: "lane" },
-    el("div", { class: "lrail" }),
+function renderLane(lane, extraClass) {
+  return el("div", { class: `lane ${extraClass || ""}` },
     el("div", { class: "sname" }, document.createTextNode(lane.session)));
-  for (const n of lane.nodes) col.append(el("div", { class: `node n-${n.kind}`, style: `top:${y(n.t)}px` }));
+}
+
+function renderTrunk(trunk) {
+  const col = renderLane(trunk);
+  col.prepend(el("div", { class: "g-rail g-l1" }));
+  for (const n of trunk.nodes) col.append(el("div", { class: `node n-${n.kind}`, style: `top:${y(n.t)}px` }));
   return col;
 }
 
-function renderInlineBadge(trunkCol, forkLane) {
-  const badge = el("div", { class: "branch-badge", style: `top:${y(forkLane.forkFrom.t)}px` });
-  badge.textContent = `${forkLane.nodes.length}`;
-  badge.title = `${forkLane.session}: ${forkLane.nodes.map(n => n.label).join(", ")} (abandoned)`;
-  trunkCol.append(badge);
-  forkLane.nodes.forEach((n, i) => {
-    trunkCol.append(el("div", { class: "mini-dot", style: `top:${y(forkLane.forkFrom.t)}px; left:calc(50% + ${14 + i * 8}px)` }));
-  });
+function renderBranch(branch) {
+  const col = renderLane(branch, "fork-gutter");
+  const tipT = Math.max(branch.rejoinAt, ...branch.nodes.map(n => n.t));
+  col.append(el("div", { class: "g-rail g-l2",
+    style: `top:${y(branch.forkFrom.t)}px; height:${y(tipT) - y(branch.forkFrom.t)}px` }));
+  for (const n of branch.nodes) {
+    const dot = el("div", { class: `node n-${n.kind}`, style: `top:${y(n.t)}px; opacity:${DIM}` });
+    dot.title = `${n.label} — conversation rewound, code kept`;
+    col.append(dot);
+  }
+  return col;
+}
+
+function renderSplitElbow(container, forkT) {
+  container.append(el("div", { class: "fork-node", style: `top:${y(forkT)}px; left:${LANE_W / 2}px` }));
+  container.append(el("div", { class: "split-elbow",
+    style: `top:${y(forkT)}px; left:${LANE_W / 2}px; width:${LANE_W}px` }));
+}
+
+function renderMergeElbow(container, rejoinAt) {
+  container.append(el("div", { class: "merge-elbow",
+    style: `top:${y(rejoinAt) - 16}px; left:${LANE_W / 2}px; width:${LANE_W}px` }));
 }
 
 function render() {
   const root = document.getElementById("bubble");
   const lanes = el("div", { class: "lanes" });
-  const trunk = BUBBLE.lanes.find(l => l.isOrphaned !== true);
-  const trunkCol = renderLane(trunk);
-  lanes.append(trunkCol);
-  const fork = BUBBLE.lanes.find(l => l.isOrphaned === true);
-  if (fork) renderInlineBadge(trunkCol, fork);
-  for (const lane of BUBBLE.lanes) {
-    if (lane === trunk || lane === fork) continue;
-    lanes.append(renderLane(lane));
-  }
+  const [trunk, branch] = BUBBLE.lanes;
+  lanes.append(renderTrunk(trunk));
+  lanes.append(renderBranch(branch));
+  renderSplitElbow(lanes, branch.forkFrom.t);
+  renderMergeElbow(lanes, branch.rejoinAt);
   root.append(lanes);
 }
 

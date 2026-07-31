@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>L5 branch-rendering mockup — variant comparison</title>
+<title>L5 branch-rendering mockup — decided design</title>
 <style>
   * { box-sizing: border-box; margin: 0; }
   body { font: 13px/1.5 system-ui, -apple-system, sans-serif; color: #0b0b0b; background: #f9f9f7; padding: 20px; }
@@ -18,27 +18,22 @@
 </style>
 </head>
 <body>
-<h1>L5 — Layer 5 branch-rendering mockup (task 346)</h1>
+<h1>L5 — branch rendering: forked track (decided)</h1>
 <p class="notes">
-  Static comparison of two required variants plus one that fell out of comparing them (task 5).
-  Zero interactivity, fixture data only — see <code>fixture.js</code> in each variant folder.
-  Neither variant answers the two downstream questions this mockup is scoped to leave open:
-  (1) whether the lane axis is per-session or a conversation-wide tree, and (2) whether a
-  tie-group rectangle spans lanes at the coincident instant marked <code>tie: true</code> in the
-  fixture. Those are picked later, separately from this task.
+  Decided (2026-07-31): the forked-track design wins — one file bubble, a solid unmoved trunk
+  rail, the abandoned branch in its own lane with a dashed dimmed rail, and a dashed elbow marking
+  the fork. Dim-in-place and the inline badge were rejected. The two panels below are the only
+  variable left: the engine's two rewind kinds, taken as fixture data
+  (<code>rewindKind</code> in each <code>fixture.js</code>) — not derived here.
 </p>
 <div class="row">
   <div class="col">
-    <h2>Variant 1 — dim-in-place</h2>
-    <iframe src="./variant1/index.html" title="Variant 1"></iframe>
+    <h2>Code rewind — dead end</h2>
+    <iframe src="./variant2/index.html" title="Code rewind"></iframe>
   </div>
   <div class="col">
-    <h2>Variant 2 — forked track</h2>
-    <iframe src="./variant2/index.html" title="Variant 2"></iframe>
-  </div>
-  <div class="col">
-    <h2>Variant 3 — inline badge</h2>
-    <iframe src="./variant3/index.html" title="Variant 3"></iframe>
+    <h2>Conversation-only rewind — rejoins trunk</h2>
+    <iframe src="./variant3/index.html" title="Conversation-only rewind"></iframe>
   </div>
 </div>
 </body>
