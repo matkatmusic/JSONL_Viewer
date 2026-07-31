@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L5 branch-rendering mockup — decided design</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 13px/1.5 system-ui, -apple-system, sans-serif; color: #0b0b0b; background: #f9f9f7; padding: 20px; }
+  h1 { font-size: 16px; margin-bottom: 8px; }
+  .notes { font-size: 12px; color: #52514e; max-width: 900px; margin-bottom: 16px; }
+  .notes code { background: #eceae2; padding: 0 3px; border-radius: 3px; }
+  .row { display: flex; gap: 14px; }
+  .col { flex: 1 1 0; min-width: 0; }
+  .col h2 { font-size: 13px; margin-bottom: 6px; }
+  iframe { width: 100%; height: 560px; border: 1px solid #d9d8d0; border-radius: 8px;
+    background: #fff; display: block; }
+</style>
+</head>
+<body>
+<h1>L5 — branch rendering: forked track (decided)</h1>
+<p class="notes">
+  Decided (2026-07-31): the forked-track design wins — one file bubble, a solid unmoved trunk
+  rail, the abandoned branch in its own lane with a dashed dimmed rail, and a dashed elbow marking
+  the fork. Dim-in-place and the inline badge were rejected. The two panels below are the only
+  variable left: the engine's two rewind kinds, taken as fixture data
+  (<code>rewindKind</code> in each <code>fixture.js</code>) — not derived here.
+</p>
+<div class="row">
+  <div class="col">
+    <h2>Code rewind — dead end</h2>
+    <iframe src="./variant2/index.html" title="Code rewind"></iframe>
+  </div>
+  <div class="col">
+    <h2>Conversation-only rewind — rejoins trunk</h2>
+    <iframe src="./variant3/index.html" title="Conversation-only rewind"></iframe>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task 339 review — timeline node-kind icons and colors</title>
+<style>
+* { box-sizing: border-box; }
+body { font: 13px/1.5 system-ui, sans-serif; margin: 0; padding: 20px; background: #f9f9f7; color: #0b0b0b; }
+h1 { font-size: 15px; margin: 0 0 4px; }
+p.sub { color: #6b7280; font-size: 12px; margin: 0 0 20px; }
+
+.stage { display: flex; gap: 40px; align-items: flex-start; }
+
+.trunk-rail { position: relative; width: 220px; padding-left: 20px; }
+.trunk-rail::before {
+  content: ""; position: absolute; left: 30px; top: 0; bottom: 0; width: 2px; background: #c3c2b7;
+}
+.trunk-label { font-size: 11px; color: #6b7280; margin-bottom: 8px; }
+
+.layered-file-widget {
+  position: relative; margin-left: 20px; padding: 8px 10px 14px;
+  border: 2px solid rgba(0,0,0,.25); border-radius: 14px; background: #fff; width: 140px;
+}
+.layered-file-name { font: 600 12.5px ui-monospace, Menlo, monospace; margin-bottom: 4px; }
+.layered-lane { position: relative; width: 100%; min-height: 260px; border-left: 1.5px solid rgba(0,0,0,.15); }
+.layered-node {
+  position: absolute; top: var(--top, 0); left: 50%; transform: translate(-50%, -50%);
+  width: 18px; height: 18px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: #fff; cursor: default;
+}
+.node-type-snapshot { font-size: 9px; }
+
+.legend { width: 300px; }
+.legend h2 { font-size: 12px; margin: 0 0 8px; }
+.legend-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; }
+.legend-row i {
+  width: 16px; height: 16px; border-radius: 50%; display: inline-flex; align-items: center;
+  justify-content: center; font-style: normal; font-size: 9px; font-weight: 700; color: #fff; flex: none;
+}
+
+.confidence-section { margin-top: 28px; }
+.confidence-section h2 { font-size: 12px; margin: 0 0 8px; }
+.confidence-demo-item { display: inline-flex; align-items: center; gap: 8px; margin: 0 24px 10px 0; }
+.confidence-demo-node {
+  width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-size: 10px; font-weight: 700; color: #fff; position: relative;
+}
+/*
+  Confidence ring idiom ported from .kind-pre-anchor-stub, layered-styles.css:135.
+*/
+.confidence-demo-node.ring-demo::after {
+  content: ""; position: absolute; inset: -5px; border-radius: 50%;
+  border: 2px dashed #9ca3af; background: transparent;
+}
+</style>
+</head>
+<body>
+<h1>Task 339 review — timeline node-kind icons and colors</h1>
+<p class="sub">Fixture mockup. One file bubble on a trunk rail, every node kind in plausible timeline order, legend alongside. Tokens copied from jfred/webapp/layered-styles.css@ee4603f — nothing re-picked.</p>
+
+<div class="stage">
+  <div class="trunk-rail">
+    <div class="trunk-label">trunk</div>
+    <div class="layered-file-widget">
+      <div class="layered-file-name">src/util.ts</div>
+      <div class="layered-lane" id="trunk-lane"></div>
+    </div>
+  </div>
+  <div class="legend">
+    <h2>Node kinds (task 339)</h2>
+    <div id="legend"></div>
+  </div>
+</div>
+
+<div class="confidence-section">
+  <h2>Confidence is a separate axis (display-only, read off any kind)</h2>
+  <div id="confidence-row"></div>
+</div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
