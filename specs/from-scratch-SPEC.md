@@ -572,54 +572,89 @@ session's first or last title instead of the one in effect is visibly wrong.
 - Tasks: #299, #300, #301, #302, #303, #304, #305, #306, #307, #308, #309
 - Status: #299-#307 DONE 2026-07-27 (RevEng 66dd668, jfred 825f36b), signed off by the user and covered by 43 headless checks in `jfred/scripts/visual/mockup.ts` (`npm run visual:mockup`). #308/#309 also DONE 2026-07-27 (RevEng 7498bc0, jfred 64310f1): a bubble click flashes every JSONL that touched that file, leading with the session nearest the clicked instant, and the JSONLs pane has a customTitle search box that filters the list without filtering the timeline — 9 further checks in `jfred/scripts/visual/mockup-checks-nav.ts`. The build-out this mockup gates is tasks **#310-#318**, created 2026-07-27: engine #310 (snapshot discovery per owning session, reusing `collectSnapshotBeaconNodes` from S4/#201) — DONE 2026-07-29 (jfred 47b04ef, RevEng b1acfa7), #311 (session metadata + `titleInEffectAtLine`) — DONE 2026-07-29 (jfred 2d9f121, RevEng fada700), #312 (snapshots on the wire, ruler and the shared axis) — DONE 2026-07-29 (jfred ef53db8+e390529, RevEng 38b843d+fa2c391), #313 (`/api/layer1-file` third form for snapshot bytes) — DONE 2026-07-29 (jfred 5d0a678+2e85473); page #314 (live `[2]`, `[3]` dropped) — DONE 2026-07-29 (jfred 999b7fd), #315 (📸 nodes on the bubbles) — DONE 2026-07-29 (jfred 6a88d8f), #316 (ruler snapshot rows + the JSONL Nav flash mechanism) — DONE 2026-07-29 (jfred 09330bc, basename flash fix in 8183945), #317 (snapshot click → drawer headed with the title in effect + flash) — DONE 2026-07-29 (jfred 2e85473); verification #318 (the mockup's checks re-pointed at the real page with real data) — DONE 2026-07-29 (jfred 8183945, `npm run visual:layer2`, 22/22). #316 and #317 also leaned on **#292**, the JSONL Nav, which was already live (closed 2026-07-27). Layer 2 build-out COMPLETE: full suite 1475/0, `npm run visual` 0 violations, mockup checks still green.
 
-### S20. Layer 3 — extracted Edit/Write nodes (task #340 L3)
+### S20. Layer 3 — beacons and extracted Edit/Write nodes (task #340 L3)
 User-directed 2026-07-30; recon in `plans/340-recon/L3-extracted-changes.md`,
-decisions in `plans/340-recon/DECISIONS.md`. One node per **Edit** and
-**Write** tool call extracted from JSONL — **guaranteed data only**: an
-Edit's oldString/newString `structuredPatch` hunks, a Write's full body.
-Bash file ops (rename/copy/append/overwrite/delete) and `edited_text_file`
-user edits are NOT Layer 3 (the L7 catch-all rules on them). Marked `[e]`
-per #339; placeholder color acceptable until #339 settles the palette.
+decisions in `plans/340-recon/DECISIONS.md`. **Rewritten 2026-07-30 after the
+grilling round** — the first draft predated it and contradicted it on the
+data-layer gate, the fetch trigger, the fixture file and the confidence model.
 
-**Data path (lazy, per the Key Decision above).** The first switch to `[3]`
-calls the new JSONL-events endpoint (NDJSON progress), which runs the
-EXISTING `extractFileEvents` (reconstruction_extract.ts) over the configured
-sessions, keeps `EventKind.edit`/`EventKind.write` only, joins each event's
+**Three stages, in this order.**
+1. **Read events → beacons.** A Read tool result usually carries full file
+   contents, so it is a beacon.
+2. **Bash results carrying full contents → beacons.** `Bash(cat FILE)` and
+   friends. Bash is excluded from L3 as a *change* source
+   (rename/copy/append/overwrite/delete stay with the L7 catch-all); it is
+   included here purely as a *beacon* source.
+3. **Edit/Write → verified beacons.** Applied on top of the beacon immediately
+   preceding them, an Edit's `structuredPatch` gives base → target, so the
+   result is provably verified. A Write carries its full body.
+
+`edited_text_file` user edits remain L7's. Edit nodes are marked `[e]` per
+#339; a provable beacon renders with a check mark, e.g. `[R]✓`. Placeholder
+colours are acceptable until #339 settles the palette.
+
+**Data path — computed on visibility, not on a button.** A node kind's data is
+fetched the **first time that kind becomes visible**, whether it was turned on
+by the `[3]` preset button or by ticking its checkbox in the show row. The
+progress strip must therefore be able to fire from the show row. Within the
+layer, only nodes in the **rendered viewport** compute, and each node computes
+**once, ever**.
+
+The endpoint (NDJSON progress) runs the EXISTING `extractFileEvents`
+(reconstruction_extract.ts) over the configured sessions, joins each event's
 absolute `target` to a pair via `relativizeToProjectFolder`
-(layer1_snapshot_wire.ts) — the same join snapshots use — and returns
-per-pair edit lists. The page merges the new instants and re-runs
-`relayOutLayer1View`, then toggles by CSS forever after. A pair with no
-edits is byte-identical to today.
+(layer1_snapshot_wire.ts) — the same join snapshots use — and returns per-pair
+lists. The page merges the new instants and re-runs `relayOutLayer1View`. A
+pair with no L3 events is byte-identical to Layer 2.
 
 **Wire.** `edits?: WireEditOf<I,P,U>[]` on `WirePairOf` (the `snapshots?`
-precedent): instant, kind (edit|write), changeId, and the session
-attribution trio `sessionId`/`sessionFile`/`line` so a node click flashes
-its owning JSONL in the JSONL Nav (the `flashSession` mechanism, reused
-unchanged, per S19).
+precedent): instant, kind, changeId, confidence state, and the session
+attribution trio `sessionId`/`sessionFile`/`line`, so a node click flashes its
+owning JSONL in the JSONL Nav (`flashSession`, reused unchanged, per S19).
+Nodes carry `data-session-*` per the existing `appendSnapshotNode` ↔
+`describeNode` contract. Bubbles hold **one lane per session**.
 
-**Node + drawer.** New `.n-edit` class gated by the cumulative `data-layer`
-CSS pattern. Clicking an edit node opens the #257 drawer showing the hunk
-diff directly (Edit) or the written body (Write) — parse-only, no replay.
-**Verification is LAZY (Q15 restated):** on demand, the hunk is
-content-checked at its recorded line position against the reconstructed
-base (`firstHunkMatchesBase` / `applyEdit`, in-memory; BackupReader only on
-the stale-base fallback); a mismatch means the base below is wrong and is
-repaired from evidence — never a silently wrong render. Unverified nodes
-render honestly as unverified; no attribution is invented.
+**Node + drawer.** New `.n-edit` class, shown or hidden by the **show-row
+checkbox state** — the `data-layer` CSS gate is retired (see DECISIONS.md).
 
-**Fixture discipline.** `FIXTURE_EDITS` beside `SNAPSHOTS` in
-viewer_api_layer1_fixture_data.ts with the standing self-check (born ≤
-event ≤ mtime, inside its session window); at least one pair carries edits
-from two sessions, and one Edit whose hunk does NOT match its fixture base,
-so the unverified rendering is visibly exercised.
+Clicking a node **replays it**: find the nearest beacon before it, compute any
+unpopulated predecessors first in order, then apply this node's patch. Base =
+that nearest verified beacon; target = base with the record's
+oldString/newString / `structuredPatch` applied. If the result matches the
+beacon *after* the node it is **verified**; if not, **derived**. Either way the
+diff viewer shows the replay result. `firstHunkMatchesBase` / `applyEdit` are
+in-memory; the BackupReader stale-base fallback is a **per-request** read,
+copying `readSnapshotFileContent` → `createSidecarReader`
+(viewer_api_layer1_snapshot.ts:66-73). A backup-seeded node renders as
+`reseeded`, one of the seven confidence states.
+
+Every node also carries a **`{ }` button** showing the formatted raw JSON from
+the transcript. Port the existing one — `appendJsonRecordButton`
+(views/timeline-render-row-cells.ts:115) and `details-revision-cards.ts:49` —
+rather than inventing a second idiom; layer 1 has no equivalent today.
+
+**Fixture discipline.** `viewer_api_layer3_fixture_data.ts`, per the
+one-file-per-layer convention. Every edit fixture carries a real
+`structuredPatch` — `{oldStart, oldLines, newStart, newLines, lines[]}` with
+`+`/`-`/space prefixes — because `reconstruction_extract.ts:133-135` builds no
+event without one, so `oldString`/`newString` alone yields **no node at all**.
+Edits go in **both halves**: crafted ones in the 4 hand-written sessions, and
+generated ones in the bulk loop, since 84 of the 88 bubbles are bulk and
+without them the timeline reads empty. The import-time self-check extends to
+hunks (born ≤ event ≤ mtime, inside its session window, hunk line ranges sane),
+so a bad fixture throws on load. At least one pair carries edits from two
+sessions, and one Edit's hunk deliberately does NOT match its base, so the
+derived rendering is visibly exercised.
 
 - Verify: fixture checks (new visual-checks file, run via the fixture-mode
-  page): first `[3]` switch fetches once with a visible progress strip and
-  re-lays-out the ruler to include edit instants; subsequent 1↔2↔3 switches
-  are instant with no network; an edit node renders `[e]` at its instant,
-  click opens the drawer on the hunk/body and flashes the owning JSONL; an
-  edit-free pair renders byte-identically to Layer 2; the mismatched-hunk
-  fixture node shows the unverified state.
+  page): turning the kind on — by button *and* by checkbox — fetches once with
+  a visible progress strip and re-lays-out the ruler to include the new
+  instants; toggling afterwards is instant with no network; an edit node
+  renders `[e]` at its instant and a Read beacon renders `[R]✓`; clicking a
+  node runs the replay and opens the diff viewer on base-vs-target while
+  flashing the owning JSONL; the `{ }` button shows the raw record; an
+  L3-free pair renders byte-identically to Layer 2; the mismatched-hunk
+  fixture node shows `derived`, not `verified`.
 - Tasks: #343 (mockup slice); engine build-out tasks after mockup approval
-- Status: SPEC WRITTEN 2026-07-30 — mockup tasks next; engine build-out
-  tasks follow mockup approval.
+- Status: SPEC REWRITTEN 2026-07-30 against the grilled decisions — mockup
+  tasks next; engine build-out tasks follow mockup approval.
