@@ -922,3 +922,127 @@ previous stamped record's timestamp, to exercise the approximation rule.
 - Status: SPEC WRITTEN 2026-07-31, spec-only — #359 gates on this spec item
   per its own description; a follow-up edit links this item to a dedicated
   mockup task once one is created.
+
+### S23. Layer 8 — node-kind filtering (the show row) (task #340 L8)
+User-directed 2026-07-30; recon in
+`plans/340-recon/L8-node-type-filtering.md`, decisions in
+`plans/340-recon/DECISIONS.md`.
+
+**L8 is not a layer.** As DECISIONS.md frames it, "L8 and L9 are not
+layers... the show row is always present." L8 adds no node kind of its own
+and has no self-toggle; it is the show-row/checkbox mechanism that governs
+visibility of every other layer's node kinds — L1–L7's kinds today, plus
+whatever L4/L7 add once built.
+
+**Hide-only, never re-layout — the core mechanical decision.** CSS hiding is
+the mechanism, generalized from the existing Layer-2 switcher rule
+(`.viz-root:not([data-layer="2"]) .n-snap {display:none}`,
+`layer1-styles.css:71` — that standalone gate is being retired per the point
+below, but its CSS-hide *mechanism* is the model). The mental model, stated
+verbatim: filtering a kind out should feel exactly like switching from a
+higher layer down to a lower one — going from layer 3 to layer 2 loses every
+edit node but keeps every snapshot, and the ruler stays put; same behavior
+here. Dead gaps (the ruler not squishing when rows empty) are acceptable, not
+a bug. Hide the NODES only — lane tie lines between surviving nodes stay
+visible and are never hidden.
+
+**The show row itself.** Checkboxes, not radios:
+`show: [✓] git [✓] 📷 [✓] Edit ...`. Clicking a layer preset button (buttons
+1–7, which remain visible as presets) is identical to toggling the
+checkboxes for that layer's node kinds — checkboxes are the single source of
+truth, buttons are shortcuts over them. Zero checked = show nothing, with no
+special-casing required; it falls straight out of the model.
+
+**Replaces, not supplements, the static legend.** The show row replaces the
+static legend at `layer1.html:89-96` (six inert swatches, inline CSS vars, no
+JS/data hooks, not in the UI glossary) rather than sitting beside it.
+
+**Data-driven checkbox list.** The checkbox list is built from the kinds
+actually present in the loaded view — not a hardcoded list of every known
+kind. This is settled by precedent, not by a direct user answer:
+`renderSessionPane` (`layer1-sessions.ts:156-173`) builds rows from
+`listVisibleSessions()` filtered by `sessionTouchesTheProject`, and
+`listFileNavEntries` (`layer1-filenav.ts:24-32`) builds nav rows straight
+from the fetched `view.pairs`/`gitOrphans`/`diskOrphans`. Every other filter
+surface in layer 1 already works this way, and no exception is introduced
+here.
+
+**Filtering applies everywhere.** Whatever is toggled on in the show row
+appears in both the bubbles and the ruler. An expanded ruler row's file list
+must re-filter to the visible kinds, not keep listing every event regardless
+of show-row state.
+
+**Persistence — no URL parameter.** Filter state lives in the same
+persistent settings storage as the rest of view state. There is deliberately
+NO `&kinds=` URL parameter, in contrast to the existing
+`?dir=&repo=&ref=&time=` pattern (`layer1-sources.ts:29-71`,
+non-default-only writes, `history.replaceState`). This is a deliberate
+departure, not an oversight.
+
+**data-layer retirement — this item's direct consequence.** The checkbox
+mechanism is WHY the `data-layer` gate goes away. The retirement task itself
+(handoff step 3) is out of scope for this drafting round and executes the
+mechanics; S23 only states the causal link and names the same blast radius so
+the two documents agree: the single CSS rule at `layer1-styles.css:71`;
+`layer1-layer-toggle.ts` (32 lines — sets `dataset.layer` and moves a
+`.current` class only, no refetch/re-render today); `layer1.html:16,40-41`
+(seed + buttons); `tests/layer1-layer-toggle.test.ts`; three visual/CDP
+probes (`scripts/visual/mockup.ts:27`, `layer2-checks.ts:18,53`,
+`mockup-checks.ts:44`); `jfred/docs/ui-component-glossary.md:5,27`.
+
+**Composition with the path/session filter — resolved by construction.**
+`filterLayer1ViewByTargets` (`webapp/layer1-filter.ts:100`) performs a
+whole-file re-layout via `relayOutLayer1View -> layOutNodeLadders`, composed
+by AND via `intersectFilterTargets` (`layer1-page.ts:91-104`, single funnel
+at `layer1-page.ts:114-116`). The kind filter is CSS-only and never calls
+into that funnel — the two mechanisms operate at different stages by
+construction, resolved by construction rather than by choice. A future
+reader must not attempt to merge them.
+
+**Washes are unaffected.** `layer1-diff-wash.ts:59` inspects `.n-snap` and
+similar classes directly on the DOM. Because hide-only never redraws, washes
+keep inspecting the same DOM they always did — a non-issue, not a gap.
+
+**Reusable pattern for the implementer.** `markMultiEventTicks`
+(`layer1-tick-files.ts:144-157`) is the direct template: generalize it from
+the single hardcoded `.n-snap` literal to an N-kind hidden-class set, for
+"hide a ruler row when every event at that row is a hidden kind." Existing
+`n-*` classes already give every kind a stable CSS selector. A new, small
+`layer1-kind-filter.ts` state module should mirror the existing
+`onlySelectedIsOn` pattern, producing a CSS class/attribute toggle —
+explicitly NOT a call into `filterLayer1ViewByTargets`.
+
+**Visibility-triggers-computation.** This cross-cutting rule is already
+stated fully in S20; S23 references it rather than re-deriving it, but
+states explicitly that a checkbox toggle — not only a layer button — must be
+able to start a kind's first-time-visible fetch and drive the progress
+strip.
+
+**Confidence is not a filter axis.** The show row filters by node KIND only.
+The seven confidence states (verified/derived/mismatch/reseeded/
+never-provable/injected-unverified/original-failed) are read off a node for
+display, never filtered by. A future reader must not conflate the two axes.
+
+**Fixture discipline.** Because L8 adds no node kind, it needs NO new
+`viewer_api_layer8_fixture_data.ts`. The implementer must not create an empty
+file "to match the pattern" — L8's fixture-mode checks reuse whatever kinds
+are already present via L1–L7's fixture data.
+
+- Verify: the show row's checkbox list matches exactly the kinds present in
+  the loaded fixture view (not a hardcoded full list) — remove a kind from
+  the fixture and confirm its checkbox disappears; unchecking a kind
+  CSS-hides its nodes in both the bubbles and an expanded ruler tick's file
+  list, with ruler tick positions and gap widths UNCHANGED before and after
+  the toggle (proving no re-layout ran); unchecking every kind shows
+  nothing; clicking a layer preset button ticks/unticks exactly the
+  checkboxes for that layer's kinds; the static legend markup is gone from
+  the page, replaced by the show row; the toggle state survives a reload via
+  settings storage, and the URL never carries `&kinds=`; lane tie lines
+  between two still-visible nodes remain drawn when an intervening node of a
+  hidden kind disappears.
+- Tasks: the `data-layer` retirement (handoff step 3) is out of scope for
+  this drafting round and is only cited here for blast-radius agreement; no
+  dedicated L8 build task exists yet.
+- Status: SPEC WRITTEN 2026-07-31, spec-only — no build task exists yet for
+  L8 at time of writing; a follow-up edit links this item to a build task
+  once one is created.
