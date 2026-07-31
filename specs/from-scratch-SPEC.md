@@ -655,6 +655,6 @@ derived rendering is visibly exercised.
   flashing the owning JSONL; the `{ }` button shows the raw record; an
   L3-free pair renders byte-identically to Layer 2; the mismatched-hunk
   fixture node shows `derived`, not `verified`.
-- Tasks: #343 (mockup slice); engine build-out tasks after mockup approval
+- Tasks: #343 (mockup slice), #355 (engine build-out, blocked by #343)
 - Status: SPEC REWRITTEN 2026-07-30 against the grilled decisions — mockup
   tasks next; engine build-out tasks follow mockup approval.
