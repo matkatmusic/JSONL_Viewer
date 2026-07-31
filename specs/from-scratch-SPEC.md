@@ -658,3 +658,522 @@ derived rendering is visibly exercised.
 - Tasks: #343 (mockup slice), #355 (engine build-out, blocked by #343)
 - Status: SPEC REWRITTEN 2026-07-30 against the grilled decisions — mockup
   tasks next; engine build-out tasks follow mockup approval.
+
+### S21. Layer 4 — script-run nodes (located, not executed) (task #340 L4)
+User-directed 2026-07-30; recon in `plans/340-recon/L4-script-runs-located.md`,
+decisions in `plans/340-recon/DECISIONS.md`. **Scope boundary up front:** L4
+*locates* script executions as timeline nodes; it does not run them. As the
+recon doc puts it, "Real answer needs `executeRunOnce`... that's L6's
+territory."
+
+1. **Scope boundary.** L4 locates, L6 replays. No sandbox spawn happens at L4
+   — no `execSync`, no consent gate, no pre-state capture.
+2. **Identification chain.** `findScriptExecutionRuns`
+   (`src/reconstruction_script_execution.ts:99`, memoized on
+   `getCorpusState(records).scriptRuns`) → `resolveScriptIndirection`
+   (`src/reconstruction_script_indirection.ts:120`) →
+   `scriptCodeMayWriteFiles` (`src/reconstruction_script_prestate.ts:81`, a
+   boolean heuristic, not a path list). A `ScriptRun` is
+   `{code, timestamp, cwd?, source?, toolUseId?, executorKind?}`
+   (`reconstruction_script_execution.ts:28-35`). Bash runs ARE identified —
+   nothing filters them out — and a bash command that shells out to a written
+   `.py` file is reclassified to `executorKind: python` by
+   `resolveScriptIndirection` before any gate runs. This whole chain is
+   parse-only, effectively free, carries no consent gate, already exists in
+   the engine, and is reused as-is.
+3. **Affected files** are named on the node when the static scan yields them;
+   otherwise the node renders with no file label, and clicking it still opens
+   the resolved script body. This **supersedes** the earlier round-1 answer
+   ("strictly visual, no affected-file computation") — DECISIONS.md marks
+   that entry superseded.
+4. **Node identity + connector.** Identity is `scriptRun:<toolUseId>` — one
+   shared drawer state across every bubble the run touches, not one per path.
+   All bubble instances of one run are joined by a clickable horizontal
+   dashed connector/rectangle that opens the same drawer. This is how both
+   the multi-file case and the file-unknown case render: N node instances
+   plus one connector plus one drawer, even when none of the N instances
+   carries a file label.
+5. **Confidence state.** Never-provable is one of DECISIONS.md's seven
+   confidence states. A genuine bash run (`executorKind: bash`, which
+   `executeRunOnce` short-circuits to `post: undefined` per
+   `reconstruction_script_runs.ts:94-99` — cited only to justify
+   unprovability, an L6 fact) is marked unprovable-by-replay using the
+   existing `.kind-pre-anchor-stub` idiom (dashed hollow ring,
+   `border: 2px dashed #9ca3af`, `layered-styles.css:135`). This is a straight
+   port, not a new style — `layer1-styles.css` has no equivalent today, and
+   layer 1 renders neither `preAnchorStub` nor `presumedUserEdit` currently.
+6. **Label + detail pane.** The label reads `<language icon>
+   <filenameOfExecutedScript>`. An inline script (`python3 -c`, a heredoc)
+   has no filename, so it gets the language icon plus a short generated
+   label. The detail pane shows the RESOLVED body that actually ran (not the
+   literal invocation line), with a provenance header naming the source file
+   and instant.
+7. **Repeated runs** need no special resolution logic.
+   `ScriptExecutionEvent` (`reconstruction_script_execution.ts:11-17`) already
+   carries its own content and timestamp per run, so N runs of the same
+   script file already resolve to N distinct bodies keyed by instant and
+   changeId — this is already true of the engine today.
+8. **Ladder ordering** reuses the engine's existing timestamp sort, the same
+   one that already orders JSONL rows. No new sort logic; revisit only if
+   real data shows a problem.
+9. **Layer gating** is `layer >= N`: `[4]` implies `[3]` is present. This is a
+   durable rule governing every future layer, per DECISIONS.md, not an
+   L4-specific one-off.
+10. **Diff/detail reuse.** `buildDiffView` / `displayDetailView`
+    (`webapp/layer1-diff-view.ts:29,80`) render the before/after panes;
+    before/after are existing revision kinds via `describeCommitStep` /
+    `describeSnapshotStep` / `describeDiskStep` (`layer1-revision-sources.ts`)
+    — no new `DiffStep` type. Before = the nearest verified state at-or-before
+    the run; after = the next verified state (the same mechanism as segment
+    selection, reused). `layOutNodeLadders`, the `snapshots?` wire precedent,
+    and the fixture-view mirror pattern (`buildFixtureLayer1View`) are also
+    reused as-is. The S14 mockup caption is the sign-off source for this
+    before/after semantics.
+11. **Thin adapters needed (new work):**
+    - a bracket function mapping a run's instant to nearest-before/
+      nearest-after steps on a file's `listDatedSteps`, producing
+      `baseIndex`/`targetIndex` for `buildDiffView`;
+    - a `.n-script` branch in `layer1-drawer.ts`'s `describeNode`/
+      `openNodeDrawer`, plus new script-body/metadata markup (nothing renders
+      script text today);
+    - `WireScriptRunOf<I,P,U>` plus `scriptRuns?` on `WirePairOf`, a
+      `listPairLadderInstants` entry, and `buildLayer1View` threading (~5
+      files, snapshot-shaped; zero existing webapp/server references to
+      `ScriptRun` today);
+    - a "speculative affected files for a run" helper that inverts
+      `runForTarget` (`reconstruction_script_probe.ts:34`) — scan known pair
+      paths for basename mentions in `run.code`;
+    - the show-row checkbox for this node kind — NOT a standalone `[4]` CSS
+      gate (the data-layer gate retires per DECISIONS.md and L8/S23),
+      consistent with S20's mechanism.
+12. **S14 mockup precedent (signed off).**
+    `plans/script-run-detail-mockup.html`: a hollow-ring `.n-script` node
+    (`border: 3.5px var(--c-script)`); the detail pane is a `<dl>` of metadata
+    (kind/instant/session/evidence `jsonl:Lnn`/files read/files
+    written/"verified: no — speculative"), then a `.scriptbody <pre>` with a
+    provenance header, then a `.affected` Fork-style tree+diff. The mockup's
+    captions are restated here in current UI numbering — L4 locates, L6
+    replays — not the mockup's old ladder numbers ("layer 7",
+    "layer-10 replay pending").
+13. **Fixture discipline.** `viewer_api_layer4_fixture_data.ts`, per the
+    one-file-per-layer convention. Canned script bodies cannot ride on
+    `FixtureRevisionNode` (identity-only: kind/hash/version/session,
+    `viewer_api_layer1_fixture_content.ts:6-11`) — they need a branch in
+    `contentLines` (`viewer_api_layer1_fixture_content.ts:73`) ahead of the
+    generic per-language `TEMPLATES` fallback, dispatched from
+    `fixtureNodeFor`/`handleFixtureFileRequest`
+    (`viewer_api_layer1_fixture.ts:65-99`). Cross-file reuse of plain exports
+    (`ms`, `sessionFileFor`, `sessionIdFor`) is already proven by two other
+    fixture modules; canned bodies may live in
+    `viewer_api_layer4_fixture_data.ts` itself or a small sibling — an open
+    implementation choice, not a blocker.
+
+- Verify: turning the script-run kind on — via the `[4]` preset button AND
+  via its own show-row checkbox — fetches once with a visible progress strip
+  and merges new ladder instants; toggling the row afterward is instant, no
+  network call; a script node renders `<language icon> <filename>` at its
+  instant; a genuine bash-run fixture node renders the dashed hollow-ring
+  "never-provable" idiom, while a not-yet-replayed python node renders the
+  normal presumed style; multiple bubbles sharing one `toolUseId` are visibly
+  joined by a clickable horizontal connector that opens one shared drawer;
+  clicking a node or its connector opens the detail pane showing the
+  resolved script body plus the before/after diff (before = nearest verified
+  state at-or-before, after = next verified state); a script run with no
+  statically-determinable affected file still renders a node with no file
+  label; an L4-free pair renders byte-identically to Layer 3.
+- Tasks: thin adapters — the bracket function from run instant to
+  baseIndex/targetIndex; a `.n-script` branch in `layer1-drawer.ts`; the wire
+  types (`WireScriptRunOf`, `scriptRuns?` on `WirePairOf`,
+  `listPairLadderInstants` entry, `buildLayer1View` threading); the
+  speculative-affected-files helper inverting `runForTarget`; the show-row
+  checkbox for this node kind. No task number assigned yet.
+- Status: SPEC WRITTEN 2026-07-31, spec-only — no build task exists yet for
+  L4 at time of writing; a follow-up edit links this item to an engine task
+  once one is created.
+
+### S22. Layer 7 — remaining node types (task #340 L7)
+User-directed 2026-07-30; recon in
+`plans/340-recon/L7-remaining-node-types.md`, decisions in
+`plans/340-recon/DECISIONS.md`.
+
+**Data source.** L7 draws its record vocabulary from the CURRENT/classic
+reconstruction engine (`reconstruction_*.ts` — the engine that already feeds
+the row-based viewer), NOT the layered engine (`layered_*.ts`, which feeds
+`/api/layered-graph` → the layered-app page, a different page from
+`layer1.html`). `layer1.html` parses zero JSONL today, so L3–L7 are
+collectively the first JSONL semantics landing on that page — which engine's
+vocabulary to draw from was an open question before this decision, now
+settled.
+
+**Coverage rule.** Every parsed record type gets a node — every row in the
+conversation log is drawn on the timeline. Rows the engine classifies as
+ignorable are hidden by default via a header toggle labeled exactly
+`[✓] hide ignored nodes`, checked (ON) at page load. This REPLACES an earlier
+draft's "no-node-ever ruling for session/meta records" — no such ruling
+exists; those records get nodes, the toggle just hides them by default when
+the engine marks them ignorable.
+
+**Tool call / tool result rendering.** A `tool_use` record and its
+`tool_result` record render as two SEPARATE nodes (not one collapsed node,
+which is how the old app renders them), connected by a dashed bracket so the
+pairing is visually legible.
+
+**Presumption promotion — cross-cutting rule.** Whichever layer can resolve a
+presumed node — because no nodes occur between it and its surrounding
+beacons — promotes that node from presumed to verified. This applies to
+every layer (L1–L9), not an L7-exclusive behavior. This is new behavior:
+today nothing ever promotes or demotes a presumption node
+(`listGapsBeforeVerifiedNode` / `layered_end_state.ts:24-32` only ever
+inserts `presumedUserEdit` gap nodes and never resolves them).
+
+**Non-scope / boundaries.** Script execution results are entirely L6's; L7
+owns none of them. Write body, complete Read echo, and Edit's `originalFile`
+all collapse into L3's "extracted edit" scope (S20), NOT L7 — S22 does not
+re-model what S20 already owns.
+
+**Session annotation track.** User prompts, agent responses, and the ~54k
+non-file metadata rows get a NEW shared annotation track on the same ruler,
+rendered ONCE (not duplicated per touched file). This is genuinely new UI:
+every content-bearing widget in layer 1 today is file-scoped
+(`buildStagePairs`/`buildOrphanBucket`, `layer1-widgets.ts:71,89`); the only
+existing session-level element is a 7px colored bar with a tooltip
+(`renderSessionRanges`, `layer1-widgets.ts:83-92`) that is not a lane and
+carries no content. This track requires windowing/virtualization before it
+can render at all, given the volume (~54k rows; 42,790 of 192,303 records
+with no timestamp in the RevEng project alone; ~124k+ stampless records
+project-wide per the 2,228-file scan). Do not spec a naive full-DOM render
+for this track.
+
+**Rewind rendering.** Settled: NO rewind node, and NO code-vs-conversation
+inference. A rewind renders as dimmed nodes plus a dashed elbow in the
+bubble, per `plans/mvp-app-mockup.html` layer 8 — the same visual the
+(not-yet-written) L5 branch-rendering spec item will reuse once built. A
+code rewind is NOT derivable from the transcript. Verification evidence
+against the real `s7-minimal-code-restore` JSONL: `AttachmentPayloadType`
+(`vocabulary.ts:55-71`) has no restore/checkpoint/rewind member; s7 contains
+zero `edited_text_file` attachments across 45 attachments; file-history-
+snapshot versions simply increment across the rewind with no reset or
+restored-to marker; the only trace is that the post-rewind prompt shares its
+`parentUuid` with the pre-rewind prompt — structurally identical to an
+ordinary conversation-only rewind (the same fork signature
+`findRewindPoint`, `reconstruction_branch.ts:85-86`, already uses). S22 must
+NOT claim a synthetic `edited_text_file` surfaces a restore — that is a
+refuted claim from earlier plan prose, and a future reader must not
+reintroduce it.
+
+**Unknown record types + stampless-timestamp rule.** Settled: an
+unrecognized record type renders as a `[?]` catch-all node — this is a
+permanent fallback design, not a placeholder for a closed enum. A record
+with no timestamp takes the PREVIOUS stamped record's timestamp
+(equal-to-previous; explicitly NOT an average, NOT +1ms), matching the
+task-224 precedent's reasoning about not inventing an instant no evidence
+supports (`implementation-notes-tasks-223-224-...:107-111`). Three
+currently-conflicting code behaviors must converge on this one rule: drop
+(`viewer_api_layer1_sessions.ts:25-27`), sort-first
+(`views/timeline-line-nodes.ts` defaults `when` to `""`, which string-sorts
+above every real timestamp; `views/reconstruction-coverage.ts:84-86` keys a
+stampless gap to `0`), sort-last (`viewer_api_records.ts:83-86`). Real
+volume: ~22% of records in the RevEng project (42,790 of 192,303) carry no
+timestamp, almost entirely session metadata (last-prompt, permission-mode,
+custom-title, agent-name, bridge-session, mode, file-history-snapshot,
+ai-title, fork-context-ref); every content-bearing type (user/assistant/
+attachment) carried a timestamp in every sample, so this rule governs
+metadata volume only, not the nodes users actually look at. `worktree-state`
+(124 hits) and `relocated` (87 hits) are REAL record types already present in
+real logs and ABSENT from the `RecordType` enum — the `[?]` catch-all is not
+hypothetical; there are already 211 unknown-type records in the real corpus
+today.
+
+**Reference vocabulary.** Grounding the `[?]` fallback and the "every record
+type gets a node" rule: the full `RecordType` vocabulary at
+`vocabulary.ts:4-21` plus `parse/recordKeys.ts` — user, assistant, system,
+attachment (14 `AttachmentPayloadType` kinds including `edited_text_file`,
+`hook_success`, `diagnostics`, ...), `fileHistorySnapshot`,
+`fileHistoryDelta`, `lastPrompt`, `mode`, `permissionMode`, `bridgeSession`,
+`aiTitle`, `customTitle`, `agentName`, `queueOperation`, `forkContextRef`;
+and the sub-vocabularies `BlockType`, `ToolName`, `EventKind`, `Verdict`,
+`GitOperationKind`, `BranchRole`. Old-app comparison baseline for what a
+"node" can look like: the `TimelineNode` union
+(`views/timeline-types.ts:216`) — user-turn, agent-turn, session-end,
+commit, tool-call, jsonl-line.
+
+**Fixture discipline.** `viewer_api_layer7_fixture_data.ts`, per the
+one-file-per-layer convention. Must include at minimum: (a) one record of an
+unknown type (modeled on `worktree-state` or `relocated`) that renders as
+`[?]`, and (b) one stampless record whose rendered position equals the
+previous stamped record's timestamp, to exercise the approximation rule.
+
+- Verify: every parsed record type in the fixture produces a node;
+  `[✓] hide ignored nodes` is checked at page load and hides rows the engine
+  marks ignorable, unchecking it reveals them; a `tool_use`/`tool_result`
+  pair renders as two nodes joined by a dashed bracket; a presumed node with
+  no nodes between it and its surrounding beacons auto-promotes to verified;
+  a rewind fixture scenario renders as dimmed nodes plus a dashed elbow, with
+  no separate rewind node anywhere in the DOM; the session annotation track
+  renders prompts/responses without duplicating them onto any file bubble,
+  and the render mechanism is demonstrably windowed — assert only
+  viewport-scoped DOM nodes exist, not a literal 54k-row count in the
+  fixture; an unknown-type fixture record renders as `[?]`; a stampless
+  fixture record's screen position matches the previous stamped record's,
+  not an averaged or offset instant.
+- Tasks: #359 (engine build-out); no dedicated L7 mockup slice exists yet —
+  L7 remains part of the shared #340 mockup task until one is split out, as
+  S20's #343 was for L3.
+- Status: SPEC WRITTEN 2026-07-31, spec-only — #359 gates on this spec item
+  per its own description; a follow-up edit links this item to a dedicated
+  mockup task once one is created.
+
+### S23. Layer 8 — node-kind filtering (the show row) (task #340 L8)
+User-directed 2026-07-30; recon in
+`plans/340-recon/L8-node-type-filtering.md`, decisions in
+`plans/340-recon/DECISIONS.md`.
+
+**L8 is not a layer.** As DECISIONS.md frames it, "L8 and L9 are not
+layers... the show row is always present." L8 adds no node kind of its own
+and has no self-toggle; it is the show-row/checkbox mechanism that governs
+visibility of every other layer's node kinds — L1–L7's kinds today, plus
+whatever L4/L7 add once built.
+
+**Hide-only, never re-layout — the core mechanical decision.** CSS hiding is
+the mechanism, generalized from the existing Layer-2 switcher rule
+(`.viz-root:not([data-layer="2"]) .n-snap {display:none}`,
+`layer1-styles.css:71` — that standalone gate is being retired per the point
+below, but its CSS-hide *mechanism* is the model). The mental model, stated
+verbatim: filtering a kind out should feel exactly like switching from a
+higher layer down to a lower one — going from layer 3 to layer 2 loses every
+edit node but keeps every snapshot, and the ruler stays put; same behavior
+here. Dead gaps (the ruler not squishing when rows empty) are acceptable, not
+a bug. Hide the NODES only — lane tie lines between surviving nodes stay
+visible and are never hidden.
+
+**The show row itself.** Checkboxes, not radios:
+`show: [✓] git [✓] 📷 [✓] Edit ...`. Clicking a layer preset button (buttons
+1–7, which remain visible as presets) is identical to toggling the
+checkboxes for that layer's node kinds — checkboxes are the single source of
+truth, buttons are shortcuts over them. Zero checked = show nothing, with no
+special-casing required; it falls straight out of the model.
+
+**Replaces, not supplements, the static legend.** The show row replaces the
+static legend at `layer1.html:89-96` (six inert swatches, inline CSS vars, no
+JS/data hooks, not in the UI glossary) rather than sitting beside it.
+
+**Data-driven checkbox list.** The checkbox list is built from the kinds
+actually present in the loaded view — not a hardcoded list of every known
+kind. This is settled by precedent, not by a direct user answer:
+`renderSessionPane` (`layer1-sessions.ts:156-173`) builds rows from
+`listVisibleSessions()` filtered by `sessionTouchesTheProject`, and
+`listFileNavEntries` (`layer1-filenav.ts:24-32`) builds nav rows straight
+from the fetched `view.pairs`/`gitOrphans`/`diskOrphans`. Every other filter
+surface in layer 1 already works this way, and no exception is introduced
+here.
+
+**Filtering applies everywhere.** Whatever is toggled on in the show row
+appears in both the bubbles and the ruler. An expanded ruler row's file list
+must re-filter to the visible kinds, not keep listing every event regardless
+of show-row state.
+
+**Persistence — no URL parameter.** Filter state lives in the same
+persistent settings storage as the rest of view state. There is deliberately
+NO `&kinds=` URL parameter, in contrast to the existing
+`?dir=&repo=&ref=&time=` pattern (`layer1-sources.ts:29-71`,
+non-default-only writes, `history.replaceState`). This is a deliberate
+departure, not an oversight.
+
+**data-layer retirement — this item's direct consequence.** The checkbox
+mechanism is WHY the `data-layer` gate goes away. The retirement task itself
+(handoff step 3) is out of scope for this drafting round and executes the
+mechanics; S23 only states the causal link and names the same blast radius so
+the two documents agree: the single CSS rule at `layer1-styles.css:71`;
+`layer1-layer-toggle.ts` (32 lines — sets `dataset.layer` and moves a
+`.current` class only, no refetch/re-render today); `layer1.html:16,40-41`
+(seed + buttons); `tests/layer1-layer-toggle.test.ts`; three visual/CDP
+probes (`scripts/visual/mockup.ts:27`, `layer2-checks.ts:18,53`,
+`mockup-checks.ts:44`); `jfred/docs/ui-component-glossary.md:5,27`.
+
+**Composition with the path/session filter — resolved by construction.**
+`filterLayer1ViewByTargets` (`webapp/layer1-filter.ts:100`) performs a
+whole-file re-layout via `relayOutLayer1View -> layOutNodeLadders`, composed
+by AND via `intersectFilterTargets` (`layer1-page.ts:91-104`, single funnel
+at `layer1-page.ts:114-116`). The kind filter is CSS-only and never calls
+into that funnel — the two mechanisms operate at different stages by
+construction, resolved by construction rather than by choice. A future
+reader must not attempt to merge them.
+
+**Washes are unaffected.** `layer1-diff-wash.ts:59` inspects `.n-snap` and
+similar classes directly on the DOM. Because hide-only never redraws, washes
+keep inspecting the same DOM they always did — a non-issue, not a gap.
+
+**Reusable pattern for the implementer.** `markMultiEventTicks`
+(`layer1-tick-files.ts:144-157`) is the direct template: generalize it from
+the single hardcoded `.n-snap` literal to an N-kind hidden-class set, for
+"hide a ruler row when every event at that row is a hidden kind." Existing
+`n-*` classes already give every kind a stable CSS selector. A new, small
+`layer1-kind-filter.ts` state module should mirror the existing
+`onlySelectedIsOn` pattern, producing a CSS class/attribute toggle —
+explicitly NOT a call into `filterLayer1ViewByTargets`.
+
+**Visibility-triggers-computation.** This cross-cutting rule is already
+stated fully in S20; S23 references it rather than re-deriving it, but
+states explicitly that a checkbox toggle — not only a layer button — must be
+able to start a kind's first-time-visible fetch and drive the progress
+strip.
+
+**Confidence is not a filter axis.** The show row filters by node KIND only.
+The seven confidence states (verified/derived/mismatch/reseeded/
+never-provable/injected-unverified/original-failed) are read off a node for
+display, never filtered by. A future reader must not conflate the two axes.
+
+**Fixture discipline.** Because L8 adds no node kind, it needs NO new
+`viewer_api_layer8_fixture_data.ts`. The implementer must not create an empty
+file "to match the pattern" — L8's fixture-mode checks reuse whatever kinds
+are already present via L1–L7's fixture data.
+
+- Verify: the show row's checkbox list matches exactly the kinds present in
+  the loaded fixture view (not a hardcoded full list) — remove a kind from
+  the fixture and confirm its checkbox disappears; unchecking a kind
+  CSS-hides its nodes in both the bubbles and an expanded ruler tick's file
+  list, with ruler tick positions and gap widths UNCHANGED before and after
+  the toggle (proving no re-layout ran); unchecking every kind shows
+  nothing; clicking a layer preset button ticks/unticks exactly the
+  checkboxes for that layer's kinds; the static legend markup is gone from
+  the page, replaced by the show row; the toggle state survives a reload via
+  settings storage, and the URL never carries `&kinds=`; lane tie lines
+  between two still-visible nodes remain drawn when an intervening node of a
+  hidden kind disappears.
+- Tasks: the `data-layer` retirement (handoff step 3) is out of scope for
+  this drafting round and is only cited here for blast-radius agreement; no
+  dedicated L8 build task exists yet.
+- Status: SPEC WRITTEN 2026-07-31, spec-only — no build task exists yet for
+  L8 at time of writing; a follow-up edit links this item to a build task
+  once one is created.
+
+### S24. Layer 9 — ruler range export to a jfred git branch (task #340 L9)
+User-directed 2026-07-30; recon in `plans/340-recon/L9-ruler-range-export.md`
+(all eleven ambiguities SETTLED), decisions in
+`plans/340-recon/DECISIONS.md`. **This item amends S16/S17 above, it does not
+replace them.** S16/S17's per-file at-or-before snap rule (Q17a/b) and
+segment-to-git-diff concatenation are unchanged and still apply exactly as
+written. What changes is the segmentation/coverage model and the addition of
+an actual commit step: S16's "n marks -> n+1 contiguous segments covering the
+whole ruler" is superseded by the growing-prefix model below. L9 is also the
+only layer that **writes** — every git call in the engine today is
+read-only.
+
+**Not a layer.** Like L8, L9 adds no node kind. It is a mode the user arms;
+arming enables cut-mark affordances on the ruler. It is not a row in the
+show-row checkbox list.
+
+**The model: a growing prefix, not a partition.** One marked range = one
+segment = one commit. The first commit's base is the commit chosen by a new
+**ruler base marker**. Every later commit's base is the jfred branch's own
+current tip, not the ruler base again. The user may stop at any point — full
+ruler coverage is never required — but may not start a range mid-ruler: each
+new chunk only ever extends the prefix forward from the current base.
+Skipping a stretch does not omit it from history: because each commit diffs
+jfred-tip -> new mark, the skipped interval's changes land inside the next
+commit that does get made, whose message must state this using the literal
+phrase `includes N unmarked changes` (N = the actual count).
+
+**The jfred branch.** Forks from an existing commit on the timeline — the
+ruler base marker's commit — never an orphan root, never current HEAD.
+Created lazily: only on the first commit, not at arming time. The base is
+immutable once chosen; to change it the branch must be deleted entirely and
+the mode re-armed from scratch. Append-only forever: no amend, no reset, no
+force-push — deleting the branch is the only undo path. Hidden from the
+branch picker: a one-line exclusion filter belongs in `buildLayer1RefsView`
+(`viewer_api_layer1_refs.ts:41-53`), which today runs
+`git for-each-ref refs/heads` with no exclusions — this is the single point
+where the filter belongs; no second exclusion should be added elsewhere.
+`jfred/docs/ui-component-glossary.md` currently has no "Branch picker" row;
+that is a gap this work must close, not an oversight to leave silent.
+
+**What may go in a commit (v1 hard constraint).** A marker may only be
+placed on a beacon node, never on a derived node. This is what makes "any
+jfred commit counts as a beacon on a later pass" sound rather than
+self-certifying — every committed byte was independently verified before
+commit, so a later pass can safely treat the commit as new evidence. Each
+file in a chunk contributes its nearest verified state at-or-before the
+mark — this is S16/S17's existing per-file snap rule, restated here as
+unchanged, not redefined. A file with nothing verified yet by that point is
+simply absent from the commit until its own first beacon arrives in a later
+chunk. Per-file snap variance (which file snapped to which earlier instant)
+is written into the commit message. Bytes are pinned at mark time, not
+re-read at commit time: what the user saw on the timeline at mark-placement
+is exactly what lands in git, even if something upstream changes before the
+commit actually runs.
+
+**Dates.** Author date = the mark's instant (always a real evidenced moment
+in v1, since markers are beacon-only). Committer date = wall clock at
+export time. The commit message carries a footnote in the literal form
+`reconstructed by JFRED @ <real timestamp>`.
+
+**UI surface.** jfred commits render in a dedicated strip beside the
+ruler — a new render surface with its own layout, hit-testing, and scroll
+sync; nothing renders on the ruler itself today. v1 is commit-only: no
+multi-file patch export in this item. The existing per-file patch download
+(`exportPatch`, `layer1-diff-pane.ts:140-152`) stays exactly where it is,
+unchanged.
+
+**What already exists — reusable as-is.** `runGitUnifiedDiff`
+(`src/render_git_diff.ts:19`) — per-file unified diff via
+`git diff --no-index`, strips preamble to hunks — reached through
+`buildLayer1DiffPayload` (`viewer_api_layer1_diff.ts`; `GET /api/layer1-diff`
++ `POST /api/layer1-diff-content`). `exportPatch()`
+(`layer1-diff-pane.ts:140-152`) — client-side-only, wraps hunks with
+synthetic `diff --git`/`---`/`+++` headers into a downloadable Blob, per
+file, per pane; no multi-file concatenation and no server-side `git apply`
+exists anywhere yet. The two-instant range gesture — shift-click two lane
+nodes triggers `extendDiffSelection` -> `.diff-wash` band +
+`createDetailViewsForFiles(view, files, {baseInstant, targetInstant})` — and
+`resolveRangeStepIndexes` (`layer1-diff-wash.ts:31-50`), which already
+implements the per-file at-or-before snap, for exactly 2 instants; this
+needs generalizing to n commits under the growing-prefix model, snapping
+only to `n-commit`/`n-disk`/`n-snap` kinds, never `n-created`.
+`readLayer1FileBytes` (`viewer_api_layer1_file.ts:55-62`) dispatches by
+kind: commit (`git show`), disk (`readFileSync` + escape check), snapshot
+(sidecar). `.n-created` is the existing no-bytes node kind the drawer
+already refuses to open (`:not(.n-created)`) — the direct precedent for
+refusing a marker on an unbacked/derived node.
+
+**What does not exist yet.** Zero `git commit` / `git apply` / `git branch` /
+`checkout -b` calls exist anywhere in `src/` today — every git spawn in the
+engine is currently read-only. New write calls must follow the existing
+argument-array `spawnSync` pattern used by the read-only calls, never shell
+string interpolation.
+
+**Thin adapters needed.** An arming-state + mark-placement branch inside
+`layer1-ruler-click.ts` (`makeRulerTickClickable`,
+`layer1-ruler-click.ts:74-92` — currently single-click-only: expand row or
+scroll to bubble, no drag gesture exists); the generalized
+`resolveRangeStepIndexes` above; a server-side per-file-per-segment diff
+loop plus concatenation, reusing `exportPatch`'s header-wrapping logic moved
+from client to server; a new route performing apply-and-commit (`git apply`
+then `git commit --date` per segment, strictly in commit order); the
+one-line branch filter in `buildLayer1RefsView`; a new ruler-strip node
+class and placement logic for jfred-branch commits — the first render
+surface of its kind.
+
+- Verify: this is the one layer with real filesystem/git side effects, so
+  verification must go beyond DOM assertions and must run against a
+  throwaway/scratch git working tree, never the user's real repo,
+  consistent with how other engine tests in this project already isolate
+  git state. Arming the mode shows a cut-mark affordance on ruler ticks;
+  placing a mark succeeds only on beacon-backed nodes and is refused (with
+  a visible reason) on a derived or `.n-created` node; a first commit's
+  base is exactly the ruler-base-marker commit, verified via `git log`; a
+  second commit's base is the jfred tip, not the original ruler base,
+  verified via parentage; skipping a stretch between two marks produces a
+  commit message containing `includes N unmarked changes` with the correct
+  N; author date on each commit equals its mark's instant and committer
+  date equals wall clock, both checked via `git log --format`; the
+  `reconstructed by JFRED @ <timestamp>` footnote is present; the jfred
+  branch is created only after the first commit (not at arming time) and
+  never appears in the repo branch picker dropdown; deleting the jfred
+  branch is the only way to change its base, and doing so allows re-arming
+  against a new base; concatenated per-segment patches `git apply --check`
+  cleanly in sequence; the new ruler-adjacent commit strip renders one
+  entry per jfred commit with independent scroll sync from the node lanes;
+  the existing per-file patch download still works unchanged.
+- Tasks: #361 (engine build-out, gated on this spec item)
+- Status: SPEC WRITTEN 2026-07-31, spec-only — no build task has started;
+  #361 gates on this item being signed off.
