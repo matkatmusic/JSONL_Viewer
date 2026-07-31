@@ -658,3 +658,135 @@ derived rendering is visibly exercised.
 - Tasks: #343 (mockup slice), #355 (engine build-out, blocked by #343)
 - Status: SPEC REWRITTEN 2026-07-30 against the grilled decisions — mockup
   tasks next; engine build-out tasks follow mockup approval.
+
+### S21. Layer 4 — script-run nodes (located, not executed) (task #340 L4)
+User-directed 2026-07-30; recon in `plans/340-recon/L4-script-runs-located.md`,
+decisions in `plans/340-recon/DECISIONS.md`. **Scope boundary up front:** L4
+*locates* script executions as timeline nodes; it does not run them. As the
+recon doc puts it, "Real answer needs `executeRunOnce`... that's L6's
+territory."
+
+1. **Scope boundary.** L4 locates, L6 replays. No sandbox spawn happens at L4
+   — no `execSync`, no consent gate, no pre-state capture.
+2. **Identification chain.** `findScriptExecutionRuns`
+   (`src/reconstruction_script_execution.ts:99`, memoized on
+   `getCorpusState(records).scriptRuns`) → `resolveScriptIndirection`
+   (`src/reconstruction_script_indirection.ts:120`) →
+   `scriptCodeMayWriteFiles` (`src/reconstruction_script_prestate.ts:81`, a
+   boolean heuristic, not a path list). A `ScriptRun` is
+   `{code, timestamp, cwd?, source?, toolUseId?, executorKind?}`
+   (`reconstruction_script_execution.ts:28-35`). Bash runs ARE identified —
+   nothing filters them out — and a bash command that shells out to a written
+   `.py` file is reclassified to `executorKind: python` by
+   `resolveScriptIndirection` before any gate runs. This whole chain is
+   parse-only, effectively free, carries no consent gate, already exists in
+   the engine, and is reused as-is.
+3. **Affected files** are named on the node when the static scan yields them;
+   otherwise the node renders with no file label, and clicking it still opens
+   the resolved script body. This **supersedes** the earlier round-1 answer
+   ("strictly visual, no affected-file computation") — DECISIONS.md marks
+   that entry superseded.
+4. **Node identity + connector.** Identity is `scriptRun:<toolUseId>` — one
+   shared drawer state across every bubble the run touches, not one per path.
+   All bubble instances of one run are joined by a clickable horizontal
+   dashed connector/rectangle that opens the same drawer. This is how both
+   the multi-file case and the file-unknown case render: N node instances
+   plus one connector plus one drawer, even when none of the N instances
+   carries a file label.
+5. **Confidence state.** Never-provable is one of DECISIONS.md's seven
+   confidence states. A genuine bash run (`executorKind: bash`, which
+   `executeRunOnce` short-circuits to `post: undefined` per
+   `reconstruction_script_runs.ts:94-99` — cited only to justify
+   unprovability, an L6 fact) is marked unprovable-by-replay using the
+   existing `.kind-pre-anchor-stub` idiom (dashed hollow ring,
+   `border: 2px dashed #9ca3af`, `layered-styles.css:135`). This is a straight
+   port, not a new style — `layer1-styles.css` has no equivalent today, and
+   layer 1 renders neither `preAnchorStub` nor `presumedUserEdit` currently.
+6. **Label + detail pane.** The label reads `<language icon>
+   <filenameOfExecutedScript>`. An inline script (`python3 -c`, a heredoc)
+   has no filename, so it gets the language icon plus a short generated
+   label. The detail pane shows the RESOLVED body that actually ran (not the
+   literal invocation line), with a provenance header naming the source file
+   and instant.
+7. **Repeated runs** need no special resolution logic.
+   `ScriptExecutionEvent` (`reconstruction_script_execution.ts:11-17`) already
+   carries its own content and timestamp per run, so N runs of the same
+   script file already resolve to N distinct bodies keyed by instant and
+   changeId — this is already true of the engine today.
+8. **Ladder ordering** reuses the engine's existing timestamp sort, the same
+   one that already orders JSONL rows. No new sort logic; revisit only if
+   real data shows a problem.
+9. **Layer gating** is `layer >= N`: `[4]` implies `[3]` is present. This is a
+   durable rule governing every future layer, per DECISIONS.md, not an
+   L4-specific one-off.
+10. **Diff/detail reuse.** `buildDiffView` / `displayDetailView`
+    (`webapp/layer1-diff-view.ts:29,80`) render the before/after panes;
+    before/after are existing revision kinds via `describeCommitStep` /
+    `describeSnapshotStep` / `describeDiskStep` (`layer1-revision-sources.ts`)
+    — no new `DiffStep` type. Before = the nearest verified state at-or-before
+    the run; after = the next verified state (the same mechanism as segment
+    selection, reused). `layOutNodeLadders`, the `snapshots?` wire precedent,
+    and the fixture-view mirror pattern (`buildFixtureLayer1View`) are also
+    reused as-is. The S14 mockup caption is the sign-off source for this
+    before/after semantics.
+11. **Thin adapters needed (new work):**
+    - a bracket function mapping a run's instant to nearest-before/
+      nearest-after steps on a file's `listDatedSteps`, producing
+      `baseIndex`/`targetIndex` for `buildDiffView`;
+    - a `.n-script` branch in `layer1-drawer.ts`'s `describeNode`/
+      `openNodeDrawer`, plus new script-body/metadata markup (nothing renders
+      script text today);
+    - `WireScriptRunOf<I,P,U>` plus `scriptRuns?` on `WirePairOf`, a
+      `listPairLadderInstants` entry, and `buildLayer1View` threading (~5
+      files, snapshot-shaped; zero existing webapp/server references to
+      `ScriptRun` today);
+    - a "speculative affected files for a run" helper that inverts
+      `runForTarget` (`reconstruction_script_probe.ts:34`) — scan known pair
+      paths for basename mentions in `run.code`;
+    - the show-row checkbox for this node kind — NOT a standalone `[4]` CSS
+      gate (the data-layer gate retires per DECISIONS.md and L8/S23),
+      consistent with S20's mechanism.
+12. **S14 mockup precedent (signed off).**
+    `plans/script-run-detail-mockup.html`: a hollow-ring `.n-script` node
+    (`border: 3.5px var(--c-script)`); the detail pane is a `<dl>` of metadata
+    (kind/instant/session/evidence `jsonl:Lnn`/files read/files
+    written/"verified: no — speculative"), then a `.scriptbody <pre>` with a
+    provenance header, then a `.affected` Fork-style tree+diff. The mockup's
+    captions are restated here in current UI numbering — L4 locates, L6
+    replays — not the mockup's old ladder numbers ("layer 7",
+    "layer-10 replay pending").
+13. **Fixture discipline.** `viewer_api_layer4_fixture_data.ts`, per the
+    one-file-per-layer convention. Canned script bodies cannot ride on
+    `FixtureRevisionNode` (identity-only: kind/hash/version/session,
+    `viewer_api_layer1_fixture_content.ts:6-11`) — they need a branch in
+    `contentLines` (`viewer_api_layer1_fixture_content.ts:73`) ahead of the
+    generic per-language `TEMPLATES` fallback, dispatched from
+    `fixtureNodeFor`/`handleFixtureFileRequest`
+    (`viewer_api_layer1_fixture.ts:65-99`). Cross-file reuse of plain exports
+    (`ms`, `sessionFileFor`, `sessionIdFor`) is already proven by two other
+    fixture modules; canned bodies may live in
+    `viewer_api_layer4_fixture_data.ts` itself or a small sibling — an open
+    implementation choice, not a blocker.
+
+- Verify: turning the script-run kind on — via the `[4]` preset button AND
+  via its own show-row checkbox — fetches once with a visible progress strip
+  and merges new ladder instants; toggling the row afterward is instant, no
+  network call; a script node renders `<language icon> <filename>` at its
+  instant; a genuine bash-run fixture node renders the dashed hollow-ring
+  "never-provable" idiom, while a not-yet-replayed python node renders the
+  normal presumed style; multiple bubbles sharing one `toolUseId` are visibly
+  joined by a clickable horizontal connector that opens one shared drawer;
+  clicking a node or its connector opens the detail pane showing the
+  resolved script body plus the before/after diff (before = nearest verified
+  state at-or-before, after = next verified state); a script run with no
+  statically-determinable affected file still renders a node with no file
+  label; an L4-free pair renders byte-identically to Layer 3.
+- Tasks: thin adapters — the bracket function from run instant to
+  baseIndex/targetIndex; a `.n-script` branch in `layer1-drawer.ts`; the wire
+  types (`WireScriptRunOf`, `scriptRuns?` on `WirePairOf`,
+  `listPairLadderInstants` entry, `buildLayer1View` threading); the
+  speculative-affected-files helper inverting `runForTarget`; the show-row
+  checkbox for this node kind. No task number assigned yet.
+- Status: SPEC WRITTEN 2026-07-31, spec-only — no build task exists yet for
+  L4 at time of writing; a follow-up edit links this item to an engine task
+  once one is created.
