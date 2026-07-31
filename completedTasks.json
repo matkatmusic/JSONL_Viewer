@@ -3336,5 +3336,145 @@
     "handoffFilePaths": [
       "plans/handoff-develop-20260730-1820.md"
     ]
+  },
+  {
+    "taskNumber": 332,
+    "title": "FileNav: persist folder collapsed/expanded state per project",
+    "completionDate": "2026-07-31",
+    "commitHashes": [
+      "a842ca5",
+      "92a9886",
+      "f4c8527"
+    ],
+    "closureNote": "File Nav folder collapsed/expanded state now persists per project via collapsedFolders in reveng-paths.json and reseeds on load; user verified in browser and said good, close. A stale assertion in tests/layer1-filenav-collapse.test.ts was fixed during the closing gate - it searched for a term matching one file, and buildFileTree strips the common prefix, so the filtered tree had no folders to assert on.",
+    "description": "Remember which folders are collapsed/expanded in FileNav component when loading a project that has been previously loaded, and apply that remembered collapsed/expanded state to the file nav when opening the project.",
+    "files": [
+      "jfred/src/viewer_api_layer1_settings.ts",
+      "jfred/webapp/layer1-settings.ts",
+      "jfred/webapp/views/sidebar.ts",
+      "jfred/webapp/layer1-filenav.ts",
+      "jfred/tests/viewer_api_layer1_settings.test.ts",
+      "jfred/tests/layer1-settings.test.ts",
+      "jfred/tests/layer1-filenav.test.ts",
+      "jfred/tests/layer1-folder-filter.test.ts",
+      "jfred/tests/sidebar.test.ts"
+    ]
+  },
+  {
+    "taskNumber": 333,
+    "title": "File Nav selection also paints a wash over the selected files' revision range",
+    "completionDate": "2026-07-31",
+    "commitHashes": [
+      "1794b82",
+      "92a9886",
+      "811966e"
+    ],
+    "closureNote": "File Nav selection paints its own oldest-newest wash. User first rejected it: multi-select force-armed Show Only Selected and the wash vanished on toggle. Fixed by removing the task 326 auto-arm and giving the diff wash a remember-and-repaint lifecycle, since renderSessionRanges replaceChildren wipes #washes every stage render. Nav wash recoloured from --c-echo amber to --c-commit blue because amber clashed with the --box bubble colour; user accepted closing with that swap not yet re-checked in a browser.",
+    "description": "User request 2026-07-30: File Nav Selection also defines wash range in timeline. The purpose is to see where in the timeline the selected files were revised. Gotchas: wash start/end position is relative to the selected files' oldest node/newest node, and if 'Show Only Selected' is toggled, then the wash spans the entire range of the timeline, which is the expected behavior. Builds on task 329's generic wash primitive: spawn via spawnWash (jfred/webapp/layer1-wash.ts) with its own color + marker class so clearing it never touches the session or diff washes. Wire point: the File Nav selection callback in jfred/webapp/layer1-page.ts (the same place showDetailViewForFiles fires); range = min/max instant across each selected file's ladder in the DRAWN view (pairs' created/commits/onDisk/snapshots + disk orphans), resolved to pixels the way jfred/webapp/layer1-diff-wash.ts does. Note the 'Show Only Selected' case falls out naturally — the filtered view's ruler spans exactly the selected files' events.",
+    "files": [
+      "jfred/webapp/layer1-diff-wash.ts",
+      "jfred/webapp/layer1-page.ts",
+      "jfred/docs/ui-component-glossary.md"
+    ]
+  },
+  {
+    "taskNumber": 334,
+    "title": "Show washes in the minimap",
+    "completionDate": "2026-07-31",
+    "commitHashes": [
+      "d3e114b",
+      "7b1738b",
+      "811966e"
+    ],
+    "closureNote": "Minimap draws a scaled tinted band per wash. User reported no washes at all; root cause was a completely missing .mm-wash CSS rule, so buildWashMark inserted marks into the DOM that had no background and were invisible - DOM tests passed throughout. Rule added and user confirmed works as expected.",
+    "description": "User request 2026-07-30: Show washes in minimap so you can see at a glance how much of the timeline is covered by the time-range represented by the wash. Applies to every wash kind uniformly — session (task 292), diff range (task 329), and the coming File-Nav wash (task 333) — by reading the generic `.wash` elements in #washes (each carries --axis-px, --span-px and --wash-color, spawned by jfred/webapp/layer1-wash.ts) and drawing each as a scaled band in the minimap, tinted by its own --wash-color. Wire point: jfred/webapp/layer1-minimap.ts (drawLayer1Minimap), which already runs after every stage render and after drawer open/close reflows.",
+    "files": [
+      "jfred/webapp/layer1-minimap.ts",
+      "jfred/tests/layer1-minimap.test.ts",
+      "jfred/webapp/layer1-styles.css"
+    ]
+  },
+  {
+    "taskNumber": 336,
+    "title": "Diff wash drawer lists every file the wash touches, not just selected/clicked ones",
+    "completionDate": "2026-07-31",
+    "commitHashes": [
+      "fc80e34",
+      "92a9886"
+    ],
+    "closureNote": "Diff wash drawer file list now sweeps in every path with a node instant inside the range rather than only clicked ones, reusing hasInstantInRange; user said the range diff is shown as expected in the detail view.",
+    "description": "User request 2026-07-30: include every file bubble that the diff wash touches when defining the file list that is shown in the DetailView's diff view panes. Current behavior: only the files that had nodes selected are shown in the DetailView's diff view panes (task 329 builds the list as nav targets + the two clicked paths). New rule: the list also includes every path in the DRAWN view with at least one node instant inside [baseInstant, targetInstant] — the same inside-the-range test resolveRangeStepIndexes applies (jfred/webapp/layer1-diff-wash.ts), never pixel overlap. Wire point: the `files` construction in extendDiffSelection (jfred/webapp/layer1-drawer-multi.ts). Related: task 335 asks whether the File Nav SELECTION should follow the wash — this task is only about the drawer's file list and stands alone.",
+    "files": [
+      "jfred/webapp/layer1-diff-wash.ts",
+      "jfred/webapp/layer1-drawer-multi.ts",
+      "jfred/tests/layer1-diff-wash.test.ts",
+      "jfred/tests/layer1-drawer-multi.test.ts",
+      "jfred/tests/layer1-drawer.test.ts"
+    ]
+  },
+  {
+    "taskNumber": 339,
+    "title": "timeline node type icons and colors",
+    "completionDate": "2026-07-31",
+    "commitHashes": [
+      "ee4603f",
+      "7b1738b"
+    ],
+    "closureNote": "Node-kind icon and colour CSS map for all twelve kinds. It shipped with no visual surface, so a mockup at plans/node-kinds-mockup was built showing one bubble with every kind plus a separate confidence row proving the dashed-ring idiom is an axis independent of kind colour; every kind the task names was confirmed to already have a .node-type- rule, no gaps. User said mockups look good.",
+    "description": "Define icons and colors for every timeline node KIND the engine actually produces: tool result [r], tool call [t], extracted edit [e], script execution [x], script execution result [x, different color from script execution], commit [c], snapshot [camera emoji], conversation branch split [y] (rendering itself is decided by the L5 mockup task; this task only needs its icon once that lands), user prompt [u], agent response [a], system info [s or i], and the [?] catch-all for unknown record types (see L7 recon: worktree-state and relocated already appear in real logs and are absent from the RecordType enum). The full list will keep making itself known as L3-L9 land, since L7 draws from the classic reconstruction engine, which already parses every RecordType.\n\nThere is NO rewind node and NO code-rewind node -- both were settled out during the task-340 grilling (2026-07-30) and confirmed against the real s7-minimal-code-restore JSONL (zero edited_text_file attachments, file-history-snapshot versions just increment, the only trace is a shared parentUuid identical to a conv-only rewind). A rewind renders as dimmed existing nodes (opacity .38) plus a dashed elbow connector, per mvp-app-mockup.html layer 8 -- a styling treatment applied to existing nodes, not a new node kind, so it does not need an icon here.\n\nNode-kind color (this task) is a SEPARATE axis from the seven confidence states settled in plans/340-recon/DECISIONS.md (verified, derived, mismatch, reseeded, never-provable, injected-unverified, original-failed) -- confidence is display-only and is read off a node regardless of its kind, using its own visual idiom (port .kind-pre-anchor-stub's dashed hollow ring and .kind-presumed-user-edit, jfred/webapp/layered-styles.css:135,137). Do not pick one palette that tries to encode both kind and confidence in the same color.\n\nThe final list needs colors defined. Agents are currently picking arbitrary colors when adding node types to the timeline as layers are developed, which is fine as an interim approach.",
+    "files": [
+      "jfred/webapp/layered-styles.css"
+    ]
+  },
+  {
+    "taskNumber": 346,
+    "title": "L5 branch rendering mockup — 2-3 static HTML variants",
+    "completionDate": "2026-07-31",
+    "commitHashes": [
+      "ec4a08c",
+      "90f1538",
+      "eee4be5",
+      "2f5f8ed"
+    ],
+    "closureNote": "L5 branch rendering mockup. Built as three variants, then the user drew their own design and chose forked track, so the mockup was rebuilt around that single decided design shown in its two terminal cases - code rewind dead-ends, conversation-only rewind rejoins via a mirrored elbow. Rebuild also fixed a bug where the shared lane-rail helper put the solid rail on the branch lane as well as the trunk. Decision recorded in plans/340-recon/L5-branches.md and DECISIONS.md.",
+    "description": "Build 2-3 static, zero-interactivity HTML mockups showing different ways a branch (fork/rewind) can render inside the per-file bubble timeline. This is a visual-decision deliverable, not engine work — per plans/340-recon/L5-branches.md \"BLOCKED ON A VISUAL CHOICE\" and plans/340-recon/DECISIONS.md \"Still open\". Nothing in jfred/src or jfred/webapp changes for this task.\n\nServe the same way as the existing layer-2 mockup: `cd plans/layer2-mockup && python3 -m http.server 8000` (ES modules do not load off file://). Follow that mockup's file split — index.html + fixture.js (data) + app.js (render logic), plus a diff.js-equivalent only if a variant needs one — and its serving/module conventions (plans/layer2-mockup/index.html:778 `<script type=\"module\" src=\"app.js\">`).\n\nVariant 1 (required, reproduces the existing design): plans/mvp-app-mockup.html \"layer 8\" — per-session 64px lane columns (`.lane { width: 64px }`, mvp-app-mockup.html:101), rewound nodes dimmed IN PLACE at `opacity:.38` via `.node.dim` (mvp-app-mockup.html:116) rather than moved off the trunk rail, a dashed elbow connector from the trunk rail to the abandoned lane (`.blink`, mvp-app-mockup.html:107-108: `border-top: 2px dashed`, `border-right: 2px dashed`, rounded corner) and a dashed vertical connector down the abandoned lane (`.bline`, mvp-app-mockup.html:109). Per-session rotated lane labels (`.sname`, mvp-app-mockup.html:103-104). This variant carries NO rewind node — dimming plus the elbow/line IS the rewind signal (see \"Corrections\" below).\n\nVariant 2 (required, the alternative the user asked to compare against variant 1): a genuinely forked path rendering — the abandoned branch drawn as a visually separate line/track that splits from and (optionally) rejoins the trunk, rather than a same-column dim-in-place. This is the natural contrast to variant 1's \"stay in place, just dim\" approach; ground it in the OLD app's fork/orphan precedent for terminology and shapes ONLY (do not port its code, it operated on a flat row list, not bubbles): `computeGraphLaneRuns` and `checkNodeIsAbandonedBranchTip` (jfred/webapp/views/timeline-sessions.ts:60-76,79-89), `buildGraphCell`'s `.g-rail.g-l1/.g-l2`, `.g-start`/`.g-fork`/`.g-end` classes (jfred/webapp/views/timeline-render-row-cells.ts:52-77), and the `.tl-row.orphan .tl-main {opacity:.5}` dimming precedent (jfred/webapp/styles.css:396) — note layer 1 uses .38 per variant 1, not .5; do not blend the two numbers.\n\nVariant 3 (optional, only if a third genuinely different idea emerges from looking at 1 and 2 side by side — do not manufacture a token third option).\n\nHard constraints, do not violate:\n- No rewind node, in any variant. plans/340-recon/DECISIONS.md and L5-branches.md are explicit: a code rewind is NOT derivable from the transcript (the real s7 JSONL carries zero `edited_text_file` attachments and no restore marker; the only trace is a shared `parentUuid`, identical to a conv-only rewind). The engine's branch model has no \"explicit rewind\" kind to render as a distinct node. Do not add one to any variant, and do not invent a name for one.\n- Never invent terminology. Reuse names already in the codebase (lane, bubble, tie group, rail, dim) and cite the file. If a variant needs a new visual concept with no existing name, describe it plainly in the mockup's own on-page caption rather than coining a term.\n- Fixture data only, no real reconstruction. Reuse the existing layer-2 mockup fixture shape as a starting point (plans/layer2-mockup/fixture.js) rather than inventing a new data format from scratch.\n- Each variant file stays under the 250-line cap (plans/coding-requirements.md is silent on mockups specifically, but the project-wide cap applies — plans/340-recon/*.md is the ONLY documented exemption). Split index/fixture/app per variant if needed, matching the layer-2 mockup's own split.\n\nWhat this mockup's outcome decides (do not pre-answer these — the user decides by looking):\n- Lane scope: a lane per session (mvp-app-mockup.html's model) vs. a conversation-wide tree spanning forked subagents. plans/340-recon/L5-branches.md \"Bubbles widen to fit their lanes\" already settled that MORE than two lanes in a bubble is fine and the bubble widens rather than stacking/hiding — that part is NOT open, only which axis lanes represent is.\n- Whether a tie-group rectangle (`buildTieGroupMarkers`, jfred/webapp/layer1-tie-groups.ts, styled at jfred/webapp/layer1-styles.css:264-266) spans across lanes when a trunk node and a branch-lane node land on the same instant, or stays scoped to one lane. This is explicitly downstream of the lane-rendering choice per plans/340-recon/L5-branches.md question B's re-check — do not answer it inside the mockup itself, just make sure the chosen variant makes the answer obvious once picked.\n\nAcceptance criterion: the user runs `cd plans/layer2-mockup && python3 -m http.server 8000` (or a sibling folder following the same convention), views the 2-3 variants side by side in a browser, and picks one (or asks for a fourth). No engine or spec work (S20-style spec item for L5, or engine build-out) starts until that pick is made — this task's own scope ends at sign-off, matching how S18/S19's mockups gated their build-out (specs/from-scratch-SPEC.md:494-573).",
+    "files": [
+      "plans/layer5-branch-mockup/index.html",
+      "plans/layer5-branch-mockup/variant1/index.html",
+      "plans/layer5-branch-mockup/variant1/app.js",
+      "plans/layer5-branch-mockup/variant1/fixture.js",
+      "plans/layer5-branch-mockup/variant2/index.html",
+      "plans/layer5-branch-mockup/variant2/app.js",
+      "plans/layer5-branch-mockup/variant2/fixture.js",
+      "plans/layer5-branch-mockup/variant3/index.html",
+      "plans/layer5-branch-mockup/variant3/app.js",
+      "plans/layer5-branch-mockup/variant3/fixture.js"
+    ],
+    "handoffFilePaths": [
+      "plans/handoff-develop-20260730-1820.md"
+    ]
+  },
+  {
+    "taskNumber": 347,
+    "title": "L6 execution console mockup — 2-3 static HTML variants",
+    "completionDate": "2026-07-31",
+    "commitHashes": [
+      "e353eb6",
+      "d14aab8",
+      "2f5f8ed"
+    ],
+    "closureNote": "L6 execution console mockup, three placements built - popup, anchored panel, drawer. User chose the popup over the timeline; anchored panel and drawer rejected. Decision recorded in plans/340-recon/L6-script-results.md and DECISIONS.md.",
+    "description": "Build 2-3 static, zero-interactivity HTML mockups of the live script-execution output console: script output streaming as the sandboxed run executes, plus a cancel button that kills the in-flight run. Per plans/340-recon/L6-script-results.md \"BLOCKED ON A VISUAL CHOICE\" and plans/340-recon/DECISIONS.md \"Still open\", this is a visual-decision deliverable, not engine work. Nothing in jfred/src or jfred/webapp changes for this task, and no wiring to the real sandbox (jfred/src/reconstruction_script_sandbox.ts) happens here — the console output is fixture text, not a live process.\n\nServe the same way as the existing layer-2 mockup: `cd plans/layer2-mockup && python3 -m http.server 8000` (ES modules do not load off file://), following its index.html + fixture.js + app.js split and module-script convention (plans/layer2-mockup/index.html:778).\n\nWhat is ALREADY SETTLED and must not be re-opened or re-designed in this mockup: the GLOBAL load bar is the mechanism for overall progress — `webapp/layer1-progress.ts` (`.loadbar`/`.loadbar-fill`/`.loadbar-label`), fed by the existing NDJSON `?progress=1` stream pattern (jfred/src/viewer_api_layer1_route.ts:43-61), per plans/coding-requirements.md section 6 and plans/340-recon/L6-script-results.md \"Execution progress UI. Settled: the global load bar is used.\" Do not design a second progress-bar idiom. The ONLY open question is the shape of a separate, additional output console/popup showing the script's live text output plus a cancel control.\n\nEach variant must show, in fixture form:\n- Script output text appearing progressively (simulate with static \"already streamed\" content across a couple of frames/states if the mockup is fully static, or represent it as a single settled state plus a caption describing what the live-streaming state would look like — zero interactivity means no real timers/animation is required, just the visual design of the states).\n- A cancel button. plans/340-recon/L6-script-results.md's \"Consent: reuse what exists\" note (reuse `isImpureExecutionAllowed()`, jfred/src/reconstruction_exec_gate.ts) is an engine concern for later, not something this mockup needs to model — the mockup only needs the cancel BUTTON's visual placement and states (idle / running-cancelable / cancelled), not its wiring.\n- Placement as \"probably a popup over the timeline\" per the settled note — try that as one variant's baseline, and let other variants explore genuine alternatives (e.g. anchored panel docked to a screen edge, inline expansion within the bubble/lane, a drawer reusing the existing Detail drawer chrome from S19/#257) rather than three cosmetic reskins of the same popup.\n\nGround visual language in what already exists rather than inventing new chrome: the existing `.details`/`.diffview`/`.dpane` panel styling in plans/mvp-app-mockup.html:126-157 (border, `--surface` background, monospace body) is the closest existing precedent for a text-output panel in this codebase's visual language, and the Detail drawer referenced in specs/from-scratch-SPEC.md S19 (`appendJsonRecordButton`, jfred/webapp/views/timeline-render-row-cells.ts:115) is the closest precedent for a reusable slide-in panel. Cite whichever precedent a variant borrows from.\n\nMismatch/failure states to represent (per plans/340-recon/L6-script-results.md \"RESOLVED\" section, now settled, not open — the mockup should show these states exist, not decide whether they exist): a completed run can end in verified, mismatch, or original-failed (one of the seven confidence states from DECISIONS.md \"Seven confidence states, display-only\") — the console mockup should sketch how the output panel differentiates a cancelled run from a completed-with-mismatch run from a normal completion, since those are visually distinct terminal states the real console will need.\n\nHard constraints, do not violate:\n- Never invent terminology for the console/popup itself; if no name exists in the codebase, describe it in plain language in the mockup rather than coining one.\n- Do not touch or re-derive the global load bar's behavior or design — it is out of scope and already shipped.\n- Files stay under the 250-line cap; split per variant like the layer-2 mockup does.\n\nAcceptance criterion: the user runs `cd plans/layer2-mockup && python3 -m http.server 8000` (or a sibling folder following the same convention), views the 2-3 variants in a browser, and picks one (or asks for a fourth). No engine or spec work (S20-style spec item for L6, or engine build-out of the streaming/cancel route) starts until sign-off, matching how S18/S19's mockups gated their build-out (specs/from-scratch-SPEC.md:494-573).",
+    "files": [
+      "plans/l6-console-mockup/index.html",
+      "plans/l6-console-mockup/fixture.js",
+      "plans/l6-console-mockup/app.js",
+      "plans/l6-console-mockup/variant-popup.js",
+      "plans/l6-console-mockup/variant-anchored.js",
+      "plans/l6-console-mockup/variant-drawer.js"
+    ],
+    "handoffFilePaths": [
+      "plans/handoff-develop-20260730-1820.md"
+    ]
   }
 ]

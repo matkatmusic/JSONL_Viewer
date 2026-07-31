@@ -590,8 +590,10 @@ data-layer gate, the fetch trigger, the fixture file and the confidence model.
    result is provably verified. A Write carries its full body.
 
 `edited_text_file` user edits remain L7's. Edit nodes are marked `[e]` per
-#339; a provable beacon renders with a check mark, e.g. `[R]✓`. Placeholder
-colours are acceptable until #339 settles the palette.
+#339; a provable beacon renders with a check mark, e.g. `[R]✓`. #339 is DONE —
+the palette is settled in `webapp/layered-styles.css` as twelve `.node-type-*`
+rules, previewed at `plans/node-kinds-mockup/`, so use those tokens rather than
+placeholder colours.
 
 **Data path — computed on visibility, not on a button.** A node kind's data is
 fetched the **first time that kind becomes visible**, whether it was turned on

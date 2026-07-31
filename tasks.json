@@ -136,42 +136,6 @@
     "description": "The codebase has many comments that are verbose, redundant, or outdated, causing contextual bloat for agents working on the code.  This task is to eliminate all comments and docstrings that are not necessary for understanding the code, and to ensure that all remaining comments are concise, accurate, and relevant.  The goal is to reduce cognitive load and improve readability for future developers. existing comments should be replaced with single-sentence summaries of the code's purpose.  The summary sentence should be less than 30 words long."
   },
   {
-    "taskNumber": 332,
-    "title": "FileNav: persist folder collapsed/expanded state per project",
-    "description": "Remember which folders are collapsed/expanded in FileNav component when loading a project that has been previously loaded, and apply that remembered collapsed/expanded state to the file nav when opening the project.",
-    "files": [
-      "jfred/src/viewer_api_layer1_settings.ts",
-      "jfred/webapp/layer1-settings.ts",
-      "jfred/webapp/views/sidebar.ts",
-      "jfred/webapp/layer1-filenav.ts",
-      "jfred/tests/viewer_api_layer1_settings.test.ts",
-      "jfred/tests/layer1-settings.test.ts",
-      "jfred/tests/layer1-filenav.test.ts",
-      "jfred/tests/layer1-folder-filter.test.ts",
-      "jfred/tests/sidebar.test.ts"
-    ]
-  },
-  {
-    "taskNumber": 333,
-    "title": "File Nav selection also paints a wash over the selected files' revision range",
-    "description": "User request 2026-07-30: File Nav Selection also defines wash range in timeline. The purpose is to see where in the timeline the selected files were revised. Gotchas: wash start/end position is relative to the selected files' oldest node/newest node, and if 'Show Only Selected' is toggled, then the wash spans the entire range of the timeline, which is the expected behavior. Builds on task 329's generic wash primitive: spawn via spawnWash (jfred/webapp/layer1-wash.ts) with its own color + marker class so clearing it never touches the session or diff washes. Wire point: the File Nav selection callback in jfred/webapp/layer1-page.ts (the same place showDetailViewForFiles fires); range = min/max instant across each selected file's ladder in the DRAWN view (pairs' created/commits/onDisk/snapshots + disk orphans), resolved to pixels the way jfred/webapp/layer1-diff-wash.ts does. Note the 'Show Only Selected' case falls out naturally — the filtered view's ruler spans exactly the selected files' events.",
-    "files": [
-      "jfred/webapp/layer1-diff-wash.ts",
-      "jfred/webapp/layer1-page.ts",
-      "jfred/docs/ui-component-glossary.md"
-    ]
-  },
-  {
-    "taskNumber": 334,
-    "title": "Show washes in the minimap",
-    "description": "User request 2026-07-30: Show washes in minimap so you can see at a glance how much of the timeline is covered by the time-range represented by the wash. Applies to every wash kind uniformly — session (task 292), diff range (task 329), and the coming File-Nav wash (task 333) — by reading the generic `.wash` elements in #washes (each carries --axis-px, --span-px and --wash-color, spawned by jfred/webapp/layer1-wash.ts) and drawing each as a scaled band in the minimap, tinted by its own --wash-color. Wire point: jfred/webapp/layer1-minimap.ts (drawLayer1Minimap), which already runs after every stage render and after drawer open/close reflows.",
-    "files": [
-      "jfred/webapp/layer1-minimap.ts",
-      "jfred/tests/layer1-minimap.test.ts",
-      "jfred/webapp/layer1-styles.css"
-    ]
-  },
-  {
     "taskNumber": 335,
     "title": "Diff wash may filter the File Nav to the files it covers (design question inside)",
     "description": "User request 2026-07-30: When a Diff wash is active, consider filtering the File Nav to only show the files covered by the wash. This behavior is different from 'Show Selected Only', though it could be implemented as: if diff wash becomes active: clearFileNavSelection(); for (file in fileNav.fileList) { if wash overlaps file.bubble: addToFileNavSelection(file); }. 'Covered by the wash' = the file has at least one node whose instant falls inside [baseInstant, targetInstant] — decide instants from the DRAWN view (jfred/webapp/layer1-diff-wash.ts owns the range; resolveRangeStepIndexes is the same inside-the-range test), never pixel overlap. CAUTION, confirm with the user before implementing: the sketch rewrites the nav SELECTION, and per task 326 selection changes feed the stage filter and auto-arm 'Show Only Selected' (jfred/webapp/layer1-page.ts nav callback), which would re-layout the stage and re-place the wash the user just drew — the design must say whether wash-driven selection triggers that filter chain or only highlights rows. It is a 'consider' task: startpoint is a design decision, not code. Relevant files: jfred/webapp/layer1-filenav.ts, jfred/webapp/views/sidebar.ts (selection state), jfred/webapp/layer1-drawer-multi.ts (extendDiffSelection), jfred/webapp/layer1-page.ts.",
@@ -186,29 +150,9 @@
     ]
   },
   {
-    "taskNumber": 336,
-    "title": "Diff wash drawer lists every file the wash touches, not just selected/clicked ones",
-    "description": "User request 2026-07-30: include every file bubble that the diff wash touches when defining the file list that is shown in the DetailView's diff view panes. Current behavior: only the files that had nodes selected are shown in the DetailView's diff view panes (task 329 builds the list as nav targets + the two clicked paths). New rule: the list also includes every path in the DRAWN view with at least one node instant inside [baseInstant, targetInstant] — the same inside-the-range test resolveRangeStepIndexes applies (jfred/webapp/layer1-diff-wash.ts), never pixel overlap. Wire point: the `files` construction in extendDiffSelection (jfred/webapp/layer1-drawer-multi.ts). Related: task 335 asks whether the File Nav SELECTION should follow the wash — this task is only about the drawer's file list and stands alone.",
-    "files": [
-      "jfred/webapp/layer1-diff-wash.ts",
-      "jfred/webapp/layer1-drawer-multi.ts",
-      "jfred/tests/layer1-diff-wash.test.ts",
-      "jfred/tests/layer1-drawer-multi.test.ts",
-      "jfred/tests/layer1-drawer.test.ts"
-    ]
-  },
-  {
     "taskNumber": 338,
     "title": "Investigate /btw-forked transcript: engine handling of post-fork file changes",
     "description": "Investigate the tasks-[328,329,330,331] transcript (base RevEng project path): ~/.claude/projects/-Users-matkatmusicllc-Desktop-claude-code-src-RevEng/f7d5bed5-6831-4332-912e-e19fe5396350.jsonl. That conversation was forked from a /btw event (the /btw record is a type:\"system\", subtype:\"local_command\" line at ~record 1425) and file changes occurred after the conversation fork. The user does not think the engine knows how to process these kinds of JSONL lines yet — verify whether the engine handles the fork + post-fork file changes correctly, and fix or log the gap."
-  },
-  {
-    "taskNumber": 339,
-    "title": "timeline node type icons and colors",
-    "description": "Define icons and colors for every timeline node KIND the engine actually produces: tool result [r], tool call [t], extracted edit [e], script execution [x], script execution result [x, different color from script execution], commit [c], snapshot [camera emoji], conversation branch split [y] (rendering itself is decided by the L5 mockup task; this task only needs its icon once that lands), user prompt [u], agent response [a], system info [s or i], and the [?] catch-all for unknown record types (see L7 recon: worktree-state and relocated already appear in real logs and are absent from the RecordType enum). The full list will keep making itself known as L3-L9 land, since L7 draws from the classic reconstruction engine, which already parses every RecordType.\n\nThere is NO rewind node and NO code-rewind node -- both were settled out during the task-340 grilling (2026-07-30) and confirmed against the real s7-minimal-code-restore JSONL (zero edited_text_file attachments, file-history-snapshot versions just increment, the only trace is a shared parentUuid identical to a conv-only rewind). A rewind renders as dimmed existing nodes (opacity .38) plus a dashed elbow connector, per mvp-app-mockup.html layer 8 -- a styling treatment applied to existing nodes, not a new node kind, so it does not need an icon here.\n\nNode-kind color (this task) is a SEPARATE axis from the seven confidence states settled in plans/340-recon/DECISIONS.md (verified, derived, mismatch, reseeded, never-provable, injected-unverified, original-failed) -- confidence is display-only and is read off a node regardless of its kind, using its own visual idiom (port .kind-pre-anchor-stub's dashed hollow ring and .kind-presumed-user-edit, jfred/webapp/layered-styles.css:135,137). Do not pick one palette that tries to encode both kind and confidence in the same color.\n\nThe final list needs colors defined. Agents are currently picking arbitrary colors when adding node types to the timeline as layers are developed, which is fine as an interim approach.",
-    "files": [
-      "jfred/webapp/layered-styles.css"
-    ]
   },
   {
     "taskNumber": 340,
@@ -257,42 +201,6 @@
       "jfred/src/viewer_api_layered.ts",
       "jfred/webapp/layered-styles.css",
       "jfred/tests/viewer_api_layered.test.ts"
-    ]
-  },
-  {
-    "taskNumber": 346,
-    "title": "L5 branch rendering mockup — 2-3 static HTML variants",
-    "description": "Build 2-3 static, zero-interactivity HTML mockups showing different ways a branch (fork/rewind) can render inside the per-file bubble timeline. This is a visual-decision deliverable, not engine work — per plans/340-recon/L5-branches.md \"BLOCKED ON A VISUAL CHOICE\" and plans/340-recon/DECISIONS.md \"Still open\". Nothing in jfred/src or jfred/webapp changes for this task.\n\nServe the same way as the existing layer-2 mockup: `cd plans/layer2-mockup && python3 -m http.server 8000` (ES modules do not load off file://). Follow that mockup's file split — index.html + fixture.js (data) + app.js (render logic), plus a diff.js-equivalent only if a variant needs one — and its serving/module conventions (plans/layer2-mockup/index.html:778 `<script type=\"module\" src=\"app.js\">`).\n\nVariant 1 (required, reproduces the existing design): plans/mvp-app-mockup.html \"layer 8\" — per-session 64px lane columns (`.lane { width: 64px }`, mvp-app-mockup.html:101), rewound nodes dimmed IN PLACE at `opacity:.38` via `.node.dim` (mvp-app-mockup.html:116) rather than moved off the trunk rail, a dashed elbow connector from the trunk rail to the abandoned lane (`.blink`, mvp-app-mockup.html:107-108: `border-top: 2px dashed`, `border-right: 2px dashed`, rounded corner) and a dashed vertical connector down the abandoned lane (`.bline`, mvp-app-mockup.html:109). Per-session rotated lane labels (`.sname`, mvp-app-mockup.html:103-104). This variant carries NO rewind node — dimming plus the elbow/line IS the rewind signal (see \"Corrections\" below).\n\nVariant 2 (required, the alternative the user asked to compare against variant 1): a genuinely forked path rendering — the abandoned branch drawn as a visually separate line/track that splits from and (optionally) rejoins the trunk, rather than a same-column dim-in-place. This is the natural contrast to variant 1's \"stay in place, just dim\" approach; ground it in the OLD app's fork/orphan precedent for terminology and shapes ONLY (do not port its code, it operated on a flat row list, not bubbles): `computeGraphLaneRuns` and `checkNodeIsAbandonedBranchTip` (jfred/webapp/views/timeline-sessions.ts:60-76,79-89), `buildGraphCell`'s `.g-rail.g-l1/.g-l2`, `.g-start`/`.g-fork`/`.g-end` classes (jfred/webapp/views/timeline-render-row-cells.ts:52-77), and the `.tl-row.orphan .tl-main {opacity:.5}` dimming precedent (jfred/webapp/styles.css:396) — note layer 1 uses .38 per variant 1, not .5; do not blend the two numbers.\n\nVariant 3 (optional, only if a third genuinely different idea emerges from looking at 1 and 2 side by side — do not manufacture a token third option).\n\nHard constraints, do not violate:\n- No rewind node, in any variant. plans/340-recon/DECISIONS.md and L5-branches.md are explicit: a code rewind is NOT derivable from the transcript (the real s7 JSONL carries zero `edited_text_file` attachments and no restore marker; the only trace is a shared `parentUuid`, identical to a conv-only rewind). The engine's branch model has no \"explicit rewind\" kind to render as a distinct node. Do not add one to any variant, and do not invent a name for one.\n- Never invent terminology. Reuse names already in the codebase (lane, bubble, tie group, rail, dim) and cite the file. If a variant needs a new visual concept with no existing name, describe it plainly in the mockup's own on-page caption rather than coining a term.\n- Fixture data only, no real reconstruction. Reuse the existing layer-2 mockup fixture shape as a starting point (plans/layer2-mockup/fixture.js) rather than inventing a new data format from scratch.\n- Each variant file stays under the 250-line cap (plans/coding-requirements.md is silent on mockups specifically, but the project-wide cap applies — plans/340-recon/*.md is the ONLY documented exemption). Split index/fixture/app per variant if needed, matching the layer-2 mockup's own split.\n\nWhat this mockup's outcome decides (do not pre-answer these — the user decides by looking):\n- Lane scope: a lane per session (mvp-app-mockup.html's model) vs. a conversation-wide tree spanning forked subagents. plans/340-recon/L5-branches.md \"Bubbles widen to fit their lanes\" already settled that MORE than two lanes in a bubble is fine and the bubble widens rather than stacking/hiding — that part is NOT open, only which axis lanes represent is.\n- Whether a tie-group rectangle (`buildTieGroupMarkers`, jfred/webapp/layer1-tie-groups.ts, styled at jfred/webapp/layer1-styles.css:264-266) spans across lanes when a trunk node and a branch-lane node land on the same instant, or stays scoped to one lane. This is explicitly downstream of the lane-rendering choice per plans/340-recon/L5-branches.md question B's re-check — do not answer it inside the mockup itself, just make sure the chosen variant makes the answer obvious once picked.\n\nAcceptance criterion: the user runs `cd plans/layer2-mockup && python3 -m http.server 8000` (or a sibling folder following the same convention), views the 2-3 variants side by side in a browser, and picks one (or asks for a fourth). No engine or spec work (S20-style spec item for L5, or engine build-out) starts until that pick is made — this task's own scope ends at sign-off, matching how S18/S19's mockups gated their build-out (specs/from-scratch-SPEC.md:494-573).",
-    "files": [
-      "plans/layer5-branch-mockup/index.html",
-      "plans/layer5-branch-mockup/variant1/index.html",
-      "plans/layer5-branch-mockup/variant1/app.js",
-      "plans/layer5-branch-mockup/variant1/fixture.js",
-      "plans/layer5-branch-mockup/variant2/index.html",
-      "plans/layer5-branch-mockup/variant2/app.js",
-      "plans/layer5-branch-mockup/variant2/fixture.js",
-      "plans/layer5-branch-mockup/variant3/index.html",
-      "plans/layer5-branch-mockup/variant3/app.js",
-      "plans/layer5-branch-mockup/variant3/fixture.js"
-    ],
-    "handoffFilePaths": [
-      "plans/handoff-develop-20260730-1820.md"
-    ]
-  },
-  {
-    "taskNumber": 347,
-    "title": "L6 execution console mockup — 2-3 static HTML variants",
-    "description": "Build 2-3 static, zero-interactivity HTML mockups of the live script-execution output console: script output streaming as the sandboxed run executes, plus a cancel button that kills the in-flight run. Per plans/340-recon/L6-script-results.md \"BLOCKED ON A VISUAL CHOICE\" and plans/340-recon/DECISIONS.md \"Still open\", this is a visual-decision deliverable, not engine work. Nothing in jfred/src or jfred/webapp changes for this task, and no wiring to the real sandbox (jfred/src/reconstruction_script_sandbox.ts) happens here — the console output is fixture text, not a live process.\n\nServe the same way as the existing layer-2 mockup: `cd plans/layer2-mockup && python3 -m http.server 8000` (ES modules do not load off file://), following its index.html + fixture.js + app.js split and module-script convention (plans/layer2-mockup/index.html:778).\n\nWhat is ALREADY SETTLED and must not be re-opened or re-designed in this mockup: the GLOBAL load bar is the mechanism for overall progress — `webapp/layer1-progress.ts` (`.loadbar`/`.loadbar-fill`/`.loadbar-label`), fed by the existing NDJSON `?progress=1` stream pattern (jfred/src/viewer_api_layer1_route.ts:43-61), per plans/coding-requirements.md section 6 and plans/340-recon/L6-script-results.md \"Execution progress UI. Settled: the global load bar is used.\" Do not design a second progress-bar idiom. The ONLY open question is the shape of a separate, additional output console/popup showing the script's live text output plus a cancel control.\n\nEach variant must show, in fixture form:\n- Script output text appearing progressively (simulate with static \"already streamed\" content across a couple of frames/states if the mockup is fully static, or represent it as a single settled state plus a caption describing what the live-streaming state would look like — zero interactivity means no real timers/animation is required, just the visual design of the states).\n- A cancel button. plans/340-recon/L6-script-results.md's \"Consent: reuse what exists\" note (reuse `isImpureExecutionAllowed()`, jfred/src/reconstruction_exec_gate.ts) is an engine concern for later, not something this mockup needs to model — the mockup only needs the cancel BUTTON's visual placement and states (idle / running-cancelable / cancelled), not its wiring.\n- Placement as \"probably a popup over the timeline\" per the settled note — try that as one variant's baseline, and let other variants explore genuine alternatives (e.g. anchored panel docked to a screen edge, inline expansion within the bubble/lane, a drawer reusing the existing Detail drawer chrome from S19/#257) rather than three cosmetic reskins of the same popup.\n\nGround visual language in what already exists rather than inventing new chrome: the existing `.details`/`.diffview`/`.dpane` panel styling in plans/mvp-app-mockup.html:126-157 (border, `--surface` background, monospace body) is the closest existing precedent for a text-output panel in this codebase's visual language, and the Detail drawer referenced in specs/from-scratch-SPEC.md S19 (`appendJsonRecordButton`, jfred/webapp/views/timeline-render-row-cells.ts:115) is the closest precedent for a reusable slide-in panel. Cite whichever precedent a variant borrows from.\n\nMismatch/failure states to represent (per plans/340-recon/L6-script-results.md \"RESOLVED\" section, now settled, not open — the mockup should show these states exist, not decide whether they exist): a completed run can end in verified, mismatch, or original-failed (one of the seven confidence states from DECISIONS.md \"Seven confidence states, display-only\") — the console mockup should sketch how the output panel differentiates a cancelled run from a completed-with-mismatch run from a normal completion, since those are visually distinct terminal states the real console will need.\n\nHard constraints, do not violate:\n- Never invent terminology for the console/popup itself; if no name exists in the codebase, describe it in plain language in the mockup rather than coining one.\n- Do not touch or re-derive the global load bar's behavior or design — it is out of scope and already shipped.\n- Files stay under the 250-line cap; split per variant like the layer-2 mockup does.\n\nAcceptance criterion: the user runs `cd plans/layer2-mockup && python3 -m http.server 8000` (or a sibling folder following the same convention), views the 2-3 variants in a browser, and picks one (or asks for a fourth). No engine or spec work (S20-style spec item for L6, or engine build-out of the streaming/cancel route) starts until sign-off, matching how S18/S19's mockups gated their build-out (specs/from-scratch-SPEC.md:494-573).",
-    "files": [
-      "plans/l6-console-mockup/index.html",
-      "plans/l6-console-mockup/fixture.js",
-      "plans/l6-console-mockup/app.js",
-      "plans/l6-console-mockup/variant-popup.js",
-      "plans/l6-console-mockup/variant-anchored.js",
-      "plans/l6-console-mockup/variant-drawer.js"
-    ],
-    "handoffFilePaths": [
-      "plans/handoff-develop-20260730-1820.md"
     ]
   },
   {
@@ -413,9 +321,6 @@
     ],
     "handoffFilePaths": [
       "plans/handoff-develop-20260730-1820.md"
-    ],
-    "blockedBy": [
-      346
     ]
   },
   {
@@ -435,9 +340,6 @@
     ],
     "handoffFilePaths": [
       "plans/handoff-develop-20260730-1820.md"
-    ],
-    "blockedBy": [
-      347
     ]
   },
   {
@@ -607,6 +509,39 @@
     "description": "BUG (user's words): \"Shift clicking the nodes causes the bubble title label and 'N commits - on disk' labels to be selected. Those labels should not be selected.\"\n\nGrounded root cause: the shift-click gesture is wireNodeDrawer()'s click handler on #stage in jfred/webapp/layer1-drawer.ts (~lines 128-144): if ((event as MouseEvent).shiftKey && anchor !== undefined && drawer.open) { extendDiffSelection(anchor, node, path); return; } — this is the diff-wash range-selection gesture (shift-extends the anchored node into a two-node diff pair, rendered via jfred/webapp/layer1-diff-wash.ts). A native browser shift-click, however, also performs its default text-selection behavior on whatever text sits under/near the click, which is what visibly highlights the labels.\n\nExact elements, confirmed in jfred/webapp/layer1-widgets.ts + jfred/webapp/layer1-styles.css:\n- Bubble title label = .filebox .fname (layer1-widgets.ts, buildStagePairs area; CSS rule at layer1-styles.css:240 .filebox .fname { position: absolute; top: 7px; left: 12px; ... }) — has NO user-select rule today.\n- \"N commits · on disk\" label = .filebox .sub, text built as `${pair.commits.length} commits · on disk` (layer1-widgets.ts line ~65); CSS rule at layer1-styles.css:248 .filebox .sub { position: absolute; top: 24px; left: 12px; font-size: 10px; color: var(--muted); } — also has NO user-select rule today.\n\nFor comparison, other non-selectable UI text in this same stylesheet already sets user-select: none deliberately (e.g. .file-item at layer1-styles.css:394, .file-folder > summary at line 414) — .fname/.sub are simply missing from that set.\n\nFix: add user-select: none to .filebox .fname and .filebox .sub in jfred/webapp/layer1-styles.css (the smallest fix — CSS-only, no JS change needed, since this is native browser text-selection behavior, not a custom selection feature to suppress in code).",
     "files": [
       "jfred/webapp/layer1-styles.css"
+    ]
+  },
+  {
+    "taskNumber": 372,
+    "title": "Bubble file title click -> select in File Nav + open latest revision Full-Content in Detail View",
+    "description": "Clicking a bubble's file title selects that file in the File Nav and shows the most recent revision in the Detail view, Full-Content (not the diff mode). Canonical components (docs/ui-component-glossary.md): bubble title = .fname in jfred/webapp/layer1-widgets.ts; File Nav pane = jfred/webapp/layer1-filenav.ts (#filenav-tree); Detail View drawer = jfred/webapp/layer1-drawer.ts; Full-Content mode = .dfull-toggle handling in jfred/webapp/layer1-diff-view.ts.",
+    "files": [
+      "jfred/webapp/layer1-widgets.ts",
+      "jfred/webapp/layer1-filenav.ts",
+      "jfred/webapp/layer1-drawer.ts",
+      "jfred/webapp/layer1-diff-view.ts"
+    ]
+  },
+  {
+    "taskNumber": 373,
+    "title": "Detail View multi-file search field with match cycling synced to timeline",
+    "description": "When Detail View is showing multiple files (due to wash-based selection), give the Detail View header a search field. When text is entered, collapse all files in the detail view, filter the files shown in the detail view. If the match is in the file content and not the file title, expand that file's viewer component and scroll that matching string into view in the Detail View. Scroll the bubble for the file into view in the timeline. Add [<] [>] buttons that cycle through the matches next to the Detail View's search widget. Cycling through matches scrolls the current match index into view in both the Detail view and the timeline view. Timeline view should scroll so that the bubble's title is what becomes centered in the timeline, not the 'most recent revision' node in the bubble (which is usually the last node in the bubble's timeline rail). The goal is to see the file name that matched in the timeline. Components: drawer header .dhead = jfred/webapp/layer1-drawer.ts; multi-file sections (<details>.dfile) = jfred/webapp/layer1-diff-view.ts + layer1-drawer-multi.ts; content rendering = jfred/webapp/layer1-diff-pane.ts / diff-render.ts; scroll-to-bubble + match-cycling precedent = the Find box in jfred/webapp/layer1-find-file.ts (note its cycle state is MODULE scope).",
+    "files": [
+      "jfred/webapp/layer1-drawer.ts",
+      "jfred/webapp/layer1-drawer-multi.ts",
+      "jfred/webapp/layer1-diff-view.ts",
+      "jfred/webapp/layer1-find-file.ts"
+    ]
+  },
+  {
+    "taskNumber": 374,
+    "title": "Tall bubbles: pin top to timeline viewport top, squiggly-line break on the sides",
+    "description": "Bubbles that are taller than the existing viewport should always show their top at the top of the timeline viewable area, not aligned with their actual ruler row. Use a squiggly line to represent this visual break of the bubble's sides. User will send screenshots of their mockup for the intended look — get those before implementing the visual. Components: bubbles (.filebox) = jfred/webapp/layer1-widgets.ts; likely a scroll-driven sticky/pin behavior against the stage scroll (#stagewrap, layer1-page.ts host) plus CSS in jfred/webapp/layer1-styles.css. MOCKUPS RECEIVED 2026-07-31, saved in plans/task-374-tall-bubbles/: current-behavior.png (bubble top drawn off-canvas above the viewport, aligned to its real ruler row), desired-behavior.png (any bubble top that would be out of bounds is drawn at the top of the viewable area; an invisible horizontal line marks where off-canvas bubbles are split, and a squiggly line on the bubble sides at that split shows the bubble keeps going up; title stays visible), real-webapp-example.png (.gitmodules bubble in the live webapp showing the problem).",
+    "files": [
+      "jfred/webapp/layer1-widgets.ts",
+      "jfred/webapp/layer1-styles.css",
+      "jfred/webapp/layer1-page.ts",
+      "plans/task-374-tall-bubbles/"
     ]
   }
 ]
