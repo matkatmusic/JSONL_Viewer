@@ -164,7 +164,7 @@
   {
     "taskNumber": 341,
     "title": "Global header button: compact the timeline gaps",
-    "description": "User-decided 2026-07-30 during the task-340 L8 grilling round: node-type filtering (L8) will be CSS-hide only — hiding node kinds leaves dead gaps in the capped-gap ruler because offsets never shift. Add a button in the global header that re-runs the ladder layout (relayOutLayer1View in jfred/webapp/layer1-filter.ts, the same re-layout the File Nav path filter already performs) over only the currently VISIBLE nodes, compacting the dead gaps on demand. One-shot compaction, not a live mode: filtering stays instant CSS, and the user explicitly opts into the ~800-bubble re-render by clicking.",
+    "description": "User-decided 2026-07-30 during the task-340 L8 grilling round: node-type filtering (L8) will be CSS-hide only — hiding node kinds leaves dead gaps in the capped-gap ruler because offsets never shift. Add a button in the global header that re-runs the ladder layout (relayOutLayer1View in jfred/webapp/layer1-filter.ts, the same re-layout the File Nav path filter already performs) over only the currently VISIBLE nodes, compacting the dead gaps on demand. One-shot compaction, not a live mode: filtering stays instant CSS, and the user explicitly opts into the ~800-bubble re-render by clicking. DEFERRED 2026-07-30: hold until after all layers are built, branches are rendered, and the webapp is tested out — then decide whether this button is even needed (gap compression is currently always-on in the ruler math; no such button exists yet). May be closed as unnecessary.",
     "blockedBy": [
       340
     ]
@@ -181,5 +181,15 @@
     "blockedBy": [
       340
     ]
+  },
+  {
+    "taskNumber": 344,
+    "title": "Rename: tie-group -> nodesWithSameTimestamp, capped gap -> maximumVerticalGapBetweenRulerRows",
+    "description": "\"Tie-group\" should be changed to nodesWithSameTimestamp in the codebase. \"Capped gap\" should be changed to maximumVerticalGapBetweenRulerRows. Known tie-group sites (jfred): webapp/layer1-tie-groups.ts (file itself), webapp/layer1-widgets.ts, webapp/layer1-styles.css, tests/layer1-tie-groups.test.ts, tests/layer1-page-snapshots.test.ts, scripts/visual/mockup-checks.ts, docs/ui-component-glossary.md. Known capped-gap sites: src/viewer_api_layered.ts, webapp/layered-styles.css, tests/viewer_api_layered.test.ts. Rename identifiers, CSS class names, file names, and glossary entries consistently."
+  },
+  {
+    "taskNumber": 345,
+    "title": "Document sibling absorption: locate task-145 fix commit and write up root cause",
+    "description": "\"Sibling absorption\" is tied to completed task 145, which has no commit hashes, but does have a closureNote, so investigate where the fix was applied in the codebase, and how to understand what caused the issue in the first place since the notes surrounding the issue and term \"sibling absorption\" are lacking. Known so far: task 145 closureNote says the surviving-trunk walk dropped parallel-tool-call sibling records (records sharing message.id), starving script discovery in s85; the fix is absorbParallelToolCallSiblings, which lives in jfred/src/reconstruction_trunk_absorb.ts (see also reconstruction_trunk.ts, reconstruction_reseed.ts). Deliverables: (1) find the real commit hash(es) in jfred history that introduced absorbParallelToolCallSiblings and backfill task 145 commitHashes, (2) write a durable explanation of the root cause and the term (docs or plans note) so \"sibling absorption\" is no longer under-documented, (3) check the closureNote follow-up (rename REVISIONS for moved-away sources) was filed as a task."
   }
 ]
