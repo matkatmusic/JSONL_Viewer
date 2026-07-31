@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L5 branch mockup — Variant 1: dim-in-place</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 13px/1.5 system-ui, -apple-system, sans-serif; color: #0b0b0b; background: #f9f9f7; padding: 20px; }
+  h1 { font-size: 15px; margin-bottom: 6px; }
+  .caption { font-size: 12px; color: #52514e; max-width: 640px; margin-bottom: 18px; }
+  .caption code { background: #eceae2; padding: 0 3px; border-radius: 3px; }
+  .bubble { position: relative; border: 2px solid #d98a2b; border-radius: 14px; background: #fcfcfb;
+    padding: 30px 10px 20px; display: inline-block; }
+  .lanes { display: flex; position: relative; height: 320px; }
+  .lane { width: 64px; flex: none; position: relative; }
+  .lane .lrail { position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1.5px solid #c3c2b7; }
+  .lane .sname { position: absolute; top: -6px; left: 50%; transform: rotate(90deg) translateX(6px);
+    transform-origin: left top; font-size: 10px; color: #898781; white-space: nowrap; }
+  .blink { position: absolute; border-top: 2px dashed #898781; border-right: 2px dashed #898781;
+    border-top-right-radius: 12px; opacity: .55; pointer-events: none; }
+  .bline { position: absolute; border-left: 2px dashed #898781; opacity: .55; pointer-events: none; }
+  .node { position: absolute; left: 50%; transform: translate(-50%, -50%); width: 15px; height: 15px;
+    border-radius: 50%; box-shadow: 0 0 0 2.5px #fcfcfb; }
+  .node.dim { opacity: .38; }
+  .n-user { background: #eb6834; }
+  .n-snap { background: #1baf7a; }
+  a.back { display: inline-block; margin-top: 16px; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Variant 1 — dim-in-place (reproduces mvp-app-mockup.html's lanes)</h1>
+<p class="caption">
+  Reproduces <code>plans/mvp-app-mockup.html</code>'s existing lanes design: <code>.lane</code>
+  (line 101), <code>.lrail</code>/<code>.sname</code> (102-104), <code>.blink</code>/<code>.bline</code>
+  dashed elbow+line (107-109), and <code>.node.dim</code> at opacity .38 (line 116). Dim-in-place +
+  the dashed elbow/line IS the rewind signal — no separate rewind node. The abandoned branch stays
+  in its own lane column, same as the source file.
+</p>
+<div class="bubble" id="bubble"></div>
+<p><a class="back" href="../index.html">&larr; back to variant comparison</a></p>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
