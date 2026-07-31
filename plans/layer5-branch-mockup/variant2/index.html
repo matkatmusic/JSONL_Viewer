@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L5 branch mockup — Variant 2: forked track</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font: 13px/1.5 system-ui, -apple-system, sans-serif; color: #0b0b0b; background: #f9f9f7; padding: 20px; }
+  h1 { font-size: 15px; margin-bottom: 6px; }
+  .caption { font-size: 12px; color: #52514e; max-width: 640px; margin-bottom: 18px; }
+  .caption code { background: #eceae2; padding: 0 3px; border-radius: 3px; }
+  .bubble { position: relative; border: 2px solid #d98a2b; border-radius: 14px; background: #fcfcfb;
+    padding: 30px 10px 20px; display: inline-block; }
+  .lanes { display: flex; position: relative; height: 320px; }
+  .lane { width: 64px; flex: none; position: relative; }
+  .fork-gutter { width: 40px; }
+  .sname { position: absolute; top: -6px; left: 50%; transform: rotate(90deg) translateX(6px);
+    transform-origin: left top; font-size: 10px; color: #898781; white-space: nowrap; }
+  .g-rail { position: absolute; left: 50%; width: 2px; transform: translateX(-1px); background: #c3c2b7; }
+  .g-l1 { top: 0; bottom: 0; }
+  .g-l2 { background: #4a3aa7; border-radius: 3px; }
+  .g-fork { position: absolute; left: 50%; width: 8px; height: 8px; transform: translate(-50%, -50%) rotate(45deg);
+    background: #4a3aa7; }
+  .node { position: absolute; left: 50%; transform: translate(-50%, -50%); width: 15px; height: 15px;
+    border-radius: 50%; box-shadow: 0 0 0 2.5px #fcfcfb; }
+  .n-user { background: #eb6834; }
+  .n-snap { background: #1baf7a; }
+  a.back { display: inline-block; margin-top: 16px; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Variant 2 — genuinely forked track</h1>
+<p class="caption">
+  The abandoned branch is a separate track (<code>.g-rail.g-l2</code>) that splits from the trunk
+  rail (<code>.g-rail.g-l1</code>) rather than staying in the trunk's lane column. Class naming and
+  the fork/rejoin concept borrowed (not code) from
+  <code>jfred/webapp/views/timeline-sessions.ts:60,79</code> (<code>computeGraphLaneRuns</code>,
+  <code>checkNodeIsAbandonedBranchTip</code>) and
+  <code>jfred/webapp/views/timeline-render-row-cells.ts:53-72</code>
+  (<code>.g-rail</code>/<code>.g-l1</code>/<code>.g-l2</code>, <code>.g-start</code>/<code>.g-fork</code>/<code>.g-end</code>).
+  This variant's own dimmed/orphaned track uses opacity <b>.45</b> — a deliberate third value, distinct
+  from variant 1's <code>.38</code> (<code>mvp-app-mockup.html:116</code>) and the old timeline view's
+  <code>.5</code> (<code>jfred/webapp/styles.css:396</code>), so a side-by-side comparison never
+  conflates the three. This branch never rejoins (abandoned), so <code>.g-end</code> is a cutoff,
+  not a merge.
+</p>
+<div class="bubble" id="bubble"></div>
+<p><a class="back" href="../index.html">&larr; back to variant comparison</a></p>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
