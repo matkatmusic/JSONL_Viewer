@@ -109,15 +109,45 @@ distinguish it from.
 Cumulative `layer >= N`, per the global rule settled in L4 — applies to every
 layer, so it needs no per-layer confirmation.
 
-## BLOCKED ON A VISUAL CHOICE
+## SETTLED BY USER MOCKUP (2026-07-31) — forked track, not dim-in-place
 
-**Branch rendering inside a per-file bubble.** The original idea was each
-bubble's timeline getting a forked path, but the choice has to be made by
-looking at it. Deliverable: **a static HTML mockup showing 2–3 different ways
-branches could render** in the current per-file bubble timeline — zero
-interactivity, purely to pick a direction. Lane scope (a lane per session vs a
-conversation-wide tree spanning forked subagents) rides on that choice and
-stays open until then.
+**Branch rendering inside a per-file bubble.** Decided by a mockup the user
+drew, which supersedes the three variants built for task #346.
+
+The abandoned branch gets **its own lane beside the trunk**. The trunk rail
+stays put and stays solid and continuous through the fork; it never shifts to
+make room. This rejects the dim-in-place treatment of
+`plans/mvp-app-mockup.html` "layer 8", which task #346 had designated the
+required baseline variant.
+
+Three required properties:
+
+- **Branch connector is a dimmed dashed line** — a different kind of line from
+  the trunk, not merely a different colour.
+- **Discarded nodes are alpha-dimmed**, while trunk nodes above and below the
+  fork stay at full strength.
+- **The split point is explicit**: a dashed elbow leaves the trunk at the fork
+  node, runs sideways, then turns down into the branch lane, giving the branch
+  one pointable origin.
+
+In the user's mockup the branch also spans a vertical range where the trunk has
+no nodes, and terminates without rejoining.
+
+### End vs rejoin follows the rewind kind, which the engine already knows
+
+- **Code rewind** — the branch dead-ends. No rejoin.
+- **Conversation-only rewind** (conversation rewound, code kept) — the branch
+  rejoins the trunk via a **mirrored elbow**, the reverse of the split elbow.
+
+Do not try to re-derive the rewind kind. The engine already distinguishes the
+two and has since the s10–s23 era; the scenario DSL marks it directly
+(`Rewind: N` is conversation-only, `Rewind: N, code` is a code rewind), and the
+cases exist as deliberate twin pairs: s12/s11, s14/s13, s17/s16, s19/s20,
+s22/s23, s59/s60. This is the rule in section "Reuse the engine" applied to
+branches.
+
+Lane scope — a lane per session vs a conversation-wide tree spanning forked
+subagents — is still open; the mockup shows a single abandoned lane only.
 
 ## RESOLVED (grilling, 2026-07-30)
 

@@ -148,16 +148,28 @@ Fixture content rules:
   clickable horizontal dashed connector.
 - **L5 — kept-vs-reverted is byte-content**, via the existing composition:
   `reconstructBranches` + `findWorkingTreeOwner` + the branch-agnostic steps
-  core. **No rewind node** — a rewind shows as dimmed nodes plus a dashed elbow
-  (`mvp-app-mockup.html` layer 8). A code rewind is not derivable from the
-  transcript anyway: s7 carries zero `edited_text_file` records and the only
-  trace is a shared `parentUuid`, identical to a conv-only rewind.
+  core. **No rewind node** — a rewind shows as dimmed nodes plus a dashed elbow.
+- **L5 rendering — forked track** (user mockup, 2026-07-31). The abandoned
+  branch moves into its own lane beside a trunk that stays solid and unmoved;
+  this rejects `mvp-app-mockup.html` layer 8's dim-in-place. Dimmed dashed
+  branch connector, alpha-dimmed discarded nodes, dashed elbow marking the
+  split. **A code rewind dead-ends; a conversation-only rewind rejoins via a
+  mirrored elbow.** The engine already tells the two apart — the scenario DSL
+  marks it (`Rewind: N` vs `Rewind: N, code`) and twin pairs s12/s11, s14/s13,
+  s17/s16, s19/s20, s22/s23, s59/s60 cover both. Do not re-derive it. See
+  L5-branches.md.
 - **L6 — execute once, viewport only.** Reuse the existing consent gate; reuse
   the sandbox memo disk file, plus a header button that clears it and forces
   every layer to recompute. Beaconless runs read the **live working tree**, but
   disk may only **confirm** — a match promotes to verified, a mismatch or
   missing file changes nothing. Wiring `is_error` into `executeRunOnce` is
   ~10-15 lines, no plumbing.
+- **L6 console — popup over the timeline** (user, 2026-07-31), picked from the
+  three placements mocked up for task #347; anchored panel and drawer rejected.
+  Live script output plus a cancel button, with distinct terminal states for
+  cancelled, completed-with-mismatch, and normal completion. The global load bar
+  still carries overall progress — do not design a second progress idiom. Mockup:
+  `plans/l6-console-mockup/`.
 - **L7 — every record type gets a node**, hidden by default when the engine
   classifies it ignorable (`[✓] hide ignored nodes`, on at load). Tool call and
   tool result are **separate** nodes joined by a dashed bracket. Any layer that
@@ -167,10 +179,6 @@ Fixture content rules:
 
 ## Still open
 
-- **L5 branch rendering** — the user wants 2–3 static, non-interactive HTML
-  mockups comparing ways to render branches in a bubble, with
-  `mvp-app-mockup.html` layer 8 as one option. Lane scope and whether a tie
-  group spans lanes both ride on that choice.
-- **L6 execution console** — 2–3 non-interactive mockups of the live output
-  console with its cancel button, probably a popup over the timeline. The
-  global load bar is settled; the console shape is not.
+- **L5 lane scope** — a lane per session vs a conversation-wide tree spanning
+  forked subagents, and whether a tie group spans lanes. The rendering choice
+  itself is settled above; the user mockup shows one abandoned lane only.

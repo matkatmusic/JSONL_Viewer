@@ -108,14 +108,22 @@ handling was settled in L3 (beacon source only, never a change source), and the
 one remaining piece — whether a bash node is visibly marked as never
 replay-provable — is tracked as **L4 open item A**. Nothing to decide in L6.
 
-## BLOCKED ON A VISUAL CHOICE
+## SETTLED (user, 2026-07-31) — popup over the timeline
 
-**Execution progress UI.** Settled: the **global load bar** is used. Also
-wanted: an **output console showing the script executing live, with a cancel
-button that kills the run** — possibly a popup layered over the timeline.
-Deliverable: **2–3 non-interactive mockups** of that console/popup before a
-design is picked. _(Joins the L5 branch-rendering mockup as the second visual
-decision outstanding.)_
+**Execution progress UI.** The **global load bar** carries overall progress, as
+already settled. The separate live-output console is a **popup layered over the
+timeline** — the user picked it from the three placements mocked up for task
+#347 (popup, anchored panel, drawer), so anchored-panel and drawer are rejected.
+
+The console shows the script's output as it streams plus a cancel button that
+kills the in-flight run, with distinct terminal states for cancelled,
+completed-with-mismatch, and normal completion. Panel chrome follows
+`plans/mvp-app-mockup.html:126-157`'s `.details`/`.dpane` styling. Mockup:
+`plans/l6-console-mockup/`.
+
+Do not design a second progress-bar idiom — the load bar
+(`webapp/layer1-progress.ts`, fed by the NDJSON `?progress=1` stream) is shipped
+and out of scope.
 
 ## RESOLVED (grilling, 2026-07-30) — only the console mockup remains
 
