@@ -790,3 +790,135 @@ territory."
 - Status: SPEC WRITTEN 2026-07-31, spec-only — no build task exists yet for
   L4 at time of writing; a follow-up edit links this item to an engine task
   once one is created.
+
+### S22. Layer 7 — remaining node types (task #340 L7)
+User-directed 2026-07-30; recon in
+`plans/340-recon/L7-remaining-node-types.md`, decisions in
+`plans/340-recon/DECISIONS.md`.
+
+**Data source.** L7 draws its record vocabulary from the CURRENT/classic
+reconstruction engine (`reconstruction_*.ts` — the engine that already feeds
+the row-based viewer), NOT the layered engine (`layered_*.ts`, which feeds
+`/api/layered-graph` → the layered-app page, a different page from
+`layer1.html`). `layer1.html` parses zero JSONL today, so L3–L7 are
+collectively the first JSONL semantics landing on that page — which engine's
+vocabulary to draw from was an open question before this decision, now
+settled.
+
+**Coverage rule.** Every parsed record type gets a node — every row in the
+conversation log is drawn on the timeline. Rows the engine classifies as
+ignorable are hidden by default via a header toggle labeled exactly
+`[✓] hide ignored nodes`, checked (ON) at page load. This REPLACES an earlier
+draft's "no-node-ever ruling for session/meta records" — no such ruling
+exists; those records get nodes, the toggle just hides them by default when
+the engine marks them ignorable.
+
+**Tool call / tool result rendering.** A `tool_use` record and its
+`tool_result` record render as two SEPARATE nodes (not one collapsed node,
+which is how the old app renders them), connected by a dashed bracket so the
+pairing is visually legible.
+
+**Presumption promotion — cross-cutting rule.** Whichever layer can resolve a
+presumed node — because no nodes occur between it and its surrounding
+beacons — promotes that node from presumed to verified. This applies to
+every layer (L1–L9), not an L7-exclusive behavior. This is new behavior:
+today nothing ever promotes or demotes a presumption node
+(`listGapsBeforeVerifiedNode` / `layered_end_state.ts:24-32` only ever
+inserts `presumedUserEdit` gap nodes and never resolves them).
+
+**Non-scope / boundaries.** Script execution results are entirely L6's; L7
+owns none of them. Write body, complete Read echo, and Edit's `originalFile`
+all collapse into L3's "extracted edit" scope (S20), NOT L7 — S22 does not
+re-model what S20 already owns.
+
+**Session annotation track.** User prompts, agent responses, and the ~54k
+non-file metadata rows get a NEW shared annotation track on the same ruler,
+rendered ONCE (not duplicated per touched file). This is genuinely new UI:
+every content-bearing widget in layer 1 today is file-scoped
+(`buildStagePairs`/`buildOrphanBucket`, `layer1-widgets.ts:71,89`); the only
+existing session-level element is a 7px colored bar with a tooltip
+(`renderSessionRanges`, `layer1-widgets.ts:83-92`) that is not a lane and
+carries no content. This track requires windowing/virtualization before it
+can render at all, given the volume (~54k rows; 42,790 of 192,303 records
+with no timestamp in the RevEng project alone; ~124k+ stampless records
+project-wide per the 2,228-file scan). Do not spec a naive full-DOM render
+for this track.
+
+**Rewind rendering.** Settled: NO rewind node, and NO code-vs-conversation
+inference. A rewind renders as dimmed nodes plus a dashed elbow in the
+bubble, per `plans/mvp-app-mockup.html` layer 8 — the same visual the
+(not-yet-written) L5 branch-rendering spec item will reuse once built. A
+code rewind is NOT derivable from the transcript. Verification evidence
+against the real `s7-minimal-code-restore` JSONL: `AttachmentPayloadType`
+(`vocabulary.ts:55-71`) has no restore/checkpoint/rewind member; s7 contains
+zero `edited_text_file` attachments across 45 attachments; file-history-
+snapshot versions simply increment across the rewind with no reset or
+restored-to marker; the only trace is that the post-rewind prompt shares its
+`parentUuid` with the pre-rewind prompt — structurally identical to an
+ordinary conversation-only rewind (the same fork signature
+`findRewindPoint`, `reconstruction_branch.ts:85-86`, already uses). S22 must
+NOT claim a synthetic `edited_text_file` surfaces a restore — that is a
+refuted claim from earlier plan prose, and a future reader must not
+reintroduce it.
+
+**Unknown record types + stampless-timestamp rule.** Settled: an
+unrecognized record type renders as a `[?]` catch-all node — this is a
+permanent fallback design, not a placeholder for a closed enum. A record
+with no timestamp takes the PREVIOUS stamped record's timestamp
+(equal-to-previous; explicitly NOT an average, NOT +1ms), matching the
+task-224 precedent's reasoning about not inventing an instant no evidence
+supports (`implementation-notes-tasks-223-224-...:107-111`). Three
+currently-conflicting code behaviors must converge on this one rule: drop
+(`viewer_api_layer1_sessions.ts:25-27`), sort-first
+(`views/timeline-line-nodes.ts` defaults `when` to `""`, which string-sorts
+above every real timestamp; `views/reconstruction-coverage.ts:84-86` keys a
+stampless gap to `0`), sort-last (`viewer_api_records.ts:83-86`). Real
+volume: ~22% of records in the RevEng project (42,790 of 192,303) carry no
+timestamp, almost entirely session metadata (last-prompt, permission-mode,
+custom-title, agent-name, bridge-session, mode, file-history-snapshot,
+ai-title, fork-context-ref); every content-bearing type (user/assistant/
+attachment) carried a timestamp in every sample, so this rule governs
+metadata volume only, not the nodes users actually look at. `worktree-state`
+(124 hits) and `relocated` (87 hits) are REAL record types already present in
+real logs and ABSENT from the `RecordType` enum — the `[?]` catch-all is not
+hypothetical; there are already 211 unknown-type records in the real corpus
+today.
+
+**Reference vocabulary.** Grounding the `[?]` fallback and the "every record
+type gets a node" rule: the full `RecordType` vocabulary at
+`vocabulary.ts:4-21` plus `parse/recordKeys.ts` — user, assistant, system,
+attachment (14 `AttachmentPayloadType` kinds including `edited_text_file`,
+`hook_success`, `diagnostics`, ...), `fileHistorySnapshot`,
+`fileHistoryDelta`, `lastPrompt`, `mode`, `permissionMode`, `bridgeSession`,
+`aiTitle`, `customTitle`, `agentName`, `queueOperation`, `forkContextRef`;
+and the sub-vocabularies `BlockType`, `ToolName`, `EventKind`, `Verdict`,
+`GitOperationKind`, `BranchRole`. Old-app comparison baseline for what a
+"node" can look like: the `TimelineNode` union
+(`views/timeline-types.ts:216`) — user-turn, agent-turn, session-end,
+commit, tool-call, jsonl-line.
+
+**Fixture discipline.** `viewer_api_layer7_fixture_data.ts`, per the
+one-file-per-layer convention. Must include at minimum: (a) one record of an
+unknown type (modeled on `worktree-state` or `relocated`) that renders as
+`[?]`, and (b) one stampless record whose rendered position equals the
+previous stamped record's timestamp, to exercise the approximation rule.
+
+- Verify: every parsed record type in the fixture produces a node;
+  `[✓] hide ignored nodes` is checked at page load and hides rows the engine
+  marks ignorable, unchecking it reveals them; a `tool_use`/`tool_result`
+  pair renders as two nodes joined by a dashed bracket; a presumed node with
+  no nodes between it and its surrounding beacons auto-promotes to verified;
+  a rewind fixture scenario renders as dimmed nodes plus a dashed elbow, with
+  no separate rewind node anywhere in the DOM; the session annotation track
+  renders prompts/responses without duplicating them onto any file bubble,
+  and the render mechanism is demonstrably windowed — assert only
+  viewport-scoped DOM nodes exist, not a literal 54k-row count in the
+  fixture; an unknown-type fixture record renders as `[?]`; a stampless
+  fixture record's screen position matches the previous stamped record's,
+  not an averaged or offset instant.
+- Tasks: #359 (engine build-out); no dedicated L7 mockup slice exists yet —
+  L7 remains part of the shared #340 mockup task until one is split out, as
+  S20's #343 was for L3.
+- Status: SPEC WRITTEN 2026-07-31, spec-only — #359 gates on this spec item
+  per its own description; a follow-up edit links this item to a dedicated
+  mockup task once one is created.
