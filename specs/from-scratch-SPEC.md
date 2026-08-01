@@ -788,10 +788,14 @@ territory."
   types (`WireScriptRunOf`, `scriptRuns?` on `WirePairOf`,
   `listPairLadderInstants` entry, `buildLayer1View` threading); the
   speculative-affected-files helper inverting `runForTarget`; the show-row
-  checkbox for this node kind. No task number assigned yet.
-- Status: SPEC WRITTEN 2026-07-31, spec-only — no build task exists yet for
-  L4 at time of writing; a follow-up edit links this item to an engine task
-  once one is created.
+  checkbox for this node kind. Built by #356.
+- Tasks: #356 (engine build-out, done 2026-07-31 — steps 1-4 of 5)
+- Status: PARTIALLY BUILT 2026-07-31 by #356: `affectedPathsForRun`,
+  `WireScriptRunOf` + ladder ordering, the `bracketRunInstant` /
+  `pathsForScriptRun` / `buildScriptRunDiffPanes` drawer-multi helpers and
+  the `.n-script`/`.script-connector` drawer routing all landed. NOT built:
+  the Layer 4 fixture data (`viewer_api_layer4_fixture_data.ts` plus the
+  `contentLines` scriptRun branch), which needs its own task and file grant.
 
 ### S22. Layer 7 — remaining node types (task #340 L7)
 User-directed 2026-07-30; recon in
