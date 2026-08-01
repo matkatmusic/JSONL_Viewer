@@ -181,9 +181,22 @@
   {
     "taskNumber": 343,
     "title": "Mockup: Layer 3 extracted Edit/Write nodes, fixture-mode on the real layer1 page",
-    "description": "Spec item S20 in specs/from-scratch-SPEC.md is the source of truth for WHAT to build (rewritten 2026-07-30 after the grilling round; recon plans/340-recon/L3-extracted-changes.md, decisions plans/340-recon/DECISIONS.md). Do not restate S20 here — read it.\n\nThis task defines only the SCOPE BOUNDARY: jfred/src fixture files + the webapp page + a new visual-checks file ONLY. No engine JSONL parsing yet — the mockup cans the endpoint payload against a canned route. The new visual-checks file is wired into the fixture-mode runner and covers S20's verify list.\n\nEnds at: user tweaks until sign-off. Engine build-out tasks are created only after approval. Part of task 340's L3 slice.",
-    "blockedBy": [
-      340
+    "description": "Spec item S20 in specs/from-scratch-SPEC.md is the source of truth for WHAT to build (rewritten 2026-07-30 after the grilling round; recon plans/340-recon/L3-extracted-changes.md, decisions plans/340-recon/DECISIONS.md). Do not restate S20 here — read it.\n\nThis task defines only the SCOPE BOUNDARY: jfred/src fixture files + the webapp page + a new visual-checks file ONLY. No engine JSONL parsing yet — the mockup cans the endpoint payload against a canned route. The new visual-checks file is wired into the fixture-mode runner and covers S20's verify list.\n\nEnds at: user tweaks until sign-off. Engine build-out tasks are created only after approval. Part of task 340's L3 slice.\n\nScope widened 2026-08-01 (user-decided): S20 gates .n-edit visibility on the show-row checkbox and its verify list requires turning the kind on BY BUTTON AND BY CHECKBOX, so this task also builds the node-kind show row, the fetch-on-first-visible trigger and the progress-strip firing from that row, and retires the data-layer CSS gate per DECISIONS.md. That overlaps #352 and #360 — schedule all three in one group.\n\nThe two files below do not exist yet and must be created: viewer_api_layer3_fixture_data.ts and scripts/visual/layer3-checks.ts.",
+    "files": [
+      "jfred/src/viewer_api_layer3_fixture_data.ts",
+      "jfred/scripts/visual/layer3-checks.ts",
+      "jfred/src/viewer_api_layer1_fixture.ts",
+      "jfred/src/viewer_api_layer1_fixture_view.ts",
+      "jfred/src/viewer_api_layer1_fixture_content.ts",
+      "jfred/webapp/layer1-wire.ts",
+      "jfred/webapp/layer1-widgets.ts",
+      "jfred/webapp/layer1-drawer.ts",
+      "jfred/webapp/layer1-styles.css",
+      "jfred/scripts/visual/mockup.ts",
+      "jfred/webapp/layer1.html",
+      "jfred/webapp/layer1-page.ts",
+      "jfred/webapp/layer1-layer-toggle.ts",
+      "jfred/webapp/layer1-progress.ts"
     ]
   },
   {
