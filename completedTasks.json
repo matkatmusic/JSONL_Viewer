@@ -3630,5 +3630,307 @@
       "b573952"
     ],
     "closureNote": "Native text selection suppressed on bubble title and sub labels during the shift-click diff-range gesture. Cherry-picked as 9bb70ac, byte-identical to the original ddd0f75."
+  },
+  {
+    "taskNumber": 7,
+    "title": "jot repo: `terminal_windowSizeBlocks(s)` enum refactor",
+    "goal": [
+      "- `grep -rn \"windowSizeBlocks\" /Users/matkatmusicllc/Programming/jot` shows the primitive/string usages replaced by a named enum (current sweep of that repo finds zero matches for the string already, so the first step is confirming whether the symbol was renamed or the task is moot)."
+    ],
+    "notInScope": [
+      "- No files in this repo (RevEng) are touched; the work is entirely inside the separate `/Users/matkatmusicllc/Programming/jot` repo."
+    ],
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. 7. jot repo: `terminal_windowSizeBlocks(s)` enum refactor** — DEFERRED UNTIL ALL other tasks are done.`/Users/matkatmusicllc/Programming/jot`\n  (separate repo); `grep -rn \"windowSizeBlocks\"`. Not a RevEng change.",
+    "modifiableFiles": [],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": false,
+    "tests": "",
+    "difficulty": 3,
+    "completionDate": "2026-09-08",
+    "commitHashes": [],
+    "closureNote": "Closed as moot: `windowSizeBlocks` no longer exists anywhere in the jot repo; nothing to rename."
+  },
+  {
+    "taskNumber": 209,
+    "title": "Layer switcher with tooltips; 5+ disabled until unlocked",
+    "goal": [
+      "- jfred/webapp/layer1.html's `.layerbar` shows exactly the assigned layers (currently 1 and 2 per spec S9) and no placeholder buttons for unassigned layers.",
+      "- Every rendered button carries a tooltip naming what that layer adds (button 2 already has one; button 1 currently has none).",
+      "- Clicking a layer button re-renders the timeline at that layer's detail (already wired via `data-layer` on `.viz-root` in jfred/webapp/layer1-layer-toggle.ts).",
+      "- jfred/tests/layer1-layer-toggle.test.ts DOM-asserts the button set and each button's tooltip text per spec S9."
+    ],
+    "notInScope": [
+      "- The mockup this ports from is already done under tasks #299/#304; this task only ports it into the real page."
+    ],
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. NOTE — THE LAYER MEANINGS BELOW ARE STALE: per the user's 2026-07-25 renumbering the selectable three are 1 = Current File State vs Git State, 2 = adds JSONL-derived start points, 3 = adds file-history snapshots. Re-derive the full 1..12 tooltip list from spec S18 before implementing. S9. Layer: [1]..[12] control above the timeline; 1-3 selectable and re-render at that layer's detail; buttons for layers 5 and up disabled until the functionality each enables becomes unlocked for this engine mode; every button gets a tooltip naming what that layer adds (1 start/end, 2 commits, 3 snapshots, 5 derived edits, 7 script runs, 8/9 branches, 10 verified replay, 12 decoration). DOM tests per S9. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "modifiableFiles": [
+      "jfred/webapp/layer1.html",
+      "jfred/webapp/layer1-layer-toggle.ts",
+      "jfred/tests/layer1-layer-toggle.test.ts"
+    ],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": false,
+    "tests": "",
+    "difficulty": 3,
+    "completionDate": "2026-09-08",
+    "commitHashes": [],
+    "closureNote": "Closed as superseded by #352 and DECISIONS.md: three of four goals already ship; #352 removes the files this task would touch."
+  },
+  {
+    "taskNumber": 210,
+    "title": "Condense toggle: single column with classification + truncated message rows",
+    "goal": [
+      "- A Condense button on the layer1 page toggles per-session lanes into one all-nodes column per file, and back.",
+      "- Each condensed row shows the node's classification plus a truncated version of its original message, reusing the existing webapp timeline's row rendering rather than reimplementing it.",
+      "- A DOM test covers the toggle in both directions."
+    ],
+    "notInScope": [
+      "- Nothing handed off; no sibling task shares this scope."
+    ],
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. S10. Condense button squashes per-session lanes into a single all-nodes column per file and back; condensed rows look like the current webapp timeline: classification + truncated original message (reuse its row rendering). DOM test per S10. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "modifiableFiles": [],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": false,
+    "tests": "",
+    "difficulty": 7,
+    "completionDate": "2026-09-08",
+    "commitHashes": [],
+    "closureNote": "Closed as superseded by spec S25: per-session lanes no longer exist in the plan, so there is nothing to condense."
+  },
+  {
+    "taskNumber": 211,
+    "title": "Kept/ignored dimming + branch end-vs-rejoin rendering",
+    "goal": [
+      "- Ignored nodes render dimmed in the layer1 timeline, reusing the engine's existing kept/ignored row classification rather than a new one.",
+      "- A branch whose content did not carry forward visually ends; one whose content carried forward visually rejoins.",
+      "- A selection rectangle's visible bounds match exactly what its patch contains.",
+      "- A DOM test with a rewind fixture covers dimming classes and the end-vs-rejoin rendering."
+    ],
+    "notInScope": [
+      "- Nothing handed off; no sibling task shares this scope."
+    ],
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. S11. Reuse the engine's kept/ignored row classification: ignored nodes dimmed; a branch whose content did not carry forward visually ends, one whose content carried forward visually rejoins — a selection rectangle contains exactly what its patch contains. DOM test with a rewind fixture. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "modifiableFiles": [],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": false,
+    "tests": "",
+    "difficulty": 8,
+    "completionDate": "2026-09-08",
+    "commitHashes": [],
+    "closureNote": "Closed as superseded by #379 (visual) and #357 (engine); implementing this as written would build the dim-in-place design DECISIONS.md rejected."
+  },
+  {
+    "taskNumber": 215,
+    "title": "Script-run node click shows per-file before/after diffs + script body",
+    "goal": [
+      "- Clicking a script-run node opens the shared drawer showing the script body plus one before/after DiffView per affected file — this already works today via jfred/webapp/layer1-drawer.ts's `openScriptRunDrawer` and jfred/webapp/layer1-drawer-multi.ts's `buildScriptRunDiffPanes`.",
+      "- The rendered layout matches the user-approved plans/script-run-detail-mockup.html.",
+      "- jfred/tests/layer1-drawer.test.ts already exercises a script-run fixture (search 'task 356') and asserts the drawer opens with the resolved body and diff panes; confirm this coverage is complete against spec S15 rather than writing it from scratch."
+    ],
+    "notInScope": [
+      "- The node-click Details pane / raw-JSON-button infrastructure this drawer reuses is task 213's scope."
+    ],
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. S15. Clicking a script-run node shows the before/after state of each affected file as a diff in the detail pane (same diff mechanism as segment selection) alongside the script body, laid out per the approved task-214 mockup. DOM test with a fixture containing a script-run node. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "modifiableFiles": [],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": false,
+    "tests": "",
+    "difficulty": 2,
+    "blockedBy": [
+      {
+        "taskNumber": 213,
+        "reason": "the script-run drawer reuses task 213's Details-pane/DiffView plumbing, so it waits on that task's raw-JSON-button addition landing first."
+      }
+    ],
+    "completionDate": "2026-09-08",
+    "commitHashes": [],
+    "closureNote": "Closed: task #356 shipped openScriptRunDrawer/buildScriptRunDiffPanes and the three task-356 tests; the task goal admits it already works."
+  },
+  {
+    "taskNumber": 216,
+    "title": "Ruler arming + cut marks with per-file at-or-before snap",
+    "goal": [
+      "- DOM test: clicking 'Create segments for patch extraction' arms the ruler and enables adding cut marks",
+      "- DOM test: attempting a mark on an unverified or mid-residual node is refused (no mark drawn)",
+      "- DOM test: a mark placed at an instant between two files' beacons snaps each file independently to its own nearest at-or-before verified state, never pulling a future state backward"
+    ],
+    "notInScope": [
+      "- Partitioning the ruler into selectable segments P1..Pn once marks exist — task #217 owns that",
+      "- Computing or emitting the per-segment git-diff patch — task #218 owns that",
+      "- Displaying a selected segment's patch in the Changes view — task #219 owns that"
+    ],
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. S16. 'Create segments for patch extraction' arms the global left ruler; cut marks (triangles) are one global instant snapping PER FILE, AT-OR-BEFORE, to that file's nearest verified state (Q17a/b: never pull future content backward; unverified or mid-residual cut states refused). DOM test: arming enables marks; unverified-node mark refused; a mark between two files' beacons snaps to each file's own at-or-before verified state. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "modifiableFiles": [],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": false,
+    "tests": "",
+    "difficulty": 6,
+    "completionDate": "2026-09-08",
+    "commitHashes": [],
+    "closureNote": "Closed as superseded by spec S24; ruler arming and cut marks are now owned by #383 (mockup) and #361 (engine)."
+  },
+  {
+    "taskNumber": 217,
+    "title": "Segment partition P1..Pn spanning every file's lanes",
+    "goal": [
+      "- DOM test: placing n cut marks yields n+1 contiguous segments spanning the full ruler length, with no gaps and no overlap",
+      "- DOM test: each segment visually spans every file's lane, not just the lane where a mark was placed",
+      "- DOM test: a segment is selectable (click/tap selects it, visibly distinct from unselected segments)"
+    ],
+    "notInScope": [
+      "- Arming the ruler and creating/snapping cut marks themselves — task #216 owns that",
+      "- Computing or emitting the per-segment git-diff patch for a selected segment — task #218 owns that",
+      "- Displaying a selected segment's patch in the Changes view — task #219 owns that"
+    ],
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. S16. The entire ruler length partitions into segments P1..Pn spanning all files' lanes; segments are selectable. DOM test: n marks yield n+1 contiguous segments covering the full ruler. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "modifiableFiles": [],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": false,
+    "tests": "",
+    "difficulty": 5,
+    "blockedBy": [
+      {
+        "taskNumber": 216,
+        "reason": "Segments are derived from the cut marks that task #216 creates and snaps; there is nothing to partition until marks exist."
+      }
+    ],
+    "completionDate": "2026-09-08",
+    "commitHashes": [],
+    "closureNote": "Closed as superseded by spec S24 growing-prefix model; owned by #383/#361."
+  },
+  {
+    "taskNumber": 218,
+    "title": "Engine: segment patch = per-file diff of snapped states, emitted as git-diff",
+    "goal": [
+      "- Unit test: on a fixture, segment 1's git-diff applies via `git apply` from the anchor and reproduces segment 1's end state",
+      "- Unit test: each subsequent segment's git-diff applies in sequence on top of the prior segment's result and reproduces that segment's end state, ending at the final on-disk state",
+      "- Unit test: a file born after segment 1's cut is absent from segment 1's patch and first appears as a file creation in the patch of the segment containing its birth",
+      "- Unit test: the per-file patches for one segment concatenate into a single valid git-diff"
+    ],
+    "notInScope": [
+      "- Arming the ruler and creating/snapping cut marks — task #216 owns that",
+      "- Partitioning the ruler into selectable segments P1..Pn — task #217 owns that",
+      "- Displaying a selected segment's patch in the reused Changes view — task #219 owns that"
+    ],
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. S17. patch = diff(endStateOfPreviousSelection, rightmostStateInThisSelection) per file, each state the at-or-before snapped verified state at the segment's cut; first segment's base = anchor; a file born after the cut is absent and first appears as a creation in the segment containing its birth; concatenate into one git-diff. Unit test: each segment's git-diff applies in sequence via git apply to reproduce the final state, including the born-after-cut-1 file case. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "modifiableFiles": [],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": false,
+    "tests": "",
+    "difficulty": 7,
+    "completionDate": "2026-09-08",
+    "commitHashes": [],
+    "closureNote": "Closed as superseded by spec S24; segment patch export is owned by #361."
+  },
+  {
+    "taskNumber": 219,
+    "title": "Webapp: segment selection shows its patch in the reused Changes view",
+    "goal": [
+      "- Selecting a segment on the ruler renders its task-218 patch in the reused Changes view (Fork-style file tree + diff) in the bottom-right pane.",
+      "- The Changes pane is visible only while a segment is selected, and hides again once selection clears.",
+      "- A DOM test (per spec S17) confirms segment selection populates the Changes pane with the segment's patch."
+    ],
+    "notInScope": [
+      "- Computing the per-file segment patch itself (diff of snapped states, emitted as git-diff) is task #218's responsibility, not this task's.",
+      "- Defining the ruler, cut marks, and segment partition P1..Pn is task #216/#217's responsibility.",
+      "- Nothing about the Layer 1 View milestone (S18, tasks #230-#239); this task is explicitly deferred until that milestone closes."
+    ],
+    "description": "DEFER UNTIL AFTER THE LAYER 1 VIEW MILESTONE (spec S18, tasks #230-#239) IS COMPLETE. S17. Selecting a segment computes its task-218 patch and shows it in the reused webapp Changes view (Fork-style tree + diff) in the bottom-right pane, visible only while a segment is selected. DOM test per S17. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "modifiableFiles": [],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": false,
+    "tests": "",
+    "difficulty": 5,
+    "blockedBy": [
+      {
+        "taskNumber": 217,
+        "reason": "Segment selection needs the ruler's segment partition (P1..Pn) that #217 produces before a selection can exist to wire up."
+      },
+      {
+        "taskNumber": 218,
+        "reason": "This task only renders the patch; #218 is what computes the per-file segment patch that gets displayed."
+      }
+    ],
+    "completionDate": "2026-09-08",
+    "commitHashes": [],
+    "closureNote": "Closed as superseded by spec S24; segment selection view is owned by #383/#361."
+  },
+  {
+    "taskNumber": 293,
+    "title": "Eliminate overly verbose comments throughout codebase",
+    "goal": [
+      "- A repo-wide scan shows no remaining comment longer than one sentence (under 30 words)",
+      "- The full test suite still passes with no behavior changes, since only comments were touched",
+      "- Spot-checking a sample of edited files shows remaining comments are accurate and not stale"
+    ],
+    "notInScope": [
+      "- Nothing handed off; no sibling task shares this scope"
+    ],
+    "description": "The codebase has many comments that are verbose, redundant, or outdated, causing contextual bloat for agents working on the code.  This task is to eliminate all comments and docstrings that are not necessary for understanding the code, and to ensure that all remaining comments are concise, accurate, and relevant.  The goal is to reduce cognitive load and improve readability for future developers. existing comments should be replaced with single-sentence summaries of the code's purpose.  The summary sentence should be less than 30 words long.",
+    "modifiableFiles": [],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": false,
+    "tests": "",
+    "difficulty": 10,
+    "completionDate": "2026-09-08",
+    "commitHashes": [],
+    "closureNote": "Closed: the hook-driven comment sweep (jfred commit 9d61809) is in place; the remaining sweep is left to the hook."
+  },
+  {
+    "taskNumber": 338,
+    "title": "Investigate /btw-forked transcript: engine handling of post-fork file changes",
+    "goal": [
+      "- plans/task-338-findings.md exists and states a verdict for each of: (Q1) does the engine parse type:\"system\"/local_command records, (Q2) does the /btw fork produce a branch/rewind the lineage code must detect, (Q3) are post-fork file changes attributed correctly",
+      "- The findings show a real parseTranscriptLine() run against the actual transcript lines around record 1425-1428, not just code inspection",
+      "- Any genuine engine gap found is logged as its own tracked task in tasks.json rather than silently left undocumented",
+      "- No files under jfred/ are modified, matching this task's modifiableFiles: [] / readOnlyFiles: [\"*\"]"
+    ],
+    "notInScope": [
+      "- Implementing the discover-and-load-subagent-transcripts fix for the confirmed gap — owned by task 375",
+      "- Rendering forked-lane branches in the Layer 5 UI — owned by task 379",
+      "- Cross-session branch stitching for forked subagents — owned by task 380"
+    ],
+    "description": "Investigate the tasks-[328,329,330,331] transcript (base RevEng project path): ~/.claude/projects/-Users-matkatmusicllc-Desktop-claude-code-src-RevEng/f7d5bed5-6831-4332-912e-e19fe5396350.jsonl. That conversation was forked from a /btw event (the /btw record is a type:\"system\", subtype:\"local_command\" line at ~record 1425) and file changes occurred after the conversation fork. The user does not think the engine knows how to process these kinds of JSONL lines yet — verify whether the engine handles the fork + post-fork file changes correctly, and fix or log the gap.",
+    "modifiableFiles": [],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": false,
+    "tests": "",
+    "difficulty": 3,
+    "completionDate": "2026-09-08",
+    "commitHashes": [],
+    "closureNote": "Closed: plans/task-338-findings.md answers the investigation; the gap it found is tracked as open task #375."
   }
 ]
