@@ -177,8 +177,20 @@ Fixture content rules:
   surrounding beacons — promotes it to verified.
 - **L9 — commit mode.** See its own doc; all eleven ambiguities are settled.
 
+### L5 lane scope — RESOLVED (2026-08-01)
+
+Lane scope = **conversation-wide tree** spanning forked subagent sessions, NOT
+one lane per session. Tie groups MAY span lanes. Consequence: this requires
+cross-session branch stitching, which the engine does not do today and which
+needs its own engineering task (prerequisite: task #375). Now specced in S25.
+
+### Visual-first ordering for all remaining layers (2026-08-01)
+
+The first deliverable for every remaining layer is a visual-only,
+non-functional mockup — it does not need to work, only to show the intended
+look. Real functionality is specified and decided after the visual is signed
+off.
+
 ## Still open
 
-- **L5 lane scope** — a lane per session vs a conversation-wide tree spanning
-  forked subagents, and whether a tie group spans lanes. The rendering choice
-  itself is settled above; the user mockup shows one abandoned lane only.
+Nothing remains open as of 2026-08-01.

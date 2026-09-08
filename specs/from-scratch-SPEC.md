@@ -45,13 +45,14 @@ above describes. Everything else is deferred behind this milestone.
   SHIPPED; **Layer 2 = adds file-history snapshots**, specified in **S19**, whose
   mockup was signed off 2026-07-27 (engine and page work not yet specified).
   **Layers 3–9 ASSIGNED by task #340 (user-ordered 2026-07-30):** L3 =
-  extracted Edit/Write nodes (S20), L4 = script runs located, L5 = branches
-  in bubbles, L6 = script execution results (consent + execute-once cache),
-  L7 = remaining node types, L8 = node-type filtering, L9 = ruler range →
-  git patch export / commit onto a created 'jfred' branch. Spec items are
-  written one layer at a time as each is grilled (recon in
-  `plans/340-recon/`, decisions in `plans/340-recon/DECISIONS.md`); L6 and
-  L9 are design-discussion-pending on the user's Excalidraw mockups. A JSONL
+  extracted Edit/Write nodes (S20), L4 = script runs located (S21), L5 =
+  branches in bubbles (S25), L6 = script execution results (consent +
+  execute-once cache) (S26), L7 = remaining node types (S22), L8 =
+  node-type filtering (S23), L9 = ruler range → git patch export / commit
+  onto a created 'jfred' branch (S24). Spec items are written one layer at
+  a time as each is grilled (recon in `plans/340-recon/`, decisions in
+  `plans/340-recon/DECISIONS.md`); as of 2026-08-01, every layer from L3
+  through L9 has a written spec item. A JSONL
   layer was briefly numbered separately and then DROPPED, not
   deferred: the Layer 1 mockup already carried the whole JSONL surface, and a
   layer that adds nothing is not a layer.
@@ -1183,3 +1184,339 @@ surface of its kind.
 - Tasks: #361 (engine build-out, gated on this spec item)
 - Status: SPEC WRITTEN 2026-07-31, spec-only — no build task has started;
   #361 gates on this item being signed off.
+
+### S25. Layer 5 — branches in bubbles (task #340 L5)
+User-directed 2026-07-30; recon in `plans/340-recon/L5-branches.md`, decisions
+in `plans/340-recon/DECISIONS.md`. Folds in the 2026-07-31 user mockup that
+picked the forked-track rendering over `plans/mvp-app-mockup.html`'s
+dim-in-place treatment (superseding the three variants task #346 built), and
+the 2026-08-01 decision that closes DECISIONS.md's last open L5 question
+(lane scope). Per `plans/coding-requirements.md` §7, added by this recon
+round: the webapp consumes branch data, it never re-derives branch
+membership, rewind points, or file state.
+
+**First deliverable is a visual-only mockup — it does not have to work.**
+Fixture-mode on the real layer1 page, following S20's #343 shape: canned
+branch data drives the rendering below so the look can be signed off; no
+`reconstructBranches` wiring, no real replay, and no cross-session stitching
+are required to satisfy this deliverable. A single fixture session can fake a
+second lane to exercise the visual without solving stitching for real.
+Everything under "Deferred until after visual sign-off" below is explicitly
+out of scope until that sign-off happens.
+
+**Branch discovery — reused as-is, nothing new to derive.**
+`ConversationBranch = {tip, rewindPoint, isSurviving}`
+(`reconstruction_branch.ts:27-31`) is parse-only, built in three passes:
+surviving head (`findSurvivingHead` → `findWorkingTreeOwner` content-signature
+tiebreak), rewound tips (`collectAbandonedHeads` + `findRewindPoint`,
+`reconstruction_trunk.ts:132,:71`), and structural forks
+(`findStructuralRewoundBranches`, `reconstruction_fork.ts:17`). Branch
+discovery already runs `absorbParallelToolCallSiblings`
+(`reconstruction_trunk_absorb.ts:153-160`) so ordinary parallel tool-call
+siblings never render as a fake abandoned branch — L5 must not reimplement
+this walk; it consumes the branches the engine already returns.
+
+**Kept-vs-reverted is byte content, via an existing composition.**
+`reconstructBranches(records, reader)` (`reconstruction_engine.ts:172-190`)
+returns surviving `FileHistory[]` plus per-rewound-branch
+`RewoundBranchHistory {rewindPoint, tip, histories}`, filtered to the
+diverging changeIds. `findWorkingTreeOwner` (`reconstruction_worktree.ts`)
+decides which content owns the surviving tree by comparing rewind-moment
+snapshot content signatures. The branch-agnostic steps core
+(`reconstruction_steps.ts:1`) already models "disk keeps abandoned-branch
+writes after a conversation-only rewind." L5's kept-vs-reverted is a thin
+composition of the three — comparing a rewound branch's reconstructed final
+bytes against the surviving state at/after the rewind — not new comparison
+logic.
+
+**Per-node branch membership is a new field, not `Verdict`.** `Verdict`
+(`vocabulary.ts:110-120`) classifies raw JSONL lines before extraction and is
+dropped before `FileEvent`s exist, so there is no cheap inheritance path from
+it to timeline nodes. The old app's `isOrphaned` (branch membership,
+`reconstruction_json.ts:35,59`, `reconstruction_tool_calls.ts`) is the
+closest existing precedent for the flag shape, though it lives in the classic
+pipeline and must be re-derived for layer 1's node wire types, not imported
+directly.
+
+**Rendering — forked track, per the 2026-07-31 user mockup.** The abandoned
+branch gets its own lane beside the trunk. The trunk rail stays solid and
+continuous through the fork and never shifts to make room — this rejects the
+dim-in-place treatment of `mvp-app-mockup.html` "layer 8," which task #346
+had previously designated the required baseline variant. Three required
+properties: the branch connector is a **dimmed dashed line**, a different
+kind of line from the trunk, not merely a different colour; **discarded
+nodes are alpha-dimmed** while trunk nodes above and below the fork stay at
+full strength; and **the split point is explicit** — a dashed elbow leaves
+the trunk at the fork node, runs sideways, then turns down into the branch
+lane, giving the branch one pointable origin. There is **no dedicated rewind
+node kind** — a rewind is dimmed nodes plus the dashed elbow, nothing else.
+
+**End vs rejoin follows the rewind kind the engine already knows.** A **code
+rewind** dead-ends — no rejoin. A **conversation-only rewind** (conversation
+rewound, code kept) rejoins the trunk via a **mirrored elbow**, the reverse
+of the split elbow. L5 does not re-derive which kind a rewind is: the engine
+has distinguished them since the s10–s23 era, the scenario DSL marks it
+directly (`Rewind: N` is conversation-only, `Rewind: N, code` is a code
+rewind), and the twin-pair scenarios (s12/s11, s14/s13, s17/s16, s19/s20,
+s22/s23, s59/s60) cover both outcomes.
+
+**One ruler for the whole project.** Forked lanes share the trunk's ruler
+ticks — no local sub-axis, no second ruler. Every message carries a
+timestamp, including a rewind point (a conversation record with a timestamp
+like any other), and that timestamp is what places it. The ruler's always-on
+gap clamp (`measureGapPixels`, `layer1-ruler-axis.ts:37-42`, 16–120px) stays
+silent for a rewind exactly as it does for every other gap — resolved during
+grilling: a rewind-only break marker would be arbitrary since the clamp
+applies globally, and marking every clamped gap would be a separate,
+constantly-firing ruler change out of scope here.
+
+**Bubbles widen to fit their lanes.** More than two lanes in a bubble is
+fine; widen the bubble so lanes never overlap, rather than stacking or
+hiding them.
+
+**Lane scope = conversation-wide tree, spanning forked subagent sessions
+(settled 2026-08-01) — this closes DECISIONS.md's last open L5 question.**
+One branch tree spans the **whole conversation**, including forked subagent
+sessions, not one lane per session. This supersedes the earlier 2026-07-30
+framing of "a session-scoped second fetch" (`plans/340-recon/L5-branches.md`
+SETTLED section): the on-demand fetch that runs when a layer-3-or-higher
+button/checkbox is first clicked must gather the parent session's records
+**plus** every forked subagent transcript belonging to the same conversation,
+not only the single session whose bubble page is open, before
+`reconstructBranches` runs.
+
+**Consequence: cross-session branch stitching is new engine scope, not yet
+built.** `reconstructBranches` takes one `records: TranscriptRecord[]` array
+from one loaded transcript. A conversation-wide tree requires grafting a
+forked subagent's branch onto the parent tree at its fork point
+(`forkContextRef.parentSessionId` / `.parentLastUuid`,
+`vocabulary.ts:19`) before branch discovery runs over the combined set — the
+engine does not do this today. This is related to but distinct from task
+#375 ("discover and load `<sessionId>/subagents/` transcripts so fork-subagent
+file edits are not silently dropped"): #375 loads subagent transcripts and
+attributes their resulting `FileEvent`s to the parent tree at
+`parentLastUuid` so edits are not lost, but it does not feed the merged
+records through `ConversationBranch` discovery, so it does not by itself give
+L5 a single branch tree spanning the graft point. #375 landing is a
+prerequisite for this work, not a substitute for it. No task exists yet for
+the stitching itself; it must be created as its own engineering task before
+#357 (Layer 5 engine build-out) can proceed on real data.
+
+**Tie groups may span lanes (settled 2026-08-01).** Resolves the grilling
+round's open question B: because lane scope is a conversation-wide tree, a
+tie group's rounded-rectangle marker (`buildTieGroupMarkers`,
+`layer1-tie-groups.ts`) may be drawn across a trunk lane and a forked lane
+when they land on the same instant, not confined to one lane at a time.
+`groupTiedLadderNodes`'s current single flat ordered list must extend to
+lane-aware input to support this — new work, not a behavior change to the
+single-lane case.
+
+**Sibling-absorption invariant — now a written rule, not per-feature
+folklore.** Grilling question C is resolved: `plans/coding-requirements.md`
+§7 ("Reuse the engine, never re-derive in the webapp") now states generally
+that the webapp never re-derives branch membership, rewind points, or file
+state, citing `absorbParallelToolCallSiblings` by name as the canonical
+failure mode. L5 does not restate this per-feature; it is covered by the
+standing rule.
+
+**Wire + adapters needed (new work, post-sign-off).** `WireBranchOf<I,P,U>`
+plus `branches?: WireBranchOf<I,P,U>[]` on `WirePairOf` (the `snapshots?` /
+`edits?` precedent), a `listPairLadderInstants` entry, an
+`isOrphaned`/`BranchRole`-equivalent field on layer-1 node wire types, and a
+ported lane-run boundary logic module (fork/end/rejoin boundaries), re-derived
+from the old app's `computeGraphLaneRuns` (`views/timeline-sessions.ts:60-76`)
+and `checkNodeIsAbandonedBranchTip` (`:79-89`) for a bubble's vertical ladder
+— re-derived for lane geometry, not copied verbatim, since the old app's
+version operates on a flat row list.
+
+**Deferred until after visual sign-off.** Real `reconstructBranches` /
+`findWorkingTreeOwner` wiring; the cross-session stitching engine work above;
+`WireBranchOf`/`branches?` wire plumbing and the layer-5 fixture-data file;
+the lane-aware tie-group extension; real click-through kept-vs-reverted
+comparison in the drawer. None of these block the mockup deliverable.
+
+**Fixture discipline (for the eventual real fixture data, not the visual
+mockup).** `viewer_api_layer5_fixture_data.ts`, per the one-file-per-layer
+convention, once built: at minimum one code-rewind fixture (dead-end, no
+rejoin) and one conversation-only-rewind fixture (mirrored-elbow rejoin),
+modeled on the twin-pair scenarios cited above so both outcomes are visibly
+exercised; a cross-session forked-subagent fixture is added once the
+stitching engine work lands, not before.
+
+- Verify (visual mockup deliverable): a fixture-mode bubble renders an
+  abandoned branch in its own lane beside an unmoved, solid trunk rail; the
+  branch connector is visibly dashed and dimmed, distinct from the trunk
+  line; discarded nodes on the branch render alpha-dimmed while trunk nodes
+  above/below the fork stay full-strength; the split point shows a dashed
+  elbow leaving the trunk sideways then turning into the lane; a code-rewind
+  fixture dead-ends with no rejoin, while a conversation-only-rewind fixture
+  shows a mirrored elbow rejoining the trunk; no rewind node exists anywhere
+  in the DOM; a bubble with more than two lanes widens rather than stacking
+  or hiding a lane; forked-lane nodes land on the same shared ruler ticks as
+  trunk nodes, with no second ruler and no visual break marker at the rewind
+  gap.
+- Verify (deferred to the engine build-out, post-sign-off): kept-vs-reverted
+  classification matches `reconstructBranches` + `findWorkingTreeOwner`
+  byte-for-byte on a real rewind fixture; a forked-subagent scenario produces
+  one stitched branch tree spanning both sessions, not two independent
+  lanes; a tie group spanning a trunk node and a forked-lane node at the same
+  instant renders one rectangle across both lanes; an ordinary
+  parallel-tool-call scenario renders zero spurious abandoned branches
+  (proving `absorbParallelToolCallSiblings` was reused, not reimplemented).
+- Tasks: mockup — no dedicated L5 mockup task exists yet; it remains part of
+  the shared #340 mockup task until split out, as S20's #343 was for L3
+  (task #346, the earlier 2–3-variant mockup, is done and superseded by the
+  2026-07-31 forked-track choice recorded here). Cross-session stitching —
+  no task exists yet; it must be created before #357 can proceed on real
+  data, and depends on #375 (subagent transcript loading) landing first.
+  Engine build-out: #357, blocked on (a) this spec item, (b) the L5 mockup
+  sign-off, and (c) the new stitching task.
+- Status: SPEC WRITTEN 2026-08-01, spec-only — no L5 mockup task or
+  stitching task exists yet; #357 predates the forked-track and lane-scope
+  decisions recorded here and needs a re-read against this item before it is
+  picked up.
+
+### S26. Layer 6 — script execution results (task #340 L6)
+User-directed 2026-07-30; recon in `plans/340-recon/L6-script-results.md`,
+decisions in `plans/340-recon/DECISIONS.md`. Console placement settled
+2026-07-31 (popup over the timeline, task #347, DONE). **Scope narrowed
+2026-08-01:** this item specs a visual-only, non-functional mockup first —
+no sandbox spawn, no consent gate, no real replay. Real execution is
+specified and decided in a follow-up pass after the visual is signed off;
+every item below marked **(deferred)** is out of scope until then.
+
+**Scope boundary and dependency.** L4 (S21) locates script-run nodes; L6
+replays them and renders the outcome. L6 depends on L4 having landed —
+`scriptRun:<toolUseId>` node identity, the `.n-script` node class, and the
+shared-drawer/connector mechanism for multi-file runs all come from L4 and
+are reused as-is, not rebuilt. L6 adds no new node identity scheme; it adds
+an execution-outcome confidence state to the L4 node that already exists on
+screen.
+
+1. **What the mockup must show.** Three things, statically: (a) the
+   execution console popup, (b) the script-run node's visual states before
+   and after a (simulated) run, and (c) the mismatch styling specifically,
+   since the engine's current behavior silently discards a verification
+   failure and this must instead read as a visibly distinct state on
+   screen. Nothing spawns a process, nothing calls `executeRunOnce`
+   (`jfred/src/reconstruction_script_runs.ts:73`), and no consent gate
+   renders — all fixture data, matching how #347's console mockup was
+   built.
+2. **Console popup — visual contract already signed off.**
+   `plans/l6-console-mockup/variant-popup.js` (mounted via
+   `plans/l6-console-mockup/index.html`'s `#popup-mount`) IS the contract:
+   panel chrome ported from `plans/mvp-app-mockup.html:126-157`'s
+   `.details`/`.dpane` styling, laid over a fake timeline strip. Inside the
+   popup: a `.console-output` block showing already-streamed stdout as a
+   static `<pre>` plus an italic caption stating what live streaming would
+   look like (`renderOutputBlock`, `plans/l6-console-mockup/app.js:14-19`)
+   — no timers, no animation, this is not reopened here. A cancel button in
+   three states — `idle` (disabled), `running-cancelable` (red outline,
+   enabled), `cancelled` (disabled, struck through) — per
+   `CANCEL_BUTTON_STATES` (`plans/l6-console-mockup/fixture.js:23-27`).
+   Anchored-panel and drawer placements are rejected; do not re-litigate
+   placement here.
+3. **Terminal states — visual contract already signed off.** Four discrete
+   static blocks, named verbatim from DECISIONS.md's seven confidence
+   states: `cancelled`, `verified`, `mismatch`, `original-failed`
+   (`TERMINAL_STATES`, `plans/l6-console-mockup/fixture.js:31-49`), each
+   with its own CSS class (`.term-cancelled`, `.term-verified`,
+   `.term-mismatch`, `.term-original-failed`,
+   `plans/l6-console-mockup/index.html`) and a one-line description. This
+   is the mismatch-styling requirement's console-side half — a mismatch
+   reads as visually distinct from an ordinary completion or a cancellation
+   at the moment the console reports it.
+4. **Node-side mismatch styling — NOT yet built, this item's new work.**
+   The console mockup (#347) covers the popup only; it does not touch a
+   timeline node. This spec item requires a companion node-states mockup
+   showing the SAME `.n-script` node (per S21) across its execution-outcome
+   states: pre-execution (today's L4 hollow-ring presumed style, unchanged),
+   `verified`, `derived`, `mismatch`, `original-failed`,
+   `injected-unverified`, and `never-provable` (the existing bash
+   `.kind-pre-anchor-stub` idiom, `layered-styles.css:138`, already ported
+   at S21 item 5 — not re-invented here). `mismatch` needs its own new
+   visual treatment (no existing class covers it — `layered-styles.css` has
+   `.kind-pre-anchor-stub` and `.kind-presumed-user-edit` only, neither of
+   which mean mismatch) — this is the one genuinely new style this item
+   introduces. No such mockup exists in the repo yet; see Tasks below.
+5. **Confidence state, not a new filterable kind.** Per DECISIONS.md's
+   "seven confidence states, display-only" and S23's "confidence is not a
+   filter axis" rule, `mismatch` (and the other execution outcomes) is a
+   confidence-state overlay on the existing `.n-script` node — it does NOT
+   add a row to the show-row checkbox list and is never hidden/shown by
+   kind filtering. The recon doc's earlier phrase "a mismatch is its own
+   node kind" is restated here in the post-grilling vocabulary: same node
+   kind, distinct confidence state, distinct CSS treatment. A future reader
+   must not add a "script result" checkbox to the show row for this.
+6. **Global load bar unchanged.** The load bar
+   (`webapp/layer1-progress.ts`, fed by the `?progress=1` NDJSON stream)
+   remains the sole overall-progress mechanism, per coding-requirements.md
+   section 6. The console popup is a second, additional surface for
+   per-run live output and cancellation only — not a second progress-bar
+   idiom. Not reopened by this item.
+7. **Real execution (deferred).** Everything below is decided in a
+   follow-up spec pass after the node-states/mismatch mockup is signed
+   off, not here:
+   - Wiring the popup and node states to a real run: the new POST route
+     (run/node id → `executeRunOnce` + stage match check →
+     `streamNdjsonBuild` progress), reusing the existing NDJSON precedent
+     (`viewer_api_layer1_route.ts:43-61`).
+   - Per-request consent threading. `isImpureExecutionAllowed()`
+     (`jfred/src/reconstruction_exec_gate.ts`) is process-wide today; its
+     own comment already flags per-request gating as a future extension
+     point. The classic viewer's existing consent UI
+     (`webapp/app-consent.ts`, `webapp/app-consent-model.ts`,
+     `DocumentResponseKind.consentRequired`) is the machinery to reuse or
+     adapt — do not build a second consent idiom from scratch.
+   - Extending `getPostExecutionBeacon`
+     (`reconstruction_script_stage.ts:35-43`, today only the file-history
+     backup timeline) to the one unified beacon definition from
+     DECISIONS.md — backup, full-file Read echo, `Bash(cat)`, commit, or
+     snapshot, nearest after the run.
+   - Wiring `is_error` into `executeRunOnce` so `original-failed` is told
+     apart from a declined or crashed replay (~10-15 lines per the recon's
+     cost re-check; `ScriptRun` already carries `toolUseId`, `records` is
+     already passed in).
+   - The live-working-tree confirm-only read (`process.cwd()`, a
+     first-ever capability in `jfred/src/`): a match promotes a beaconless
+     script-created file to verified; a mismatch or missing file changes
+     nothing and shows no marker, because a difference is not evidence.
+   - Execute-once-per-node caching scoped to the rendered viewport (the
+     minimap's green box), and strictly timeline-ordered execution (no
+     concurrency to design).
+   - Reusing the sandbox memo disk file
+     (`configureSandboxMemoPersistence`/`flushSandboxMemoToDisk`,
+     `reconstruction_script_sandbox.ts:60-74`) for persistence, plus a new
+     GUI top-row header button that clears it and forces every layer to
+     recompute. The mockup may sketch the button's placement, but its
+     click does nothing real yet.
+8. **Fixture discipline (mockup phase).** No `viewer_api_layer6_fixture_data.ts`
+   is needed yet — that file, per the one-file-per-layer convention, is
+   real-webapp fixture-mode data and belongs to the engine build-out pass,
+   not this visual-only item. The node-states mockup follows the layer-2
+   mockup's file split (`index.html` + `fixture.js` + `app.js`,
+   `plans/layer2-mockup/`) and reuses `plans/l6-console-mockup/fixture.js`'s
+   `TERMINAL_STATES` naming rather than inventing parallel state names.
+
+- Verify: the node-states mockup and the existing console mockup are
+  viewed side by side in a browser (`python3 -m http.server`, matching the
+  layer-2/L6-console mockup convention); every one of the six applicable
+  confidence states (`verified`, `derived`, `mismatch`, `original-failed`,
+  `injected-unverified`, `never-provable`) renders as a visually distinct
+  `.n-script` node state, with `mismatch` unmistakably different from an
+  ordinary completed state at a glance; the console popup, cancel-button
+  states, and terminal states render unchanged from the signed-off #347
+  mockup; the mockup performs no fetch, spawns no process, and shows no
+  consent dialog; the mismatch node state and the console's `mismatch`
+  terminal state read as the same event, not two unrelated designs.
+- Tasks: #347 (console popup mockup, DONE 2026-07-31, hashes
+  e353eb6/d14aab8/2f5f8ed); no dedicated node-states/mismatch-styling
+  mockup task exists yet — one must be created before #358 can start;
+  #358 (engine build-out, gated on (a) this spec item being signed off and
+  (b) the node-states mockup, once created, being approved — the
+  2026-08-01 visual-before-execution ordering applies to #358's existing
+  gate, it does not relax it).
+- Status: SPEC WRITTEN 2026-08-01, scope narrowed to a visual-only mockup
+  per user direction the same day — real-execution decisions in this item
+  are explicitly deferred to a follow-up pass; no node-states mockup task
+  exists yet, so this item is not yet buildable end to end.
