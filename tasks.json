@@ -159,33 +159,6 @@
     ]
   },
   {
-    "taskNumber": 225,
-    "title": "resolveFinalPath infinite-loops on a recorded rename cycle (mv a b; mv b a)",
-    "goal": [
-      "- A synthetic fixture recording a two-hop rename cycle (mv a b; mv b a) makes resolveFinalPath terminate instead of looping forever.",
-      "- A new unit test in jfred/tests/reconstruction_lineage.test.ts records that cycle and asserts termination; it passes.",
-      "- Any other rename-chain walker in jfred/src sharing the same unguarded while-loop shape also gets the seen-set fix and an equivalent test.",
-      "- The full jfred test suite and typecheck still pass after the change."
-    ],
-    "notInScope": [
-      "- No change to jfred/src/layered_lineage.ts; its existing seen-set approach is the reference implementation, not a target of this fix.",
-      "- No behavior change for a legitimate, non-cyclic rename chain; the seen-set only changes what happens once a path would be revisited.",
-      "- No generic multi-purpose graph/cycle-detection utility; scope stays to the rename-chain walker(s) found in the codebase audit."
-    ],
-    "description": "Task-203 finding (2026-07-25): while building the layered lineage walk, resolveFinalPath (src/reconstruction_lineage.ts) was found to follow the rename chain without a seen-set, so a transcript that records `mv a b` followed by `mv b a` — which real sessions do produce when a rename is undone — makes it loop forever rather than terminating on the cycle. The new layered walk in jfred/src/layered_lineage.ts avoids this by carrying a shared seen-set across both directions, and the engine's version was deliberately left untouched so the fix could be scoped and verified on its own. Add a seen-set (or an explicit cycle error) to resolveFinalPath and every other rename-chain walker that shares the pattern, with a unit test that records the two-hop cycle and asserts termination. No live scenario is known to trigger it yet, so a synthetic fixture is acceptable evidence.",
-    "modifiableFiles": [
-      "jfred/src/reconstruction_lineage.ts",
-      "jfred/tests/reconstruction_lineage.test.ts"
-    ],
-    "readOnlyFiles": [
-      "*"
-    ],
-    "schemaVersion": "1.0.1",
-    "hasTests": false,
-    "tests": "",
-    "difficulty": 3
-  },
-  {
     "taskNumber": 226,
     "title": "per_file_sweep.ts appends a trailing newline when rendering revisions, so files without one can never blob-match",
     "goal": [
@@ -1225,42 +1198,6 @@
     "difficulty": 6
   },
   {
-    "taskNumber": 375,
-    "title": "Engine: discover and load <sessionId>/subagents/ transcripts so fork-subagent file edits are not silently dropped",
-    "goal": [
-      "- listSubagentTranscripts(projectDir, sessionId) in viewer_api_projects.ts finds <sessionId>/subagents/agent-*.jsonl files and returns them as an explicit, separate source list (not merged into scanProjects' per-project listing).",
-      "- layered_load.ts loads discovered subagent transcripts through the existing loadTranscript path and runs their records through the normal file-event extraction, attributing resulting Edit/Write events to the tree at parentLastUuid, tagged as a sidechain.",
-      "- A fixture test with a constructed subagent transcript containing at least one Edit or Write fails before this change and passes after it, proving the drop is fixed.",
-      "- `npx tsc --noEmit` and the full `npm test` suite in jfred/ pass."
-    ],
-    "notInScope": [
-      "- CLI-path discovery (reconstruction_cli.ts / reconstruction_cli_args.ts, the plan's Phase 3) — deferred to a follow-up task once reconstruction_engine.ts's parentUuid walk is read; not part of this task's required deliverable per plans/task-375-plan.md.",
-      "- subagents/workflows/wf_* transcripts — task 362 owns that.",
-      "- Nested forks (spawnDepth > 1) — explicitly skipped per plans/task-375-plan.md; no real transcript has ever needed it."
-    ],
-    "description": "Engine: descend into <sessionId>/subagents/ so file edits made inside /btw fork subagents are not silently dropped. Task 338 verified this gap and documented it in plans/task-338-findings.md. The engine never reads the subagents folder next to a session JSONL, so any Edit or Write performed by a forked subagent is invisible to the timeline. Distinct from task 362, which covers subagents/workflows/wf_* only.\n\nVERIFIED ROOT CAUSE (from plans/task-338-findings.md): listJsonlFiles in jfred/src/viewer_api_projects.ts does a single-level readdirSync filtering on .jsonl and never recurses; scanProjects treats only the immediate children of the projects root as loose files or named projects, so a session's own <sessionId>/subagents/ folder is structurally never visited. No loader in layered_load.ts or reconstruction_cli.ts resolves forkContextRef.parentSessionId / .parentLastUuid back to a subagent file either. The parser side already works: RecordType.forkContextRef is modeled in structures/vocabulary.ts and allow-listed in parse/recordKeys.ts, so a subagents/agent-*.jsonl file would parse fine if anything fed it to loadTranscript. No test anywhere exercises loading a real subagents/agent-*.jsonl.\n\nAPPROACH RECOMMENDED BY THE FINDINGS DOC: (1) add a listSubagentTranscripts(projectDir, sessionId) helper near listJsonlFiles in viewer_api_projects.ts that finds <projectDir>/<sessionId>/subagents/agent-*.jsonl and returns them as an explicit SEPARATE source list — do not silently merge into scanProjects' per-project listing, since these are per-session not per-project. (2) In reconstruction_cli.ts / layered_load.ts, when a subagent transcript's fork-context-ref line has a parentSessionId/parentLastUuid matching the session being reconstructed, load it through the existing loadTranscript path (no parser change needed) and run its tool-use records through the normal file-event extraction in reconstruction_extract.ts, attributing resulting EditEvent/FileEvent to the tree at parentLastUuid, tagged as a sidechain — mirroring how isSidechain:true is already carried.\n\nREAL SAMPLE ON DISK for a fixture: ~/.claude/projects/-Users-matkatmusicllc-Desktop-claude-code-src-RevEng/f7d5bed5-6831-4332-912e-e19fe5396350/subagents/agent-aim-not-seeing-22b231f10bbede01.jsonl with sibling .meta.json {\"agentType\":\"fork\",\"isFork\":true,\"name\":\"im-not-seeing\",\"spawnDepth\":1}. Note that particular fork made zero tool calls, so a fixture proving the dropped-edit case must be constructed with at least one Edit or Write in the subagent transcript.",
-    "modifiableFiles": [
-      "jfred/src/viewer_api_projects.ts",
-      "jfred/src/layered_load.ts",
-      "jfred/src/reconstruction_cli.ts",
-      "jfred/src/reconstruction_extract.ts",
-      "jfred/tests/viewer_api_projects.test.ts",
-      "jfred/tests/layered_load.test.ts",
-      "plans/task-338-findings.md",
-      "jfred/tests/layered_load_subagents.test.ts"
-    ],
-    "readOnlyFiles": [
-      "*"
-    ],
-    "schemaVersion": "1.0.1",
-    "hasTests": false,
-    "tests": "",
-    "difficulty": 6,
-    "createsFiles": [
-      "jfred/tests/layered_load_subagents.test.ts"
-    ]
-  },
-  {
     "taskNumber": 376,
     "title": "Shared WireConfidenceState type for the seven node confidence states",
     "goal": [
@@ -1431,13 +1368,7 @@
     "schemaVersion": "1.0.1",
     "hasTests": false,
     "tests": "",
-    "difficulty": 8,
-    "blockedBy": [
-      {
-        "taskNumber": 375,
-        "reason": "375 loads and attributes forked subagent transcripts into the parent tree; this task needs that merged record set before it can graft a branch onto it."
-      }
-    ]
+    "difficulty": 8
   },
   {
     "taskNumber": 381,
