@@ -379,10 +379,6 @@
         "reason": "This umbrella task stays open until every listed child closes, and 361 (L9 engine) is one of those children."
       },
       {
-        "taskNumber": 376,
-        "reason": "This umbrella task stays open until every listed child closes, and 376 (WireConfidenceState type) is one of those children."
-      },
-      {
         "taskNumber": 377,
         "reason": "This umbrella task stays open until every listed child closes, and 377 (L4 fixture-data step 5) is one of those children."
       },
@@ -680,10 +676,6 @@
         "reason": "This task implements the engine and webapp behind the #343 mockup; #343 must be closed first."
       },
       {
-        "taskNumber": 376,
-        "reason": "This task's verified/derived/reseeded rendering must read the shared WireConfidenceState type #376 defines, not a bespoke marker."
-      },
-      {
         "taskNumber": 378,
         "reason": "jfred/tests/layer1-drawer.test.ts must be split under the 250-line cap by #378 before this task adds a describeNode edit branch to it."
       }
@@ -727,10 +719,6 @@
     "tests": "",
     "difficulty": 9,
     "blockedBy": [
-      {
-        "taskNumber": 376,
-        "reason": "#376 adds WireConfidenceState; branch nodes carry a confidence state, and BranchRole already exists in structures/vocabulary.ts."
-      },
       {
         "taskNumber": 379,
         "reason": "The lane-rendering variant and lane scope are decided by the L5 mockup #379, which must be closed before this task's webapp work can proceed."
@@ -790,10 +778,6 @@
     "difficulty": 8,
     "blockedBy": [
       {
-        "taskNumber": 376,
-        "reason": "the new verified/mismatch/original-failed node states need the shared WireConfidenceState wire type before they can be attached to the wire"
-      },
-      {
         "taskNumber": 381,
         "reason": "spec S26 gates real execution work on the node-states/mismatch mockup being signed off first"
       }
@@ -851,10 +835,6 @@
     "tests": "",
     "difficulty": 9,
     "blockedBy": [
-      {
-        "taskNumber": 376,
-        "reason": "the presumed-user-edit promotion rule and node states this task adds need the shared WireConfidenceState type in place first."
-      },
       {
         "taskNumber": 382,
         "reason": "the 2026-08-01 visual-first policy requires the L7 mockup (#382) closed before this engine build-out lands."
@@ -959,10 +939,6 @@
         "reason": "v1 markers may only be placed on beacon nodes, which L3 is what puts on the wire in the first place."
       },
       {
-        "taskNumber": 376,
-        "reason": "restricting markers to beacon nodes depends on the shared WireConfidenceState type distinguishing beacon from derived nodes on the wire."
-      },
-      {
         "taskNumber": 383,
         "reason": "the 2026-08-01 visual-first policy requires the L9 mockup (#383) closed before this engine build-out lands."
       }
@@ -1009,57 +985,6 @@
         "reason": "User decision 2026-09-08: wait until more of the from-scratch Layers 3-9 (#340) are built before doing this."
       }
     ]
-  },
-  {
-    "taskNumber": 363,
-    "title": "Clear JSONLs pane (#sessions) synchronously on project switch, before the new project's build starts",
-    "userDescription": "changing projects should clear the jsonl nav while the project is initially loading. I saw the previous list of jsonl files in the jsonl pane.",
-    "goal": [
-      "- Switching the project folder immediately empties the #sessions (JSONLs) pane instead of leaving the previous project's session rows visible during the new project's ~10s build.",
-      "- No .session-item row from the prior project is ever visible while the new project is loading, from click to render."
-    ],
-    "notInScope": [
-      "- Resetting the JSONL/file-history source-folder picker lists (listsByKind) — task 364 owns that.",
-      "- Re-fetching and re-applying the new project's saved reveng-paths.json settings — task 366 owns that.",
-      "- Gating timeline/ruler rendering behind the load bar for every project-folder-row trigger — task 369 owns that."
-    ],
-    "description": "BUG (user's words): \"changing projects should clear the jsonl nav while the project is initially loading. I saw the previous list of jsonl files in the jsonl pane.\"\n\nRoot cause, grounded in code: loadLayer1View() in jfred/webapp/layer1-page.ts (lines ~172-182) synchronously clears #stage and #filenav-tree before starting the new project's build (\"Clear all three before the ~10 s build: leaving the stale view up made the page read as frozen\"), and calls resetSessionSelection() from jfred/webapp/layer1-sessions.ts. But resetSessionSelection() (layer1-sessions.ts (resetSessionSelection)) only clears in-memory state (selectedPaths.clear(), sessions = [], knownProjectPaths = new Set()) — it does NOT touch the #sessions DOM element. The JSONLs pane's DOM (#sessions, populated by renderSessionPane() in layer1-sessions.ts (renderSessionPane)) is only re-rendered much later, inside renderLayer1View() (layer1-page.ts (renderLayer1View): void loadLayer1Sessions().then(() => renderSessionPane(redrawFiltered))), which itself runs only after the full /api/layer1-view stream resolves. So for the whole duration of the new project's build, #sessions still shows the PREVIOUS project's session rows (.session-item elements built by buildSessionItem, each showing session.file — a jsonl file name) — exactly the \"previous list of jsonl files in the jsonl pane\" the user saw.\n\nFix: make resetSessionSelection() (or the call site in loadLayer1View) also clear/re-render the #sessions DOM synchronously, the same way #filenav-tree is cleared at line 175 of layer1-page.ts — e.g. getRequiredElementById(\"sessions\").replaceChildren() immediately in loadLayer1View, or have resetSessionSelection do it directly so every caller gets the fix.",
-    "modifiableFiles": [
-      "jfred/webapp/layer1-sessions.ts",
-      "jfred/webapp/layer1-page.ts"
-    ],
-    "readOnlyFiles": [
-      "*"
-    ],
-    "schemaVersion": "1.0.1",
-    "hasTests": false,
-    "tests": "",
-    "difficulty": 2
-  },
-  {
-    "taskNumber": 364,
-    "title": "Reset in-memory JSONL/file-history source-folder lists (listsByKind) when the project folder changes",
-    "userDescription": "changing projects should clear the jsonl sources list of the previous project's source list.",
-    "goal": [
-      "- Opening the JSONL-sources or File-History-Snapshots source picker modal after switching projects shows the new project's folders, not the previous project's.",
-      "- listsByKind resets to { paths: [], touched: false } for both source kinds whenever the #dir project folder changes, so syncSourceButtons() re-derives fresh defaults instead of carrying over stale paths."
-    ],
-    "notInScope": [
-      "- Clearing the #sessions JSONLs pane DOM — task 363 owns that.",
-      "- Re-fetching and re-applying the new project's saved reveng-paths.json settings — task 366 owns that."
-    ],
-    "description": "BUG (user's words): \"changing projects should clear the jsonl sources list of the previous project's source list.\" This is the JSONL source pickers (modal) — distinct from the JSONLs pane covered in the sibling task on \"jsonl nav\"/#sessions.\n\nRoot cause, grounded in code: jfred/webapp/layer1-source-paths.ts holds listsByKind: Record<SourceKind, SourceList> (module state, SourceList = { paths: string[]; touched: boolean }) for both the \"JSONL sources\" list and the \"File History Snapshots\" list shown via the shared modal (#pathpicker/#pp-list, opened by jfred/webapp/layer1-path-picker.ts's openPicker(kind), which does draftPaths = [...readSourcePaths(kind)] — i.e. it always re-reads whatever listsByKind[kind].paths currently holds). syncSourceButtons() (layer1-source-paths.ts (syncSourceButtons)), called at the top of loadLayer1View() in layer1-page.ts, only re-derives a list from the current #dir project folder when touched === false. Once a list has been touched (user picked folders via the modal, or it was seeded from the URL via fillSourceBoxesFromUrl, or restored from saved settings), touched never resets to false — so navigating to a different project folder leaves listsByKind[kind].paths holding the PREVIOUS project's folder list untouched, and the picker/button counts keep showing it.\n\nFix: when the project folder (#dir) changes, reset listsByKind back to { paths: [], touched: false } for both kinds (mirroring the pattern resetSessionSelection() uses in layer1-sessions.ts) so syncSourceButtons() re-derives fresh defaults for the new project instead of carrying over the old project's list. Add a reset function to layer1-source-paths.ts and call it from layer1-page.ts's loadLayer1View() before syncSourceButtons() runs.",
-    "modifiableFiles": [
-      "jfred/webapp/layer1-source-paths.ts",
-      "jfred/webapp/layer1-page.ts"
-    ],
-    "readOnlyFiles": [
-      "*"
-    ],
-    "schemaVersion": "1.0.1",
-    "hasTests": false,
-    "tests": "",
-    "difficulty": 3
   },
   {
     "taskNumber": 366,
@@ -1198,33 +1123,6 @@
     "difficulty": 6
   },
   {
-    "taskNumber": 376,
-    "title": "Shared WireConfidenceState type for the seven node confidence states",
-    "goal": [
-      "- jfred/webapp/layer1-wire.ts exports a WireConfidenceState const-object (mirroring the WireScriptExecutorKind pattern) with exactly the seven members: verified, derived, mismatch, reseeded, never-provable, injected-unverified, original-failed, plus its derived type alias.",
-      "- WireScriptRunOf gains an optional confidenceState?: WireConfidenceState field.",
-      "- The .kind-pre-anchor-stub dashed-hollow-ring idiom is ported from layered-styles.css into layer1-styles.css for the never-provable state, per S21 item 5.",
-      "- Tasks #355/#357/#358/#361 can import WireConfidenceState instead of inventing their own representation."
-    ],
-    "notInScope": [
-      "- Wiring confidenceState into actual .n-script widget-append rendering code in layer1-widgets.ts — no such code exists yet; whoever later writes that widget reads confidenceState off the wire per plans/coding-requirements.md section 7, but building that widget is not this task.",
-      "- Server-side computation of which confidence state a given node actually has — this task adds only the client-side wire type and the optional field."
-    ],
-    "description": "Cross-cutting prerequisite, blocking #355/#357/#358/#361. Per `plans/340-recon/DECISIONS.md (§Seven confidence states, display-only)` (\"Seven confidence states, display-only\"), every layer-3-and-up node carries exactly one of: verified, derived, mismatch, reseeded, never-provable, injected-unverified, original-failed — each visually distinct, and per S23 (`specs/from-scratch-SPEC.md (§S23. Layer 8 — node-kind filtering (the show row) (task #340 L8))`) confidence is NEVER a filter axis, only a display-only overlay. No such type exists anywhere in code today (grep-verified: zero hits for `ConfidenceState`/`confidenceState` across `jfred/webapp/*.ts` and `jfred/src/*.ts`, excluding tests and `dist/`). Add `WireConfidenceState` as a const-object mirroring the existing `WireScriptExecutorKind` precedent (`jfred/webapp/layer1-wire.ts (WireScriptExecutorKind)` — `export const WireScriptExecutorKind = { python: \"python\", bash: \"bash\" } as const;` plus the derived `type WireScriptExecutorKind = ...[keyof typeof ...]` line), with the seven states as its members and the matching derived type alias.\n\nCleanup this task must also do: closed task #356 (L4) never added a confidence field to `WireScriptRunOf` (`jfred/webapp/layer1-wire.ts (WireScriptRunOf)`) — grep-verified, the ONLY place a bash run's un-provability currently surfaces to a user is the raw `executorKind` string interpolated into the drawer header text (`jfred/webapp/layer1-drawer.ts (openScriptRunDrawer),150`: `` `${run.executorKind} run` ``), and the `.kind-pre-anchor-stub` dashed-hollow-ring idiom S21 calls for porting (`jfred/webapp/layered-styles.css (.kind-pre-anchor-stub)`) is referenced by zero `.ts` files in `webapp/` outside tests — i.e. no production code anywhere actually applies it to a `.n-script` node. This task should: (1) add an optional `confidenceState?: WireConfidenceState` field to `WireScriptRunOf`, (2) port `.kind-pre-anchor-stub` from `layer1-styles.css`, `never-provable` per S21 item 5. Note for whoever later writes the actual `.n-script` widget-append code (none exists yet in `layer1-widgets.ts` — today's `.n-script` nodes are constructed only by test fixtures, e.g. `jfred/tests/layer1-drawer.test.ts (buildScriptRunStage),508`): it must read `confidenceState` off the wire, never re-infer it from `executorKind` client-side, per `plans/coding-requirements.md` section 7 (webapp consumes, never re-derives).\n\nEvery future consumer (#355's edit nodes, #357's branch kept-vs-reverted, #358's execution outcomes, #361's beacon-only marker check) imports this one type rather than inventing its own representation.",
-    "modifiableFiles": [
-      "jfred/webapp/layer1-wire.ts",
-      "jfred/tests/layer1-wire.test.ts",
-      "jfred/webapp/layer1-styles.css"
-    ],
-    "readOnlyFiles": [
-      "*"
-    ],
-    "schemaVersion": "1.0.1",
-    "hasTests": false,
-    "tests": "",
-    "difficulty": 2
-  },
-  {
     "taskNumber": 377,
     "title": "Layer 4 fixture data: viewer_api_layer4_fixture_data.ts + contentLines scriptRun branch (task #356 step 5)",
     "goal": [
@@ -1294,7 +1192,35 @@
       "jfred/tests/layer1-drawer-diff.test.ts",
       "jfred/tests/layer1-drawer-script.test.ts",
       "jfred/tests/layer1-drawer-test-helpers.ts"
-    ]
+    ],
+    "run": {
+      "active": true,
+      "worktree": "/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/taskTools-wt/RevEng-8a6f1cdd/task-378",
+      "leaseRunId": "202400c4-18ce-4c66-bdee-0f870352a4e4",
+      "history": [
+        {
+          "runId": "202400c4-18ce-4c66-bdee-0f870352a4e4",
+          "startedAt": "2026-09-10T23:52:38-07:00",
+          "endedAt": null,
+          "exitType": null,
+          "exitNote": null,
+          "modifiedFiles": [],
+          "commits": [],
+          "implementationNotesFile": null,
+          "taskTests": null,
+          "fullSuite": null,
+          "stepResults": [
+            {
+              "stepId": "init-submodules",
+              "script": "initTaskSubmodules",
+              "result": {
+                "initialized": false
+              }
+            }
+          ]
+        }
+      ]
+    }
   },
   {
     "taskNumber": 379,
