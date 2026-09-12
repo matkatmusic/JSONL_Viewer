@@ -104,75 +104,6 @@
     ]
   },
   {
-    "taskNumber": 213,
-    "title": "Node click fills Details pane (reused view incl. [{ }] JSON button)",
-    "goal": [
-      "- Clicking a timeline node fills the top-right Details pane via the existing DiffView pipeline (jfred/webapp/layer1-diff-view.ts, already wired into jfred/webapp/layer1-drawer.ts) — this part already works.",
-      "- The Details pane gains a `[{ }]` button that reveals the clicked node's raw JSON, reusing the old webapp's JSON-rendering pipeline (jfred/webapp/inspector-json.ts) rather than reimplementing it — this is the missing piece; no such button exists in layer1 today.",
-      "- jfred/tests/layer1-drawer.test.ts covers the `[{ }]` button revealing (and hiding) the raw JSON.",
-      "- A node with no associated transcript line (commit or on-disk node) shows no [{ }] button"
-    ],
-    "notInScope": [
-      "- Script-run node clicks (before/after diffs + script body) are task 215's scope, not this one — though task 215 already reuses this task's drawer/DiffView plumbing."
-    ],
-    "description": "S13. Clicking a timeline node fills the top-right pane with the existing webapp Details view (reused, not reimplemented), adding a [{ }] button that shows the node's raw transcript JSON. Nodes with no associated transcript line (git commits, on-disk snapshots) do not show the button, because there is no JSON for them. DOM test per S13. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)\n\n## Clarification answer (2026-09-12)\n\n**Decision: option A — keep faithful `inspector-json.ts` reuse; plumbing files added.**\n\n- Server: `jfred/src/viewer_api_layer1_snapshot.ts` already loads the transcript for `/api/layer1-file` (~line 66). Add the raw transcript record at `placement.line` to that response.\n- Client: fetch it through `jfred/webapp/app-fetch.ts`.\n- The `[{ }]` button (n-snap nodes only, per the code trace already in the prior clarify round) calls `renderHighlightedJson` (`jfred/webapp/inspector-json.ts:168`) with an EMPTY `LinkMaps` and `[]` for `filesTouched`. Token highlighting is kept; jump/revision links are temporarily absent.\n- Restoring the jump/revision links in Layer 1 (building `LinkMaps` + `filesTouched` for a layer1 snapshot) is a separate follow-up task, blocked by this one. Do not attempt it here.",
-    "modifiableFiles": [
-      "jfred/webapp/layer1-drawer.ts",
-      "jfred/webapp/layer1-diff-view.ts",
-      "jfred/tests/layer1-drawer.test.ts",
-      "jfred/src/viewer_api_layer1_snapshot.ts",
-      "jfred/webapp/app-fetch.ts"
-    ],
-    "readOnlyFiles": [
-      "*"
-    ],
-    "schemaVersion": "1.0.1",
-    "hasTests": false,
-    "tests": "",
-    "difficulty": 4,
-    "run": {
-      "active": false,
-      "worktree": "/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/taskTools-wt/RevEng-8a6f1cdd/task-213",
-      "leaseRunId": "c889cd7f-5b81-4778-9423-d416e9fd04d9",
-      "history": [
-        {
-          "runId": "303d9908-1520-4be1-8f79-dc07822af534",
-          "startedAt": "2026-09-11T01:09:00-07:00",
-          "endedAt": "2026-09-11T16:47:00-07:00",
-          "exitType": "agent-failed",
-          "exitNote": "run stopped before a worktree existed",
-          "modifiedFiles": [],
-          "commits": [],
-          "implementationNotesFile": null,
-          "taskTests": null,
-          "fullSuite": null
-        },
-        {
-          "runId": "c889cd7f-5b81-4778-9423-d416e9fd04d9",
-          "startedAt": "2026-09-11T16:47:01-07:00",
-          "endedAt": "2026-09-11T17:04:19-07:00",
-          "exitType": "clarify-stuck",
-          "exitNote": "the planner asked twice for something the docs cannot supply. worktree preserved.",
-          "modifiedFiles": [],
-          "commits": [],
-          "implementationNotesFile": null,
-          "taskTests": null,
-          "fullSuite": null,
-          "stepResults": [
-            {
-              "stepId": "init-submodules",
-              "script": "initTaskSubmodules",
-              "result": {
-                "initialized": false
-              }
-            }
-          ],
-          "tailCursor": null
-        }
-      ]
-    }
-  },
-  {
     "taskNumber": 222,
     "title": "Enable GitHub Pages for the jfred repo (serve docs/)",
     "goal": [
@@ -600,7 +531,7 @@
     "tests": "",
     "difficulty": 5,
     "run": {
-      "active": true,
+      "active": false,
       "worktree": "/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/taskTools-wt/RevEng-8a6f1cdd/task-344",
       "leaseRunId": "aa8366a1-21f8-4e95-b502-02088432ef09",
       "history": [
@@ -619,9 +550,9 @@
         {
           "runId": "aa8366a1-21f8-4e95-b502-02088432ef09",
           "startedAt": "2026-09-11T16:46:49-07:00",
-          "endedAt": null,
-          "exitType": null,
-          "exitNote": null,
+          "endedAt": "2026-09-11T17:44:13-07:00",
+          "exitType": "block-failed",
+          "exitNote": "pipeline-implementTask.mmd::IMPLEMENT_TASK exited 1\nError: task 344: modifiableFiles names /var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/taskTools-wt/RevEng-8a6f1cdd/task-344/jfred/webapp/layer1-tie-groups.ts but the file does not exist; list it in \"createsFiles\" if this task creates it, or run the task that creates it first",
           "modifiedFiles": [],
           "commits": [],
           "implementationNotesFile": null,
@@ -635,7 +566,8 @@
                 "initialized": false
               }
             }
-          ]
+          ],
+          "tailCursor": null
         }
       ]
     }
@@ -1060,73 +992,6 @@
     ]
   },
   {
-    "taskNumber": 366,
-    "title": "Re-fetch and re-apply the new project's saved layer1 settings after the #dir project folder changes",
-    "userDescription": "changing project folders does not load the new project's settings for the jsonl sources.",
-    "goal": [
-      "- After the #dir project folder changes, the new project's saved reveng-paths.json settings (JSONL-sources list, file-history-sources list, repo/baseCommit) are fetched and applied, visible in the picker/buttons.",
-      "- restoreSavedSettings() (or an equivalent re-fetch) runs again on every project-folder change, not only once at page boot.",
-      "- Switching between two projects that each have different saved settings shows each project's own settings, never the first-loaded project's leftover settings."
-    ],
-    "notInScope": [
-      "- Clearing the #sessions JSONLs pane DOM on project switch — task 363 owns that.",
-      "- Resetting listsByKind's touched state on project switch — task 364 owns that."
-    ],
-    "description": "BUG (user's words): \"changing project folders does not load the new project's settings for the jsonl sources.\" Cross-reference: related to but distinct from the sibling tasks on clearing the JSONLs pane (#sessions) and clearing listsByKind on project switch — this one is specifically about re-LOADING the new project's saved server-side settings, not about clearing stale client state.\n\nRoot cause, grounded in code: restoreSavedSettings() (jfred/webapp/layer1-settings.ts (restoreSavedSettings)) reads a project's persisted settings (backed by /api/layer1-settings, persisted in ~/.jfred-layer1-settings.json; see jfred/src/viewer_api_layer1_settings.ts) and is only ever called ONCE, inside bootLayer1Page() (jfred/webapp/layer1-page.ts (bootLayer1Page): await restoreSavedSettings().catch(() => false)), which runs a single time at page load. When the user later changes the #dir project-folder box (via the \"Open…\" picker wired in jfred/webapp/layer1-sources.ts's wireFolderPickers, or by editing the field directly) and triggers a new build through loadLayer1View() (layer1-page.ts (loadLayer1View)), restoreSavedSettings() is never called again — so the NEW project's saved reveng-paths.json entry (its JSONL-sources list, file-history-sources list, repo/baseCommit, etc., per jfred/webapp/app-paths-project.ts's WireProjectPaths wire shape) is never fetched or applied. The page keeps operating on whatever settings were loaded for the FIRST project at boot.\n\nFix: call restoreSavedSettings() again whenever the project folder changes — either from loadLayer1View() before it derives source paths (syncSourceButtons()), or from the #dir picker's afterPick callback in wireFolderPickers (layer1-sources.ts) / the #dir text input's change handler — so the newly-selected project's persisted settings are actually loaded rather than only applying at first boot.",
-    "modifiableFiles": [
-      "jfred/webapp/layer1-settings.ts",
-      "jfred/webapp/layer1-page.ts",
-      "jfred/webapp/layer1-sources.ts"
-    ],
-    "readOnlyFiles": [
-      "*"
-    ],
-    "schemaVersion": "1.0.1",
-    "hasTests": false,
-    "tests": "",
-    "difficulty": 4,
-    "run": {
-      "active": true,
-      "worktree": "/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/taskTools-wt/RevEng-8a6f1cdd/task-366",
-      "leaseRunId": "ec49146d-7885-43e5-8376-6ec39e2b8e9a",
-      "history": [
-        {
-          "runId": "2e631bc0-67a7-4afe-8f84-4cf98ac8a9fb",
-          "startedAt": "2026-09-11T01:09:03-07:00",
-          "endedAt": "2026-09-11T16:46:45-07:00",
-          "exitType": "agent-failed",
-          "exitNote": "run stopped before a worktree existed",
-          "modifiedFiles": [],
-          "commits": [],
-          "implementationNotesFile": null,
-          "taskTests": null,
-          "fullSuite": null
-        },
-        {
-          "runId": "ec49146d-7885-43e5-8376-6ec39e2b8e9a",
-          "startedAt": "2026-09-11T16:46:46-07:00",
-          "endedAt": null,
-          "exitType": null,
-          "exitNote": null,
-          "modifiedFiles": [],
-          "commits": [],
-          "implementationNotesFile": null,
-          "taskTests": null,
-          "fullSuite": null,
-          "stepResults": [
-            {
-              "stepId": "init-submodules",
-              "script": "initTaskSubmodules",
-              "result": {
-                "initialized": false
-              }
-            }
-          ]
-        }
-      ]
-    }
-  },
-  {
     "taskNumber": 369,
     "title": "Reset to empty state on any project-folder-row change; render timeline/ruler only after the load bar completes",
     "userDescription": "When any change is made to the project folder row, the interface should reset as though no project is loaded, and it is not until the progress bar finishes loading that the timeline or ruler should be rendered.",
@@ -1533,12 +1398,6 @@
     "schemaVersion": "1.0.1",
     "hasTests": true,
     "tests": "DOM test in jfred/tests/layer1-drawer.test.ts: click a snapshot node, click [{ }], assert a linkable string value renders as a clickable jump-link and a revision link opens the revision view.",
-    "difficulty": 8,
-    "blockedBy": [
-      {
-        "taskNumber": 213,
-        "reason": "Task 213 ships the [{ }] JSON-view button that calls renderHighlightedJson with empty LinkMaps and [] filesTouched; this task retrofits real link data into that same call site, so 213's button must exist first."
-      }
-    ]
+    "difficulty": 8
   }
 ]
