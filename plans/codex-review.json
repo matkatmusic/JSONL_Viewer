@@ -1,0 +1,14 @@
+{
+  "outcome": "OK",
+  "missingFiles": [],
+  "message": "",
+  "issues": [],
+  "fixes": [],
+  "sectionsThatHoldUp": [
+    "name-corrections — verified against jfred/webapp/layer1-settings.ts:86-115 (restoreSavedSettings keys on saved.lastDir at line 99) and jfred/webapp/layer1-page.ts:241 (single boot call)",
+    "add-apply-function — verified against jfred/webapp/layer1-settings.ts:5-7 (imports present), 10-18 (Layer1ProjectSettings module-scope), 23 (cachedProjectSettings), 114-117 (OLD text matches exactly)",
+    "wire-loadlayer1view — verified against jfred/webapp/layer1-page.ts:3 (getInputById imported), 24 (OLD import line matches), 112-113 (OLD module-state lines match), 158-162 (OLD loadLayer1View head matches), 232-238 (dir picker afterPick and Load button both call loadLayer1View), 240-242 (boot order: seedSourceDefaults, restoreSavedSettings, loadLayer1View)",
+    "no-edit-layer1-sources — verified against jfred/webapp/layer1-sources.ts:87-93 (wireFolderPickers forwards every pick to afterPick; both data-for pickers share it)",
+    "verification — exact commands with expected results; browser check covers all three acceptance criteria"
+  ]
+}
