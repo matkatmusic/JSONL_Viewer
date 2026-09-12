@@ -115,11 +115,13 @@
     "notInScope": [
       "- Script-run node clicks (before/after diffs + script body) are task 215's scope, not this one — though task 215 already reuses this task's drawer/DiffView plumbing."
     ],
-    "description": "S13. Clicking a timeline node fills the top-right pane with the existing webapp Details view (reused, not reimplemented), adding a [{ }] button that shows the node's raw transcript JSON. Nodes with no associated transcript line (git commits, on-disk snapshots) do not show the button, because there is no JSON for them. DOM test per S13. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)",
+    "description": "S13. Clicking a timeline node fills the top-right pane with the existing webapp Details view (reused, not reimplemented), adding a [{ }] button that shows the node's raw transcript JSON. Nodes with no associated transcript line (git commits, on-disk snapshots) do not show the button, because there is no JSON for them. DOM test per S13. Spec: specs/from-scratch-SPEC.md; reuse as much existing engine code as possible (Key Decisions)\n\n## Clarification answer (2026-09-12)\n\n**Decision: option A — keep faithful `inspector-json.ts` reuse; plumbing files added.**\n\n- Server: `jfred/src/viewer_api_layer1_snapshot.ts` already loads the transcript for `/api/layer1-file` (~line 66). Add the raw transcript record at `placement.line` to that response.\n- Client: fetch it through `jfred/webapp/app-fetch.ts`.\n- The `[{ }]` button (n-snap nodes only, per the code trace already in the prior clarify round) calls `renderHighlightedJson` (`jfred/webapp/inspector-json.ts:168`) with an EMPTY `LinkMaps` and `[]` for `filesTouched`. Token highlighting is kept; jump/revision links are temporarily absent.\n- Restoring the jump/revision links in Layer 1 (building `LinkMaps` + `filesTouched` for a layer1 snapshot) is a separate follow-up task, blocked by this one. Do not attempt it here.",
     "modifiableFiles": [
       "jfred/webapp/layer1-drawer.ts",
       "jfred/webapp/layer1-diff-view.ts",
-      "jfred/tests/layer1-drawer.test.ts"
+      "jfred/tests/layer1-drawer.test.ts",
+      "jfred/src/viewer_api_layer1_snapshot.ts",
+      "jfred/webapp/app-fetch.ts"
     ],
     "readOnlyFiles": [
       "*"
@@ -127,7 +129,48 @@
     "schemaVersion": "1.0.1",
     "hasTests": false,
     "tests": "",
-    "difficulty": 4
+    "difficulty": 4,
+    "run": {
+      "active": false,
+      "worktree": "/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/taskTools-wt/RevEng-8a6f1cdd/task-213",
+      "leaseRunId": "c889cd7f-5b81-4778-9423-d416e9fd04d9",
+      "history": [
+        {
+          "runId": "303d9908-1520-4be1-8f79-dc07822af534",
+          "startedAt": "2026-09-11T01:09:00-07:00",
+          "endedAt": "2026-09-11T16:47:00-07:00",
+          "exitType": "agent-failed",
+          "exitNote": "run stopped before a worktree existed",
+          "modifiedFiles": [],
+          "commits": [],
+          "implementationNotesFile": null,
+          "taskTests": null,
+          "fullSuite": null
+        },
+        {
+          "runId": "c889cd7f-5b81-4778-9423-d416e9fd04d9",
+          "startedAt": "2026-09-11T16:47:01-07:00",
+          "endedAt": "2026-09-11T17:04:19-07:00",
+          "exitType": "clarify-stuck",
+          "exitNote": "the planner asked twice for something the docs cannot supply. worktree preserved.",
+          "modifiedFiles": [],
+          "commits": [],
+          "implementationNotesFile": null,
+          "taskTests": null,
+          "fullSuite": null,
+          "stepResults": [
+            {
+              "stepId": "init-submodules",
+              "script": "initTaskSubmodules",
+              "result": {
+                "initialized": false
+              }
+            }
+          ],
+          "tailCursor": null
+        }
+      ]
+    }
   },
   {
     "taskNumber": 222,
@@ -395,10 +438,6 @@
         "reason": "This umbrella task stays open until every listed child closes, and 380 (cross-session branch stitching) is one of those children."
       },
       {
-        "taskNumber": 381,
-        "reason": "This umbrella task stays open until every listed child closes, and 381 (L6 node-states mockup) is one of those children."
-      },
-      {
         "taskNumber": 382,
         "reason": "This umbrella task stays open until every listed child closes, and 382 (L7 mockup) is one of those children."
       },
@@ -559,7 +598,47 @@
     "schemaVersion": "1.0.1",
     "hasTests": false,
     "tests": "",
-    "difficulty": 5
+    "difficulty": 5,
+    "run": {
+      "active": true,
+      "worktree": "/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/taskTools-wt/RevEng-8a6f1cdd/task-344",
+      "leaseRunId": "aa8366a1-21f8-4e95-b502-02088432ef09",
+      "history": [
+        {
+          "runId": "0645b287-cf96-40f6-b344-6c6bc72119e4",
+          "startedAt": "2026-09-11T01:09:06-07:00",
+          "endedAt": "2026-09-11T16:46:48-07:00",
+          "exitType": "agent-failed",
+          "exitNote": "run stopped before a worktree existed",
+          "modifiedFiles": [],
+          "commits": [],
+          "implementationNotesFile": null,
+          "taskTests": null,
+          "fullSuite": null
+        },
+        {
+          "runId": "aa8366a1-21f8-4e95-b502-02088432ef09",
+          "startedAt": "2026-09-11T16:46:49-07:00",
+          "endedAt": null,
+          "exitType": null,
+          "exitNote": null,
+          "modifiedFiles": [],
+          "commits": [],
+          "implementationNotesFile": null,
+          "taskTests": null,
+          "fullSuite": null,
+          "stepResults": [
+            {
+              "stepId": "init-submodules",
+              "script": "initTaskSubmodules",
+              "result": {
+                "initialized": false
+              }
+            }
+          ]
+        }
+      ]
+    }
   },
   {
     "taskNumber": 352,
@@ -776,12 +855,6 @@
     "hasTests": false,
     "tests": "",
     "difficulty": 8,
-    "blockedBy": [
-      {
-        "taskNumber": 381,
-        "reason": "spec S26 gates real execution work on the node-states/mismatch mockup being signed off first"
-      }
-    ],
     "handoffFilePaths": [
       "plans/handoff-develop-20260730-1820.md"
     ],
@@ -1011,7 +1084,47 @@
     "schemaVersion": "1.0.1",
     "hasTests": false,
     "tests": "",
-    "difficulty": 4
+    "difficulty": 4,
+    "run": {
+      "active": true,
+      "worktree": "/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/taskTools-wt/RevEng-8a6f1cdd/task-366",
+      "leaseRunId": "ec49146d-7885-43e5-8376-6ec39e2b8e9a",
+      "history": [
+        {
+          "runId": "2e631bc0-67a7-4afe-8f84-4cf98ac8a9fb",
+          "startedAt": "2026-09-11T01:09:03-07:00",
+          "endedAt": "2026-09-11T16:46:45-07:00",
+          "exitType": "agent-failed",
+          "exitNote": "run stopped before a worktree existed",
+          "modifiedFiles": [],
+          "commits": [],
+          "implementationNotesFile": null,
+          "taskTests": null,
+          "fullSuite": null
+        },
+        {
+          "runId": "ec49146d-7885-43e5-8376-6ec39e2b8e9a",
+          "startedAt": "2026-09-11T16:46:46-07:00",
+          "endedAt": null,
+          "exitType": null,
+          "exitNote": null,
+          "modifiedFiles": [],
+          "commits": [],
+          "implementationNotesFile": null,
+          "taskTests": null,
+          "fullSuite": null,
+          "stepResults": [
+            {
+              "stepId": "init-submodules",
+              "script": "initTaskSubmodules",
+              "result": {
+                "initialized": false
+              }
+            }
+          ]
+        }
+      ]
+    }
   },
   {
     "taskNumber": 369,
@@ -1217,7 +1330,11 @@
                 "initialized": false
               }
             }
-          ]
+          ],
+          "tailCursor": {
+            "block": "pipeline-failuresExit.mmd::READ_FAILURES_PUBLICATION_STATE",
+            "input": "{\"box\":\"FAILURES_EXIT\",\"scriptSignal\":\"continue\",\"taskNumber\":378,\"runId\":\"202400c4-18ce-4c66-bdee-0f870352a4e4\",\"projectRoot\":\"/Users/matkatmusicllc/Desktop/claude code src/RevEng\",\"worktree\":\"/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/taskTools-wt/RevEng-8a6f1cdd/task-378\",\"branch\":\"task-378\",\"docsMode\":\"AUTOGEN\",\"planFile\":\"/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/taskTools-wt/RevEng-8a6f1cdd/task-378/plans/plan.json\",\"exitType\":\"block-failed\",\"exitNote\":\"pipeline-commitImplementationIfNeeded.mmd::COMMIT_IMPLEMENTATION_IF_NEEDED exited 1\\nError: Command failed: git -C /var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/staging-merge-uWXuJf merge --no-edit 9b96faf885c587cfac7263d855ce967a7026f882\",\"outcome\":\"PLAN\",\"clarifyRequest\":\"\",\"reviewOutputFile\":\"\",\"verdict\":\"\",\"notes\":\"\",\"message\":\"Split layer1-drawer.test.ts (519 lines) into 4 files under the 250-line cap: helpers already existed, created layer1-drawer-diff.test.ts (5 tests) and layer1-drawer-script.test.ts (3 tests), trimmed the original to 6 tests.\",\"additionalData\":{\"implemented\":true,\"notes\":\"All 4 plan sections done. Test count conserved: 6+5+3=14, matching pre-split. typecheck clean, npm test all passing, each split file verified individually via node --test (6/6, 5/5, 3/3). layer1-drawer-multi.test.ts untouched.\"}}"
+          }
         }
       ]
     }
@@ -1295,41 +1412,6 @@
     "hasTests": false,
     "tests": "",
     "difficulty": 8
-  },
-  {
-    "taskNumber": 381,
-    "title": "L6 node-states mockup: .n-script across confidence states, with new mismatch CSS (spec S26)",
-    "goal": [
-      "- plans/l6-node-states-mockup/index.html + fixture.js + app.js exist, served via python3 -m http.server, no fetch/process spawn/consent dialog anywhere",
-      "- The same .n-script node renders visually distinct for all seven states: verified, derived, mismatch, reseeded, original-failed, injected-unverified, never-provable, plus the unchanged pre-execution hollow-ring style",
-      "- mismatch has its own new CSS class and is unmistakably distinct from an ordinary completed state at a glance",
-      "- Viewed side by side with plans/l6-console-mockup/, the node mismatch state and the console's mismatch terminal state visually read as the same event",
-      "- No show-row checkbox for \"script result\" is added anywhere in the mockup"
-    ],
-    "notInScope": [
-      "- The console popup mockup itself (panel chrome, cancel-button states, terminal states block) is #347, done, and not re-touched here",
-      "- Real execution, consent threading, sandbox caching, and the live-working-tree confirm-only read are all deferred to the follow-up spec pass and to #358 (engine build-out)",
-      "- viewer_api_layer6_fixture_data.ts is explicitly not created at this stage per S26 item 8; it belongs to the post-signoff engine build-out",
-      "- Wiring this mockup into jfred/webapp/layer1.html fixture-mode is out of scope; this is a standalone static mockup like plans/l6-console-mockup/"
-    ],
-    "description": "Spec item S26 (`specs/from-scratch-SPEC.md (§S26. Layer 6 — script execution results (task #340 L6))`) is the source of truth; do not restate it here, read it. S26's own Tasks line: \"no dedicated node-states/mismatch-styling mockup task exists yet — one must be created before #358 can start.\" This task is that mockup.\n\nScope boundary (S26 item 1): visual-only, non-functional. Nothing spawns a process, nothing calls `executeRunOnce` (`jfred/src/reconstruction_script_runs.ts (executeRunOnce)`), no consent gate renders — all fixture data, matching how #347's console mockup was built. Do NOT re-litigate console placement (popup, chosen 2026-07-31) or re-touch the console popup itself (`plans/l6-console-mockup/`, task #347, DONE) — this task is specifically the companion the console mockup does NOT cover: the timeline NODE side.\n\nMust show (S26 item 4), statically: the SAME `.n-script` node (per S21/task #356) across its execution-outcome states: pre-execution (today's L4 hollow-ring presumed style, unchanged), `verified`, `derived`, `mismatch`, `original-failed`, `injected-unverified`, and `never-provable` (the existing bash `.kind-pre-anchor-stub` idiom, `jfred/webapp/layered-styles.css (.kind-pre-anchor-stub)`, already ported at S21 item 5 / task #356/#376 — reuse it, do not reinvent). `mismatch` needs its own genuinely NEW visual treatment — `layered-styles.css` has only `.kind-pre-anchor-stub` and `.kind-presumed-user-edit`, neither of which mean mismatch — this is the one new CSS class this item introduces.\n\nConfidence is a display overlay, never a filter axis (S23, S26 item 5) — this mockup must not add a show-row checkbox for \"script result\"; a future reader adding one would be wrong per this spec item.\n\nFile shape (S26 item 8, explicit): follows the layer-2 mockup's file split (`index.html` + `fixture.js` + `app.js`, `plans/layer2-mockup/`), NOT #343's fixture-mode-on-the-real-page shape — this is a standalone static mockup like its sibling `plans/l6-console-mockup/`, reusing that mockup's `TERMINAL_STATES` naming from `plans/l6-console-mockup/fixture.js (TERMINAL_STATES)` (`cancelled`, `verified`, `mismatch`, `original-failed`) rather than inventing parallel state names. No `viewer_api_layer6_fixture_data.ts` is needed at this stage (S26 item 8 explicitly forbids creating it early — that belongs to the post-signoff engine build-out).\n\nVerify (S26's own Verify list): the node-states mockup and the existing `plans/l6-console-mockup/` are viewed side by side in a browser (`python3 -m http.server`, matching the layer-2/L6-console convention); all six applicable confidence states render as visually distinct `.n-script` states, `mismatch` unmistakably different from an ordinary completed state at a glance; no fetch, no process spawn, no consent dialog; the mismatch node state and the console's `mismatch` terminal state read as the same event, not two unrelated designs.\n\nNo code dependency — this is a standalone new mockup directory, independent of #343/#355's fixture-mode-on-page work.",
-    "modifiableFiles": [
-      "plans/l6-node-states-mockup/index.html",
-      "plans/l6-node-states-mockup/fixture.js",
-      "plans/l6-node-states-mockup/app.js"
-    ],
-    "readOnlyFiles": [
-      "*"
-    ],
-    "schemaVersion": "1.0.1",
-    "hasTests": false,
-    "tests": "",
-    "difficulty": 4,
-    "createsFiles": [
-      "plans/l6-node-states-mockup/index.html",
-      "plans/l6-node-states-mockup/fixture.js",
-      "plans/l6-node-states-mockup/app.js"
-    ]
   },
   {
     "taskNumber": 382,
@@ -1420,6 +1502,43 @@
     "createsFiles": [
       "jfred/webapp/layer1-jfred-strip.ts",
       "jfred/scripts/visual/layer9-checks.ts"
+    ]
+  },
+  {
+    "taskNumber": 384,
+    "version": "9b96faf885c587cfac7263d855ce967a7026f882",
+    "title": "Restore old-inspector jump/revision links in the Layer 1 [{ }] JSON view",
+    "userDescription": "Restore the old inspector's jump/revision links in the Layer 1 [{ }] JSON view. Task 213 (blocker) ships the [{ }] button calling renderHighlightedJson (jfred/webapp/inspector-json.ts:168) with an EMPTY LinkMaps and [] filesTouched, so clickable jump-links on linkable string values and revision links are missing in Layer 1. Goal: build LinkMaps and the WireFileHistory[] filesTouched list for a layer1 snapshot node (the old webapp builds them in jfred/webapp/inspector-links.ts and jfred/webapp/views/file-history-model.ts from the document model, which the layer1 client never loads) and pass them to renderHighlightedJson so the Layer 1 JSON view has the same links the old inspector had. Also wire showLine and openRevision to Layer 1 equivalents. Files: jfred/webapp/layer1-drawer.ts, jfred/webapp/app-fetch.ts, jfred/src/viewer_api_layer1_snapshot.ts, jfred/webapp/inspector-links.ts, jfred/tests/layer1-drawer.test.ts. blockedBy 213.",
+    "goal": [
+      "- Linkable string values in the Layer 1 [{ }] JSON view are clickable jump-links, same as the old inspector.",
+      "- Revision links in the Layer 1 [{ }] JSON view open the revision, same as the old inspector.",
+      "- The visual styling of the new inspector matches the visual styling of the old inspector when judging the JSON being rendered.",
+      "- jfred/tests/layer1-drawer.test.ts covers the links and passes."
+    ],
+    "notInScope": [
+      "- The [{ }] button itself, the raw-record fetch, and plain token highlighting belong to task 213, not this task."
+    ],
+    "problemSolvedByTask": "Layer 1 JSON view lost the old inspector's links",
+    "description": "Task 213's clarification (recorded on that task) has openNodeDrawer's new [{ }] button (jfred/webapp/layer1-drawer.ts, n-snap nodes only) call renderHighlightedJson (jfred/webapp/inspector-json.ts:168) with an empty LinkMaps and [] filesTouched — deliberately deferred there. renderHighlightedJson's two link sources: LinkMaps comes from inspector-links.ts's computeLinkMaps(rawLines), built from a transcript's raw JSONL text lines — app-fetch.ts already exposes fetchRawRecords(project, jsonl) (hits /api/raw, caches per session) which can feed it directly for the snapshot's owning session, no new server surface needed there. filesTouched (WireFileHistory[]) is different: the old webapp gets it from peekCachedDocument(project)'s whole-project unified WireDocument (fetched via app-fetch.ts's fetchDocument), which Layer 1 never loads — Layer 1's server side (jfred/src/viewer_api_layer1_snapshot.ts and friends) has no route exposing a per-file revision list yet, so this task adds that server data and a client fetch through app-fetch.ts. showLine and openRevision also need Layer 1-native wiring: the old inspector's showLine re-renders inspector.ts's own rawLines-indexed pane, and openRevision navigates to the old webapp's file-history drawer route (routeToFileHistory in app-routes.ts) which Layer 1 has no equivalent of, so these two callbacks must be re-pointed at Layer 1's own node/drawer navigation in layer1-drawer.ts rather than reused verbatim.",
+    "modifiableFiles": [
+      "jfred/webapp/layer1-drawer.ts",
+      "jfred/webapp/app-fetch.ts",
+      "jfred/src/viewer_api_layer1_snapshot.ts",
+      "jfred/webapp/inspector-links.ts",
+      "jfred/tests/layer1-drawer.test.ts"
+    ],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": true,
+    "tests": "DOM test in jfred/tests/layer1-drawer.test.ts: click a snapshot node, click [{ }], assert a linkable string value renders as a clickable jump-link and a revision link opens the revision view.",
+    "difficulty": 8,
+    "blockedBy": [
+      {
+        "taskNumber": 213,
+        "reason": "Task 213 ships the [{ }] JSON-view button that calls renderHighlightedJson with empty LinkMaps and [] filesTouched; this task retrofits real link data into that same call site, so 213's button must exist first."
+      }
     ]
   }
 ]
