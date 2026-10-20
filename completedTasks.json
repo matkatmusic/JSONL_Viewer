@@ -6720,5 +6720,464 @@
       "46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db"
     ],
     "closureNote": "Task 213 completed.\n\nCommits:\n  377a032d33493e8a470620e27c281c79d318ed8b  jfred   work\n  951fc794027997789c95c6c2ecbb67ac66ac2f79  (root)   work\n  e4c028352e7985862e5e0e34468f7e4d8335d7d4  (root)   merge\n  0124a6d4326522e8f7236b738ed21b0ad87a7425  jfred   merge\n  17e59910982e5b2aa56c8a91f30ce58dc37b90cc  jfred/external/claude_plugin_lib   merge\n  708aeb8e6841a870f112549a83640f405149603f  jfred/external/tmux_lib   merge\n  f2905e6491432d1fbc323ffefe312d7402ce6838  jfred/jfredToolsPlugin   merge\n  17e59910982e5b2aa56c8a91f30ce58dc37b90cc  jfred/jfredToolsPlugin/external/claude_plugin_lib   merge\n  46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db  jfred/jfredToolsPlugin/external/tmux_lib   merge\n  d45a7df3d02b4af0d49695f628a9a8caa1de0046  jfred/scenarios   merge\n  d45a7df3d02b4af0d49695f628a9a8caa1de0046  scenarios   merge\n  46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db  tmux_lib   merge\nModified files: jfred::src/viewer_api_layer1_snapshot.ts, jfred::tests/layer1-drawer.test.ts, jfred::tests/viewer_api_layer1_snapshot.test.ts, jfred::webapp/layer1-drawer.ts, jfred\nTask tests: (not recorded)\nFull suite: green"
+  },
+  {
+    "taskNumber": 344,
+    "title": "Rename: tie-group -> nodesWithSameTimestamp, capped gap -> maximumVerticalGapBetweenRulerRows",
+    "goal": [
+      "- `grep -ri 'tie.group\\|tieGroup' jfred/` returns no matches outside git history",
+      "- `grep -ri 'cappedGap\\|capped.gap' jfred/` returns no matches outside git history",
+      "- webapp/layer1-tie-groups.ts is renamed to its nodesWithSameTimestamp equivalent and all imports of it updated",
+      "- docs/ui-component-glossary.md entry reflects the new names",
+      "- jfred test suite passes after the rename"
+    ],
+    "notInScope": [
+      "- Nothing handed off; no sibling task shares this scope."
+    ],
+    "description": "\"Tie-group\" should be changed to nodesWithSameTimestamp in the codebase. \"Capped gap\" should be changed to maximumVerticalGapBetweenRulerRows. Known tie-group sites (jfred): webapp/layer1-tie-groups.ts (file itself), webapp/layer1-widgets.ts, webapp/layer1-styles.css, tests/layer1-tie-groups.test.ts, tests/layer1-page-snapshots.test.ts, scripts/visual/mockup-checks.ts, docs/ui-component-glossary.md. Known capped-gap sites: src/viewer_api_layered.ts, webapp/layered-styles.css, tests/viewer_api_layered.test.ts. Rename identifiers, CSS class names, file names, and glossary entries consistently.",
+    "modifiableFiles": [
+      "jfred/webapp/layer1-tie-groups.ts",
+      "jfred/webapp/layer1-widgets.ts",
+      "jfred/webapp/layer1-styles.css",
+      "jfred/tests/layer1-tie-groups.test.ts",
+      "jfred/tests/layer1-page-snapshots.test.ts",
+      "jfred/scripts/visual/mockup-checks.ts",
+      "jfred/docs/ui-component-glossary.md",
+      "jfred/src/viewer_api_layered.ts",
+      "jfred/webapp/layered-styles.css",
+      "jfred/tests/viewer_api_layered.test.ts",
+      "jfred/webapp/layer1-nodes-with-same-timestamp.ts",
+      "jfred/tests/layer1-nodes-with-same-timestamp.test.ts"
+    ],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": false,
+    "tests": "",
+    "difficulty": 5,
+    "createsFiles": [
+      "jfred/webapp/layer1-nodes-with-same-timestamp.ts",
+      "jfred/tests/layer1-nodes-with-same-timestamp.test.ts"
+    ],
+    "run": {
+      "active": false,
+      "worktree": "/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/taskTools-wt/RevEng-8a6f1cdd/task-344",
+      "leaseRunId": "aa8366a1-21f8-4e95-b502-02088432ef09",
+      "history": [
+        {
+          "runId": "0645b287-cf96-40f6-b344-6c6bc72119e4",
+          "startedAt": "2026-09-11T01:09:06-07:00",
+          "endedAt": "2026-09-11T16:46:48-07:00",
+          "exitType": "agent-failed",
+          "exitNote": "run stopped before a worktree existed",
+          "modifiedFiles": [],
+          "commits": [],
+          "implementationNotesFile": null,
+          "taskTests": null,
+          "fullSuite": null
+        },
+        {
+          "runId": "aa8366a1-21f8-4e95-b502-02088432ef09",
+          "startedAt": "2026-09-11T16:46:49-07:00",
+          "endedAt": "2026-09-12T09:08:57-07:00",
+          "exitType": "completed",
+          "exitNote": "All layers merged successfully.",
+          "modifiedFiles": [
+            "jfred::docs/ui-component-glossary.md",
+            "jfred::scripts/visual/mockup-checks.ts",
+            "jfred::src/viewer_api_layered.ts",
+            "jfred::tests/layer1-nodes-with-same-timestamp.test.ts",
+            "jfred::tests/layer1-page-snapshots.test.ts",
+            "jfred::tests/viewer_api_layered.test.ts",
+            "jfred::webapp/layer1-nodes-with-same-timestamp.ts",
+            "jfred::webapp/layer1-styles.css",
+            "jfred::webapp/layer1-widgets.ts",
+            "jfred::webapp/layered-styles.css",
+            "jfred"
+          ],
+          "commits": [
+            {
+              "occurrenceId": "jfred",
+              "hash": "0ae4a80a0d6b0bc0e3bf3bcdc7c5ed39cf8f1dc3",
+              "kind": "work",
+              "stepId": "implement"
+            },
+            {
+              "occurrenceId": "",
+              "hash": "0cbbd29c408fa5883ed7a7c3190dc212b7690104",
+              "kind": "work",
+              "stepId": "implement"
+            },
+            {
+              "occurrenceId": "",
+              "hash": "2820b51d8415ee4f194fbe00670a6748b1bd1bd6",
+              "kind": "merge"
+            },
+            {
+              "occurrenceId": "jfred",
+              "hash": "f8aa27e3d26320f1ccf0e6e9da98a9b9ca110d20",
+              "kind": "merge"
+            },
+            {
+              "occurrenceId": "jfred/external/claude_plugin_lib",
+              "hash": "17e59910982e5b2aa56c8a91f30ce58dc37b90cc",
+              "kind": "merge"
+            },
+            {
+              "occurrenceId": "jfred/external/tmux_lib",
+              "hash": "708aeb8e6841a870f112549a83640f405149603f",
+              "kind": "merge"
+            },
+            {
+              "occurrenceId": "jfred/jfredToolsPlugin",
+              "hash": "f2905e6491432d1fbc323ffefe312d7402ce6838",
+              "kind": "merge"
+            },
+            {
+              "occurrenceId": "jfred/jfredToolsPlugin/external/claude_plugin_lib",
+              "hash": "17e59910982e5b2aa56c8a91f30ce58dc37b90cc",
+              "kind": "merge"
+            },
+            {
+              "occurrenceId": "jfred/jfredToolsPlugin/external/tmux_lib",
+              "hash": "46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db",
+              "kind": "merge"
+            },
+            {
+              "occurrenceId": "jfred/scenarios",
+              "hash": "d45a7df3d02b4af0d49695f628a9a8caa1de0046",
+              "kind": "merge"
+            },
+            {
+              "occurrenceId": "scenarios",
+              "hash": "d45a7df3d02b4af0d49695f628a9a8caa1de0046",
+              "kind": "merge"
+            },
+            {
+              "occurrenceId": "tmux_lib",
+              "hash": "46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db",
+              "kind": "merge"
+            }
+          ],
+          "implementationNotesFile": null,
+          "taskTests": null,
+          "fullSuite": {
+            "stepId": "run-full-suite-0",
+            "passed": true,
+            "layers": [
+              {
+                "occurrenceId": "jfred/jfredToolsPlugin/external/claude_plugin_lib",
+                "passed": true
+              },
+              {
+                "occurrenceId": "jfred/jfredToolsPlugin/external/tmux_lib",
+                "passed": true
+              },
+              {
+                "occurrenceId": "jfred/external/claude_plugin_lib",
+                "passed": true
+              },
+              {
+                "occurrenceId": "jfred/external/tmux_lib",
+                "passed": true
+              },
+              {
+                "occurrenceId": "jfred/jfredToolsPlugin",
+                "passed": true
+              },
+              {
+                "occurrenceId": "jfred/scenarios",
+                "passed": true
+              },
+              {
+                "occurrenceId": "jfred",
+                "passed": true
+              },
+              {
+                "occurrenceId": "scenarios",
+                "passed": true
+              },
+              {
+                "occurrenceId": "tmux_lib",
+                "passed": true
+              },
+              {
+                "occurrenceId": "",
+                "passed": true
+              }
+            ],
+            "output": "hsInTree_counts_membership (0.099917ms)\n✔ test_listRepoCommits_reads_a_real_repo_newest_first (289.66325ms)\n✔ test_resolveStaticFilePath_prefers_the_compiled_dist_copy (1.970292ms)\n✔ test_resolveStaticFilePath_falls_back_to_the_webapp_source (0.973292ms)\n✔ test_file_ladder_endpoint_lists_final_paths (516.094833ms)\n✔ test_file_ladder_endpoint_returns_one_files_revision_ladder (443.902125ms)\n✔ test_file_ladder_endpoint_refuses_an_unknown_file (611.155291ms)\n✔ test_layer1_view_endpoint_pairs_disk_files_against_the_repo_tree (747.578ms)\n✔ test_layer1_view_endpoint_rejects_a_ref_that_does_not_resolve (55.350583ms)\n✔ test_layer1_view_endpoint_rejects_inputs_that_are_not_a_folder_and_a_repo (59.168792ms)\n✔ no config file means no defaults (1.6025ms)\n✔ a config that is not JSON is not an error (0.963542ms)\n✔ every field is optional and read independently (1.004166ms)\n✔ a full config comes back whole (0.770167ms)\n✔ a field of the wrong shape is dropped, not passed through (1.410042ms)\n✔ an empty string is not a default (0.895667ms)\n✔ test_layer1_diff_endpoint_diffs_two_commits_of_one_file (54.703333ms)\n✔ test_layer1_diff_endpoint_uses_the_working_tree_for_a_side_with_no_hash (31.586833ms)\n✔ test_layer1_diff_endpoint_answers_empty_for_identical_sides (52.874708ms)\n✔ test_layer1_diff_endpoint_answers_the_whole_file_as_context_for_identical_sides_at_context_full (77.053542ms)\n✔ test_layer1_diff_endpoint_widens_context_to_the_whole_file_on_context_full (297.394417ms)\n✔ test_layer1_diff_content_endpoint_diffs_two_strings (16.931166ms)\n✔ test_layer1_diff_content_endpoint_answers_the_whole_file_for_identical_sides_at_context_full (17.474792ms)\n✔ test_layer1_diff_endpoint_diffs_a_snapshot_side_against_the_working_tree (35.368291ms)\n✔ test_layer1_diff_endpoint_refuses_bad_hashes_and_escaping_paths (3.389958ms)\n✔ test_layer1_file_endpoint_reads_the_committed_bytes_for_a_commit_node (28.02175ms)\n✔ test_layer1_file_endpoint_reads_the_working_tree_bytes_for_the_on_disk_node (0.204791ms)\n✔ test_layer1_file_endpoint_serves_raw_image_bytes_for_both_forms_when_binary_is_asked (29.686042ms)\n✔ test_layer1_file_endpoint_refuses_a_path_that_escapes_the_folder (1.030667ms)\n✔ test_fixture_data_module_imports_without_throwing (0.480167ms)\n✔ test_fixture_view_axis_offsets_accumulate (8.032ms)\n✔ test_snapshot_free_pair_omits_the_snapshots_key (4.858416ms)\n✔ test_util_ts_carries_v2_from_two_different_sessions (1.462459ms)\n✔ test_identical_sides_with_full_context_answer_the_synthesized_hunk (50.591708ms)\n✔ test_layer1_view_endpoint_places_every_pair_node_on_the_shared_ruler (714.506542ms)\n✔ test_layer1_view_endpoint_returns_the_ruler_ticks_ascending_with_the_gap_cap_applied (85.438667ms)\n✔ test_layer1_view_endpoint_places_each_orphan_bucket_row_at_its_own_instant (84.480792ms)\n✔ test_layer1_refs_endpoint_lists_every_branch_with_the_checked_out_one_first (89.204458ms)\n✔ test_layer1_refs_endpoint_returns_capped_newest_first_commits (68.103416ms)\n✔ test_layer1_refs_endpoint_reads_the_requested_ref_rather_than_head (149.276709ms)\n✔ test_layer1_refs_endpoint_rejects_a_folder_that_is_not_a_repository (14.480875ms)\n✔ test_layer1_view_stream_ends_with_the_same_view_the_plain_route_returns (769.991833ms)\n✔ test_layer1_view_stream_emits_a_counted_progress_line_before_the_view (54.159917ms)\n✔ test_layer1_view_stream_reports_an_unresolvable_ref_as_a_terminal_error_line (21.328ms)\n✔ test_layer1_sessions_walks_nested_folders_and_sorts_by_start_instant (510.222792ms)\n✔ test_layer1_sessions_report_the_first_and_last_record_instants (8.738333ms)\n✔ test_layer1_sessions_list_the_paths_each_session_touched (9.924083ms)\n✔ test_layer1_sessions_title_is_the_first_typed_prompt_not_a_tool_result (4.023542ms)\n✔ test_layer1_sessions_stream_counts_each_file_then_ends_with_the_plain_payload (12.588125ms)\n✔ test_layer1_sessions_without_a_source_folder_is_a_400 (3.681167ms)\n✔ test_scan_source_reports_a_hit_for_a_folder_holding_transcripts (6.736417ms)\n✔ test_scan_source_reports_zero_for_a_folder_with_no_transcripts (4.711375ms)\n✔ test_scan_source_counts_every_regular_file_for_the_file_history_kind (7.597708ms)\n✔ test_scan_source_refuses_a_missing_folder_and_an_unknown_kind (1.755333ms)\n✔ test_layer1_settings_read_of_missing_file_is_the_empty_shape (1.766208ms)\n✔ test_layer1_settings_read_of_corrupt_file_is_the_empty_shape (0.74725ms)\n✔ test_layer1_settings_save_then_read_round_trips_the_project (1.308708ms)\n✔ test_layer1_settings_second_project_leaves_the_first_intact (0.735583ms)\n✔ test_layer1_settings_refuses_a_project_with_no_dir (0.479833ms)\n✔ test_saving_collapsed_folders_alone_preserves_the_saved_header_fields (0.814375ms)\n✔ test_saving_header_settings_preserves_previously_saved_collapsed_folders (0.761166ms)\n✔ test_snapshot_form_reads_owning_session_bytes_for_a_shared_blob_name (3.99975ms)\n✔ test_snapshot_form_returns_the_customTitle_in_effect_at_the_snapshot_line (2.90725ms)\n✔ test_snapshot_form_refuses_a_session_id_that_escapes_the_root (1.180459ms)\n✔ test_snapshot_form_rejects_an_unknown_session_without_a_matching_placement (1.292125ms)\n✔ test_isSnapshotFileRequest_only_fires_on_the_snapshot_marker (0.096042ms)\n✔ test_layered_graph_endpoint_returns_the_fixture_graph_json (392.499958ms)\n✔ prescan_lists_each_touched_file_with_first_exact_event (4.898166ms)\n✔ prescan_marks_earlier_script_mention_as_candidate_first_event (1.193166ms)\n✔ test_root_maps_to_layered_index_page (0.500167ms)\n✔ test_layered_index_resolves_to_existing_source_file (0.146833ms)\n✔ webapp_old_path_maps_to_webapp_old_file (0.075417ms)\n✔ app_prefixed_assets_strip_to_plain_names (0.080125ms)\n✔ webapp_old_resolves_to_existing_source_file (0.068833ms)\n✔ listSubagentTranscripts_returns_empty_when_subagents_dir_missing (0.553625ms)\n✔ listSubagentTranscripts_finds_only_agent_jsonl_files (57.773042ms)\n✔ listSubagentTranscripts_ignores_loose_files_outside_subagents_dir (0.905958ms)\n✔ test_resolve_jsonl_paths_unions_configured_sources (4.251416ms)\n✔ test_resolve_jsonl_paths_without_sources_scans_single_dir (2.536792ms)\n✔ test_pick_folder_returns_the_dialog_path_and_empty_string_on_cancel (480.289083ms)\n✔ webapp_old_html_serves_the_preexisting_page (166.082875ms)\n✔ test_record_type_enum_holds_the_s1_wire_strings (0.828959ms)\n✔ test_block_type_enum_holds_the_s1_wire_strings (0.082417ms)\n✔ test_tool_name_enum_holds_the_observed_wire_strings (0.066667ms)\n✔ test_attachment_payload_type_enum_holds_the_observed_wire_strings (0.062ms)\n✔ test_event_kind_enum_holds_the_observed_wire_strings (0.062875ms)\n✔ test_known_verdicts_contains_every_verdict_member (0.093333ms)\n✔ test_envelope_key_groups_mirror_the_envelope_field_names (0.057834ms)\nℹ tests 1571\nℹ suites 1\nℹ pass 1569\nℹ fail 0\nℹ cancelled 0\nℹ skipped 2\nℹ todo 0\nℹ duration_ms 54074.727542\noccurrence \"scenarios\" has no discoverable test suite\noccurrence \"tmux_lib\" has no discoverable test suite\n> jsonl-viewer@0.0.0 test\n> node --import tsx --test tests/*.test.ts\n\n✔ dedupeEvents collapses the same record replicated across roots (2.52875ms)\n✔ dedupeEvents keeps distinct records apart (0.116667ms)\n✔ findOverlapGroups keeps only rel-paths edited from more than one project folder (0.138583ms)\n✔ findConflictCandidates flags cross-folder edits under 24h with differing content (0.136084ms)\n✔ findConflictCandidates ignores pairs with identical content evidence (0.075167ms)\n✔ buildNotesMarkdown renders every numbered section (4.159708ms)\n✔ buildNotesMarkdown preserves the hand-maintained section verbatim (0.333333ms)\n✔ buildNotesMarkdown reports the overlap and conflict counts (0.20975ms)\n✔ splitJotPath splits a path under the jot plugin root (0.748541ms)\n✔ splitJotPath keeps sibling jot roots distinct (0.076542ms)\n✔ splitJotPath rejects paths outside ~/Programming/jot* (0.444292ms)\n✔ deriveContentHash separates Write content from Edit strings (0.182292ms)\n✔ deriveContentHash is stable for identical input (0.069708ms)\nℹ tests 13\nℹ suites 0\nℹ pass 13\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 552.50775",
+            "checkedAt": "2026-09-12T09:08:31-07:00"
+          },
+          "stepResults": [
+            {
+              "stepId": "init-submodules",
+              "script": "initTaskSubmodules",
+              "result": {
+                "initialized": false
+              }
+            },
+            {
+              "stepId": "rebase",
+              "script": "rebaseTaskWorktree",
+              "result": {
+                "lock": "acquired",
+                "heldByOwner": null,
+                "recoveryCommand": null,
+                "conflicted": false,
+                "stoppedAt": null,
+                "conflictedFilePaths": [],
+                "failureReason": null
+              },
+              "occurrenceIds": [
+                "",
+                "jfred",
+                "jfred/external/claude_plugin_lib",
+                "jfred/external/tmux_lib",
+                "jfred/jfredToolsPlugin",
+                "jfred/jfredToolsPlugin/external/claude_plugin_lib",
+                "jfred/jfredToolsPlugin/external/tmux_lib",
+                "jfred/scenarios",
+                "scenarios",
+                "tmux_lib"
+              ],
+              "worktreeHeads": [
+                {
+                  "occurrenceId": "",
+                  "head": "0cbbd29c408fa5883ed7a7c3190dc212b7690104"
+                },
+                {
+                  "occurrenceId": "jfred",
+                  "head": "0ae4a80a0d6b0bc0e3bf3bcdc7c5ed39cf8f1dc3"
+                },
+                {
+                  "occurrenceId": "jfred/external/claude_plugin_lib",
+                  "head": "17e59910982e5b2aa56c8a91f30ce58dc37b90cc"
+                },
+                {
+                  "occurrenceId": "jfred/external/tmux_lib",
+                  "head": "708aeb8e6841a870f112549a83640f405149603f"
+                },
+                {
+                  "occurrenceId": "jfred/jfredToolsPlugin",
+                  "head": "f2905e6491432d1fbc323ffefe312d7402ce6838"
+                },
+                {
+                  "occurrenceId": "jfred/jfredToolsPlugin/external/claude_plugin_lib",
+                  "head": "17e59910982e5b2aa56c8a91f30ce58dc37b90cc"
+                },
+                {
+                  "occurrenceId": "jfred/jfredToolsPlugin/external/tmux_lib",
+                  "head": "46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db"
+                },
+                {
+                  "occurrenceId": "jfred/scenarios",
+                  "head": "d45a7df3d02b4af0d49695f628a9a8caa1de0046"
+                },
+                {
+                  "occurrenceId": "scenarios",
+                  "head": "d45a7df3d02b4af0d49695f628a9a8caa1de0046"
+                },
+                {
+                  "occurrenceId": "tmux_lib",
+                  "head": "46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db"
+                }
+              ]
+            },
+            {
+              "stepId": "merge-succeeded-exit",
+              "script": "closeTaskRun",
+              "result": {
+                "closed": [
+                  344
+                ],
+                "skipped": [],
+                "unblocked": [],
+                "ambiguous": []
+              }
+            }
+          ],
+          "tailCursor": null,
+          "sourceTipsAtRebase": [
+            {
+              "occurrenceId": "",
+              "baseBranch": "staging",
+              "sourceTip": "f93860a9e0df85822d044c2c5b5c17b5eae41cdf"
+            },
+            {
+              "occurrenceId": "jfred",
+              "baseBranch": "staging",
+              "sourceTip": "0124a6d4326522e8f7236b738ed21b0ad87a7425"
+            },
+            {
+              "occurrenceId": "jfred/external/claude_plugin_lib",
+              "baseBranch": "staging",
+              "sourceTip": "17e59910982e5b2aa56c8a91f30ce58dc37b90cc"
+            },
+            {
+              "occurrenceId": "jfred/external/tmux_lib",
+              "baseBranch": "staging",
+              "sourceTip": "708aeb8e6841a870f112549a83640f405149603f"
+            },
+            {
+              "occurrenceId": "jfred/jfredToolsPlugin",
+              "baseBranch": "staging",
+              "sourceTip": "f2905e6491432d1fbc323ffefe312d7402ce6838"
+            },
+            {
+              "occurrenceId": "jfred/jfredToolsPlugin/external/claude_plugin_lib",
+              "baseBranch": "staging",
+              "sourceTip": "17e59910982e5b2aa56c8a91f30ce58dc37b90cc"
+            },
+            {
+              "occurrenceId": "jfred/jfredToolsPlugin/external/tmux_lib",
+              "baseBranch": "staging",
+              "sourceTip": "46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db"
+            },
+            {
+              "occurrenceId": "jfred/scenarios",
+              "baseBranch": "staging",
+              "sourceTip": "d45a7df3d02b4af0d49695f628a9a8caa1de0046"
+            },
+            {
+              "occurrenceId": "scenarios",
+              "baseBranch": "staging",
+              "sourceTip": "d45a7df3d02b4af0d49695f628a9a8caa1de0046"
+            },
+            {
+              "occurrenceId": "tmux_lib",
+              "baseBranch": "staging",
+              "sourceTip": "46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db"
+            }
+          ],
+          "rebaseStepReceipt": {
+            "stepId": "rebase",
+            "occurrenceIds": [
+              "",
+              "jfred",
+              "jfred/external/claude_plugin_lib",
+              "jfred/external/tmux_lib",
+              "jfred/jfredToolsPlugin",
+              "jfred/jfredToolsPlugin/external/claude_plugin_lib",
+              "jfred/jfredToolsPlugin/external/tmux_lib",
+              "jfred/scenarios",
+              "scenarios",
+              "tmux_lib"
+            ],
+            "worktreeHeads": [
+              {
+                "occurrenceId": "",
+                "head": "0cbbd29c408fa5883ed7a7c3190dc212b7690104"
+              },
+              {
+                "occurrenceId": "jfred",
+                "head": "0ae4a80a0d6b0bc0e3bf3bcdc7c5ed39cf8f1dc3"
+              },
+              {
+                "occurrenceId": "jfred/external/claude_plugin_lib",
+                "head": "17e59910982e5b2aa56c8a91f30ce58dc37b90cc"
+              },
+              {
+                "occurrenceId": "jfred/external/tmux_lib",
+                "head": "708aeb8e6841a870f112549a83640f405149603f"
+              },
+              {
+                "occurrenceId": "jfred/jfredToolsPlugin",
+                "head": "f2905e6491432d1fbc323ffefe312d7402ce6838"
+              },
+              {
+                "occurrenceId": "jfred/jfredToolsPlugin/external/claude_plugin_lib",
+                "head": "17e59910982e5b2aa56c8a91f30ce58dc37b90cc"
+              },
+              {
+                "occurrenceId": "jfred/jfredToolsPlugin/external/tmux_lib",
+                "head": "46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db"
+              },
+              {
+                "occurrenceId": "jfred/scenarios",
+                "head": "d45a7df3d02b4af0d49695f628a9a8caa1de0046"
+              },
+              {
+                "occurrenceId": "scenarios",
+                "head": "d45a7df3d02b4af0d49695f628a9a8caa1de0046"
+              },
+              {
+                "occurrenceId": "tmux_lib",
+                "head": "46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db"
+              }
+            ],
+            "sourceTips": [
+              {
+                "occurrenceId": "",
+                "baseBranch": "staging",
+                "sourceTip": "f93860a9e0df85822d044c2c5b5c17b5eae41cdf"
+              },
+              {
+                "occurrenceId": "jfred",
+                "baseBranch": "staging",
+                "sourceTip": "0124a6d4326522e8f7236b738ed21b0ad87a7425"
+              },
+              {
+                "occurrenceId": "jfred/external/claude_plugin_lib",
+                "baseBranch": "staging",
+                "sourceTip": "17e59910982e5b2aa56c8a91f30ce58dc37b90cc"
+              },
+              {
+                "occurrenceId": "jfred/external/tmux_lib",
+                "baseBranch": "staging",
+                "sourceTip": "708aeb8e6841a870f112549a83640f405149603f"
+              },
+              {
+                "occurrenceId": "jfred/jfredToolsPlugin",
+                "baseBranch": "staging",
+                "sourceTip": "f2905e6491432d1fbc323ffefe312d7402ce6838"
+              },
+              {
+                "occurrenceId": "jfred/jfredToolsPlugin/external/claude_plugin_lib",
+                "baseBranch": "staging",
+                "sourceTip": "17e59910982e5b2aa56c8a91f30ce58dc37b90cc"
+              },
+              {
+                "occurrenceId": "jfred/jfredToolsPlugin/external/tmux_lib",
+                "baseBranch": "staging",
+                "sourceTip": "46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db"
+              },
+              {
+                "occurrenceId": "jfred/scenarios",
+                "baseBranch": "staging",
+                "sourceTip": "d45a7df3d02b4af0d49695f628a9a8caa1de0046"
+              },
+              {
+                "occurrenceId": "scenarios",
+                "baseBranch": "staging",
+                "sourceTip": "d45a7df3d02b4af0d49695f628a9a8caa1de0046"
+              },
+              {
+                "occurrenceId": "tmux_lib",
+                "baseBranch": "staging",
+                "sourceTip": "46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "completionDate": "2026-09-12",
+    "commitHashes": [
+      "0ae4a80a0d6b0bc0e3bf3bcdc7c5ed39cf8f1dc3",
+      "0cbbd29c408fa5883ed7a7c3190dc212b7690104",
+      "2820b51d8415ee4f194fbe00670a6748b1bd1bd6",
+      "f8aa27e3d26320f1ccf0e6e9da98a9b9ca110d20",
+      "17e59910982e5b2aa56c8a91f30ce58dc37b90cc",
+      "708aeb8e6841a870f112549a83640f405149603f",
+      "f2905e6491432d1fbc323ffefe312d7402ce6838",
+      "17e59910982e5b2aa56c8a91f30ce58dc37b90cc",
+      "46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db",
+      "d45a7df3d02b4af0d49695f628a9a8caa1de0046",
+      "d45a7df3d02b4af0d49695f628a9a8caa1de0046",
+      "46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db"
+    ],
+    "closureNote": "Task 344 completed.\n\nCommits:\n  0ae4a80a0d6b0bc0e3bf3bcdc7c5ed39cf8f1dc3  jfred   work\n  0cbbd29c408fa5883ed7a7c3190dc212b7690104  (root)   work\n  2820b51d8415ee4f194fbe00670a6748b1bd1bd6  (root)   merge\n  f8aa27e3d26320f1ccf0e6e9da98a9b9ca110d20  jfred   merge\n  17e59910982e5b2aa56c8a91f30ce58dc37b90cc  jfred/external/claude_plugin_lib   merge\n  708aeb8e6841a870f112549a83640f405149603f  jfred/external/tmux_lib   merge\n  f2905e6491432d1fbc323ffefe312d7402ce6838  jfred/jfredToolsPlugin   merge\n  17e59910982e5b2aa56c8a91f30ce58dc37b90cc  jfred/jfredToolsPlugin/external/claude_plugin_lib   merge\n  46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db  jfred/jfredToolsPlugin/external/tmux_lib   merge\n  d45a7df3d02b4af0d49695f628a9a8caa1de0046  jfred/scenarios   merge\n  d45a7df3d02b4af0d49695f628a9a8caa1de0046  scenarios   merge\n  46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db  tmux_lib   merge\nModified files: jfred::docs/ui-component-glossary.md, jfred::scripts/visual/mockup-checks.ts, jfred::src/viewer_api_layered.ts, jfred::tests/layer1-nodes-with-same-timestamp.test.ts, jfred::tests/layer1-page-snapshots.test.ts, jfred::tests/viewer_api_layered.test.ts, jfred::webapp/layer1-nodes-with-same-timestamp.ts, jfred::webapp/layer1-styles.css, jfred::webapp/layer1-widgets.ts, jfred::webapp/layered-styles.css, jfred\nTask tests: (not recorded)\nFull suite: green"
   }
 ]
