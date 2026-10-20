@@ -155,3 +155,4 @@ plans/cleanup-claude-mem-caches.sh
 .taskTools/workflows/
 __pycache__/
 .DS_Store
+**/plans/checkpoint.json
