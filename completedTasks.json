@@ -7179,5 +7179,92 @@
       "46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db"
     ],
     "closureNote": "Task 344 completed.\n\nCommits:\n  0ae4a80a0d6b0bc0e3bf3bcdc7c5ed39cf8f1dc3  jfred   work\n  0cbbd29c408fa5883ed7a7c3190dc212b7690104  (root)   work\n  2820b51d8415ee4f194fbe00670a6748b1bd1bd6  (root)   merge\n  f8aa27e3d26320f1ccf0e6e9da98a9b9ca110d20  jfred   merge\n  17e59910982e5b2aa56c8a91f30ce58dc37b90cc  jfred/external/claude_plugin_lib   merge\n  708aeb8e6841a870f112549a83640f405149603f  jfred/external/tmux_lib   merge\n  f2905e6491432d1fbc323ffefe312d7402ce6838  jfred/jfredToolsPlugin   merge\n  17e59910982e5b2aa56c8a91f30ce58dc37b90cc  jfred/jfredToolsPlugin/external/claude_plugin_lib   merge\n  46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db  jfred/jfredToolsPlugin/external/tmux_lib   merge\n  d45a7df3d02b4af0d49695f628a9a8caa1de0046  jfred/scenarios   merge\n  d45a7df3d02b4af0d49695f628a9a8caa1de0046  scenarios   merge\n  46fcbc70e3e530dc28e2a9363bbfc70d5d95e9db  tmux_lib   merge\nModified files: jfred::docs/ui-component-glossary.md, jfred::scripts/visual/mockup-checks.ts, jfred::src/viewer_api_layered.ts, jfred::tests/layer1-nodes-with-same-timestamp.test.ts, jfred::tests/layer1-page-snapshots.test.ts, jfred::tests/viewer_api_layered.test.ts, jfred::webapp/layer1-nodes-with-same-timestamp.ts, jfred::webapp/layer1-styles.css, jfred::webapp/layer1-widgets.ts, jfred::webapp/layered-styles.css, jfred\nTask tests: (not recorded)\nFull suite: green"
+  },
+  {
+    "taskNumber": 352,
+    "title": "Retire the data-layer attribute and its readers in one commit",
+    "goal": [
+      "- Searching the repo for `data-layer` (webapp, tests, scripts/visual, docs) returns no hits",
+      "- `jfred/webapp/layer1-layer-toggle.ts` and `jfred/tests/layer1-layer-toggle.test.ts` no longer exist and no file imports either",
+      "- npm run typecheck and npm test pass",
+      "- The commit states plainly whether the `.layerbar` markup/buttons stay (inert, pending #343) or were also removed"
+    ],
+    "notInScope": [
+      "- Building the show-row-of-checkboxes UI that replaces data-layer; that is new UI landing with task #360 (L8 show row, spec S23)",
+      "- Restoring/controlling Layer 2 snapshot visibility once data-layer is gone; that is task #360 (the L8 show row)"
+    ],
+    "description": "Per plans/340-recon/DECISIONS.md (\"The checkboxes are the source of truth; data-layer retires\"): the show-row-of-checkboxes design supersedes the round-1 decision to keep data-layer as the layer-switch mechanism. This task removes the CURRENT data-layer plumbing. It does NOT build the show row itself — that is new UI that lands with the L8 show row (task #360, spec S23). All sites below were re-verified against the working tree on 2026-07-30 and their line numbers are current.\n\nSites to remove, all in ONE commit (handoff plans/handoff-develop-20260730-1820.md step 3):\n\n1. jfred/webapp/layer1-styles.css (.viz-root:not([data-layer=\"2\"]) .n-snap) — `.viz-root:not([data-layer=\"2\"]) .n-snap { display: none; }`, the sole CSS rule gating snapshot-node visibility.\n2. jfred/webapp/layer1-layer-toggle.ts (31 lines) — the whole file: `wireLayerToggle`/`selectLayer`/`vizRoot`/`layerButtons`, which write `data-layer` onto `.viz-root` and move `.current`. Also remove its import and call site in jfred/webapp/layer1-page.ts (wireLayerToggle) and :221 (`import { wireLayerToggle } from \"./layer1-layer-toggle.ts\"` and the `wireLayerToggle();` boot call) — these two lines are not in the handoff's file list but are load-bearing; the toggle is not retired until the call site is gone too.\n3. jfred/webapp/layer1.html (div.viz-root) (`<div class=\"viz-root\" data-layer=\"1\">` — drop the attribute, keep the div) and :40-41 (the two `.layerbar` buttons carrying `data-layer=\"1\"`/`data-layer=\"2\"`).\n4. jfred/tests/layer1-layer-toggle.test.ts (60 lines) — the whole file; every test reads `.viz-root` `dataset.layer` or clicks a `data-layer` button.\n5. Three visual/CDP probes:\n   - jfred/scripts/visual/mockup.ts (LAYER_BUTTON),29,32,75 — `LAYER_BUTTON`, `CURRENT_ONLY_ON_2`, and its two call sites.\n   - jfred/scripts/visual/layer2-checks.ts (LAYER),53,63,72,170 — the handoff cites only :18 and :53 (the `LAYER` const and one selector); re-verification found three MORE sites in the same 175-line file that also read `.dataset.layer` directly: :63 (`checkLayer1HidesSnapshots`), :72 (`openLayer2`'s waitFor), and :170 (the closing 2->1 round-trip check). All five must go together or this file's toggle-flow tests break.\n   - jfred/scripts/visual/mockup-checks.ts (checkChrome) — `document.querySelector('[data-layer=\"2\"]').title`.\n6. jfred/docs/ui-component-glossary.md (§Layer 1 UI Component Glossary) (\"top container `div.viz-root[data-layer=\"1\"]`\") and :28 (the \"layer switcher\" row naming `layer1-layer-toggle.ts` and `.layerbar button[data-layer]`) — update both to describe whatever replaces the toggle (or state plainly that the switcher is retired pending the show row, if that is the chosen interim).\n\nOpen consequence to resolve before/while implementing, not to silently paper over: after this commit there is no code left that hides `.n-snap` nodes below Layer 2 — snapshot nodes will render unconditionally in the DOM's default state, since the show-row checkboxes (S20, #343) that DECISIONS.md names as the replacement do not exist yet anywhere in webapp/ or src/ (verified: no `show-row`/`showRow`/\"show row\" hits in the repo). Decide and document whether the `.layerbar` markup and its two buttons stay (inert, until #343 wires the show row) or are also deleted in this same commit; DECISIONS.md says \"buttons 1-7 remain as presets\" for the future but does not say what they do in the gap between this commit and #343 landing.\n\nDepends on: None to start, but functionally precedes/coordinates with task #360 (the L8 show row), which is what actually introduces the show-row checkboxes that are meant to replace data-layer. Landing this task alone leaves Layer 2 snapshot visibility uncontrolled until #360 ships — call this out to the user rather than deciding it silently.",
+    "modifiableFiles": [
+      "jfred/webapp/layer1-styles.css",
+      "jfred/webapp/layer1-layer-toggle.ts",
+      "jfred/webapp/layer1-page.ts",
+      "jfred/webapp/layer1.html",
+      "jfred/tests/layer1-layer-toggle.test.ts",
+      "jfred/scripts/visual/mockup.ts",
+      "jfred/scripts/visual/layer2-checks.ts",
+      "jfred/scripts/visual/mockup-checks.ts",
+      "jfred/docs/ui-component-glossary.md"
+    ],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": false,
+    "tests": "",
+    "difficulty": 5,
+    "handoffFilePaths": [
+      "plans/handoff-develop-20260730-1820.md"
+    ],
+    "completionDate": "2026-10-20",
+    "commitHashes": [
+      "831506a",
+      "b05d38c"
+    ],
+    "closureNote": "done by jfred work 1 on 2026-10-20; verified: data-layer only in comments, typecheck and full npm test green"
+  },
+  {
+    "taskNumber": 354,
+    "title": "Split the layer-2 fixture data out of viewer_api_layer1_fixture_data.ts",
+    "goal": [
+      "- jfred/src/viewer_api_layer2_fixture_data.ts exists and exports FixtureSnapshot, SNAPSHOTS, and fixtureSnapshotPlacements",
+      "- jfred/src/viewer_api_layer1_fixture_data.ts no longer defines or exports SNAPSHOTS, FixtureSnapshot, or fixtureSnapshotPlacements",
+      "- jfred/src/viewer_api_fixture_bulk.ts exists holding one parameterized bulk-generator loop plus the self-check, called exactly once",
+      "- Every prior import site of SNAPSHOTS/FixtureSnapshot/fixtureSnapshotPlacements builds against the new layer2 file",
+      "- Fixture-mode timeline shows the same bubble/instant counts before and after the split (verified by CDP page dump, not typecheck alone), and the full test suite plus typecheck pass"
+    ],
+    "notInScope": [
+      "- Extending the self-check to validate edit hunks (L3 hunk-validation) — owned by the not-yet-started L3 fixture-data task from spec S20",
+      "- Restructuring plans/layer2-mockup/fixture.js's file layout to mirror the new TS split — spec S19 keeps one mockup file for every layer; only the generated VALUES must stay equivalent"
+    ],
+    "description": "Per plans/340-recon/DECISIONS.md (\"Fixture data: one file per layer\") and handoff plans/handoff-develop-20260730-1820.md step 6. Re-read the full 175-line jfred/src/viewer_api_layer1_fixture_data.ts on 2026-07-30 to confirm the real structure — it is more entangled than \"move SNAPSHOTS to a new file\" suggests, so read this whole description before starting.\n\nCurrent shape (verified line numbers):\n- Lines 8-9: shared helpers `ms`/`basename`.\n- Lines 11-20: fixture path constants + all five `Fixture*` interfaces (`FixtureTitleRange`, `FixtureCommit`, `FixtureDisk`, `FixtureSession`, `FixtureSnapshot`).\n- Lines 23-71: hand-crafted `COMMITS`, `DISK`, `BRANCHES`, `SESSIONS` (layer 1 data).\n- Lines 73-83: hand-crafted `SNAPSHOTS` (layer 2 data) — this is what DECISIONS.md says moves to the new file.\n- Lines 86-89: `titleAt` (layer 1).\n- Lines 91-131: ONE bulk-generation loop that builds 84 files' worth of `COMMITS`, `DISK`, and `SESSIONS` entries (layer 1) AND pushes into the SAME `SNAPSHOTS` array (layer 2, lines 121-122) in the SAME iteration, sharing the same `bulkSessions` map, `born`/`mtime` timestamps, and file-name generation. This is the loop DECISIONS.md means by \"both layers' data comes from one loop\" — it is not two adjacent loops, it is one loop with layer 1 and layer 2 pushes interleaved per-file.\n- Lines 134-149: the import-time self-check, which currently validates only `SNAPSHOTS` against `DISK`/`SESSIONS` (born<=snapshot<=mtime, inside session window, on a title line) and throws on failure.\n- Lines 152-174: `sessionIdFor`/`sessionFileFor` (layer-agnostic id/path helpers) and `fixtureSnapshotPlacements` (layer 2, builds the wire-shaped `SnapshotPlacement[]`).\n\nRequired split, per DECISIONS.md's exact wording (\"the shared bulk generator and self-check move somewhere common\"):\n1. New jfred/src/viewer_api_layer2_fixture_data.ts gets: `FixtureSnapshot`, the crafted `SNAPSHOTS` array (lines 73-83), and `fixtureSnapshotPlacements` (lines 161-174).\n2. jfred/src/viewer_api_layer1_fixture_data.ts keeps: the path constants, `FixtureCommit`/`FixtureDisk`/`FixtureSession`, crafted `COMMITS`/`DISK`/`BRANCHES`/`SESSIONS`, `titleAt`, `sessionIdFor`/`sessionFileFor`.\n3. A third, common module (name not prescribed by DECISIONS.md — follow the existing underscore convention, e.g. something under src/ that both layer files import) gets: the bulk generator loop's shared constants and helpers (`HOUR_MS`, `BULK_DIRS`, `BULK_EXTS`, `BULK_FILES`, `BULK_BORN0`, `iso`, `fakeHash`), the loop itself (parameterized so it can push into caller-supplied arrays rather than closing over module-level `COMMITS`/`DISK`/`SESSIONS`/`SNAPSHOTS`), and the self-check. Per section 3 of plans/coding-requirements.md (\"DRY — extract to generic, parameterized helpers\"), this must be a real parameterized function, not two copy-pasted loops.\n4. The self-check itself must extend to edit hunks per spec S20 (specs/from-scratch-SPEC.md (§S20. Layer 3 — beacons and extracted Edit/Write nodes), \"the import-time self-check extends to hunks\") once L3's fixture file exists — this task does not need to add that logic yet (L3's fixture data is a separate, not-yet-started task per S20's Status line), but the common module's self-check should be written so a future `viewer_api_layer3_fixture_data.ts` can register its own validation into the same throw-on-load mechanism rather than duplicating it.\n5. New layers beyond L2/L3 get their own `viewer_api_layer<N>_fixture_data.ts` (underscores, matching the existing family) as they're built — not part of this task, just the naming convention this split establishes.\n\nHARD CONSTRAINT — keep the bulk loop intact. 84 of the 88 fixture bubbles come from this generator (verified: `BULK_FILES = 84`, plus the 4 hand-crafted sessions/paths = the fixture's ~88-bubble total cited throughout DECISIONS.md and the handoff). If the split breaks the loop's cross-population of COMMITS/DISK/SESSIONS/SNAPSHOTS, the fixture-mode mockup timeline renders near-empty. Verify bubble/instant counts are unchanged before and after the split (e.g. diff a page dump, or assert counts in a quick script) — do not rely on typecheck alone.\n\nThe static mockup twin, plans/layer2-mockup/fixture.js (verified: 174 lines, same COMMITS/DISK/SESSIONS/SNAPSHOTS/bulk-loop/self-check shape as the TS file, \"ported wholesale\" per its own header comment), does NOT get this same file-per-layer split. Spec S19 (specs/from-scratch-SPEC.md (§S19. Layer 2 View mockup — file-history snapshots)) explicitly decided one mockup file carries every layer (\"no layer2-mockup.html copy\" — a copy would fork the ruler/bubbles/minimap/etc into two files kept in step by hand). Splitting fixture.js's internal structure to mirror the new TS layout would contradict that decision. What DECISIONS.md's \"kept in sync\" requirement actually means here: the VALUES (which commits, disks, sessions, snapshots the bulk loop produces) must stay equivalent between fixture.js and the TS family after the split — verify by comparing generated content (e.g. bubble count, per-file snapshot counts), not by keeping the file layouts identical.\n\nCheck every import site of `SNAPSHOTS`/`FixtureSnapshot`/`fixtureSnapshotPlacements` from viewer_api_layer1_fixture_data.ts elsewhere in src/ and scripts/visual/ before moving them, and update those imports to the new layer2 file.\n\nDepends on: None required to start. Loosely related to the (not-yet-created) L3 fixture-data task from spec S20, which will want the same common bulk-generator/self-check module this task creates — sequencing this first makes that task additive rather than another refactor.",
+    "modifiableFiles": [
+      "jfred/src/viewer_api_layer1_fixture.ts",
+      "jfred/src/viewer_api_layer1_fixture_data.ts",
+      "jfred/src/viewer_api_layer1_fixture_view.ts",
+      "jfred/src/viewer_api_fixture_bulk.ts",
+      "jfred/src/viewer_api_layer2_fixture_data.ts",
+      "jfred/tests/viewer_api_fixture_bulk.test.ts"
+    ],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": false,
+    "tests": "",
+    "difficulty": 5,
+    "handoffFilePaths": [
+      "plans/handoff-develop-20260730-1820.md"
+    ],
+    "createsFiles": [
+      "jfred/src/viewer_api_layer2_fixture_data.ts",
+      "jfred/src/viewer_api_fixture_bulk.ts",
+      "jfred/tests/viewer_api_fixture_bulk.test.ts"
+    ],
+    "completionDate": "2026-10-20",
+    "commitHashes": [
+      "c24a024",
+      "fecad25"
+    ],
+    "closureNote": "done by jfred work 2 on 2026-10-20; verified: layer2 fixture file and bulk generator exist, fixture tests 83/83, full npm test green"
   }
 ]
