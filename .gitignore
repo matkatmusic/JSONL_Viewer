@@ -153,3 +153,5 @@ plans/cleanup-claude-mem-caches.sh
 
 .taskTools/runs/
 .taskTools/workflows/
+__pycache__/
+.DS_Store
