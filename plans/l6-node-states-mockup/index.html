@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L6 Script-Run Node States — Mockup</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb;
+    --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --border: rgba(11,11,11,.10);
+    --add: #0ca30c; --del: #d03b3b; --amber: #b5860b;
+    --c-script: #4a3aa7; --c-commit: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19;
+      --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --border: rgba(255,255,255,.10);
+      --add: #3fbf3f; --del: #e46a6a; --amber: #d9a63a;
+      --c-script: #9085e9; --c-commit: #3987e5;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19;
+    --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --border: rgba(255,255,255,.10);
+    --add: #3fbf3f; --del: #e46a6a; --amber: #d9a63a;
+    --c-script: #9085e9; --c-commit: #3987e5;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--page); }
+  .viz-root { font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--page); padding: 20px 24px 60px; max-width: 900px; }
+  h1 { font-size: 18px; margin-bottom: 8px; }
+  .intro { color: var(--ink2); margin-bottom: 28px; max-width: 70ch; }
+  .intro code { font: 11.5px ui-monospace, Menlo, monospace; }
+  section { border-top: 1px solid var(--border); padding-top: 18px; margin-top: 18px; }
+  section h2 { font-size: 15px; margin-bottom: 4px; }
+
+  .node-state-row { display: flex; gap: 18px; flex-wrap: wrap; }
+  .state-frame { display: flex; flex-direction: column; align-items: center; gap: 8px;
+    border: 1px solid var(--grid); border-radius: 8px; background: var(--surface);
+    padding: 14px 12px 12px; min-width: 150px; flex: 1 1 150px; }
+  .state-stage { position: relative; width: 100%; height: 34px;
+    border-bottom: 1.5px solid var(--grid); }
+  .state-name { font: 600 12px system-ui; }
+  .state-desc { font-size: 11px; color: var(--ink2); text-align: center; max-width: 22ch; }
+
+  /*
+    Base script-run node — the L4 hollow-ring idiom ported from plans/mvp-app-mockup.html:121 (.n-script { background: transparent; border: 3.5px solid var(--c-script); }); pre-execution style, unchanged.
+  */
+  .n-script { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 15px; height: 15px; border-radius: 50%;
+    background: transparent; border: 3.5px solid var(--c-script);
+    box-shadow: 0 0 0 2.5px var(--surface); }
+
+  /*
+    Confidence overlay — a ring around the node, never a fill swap (layered-styles.css:143 rule).  Each state adds one outer ring in its own colour; mismatch below is the sole exception.
+  */
+  .state-verified { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--add); }
+  .state-derived { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--add); }
+  .state-derived::after { content: ""; position: absolute; inset: -5px; border-radius: 50%;
+    border: 2px dashed var(--surface); }
+  .state-reseeded { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--c-commit); }
+  .state-original-failed { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--amber); }
+  .state-injected-unverified { box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--muted); }
+  .state-injected-unverified::after { content: "?"; position: absolute; top: -15px; left: 50%;
+    transform: translateX(-50%); font: 700 10px system-ui; color: var(--muted); }
+
+  /*
+    never-provable — the bash .kind-pre-anchor-stub idiom (layered-styles.css:138, dashed hollow ring) reused: the node's own border turns dashed grey, and it carries no confidence ring.
+  */
+  .state-never-provable { border-style: dashed; border-color: var(--muted); }
+
+  /*
+    mismatch — THE ONE NEW STYLE this item introduces. A doubled red ring plus a solid red core breaks the hollow ring so it is unmistakable at a glance, and it uses var(--del) so it reads as the same event as the console mockup's .term-mismatch.
+  */
+  .n-mismatch { border-color: var(--del);
+    background: radial-gradient(var(--del) 0 3px, transparent 3px);
+    box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 5px var(--del),
+      0 0 0 7px color-mix(in srgb, var(--del) 35%, transparent); }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <h1>L6 script-run node states — mockup</h1>
+  <p class="intro">
+    Static states for a single Layer 6 <code>.n-script</code> timeline node across its
+    execution-outcome confidence states. Companion to <code>plans/l6-console-mockup/</code>;
+    the two are meant to be read side by side. Nothing here fetches, spawns a process, or
+    renders a consent dialog — every node below is fixed fixture data. Confidence is a
+    display overlay, never a filter axis, so there is no show-row checkbox for script result.
+  </p>
+
+  <section>
+    <h2>The same node, every confidence state</h2>
+    <div id="node-states-mount"></div>
+  </section>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
