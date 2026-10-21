@@ -345,14 +345,6 @@
         "reason": "This umbrella task stays open until every listed child closes, and 361 (L9 engine) is one of those children."
       },
       {
-        "taskNumber": 377,
-        "reason": "This umbrella task stays open until every listed child closes, and 377 (L4 fixture-data step 5) is one of those children."
-      },
-      {
-        "taskNumber": 378,
-        "reason": "This umbrella task stays open until every listed child closes, and 378 (layer1-drawer test split) is one of those children."
-      },
-      {
         "taskNumber": 379,
         "reason": "This umbrella task stays open until every listed child closes, and 379 (L5 mockup) is one of those children."
       },
@@ -519,10 +511,6 @@
       {
         "taskNumber": 343,
         "reason": "This task implements the engine and webapp behind the #343 mockup; #343 must be closed first."
-      },
-      {
-        "taskNumber": 378,
-        "reason": "jfred/tests/layer1-drawer.test.ts must be split under the 250-line cap by #378 before this task adds a describeNode edit branch to it."
       }
     ],
     "handoffFilePaths": [
@@ -927,104 +915,6 @@
     "hasTests": false,
     "tests": "",
     "difficulty": 6
-  },
-  {
-    "taskNumber": 377,
-    "title": "Layer 4 fixture data: viewer_api_layer4_fixture_data.ts + contentLines scriptRun branch (task #356 step 5)",
-    "goal": [
-      "- jfred/src/viewer_api_layer4_fixture_data.ts exists and exports canned script-run fixture data following the one-file-per-layer convention",
-      "- contentLines (jfred/src/viewer_api_layer1_fixture_content.ts) has a scriptRun branch that returns a canned script body ahead of the generic TEMPLATES fallback",
-      "- Fetching a fixture-mode scriptRun node's content through fixtureNodeFor/handleFixtureFileRequest returns the canned body, not a generic per-language template",
-      "- npm test passes, including new/updated cases in jfred/tests/viewer_api_layer1_fixture.test.ts covering the scriptRun content path"
-    ],
-    "notInScope": [
-      "- The thin adapters (affectedPathsForRun, WireScriptRunOf, bracketRunInstant/pathsForScriptRun/buildScriptRunDiffPanes, .n-script/.script-connector drawer routing) are already landed by #356; not touched here",
-      "- viewer_api_layer3_fixture_data.ts belongs to #343",
-      "- viewer_api_layer2_fixture_data.ts belongs to #354",
-      "- Real (non-fixture) script execution and consent gating belong to L6 (#358), not this task"
-    ],
-    "description": "Closed task #356 (\"Engine build-out: Layer 4 script-run nodes\") shipped only steps 1-4 of 5; its own closure note says \"Step 5 remains out of scope per the original commit message,\" and does not itself name step 5. The authoritative source for what step 5 IS is spec item S21's own Status line (`specs/from-scratch-SPEC.md (§S21. Layer 4 — script-run nodes (located, not executed) (task #340 L4))`), written the same day: \"NOT built: the Layer 4 fixture data (`viewer_api_layer4_fixture_data.ts` plus the `contentLines` scriptRun branch), which needs its own task and file grant.\" This task is exactly that — everything else S21 lists as thin adapters (`affectedPathsForRun`, `WireScriptRunOf` + ladder ordering, `bracketRunInstant`/`pathsForScriptRun`/`buildScriptRunDiffPanes`, the `.n-script`/`.script-connector` drawer routing) is confirmed landed and out of this task's scope.\n\nPer S21 item 13 (`specs/from-scratch-SPEC.md (§S21. Layer 4 — script-run nodes (located, not executed) (task #340 L4))`): create `jfred/src/viewer_api_layer4_fixture_data.ts`, per the one-file-per-layer convention (sibling to the not-yet-created `viewer_api_layer3_fixture_data.ts` from #343 and the not-yet-created `viewer_api_layer2_fixture_data.ts` from #354). Canned script bodies cannot ride on `FixtureRevisionNode` (identity-only: `kind`/`hash`/`version`/`session`, confirmed at `jfred/src/viewer_api_layer1_fixture_content.ts (FixtureRevisionNode)`) — add a branch to `contentLines` (confirmed at `jfred/src/viewer_api_layer1_fixture_content.ts (contentLines)`, the per-node body generator) ahead of the generic per-language `TEMPLATES` fallback, dispatched from `fixtureNodeFor`/`handleFixtureFileRequest` (confirmed at `jfred/src/viewer_api_layer1_fixture.ts (fixtureNodeFor),86`). Canned bodies may live in the new file itself or a small sibling per S21's own note that this is an open implementation choice.\n\nDepends on #354 landing first: #354 is what creates the common bulk-generator/self-check module this file should plug into (per #354's own text: \"new layers beyond L2/L3 get their own `viewer_api_layer<N>_fixture_data.ts`... as they're built\"), so this task registers into that module rather than duplicating its loop.",
-    "modifiableFiles": [
-      "jfred/src/viewer_api_layer4_fixture_data.ts",
-      "jfred/src/viewer_api_layer1_fixture_content.ts",
-      "jfred/src/viewer_api_layer1_fixture.ts",
-      "jfred/tests/viewer_api_layer1_fixture.test.ts"
-    ],
-    "readOnlyFiles": [
-      "*"
-    ],
-    "schemaVersion": "1.0.1",
-    "hasTests": false,
-    "tests": "",
-    "difficulty": 4,
-    "createsFiles": [
-      "jfred/src/viewer_api_layer4_fixture_data.ts"
-    ]
-  },
-  {
-    "taskNumber": 378,
-    "title": "Split jfred/tests/layer1-drawer.test.ts (519 lines, over the 250-line cap) before #355 adds to it",
-    "goal": [
-      "- jfred/tests/layer1-drawer.test.ts, layer1-drawer-diff.test.ts, layer1-drawer-script.test.ts, and layer1-drawer-test-helpers.ts each stay under the 250-line cap",
-      "- The same 14 test cases that exist today still exist after the split, relocated but unchanged in assertions",
-      "- npm test passes with the same pass count as before the split",
-      "- jfred/tests/layer1-drawer-multi.test.ts is untouched"
-    ],
-    "notInScope": [
-      "- New .n-edit test coverage is #355's job, added on top of this split, not part of this task",
-      "- Nothing else handed off; this is a pure reorganization with no behavior change"
-    ],
-    "description": "`jfred/tests/layer1-drawer.test.ts` is 519 lines today (`wc -l` verified), more than double this project's 250-line file cap (`plans/coding-requirements.md`), BEFORE task #355 adds any `.n-edit` test coverage to it. This is its own small prerequisite task rather than a sub-step folded into #355: the split is a pure test-file reorganization with no behavior change, and keeping it separate means #355's diff is purely additive (new `.n-edit` tests in a fresh file) instead of mixing a refactor with new feature work in one changeset — consistent with this project's preference for many small, single-concern tasks.\n\nCurrent structure (test names + line numbers, `grep -n \"^test(\"` verified): a shared setup block (lines 1-66: imports, `DISK_FILE_PATH`/`DISK_FILE_CONTENT`/`COMMIT_CONTENT`/`FULL_DIFF` constants, `stubAnimationFrame`, `stubRecordingFetch`, `settlePendingFetches`, `firstPane`, `paneArrows`, `buildDiskNodeStage` — importing `setupLayer1Dom`/`stubFetchRoutes` from the existing `tests/webapp-dom-test-helpers.ts`), then 14 tests: disk-node click (66), non-node click (95), image node (109), commit node (143), shift-click diff (204), task-329 cross-bubble shift-click (233), task-336 wash sweep (276), snapshot node click (327), commit-no-hash fallback (357), File Nav leaf click (374), task-324/329 pane-arrow stepping (389), task-356 script-run click (465), task-356 connector click (483), task-356 unlabeled script run (497).\n\nRequired split, following this project's existing `tests/<module>-test-helpers.ts` convention (precedent: `tests/layer1-find-file-helpers.ts`, `tests/webapp-dom-test-helpers.ts`): extract the shared setup block into a new `jfred/tests/layer1-drawer-test-helpers.ts`; keep `jfred/tests/layer1-drawer.test.ts` as the core file (disk/non-node/image/commit/no-hash/File-Nav-leaf clicks, ~6 tests); move the shift-click/wash/pane-arrow/snapshot tests (5 tests) into a new `jfred/tests/layer1-drawer-diff.test.ts`; move the three task-356 script-run tests into a new `jfred/tests/layer1-drawer-script.test.ts` (mirrors #355's own suggested name for a future `.n-edit` sibling). Do NOT touch `jfred/tests/layer1-drawer-multi.test.ts` (142 lines) — it already covers the pure-logic helpers (`bracketRunInstant`, `pathsForScriptRun`, `buildScriptRunDiffPanes`, `resolveWashFileList`) separately from this file's DOM-click integration tests and is unaffected by this split.\n\nVerify: `npm test` passes with identical assertions, just relocated; every new file is under 250 lines; no test is duplicated or dropped (compare test count before/after).",
-    "modifiableFiles": [
-      "jfred/tests/layer1-drawer.test.ts",
-      "jfred/tests/layer1-drawer-diff.test.ts",
-      "jfred/tests/layer1-drawer-script.test.ts",
-      "jfred/tests/layer1-drawer-test-helpers.ts"
-    ],
-    "readOnlyFiles": [
-      "*"
-    ],
-    "schemaVersion": "1.0.1",
-    "hasTests": false,
-    "tests": "",
-    "difficulty": 3,
-    "createsFiles": [
-      "jfred/tests/layer1-drawer-diff.test.ts",
-      "jfred/tests/layer1-drawer-script.test.ts",
-      "jfred/tests/layer1-drawer-test-helpers.ts"
-    ],
-    "run": {
-      "active": true,
-      "worktree": "/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/taskTools-wt/RevEng-8a6f1cdd/task-378",
-      "leaseRunId": "202400c4-18ce-4c66-bdee-0f870352a4e4",
-      "history": [
-        {
-          "runId": "202400c4-18ce-4c66-bdee-0f870352a4e4",
-          "startedAt": "2026-09-10T23:52:38-07:00",
-          "endedAt": null,
-          "exitType": null,
-          "exitNote": null,
-          "modifiedFiles": [],
-          "commits": [],
-          "implementationNotesFile": null,
-          "taskTests": null,
-          "fullSuite": null,
-          "stepResults": [
-            {
-              "stepId": "init-submodules",
-              "script": "initTaskSubmodules",
-              "result": {
-                "initialized": false
-              }
-            }
-          ],
-          "tailCursor": {
-            "block": "pipeline-failuresExit.mmd::READ_FAILURES_PUBLICATION_STATE",
-            "input": "{\"box\":\"FAILURES_EXIT\",\"scriptSignal\":\"continue\",\"taskNumber\":378,\"runId\":\"202400c4-18ce-4c66-bdee-0f870352a4e4\",\"projectRoot\":\"/Users/matkatmusicllc/Desktop/claude code src/RevEng\",\"worktree\":\"/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/taskTools-wt/RevEng-8a6f1cdd/task-378\",\"branch\":\"task-378\",\"docsMode\":\"AUTOGEN\",\"planFile\":\"/var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/taskTools-wt/RevEng-8a6f1cdd/task-378/plans/plan.json\",\"exitType\":\"block-failed\",\"exitNote\":\"pipeline-commitImplementationIfNeeded.mmd::COMMIT_IMPLEMENTATION_IF_NEEDED exited 1\\nError: Command failed: git -C /var/folders/fy/wg2tzrv957sg2vqjcvdkdzvm0000gn/T/staging-merge-uWXuJf merge --no-edit 9b96faf885c587cfac7263d855ce967a7026f882\",\"outcome\":\"PLAN\",\"clarifyRequest\":\"\",\"reviewOutputFile\":\"\",\"verdict\":\"\",\"notes\":\"\",\"message\":\"Split layer1-drawer.test.ts (519 lines) into 4 files under the 250-line cap: helpers already existed, created layer1-drawer-diff.test.ts (5 tests) and layer1-drawer-script.test.ts (3 tests), trimmed the original to 6 tests.\",\"additionalData\":{\"implemented\":true,\"notes\":\"All 4 plan sections done. Test count conserved: 6+5+3=14, matching pre-split. typecheck clean, npm test all passing, each split file verified individually via node --test (6/6, 5/5, 3/3). layer1-drawer-multi.test.ts untouched.\"}}"
-          }
-        }
-      ]
-    }
   },
   {
     "taskNumber": 379,
