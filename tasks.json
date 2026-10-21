@@ -317,10 +317,6 @@
     "difficulty": 10,
     "blockedBy": [
       {
-        "taskNumber": 343,
-        "reason": "This umbrella task stays open until every listed child closes, and 343 (L3 mockup) is one of those children."
-      },
-      {
         "taskNumber": 355,
         "reason": "This umbrella task stays open until every listed child closes, and 355 (L3 engine) is one of those children."
       },
@@ -416,88 +412,6 @@
     "difficulty": 6
   },
   {
-    "taskNumber": 343,
-    "title": "Mockup: Layer 3 extracted Edit/Write nodes, fixture-mode on the real layer1 page",
-    "goal": [
-      "- `npm run visual:mockup` (jfred) passes end-to-end with layer3-checks.ts wired into mockup.ts's executeChecks and 0 violations",
-      "- `.n-edit` nodes are absent until a kind is shown, then appear on the real layer1 fixture-mode page when turned on via the Layer 3 button or via the node-kind show-row checkbox, independently",
-      "- a clicked `.n-edit` node opens the drawer with the extracted Edit/Write content describeNode produces for it",
-      "- `npm run typecheck` and the full jfred `npm test` suite pass"
-    ],
-    "notInScope": [
-      "- No engine JSONL parsing of real Edit/Write tool calls; the endpoint payload stays canned against a fixture route, engine build-out is a follow-up task created only after sign-off",
-      "- No commit-creation or persistence; mockup only",
-      "- Retiring the data-layer CSS gate mechanism itself was closed task #352's scope; this task only consumes the mechanism #352 landed",
-      "- Building the node-kind show-row mechanism itself was closed task #360's scope; this task only consumes the mechanism #360 landed",
-      "- The common fixture bulk-generator module (viewer_api_fixture_bulk.ts) itself was closed task #354's scope; this task only adds L3's hunk-validation branch, in the new viewer_api_fixture_check.ts"
-    ],
-    "description": "Spec item S20 in specs/from-scratch-SPEC.md is the source of truth for WHAT to build (rewritten 2026-07-30 after the grilling round; recon plans/340-recon/L3-extracted-changes.md, decisions plans/340-recon/DECISIONS.md). Do not restate S20 here — read it. Plan: plans/task-343-plan.md.\n\nThis task defines only the SCOPE BOUNDARY: jfred/src fixture files + the webapp page + a new visual-checks file ONLY. No engine JSONL parsing yet — the mockup cans the endpoint payload against a canned route. The new visual-checks file is wired into the fixture-mode runner (executeChecks in scripts/visual/mockup.ts, as its last step) and covers S20's verify list.\n\nEnds at: the mockup renders on the real layer1 page in fixture mode and the CDP checks pass. Engine build-out is task #355. Part of task 340's L3 slice.\n\nScope boundary, corrected 2026-10-21: #352, #354 and #360 are closed. #352 retired the data-layer CSS gate and the layer switcher. #360 built the node-kind show row (webapp/layer1-show-row.ts and layer1-kind-filter.ts); it hides kinds through data-hidden-kinds on .viz-root and skipped the layer presets. #354 created jfred/src/viewer_api_fixture_bulk.ts. This task consumes those: it adds an always-present Edit box to the show row (unchecked on every page load; the first tick fetches /api/layer1-edits once), a lone [3] button that ticks only the Edit box, and .n-edit / .n-read nodes. It splits the self-checks out of the bulk generator into the new src/viewer_api_fixture_check.ts and adds L3's hunk-validation there, per S20's fixture-discipline paragraph. Replay and confidence live on the fixture route (src/viewer_api_layer3_fixture_replay.ts), not in the client.\n\nThese files do not exist at HEAD and must be created: src/viewer_api_layer3_fixture_data.ts, src/viewer_api_layer3_fixture_replay.ts, src/viewer_api_fixture_check.ts, webapp/layer1-edits.ts, scripts/visual/layer3-checks.ts, and the new test files listed in createsFiles. Files outside the original list that the design needs are now in modifiableFiles (layer2 and layer4 fixture data, the fixture file route, show row, kind filter, filter, drawer-diff, revision-sources, mockup.ts and their tests).",
-    "modifiableFiles": [
-      "jfred/src/viewer_api_layer3_fixture_data.ts",
-      "jfred/src/viewer_api_layer3_fixture_replay.ts",
-      "jfred/src/viewer_api_fixture_check.ts",
-      "jfred/scripts/visual/layer3-checks.ts",
-      "jfred/scripts/visual/mockup.ts",
-      "jfred/src/viewer_api_layer1_fixture.ts",
-      "jfred/src/viewer_api_layer1_fixture_view.ts",
-      "jfred/src/viewer_api_layer1_fixture_content.ts",
-      "jfred/src/viewer_api_layer1_fixture_file.ts",
-      "jfred/src/viewer_api_fixture_bulk.ts",
-      "jfred/src/viewer_api_layer2_fixture_data.ts",
-      "jfred/src/viewer_api_layer4_fixture_data.ts",
-      "jfred/webapp/layer1-wire.ts",
-      "jfred/webapp/layer1-widgets.ts",
-      "jfred/webapp/layer1-drawer.ts",
-      "jfred/webapp/layer1-drawer-diff.ts",
-      "jfred/webapp/layer1-revision-sources.ts",
-      "jfred/webapp/layer1-show-row.ts",
-      "jfred/webapp/layer1-kind-filter.ts",
-      "jfred/webapp/layer1-filter.ts",
-      "jfred/webapp/layer1-edits.ts",
-      "jfred/webapp/layer1-styles.css",
-      "jfred/webapp/layer1.html",
-      "jfred/webapp/layer1-page.ts",
-      "jfred/webapp/layer1-progress.ts",
-      "jfred/tests/viewer_api_layer3_fixture_data.test.ts",
-      "jfred/tests/viewer_api_layer3_fixture_replay.test.ts",
-      "jfred/tests/viewer_api_fixture_check.test.ts",
-      "jfred/tests/viewer_api_layer1_fixture_edits.test.ts",
-      "jfred/tests/layer1-edits.test.ts",
-      "jfred/tests/layer1-page-edits.test.ts",
-      "jfred/tests/layer1-drawer-edit.test.ts",
-      "jfred/tests/layer3-checks.test.ts",
-      "jfred/tests/viewer_api_fixture_bulk.test.ts",
-      "jfred/tests/layer1-wire.test.ts",
-      "jfred/tests/layer1-filter.test.ts",
-      "jfred/tests/layer1-show-row.test.ts",
-      "jfred/tests/layer1-kind-filter.test.ts",
-      "jfred/tests/layer1-kind-filter-ticks.test.ts",
-      "jfred/tests/viewer_api_layer1_fixture.test.ts"
-    ],
-    "readOnlyFiles": [
-      "*"
-    ],
-    "schemaVersion": "1.0.1",
-    "hasTests": false,
-    "tests": "",
-    "difficulty": 8,
-    "createsFiles": [
-      "jfred/src/viewer_api_layer3_fixture_data.ts",
-      "jfred/src/viewer_api_layer3_fixture_replay.ts",
-      "jfred/src/viewer_api_fixture_check.ts",
-      "jfred/webapp/layer1-edits.ts",
-      "jfred/scripts/visual/layer3-checks.ts",
-      "jfred/tests/viewer_api_layer3_fixture_data.test.ts",
-      "jfred/tests/viewer_api_layer3_fixture_replay.test.ts",
-      "jfred/tests/viewer_api_fixture_check.test.ts",
-      "jfred/tests/viewer_api_layer1_fixture_edits.test.ts",
-      "jfred/tests/layer1-edits.test.ts",
-      "jfred/tests/layer1-page-edits.test.ts",
-      "jfred/tests/layer1-drawer-edit.test.ts",
-      "jfred/tests/layer3-checks.test.ts"
-    ]
-  },
-  {
     "taskNumber": 355,
     "title": "Engine build-out: Layer 3 beacons and extracted Edit/Write nodes",
     "goal": [
@@ -558,12 +472,6 @@
     "hasTests": false,
     "tests": "",
     "difficulty": 8,
-    "blockedBy": [
-      {
-        "taskNumber": 343,
-        "reason": "This task implements the engine and webapp behind the #343 mockup; #343 must be closed first."
-      }
-    ],
     "handoffFilePaths": [
       "plans/handoff-develop-20260730-1820.md"
     ],
@@ -983,12 +891,6 @@
     "hasTests": false,
     "tests": "",
     "difficulty": 6,
-    "blockedBy": [
-      {
-        "taskNumber": 343,
-        "reason": "343 establishes the fixture-mode-on-the-real-page shape this task must follow rather than inventing a second fixture-mode idiom."
-      }
-    ],
     "createsFiles": [
       "jfred/scripts/visual/layer5-checks.ts"
     ]
@@ -1033,12 +935,6 @@
     "hasTests": false,
     "tests": "",
     "difficulty": 7,
-    "blockedBy": [
-      {
-        "taskNumber": 343,
-        "reason": "343 establishes the fixture-mode-on-the-real-page shape this task must follow per S22's own Tasks line."
-      }
-    ],
     "createsFiles": [
       "jfred/webapp/layer1-annotations.ts",
       "jfred/scripts/visual/layer7-checks.ts"
@@ -1081,12 +977,6 @@
     "hasTests": false,
     "tests": "",
     "difficulty": 6,
-    "blockedBy": [
-      {
-        "taskNumber": 343,
-        "reason": "343 establishes the fixture-mode-on-the-real-page shape this task must follow, same as #379 and #382."
-      }
-    ],
     "createsFiles": [
       "jfred/webapp/layer1-jfred-strip.ts",
       "jfred/scripts/visual/layer9-checks.ts"
@@ -1159,12 +1049,6 @@
     "schemaVersion": "1.0.1",
     "hasTests": true,
     "tests": "Test = npm run visual:mockup runs every check to the end and prints 0 FAIL lines.",
-    "difficulty": 7,
-    "blockedBy": [
-      {
-        "taskNumber": 343,
-        "reason": "343 wires layer3-checks into mockup.ts, touching the same files (mockup.ts, mockup-checks.ts) this task must fix. User ruling 2026-10-21: do this task after 343 lands."
-      }
-    ]
+    "difficulty": 7
   }
 ]
