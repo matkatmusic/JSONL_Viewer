@@ -337,10 +337,6 @@
         "reason": "This umbrella task stays open until every listed child closes, and 359 (L7 engine) is one of those children."
       },
       {
-        "taskNumber": 360,
-        "reason": "This umbrella task stays open until every listed child closes, and 360 (L8 engine/webapp) is one of those children."
-      },
-      {
         "taskNumber": 361,
         "reason": "This umbrella task stays open until every listed child closes, and 361 (L9 engine) is one of those children."
       },
@@ -458,12 +454,6 @@
     "hasTests": false,
     "tests": "",
     "difficulty": 8,
-    "blockedBy": [
-      {
-        "taskNumber": 360,
-        "reason": "The node-kind show-row checkbox that must independently reveal .n-edit nodes is #360's scope; this task wires .n-edit into it rather than building the row itself."
-      }
-    ],
     "createsFiles": [
       "jfred/src/viewer_api_layer3_fixture_data.ts",
       "jfred/scripts/visual/layer3-checks.ts"
@@ -664,50 +654,6 @@
     ],
     "createsFiles": [
       "jfred/webapp/layer1-annotations.ts"
-    ]
-  },
-  {
-    "taskNumber": 360,
-    "title": "Engine/webapp build-out: Layer 8 node-kind show-row filtering",
-    "goal": [
-      "- A new layer1-kind-filter.ts module toggles node visibility via a CSS class/attribute, never calling filterLayer1ViewByTargets (no relayout)",
-      "- The show row is a checkbox list built from the kinds present in the loaded view, replacing the static .legend swatches",
-      "- Unchecking a kind hides it everywhere including the ruler and any expanded ruler row's file list, while a ruler tick whose events are all hidden hides too but keeps its slot",
-      "- Filter state persists via the extended /api/layer1-settings, confirmable by reloading the page and seeing checkbox state survive",
-      "- Clicking a layer preset button [1]-[7] ticks that layer's checkboxes, and ticking a checkbox for an unfetched kind fires that kind's fetch with a visible progress strip"
-    ],
-    "notInScope": [
-      "- Retiring the data-layer CSS gate, layer1-layer-toggle.ts, the legend markup, and their tests/CDP probes is owned by #352, which this task depends on landing first",
-      "- Confidence state (the seven states from DECISIONS.md) stays display-only and is not added as a filter axis here",
-      "- The opt-in dead-gap compaction button is a separate, explicitly deferred mechanism owned by #341"
-    ],
-    "description": "Recon: plans/340-recon/L8-node-type-filtering.md. This layer is almost entirely webapp-side -- CSS hide-only, never a re-layout -- and is NOT itself a layer with checkboxes (L8 adds no node kind).\n\nMust build: a new small layer1-kind-filter.ts state module mirroring the existing onlySelectedIsOn pattern, producing a CSS class/attribute toggle switcher-style -- explicitly NOT a call into filterLayer1ViewByTargets (jfred/webapp/layer1-filter.ts (filterLayer1ViewByTargets), the path-filter funnel, which re-runs relayOutLayer1View / layOutNodeLadders and physically removes rows). Generalize markMultiEventTicks (jfred/webapp/layer1-tick-files.ts (markMultiEventTicks)) from its current single .n-snap literal to an N-kind hidden-class set, so a ruler tick where every event is a hidden kind gets hidden too, while its slot/gap stays reserved -- dead gaps are acceptable by design, they never squish (distinct from task #341's opt-in compaction button, which is a separate, explicitly deferred mechanism). The show row is a checkbox list (not radios), reading show: [check] git [check] snapshot [check] Edit ... -- built from the kinds PRESENT IN THE LOADED VIEW, matching every other filter surface in layer 1 (renderSessionPane / listVisibleSessions, layer1-sessions.ts (renderSessionPane); listFileNavEntries, layer1-filenav.ts (listFileNavEntries)), never a hardcoded list of every known kind. It REPLACES the static .legend swatches (layer1.html (.legend)) rather than sitting beside them. Filtering applies everywhere in the GUI including the ruler -- an expanded ruler row's file list re-filters to visible kinds, it does not keep listing every event. Zero checked = show nothing, which falls straight out of the CSS-hide model. Filter state persists with the rest of the settings data (extending /api/layer1-settings) -- explicitly NO &kinds= URL parameter. Confidence state (the seven states from DECISIONS.md) is display-only and is NEVER a filter axis in the show row -- filtering is by node KIND alone.\n\nClicking a layer preset button [1]-[7] ticks that layer's checkboxes; the checkboxes are the single source of truth. This retires the data-layer CSS gate entirely: the one rule keyed on it (.viz-root:not([data-layer=\"2\"]) .n-snap {display:none}, jfred/webapp/layer1-styles.css (.viz-root:not([data-layer=\"2\"]) .n-snap)), layer1-layer-toggle.ts (currently 32 lines, sets dataset.layer + moves .current, no refetch/re-render), layer1.html (.viz-root[data-layer]),40-41, tests/layer1-layer-toggle.test.ts, three visual/CDP probes (jfred/scripts/visual/mockup.ts (LAYER_BUTTON), layer2-checks.ts (LAYER),53, mockup-checks.ts (checkChrome)), and jfred/docs/ui-component-glossary.md (§Layer 1 UI Component Glossary),27 -- all in ONE commit, per handoff step 3's separate data-layer-retirement task. This task depends on that retirement task landing first (or lands it as part of the same change if scheduling makes that cheaper) since checkboxes and the data-layer CSS gate cannot coexist without disagreeing on the same node class.\n\nTicking a checkbox for a kind whose data has not yet been fetched must fire that kind's engine fetch with a visible progress strip -- per the visibility-triggers-computation cross-cutting rule -- so the show row and the layer buttons share one computation trigger, not two.\n\nSpec S23 is written; this task is blocked on the data-layer retirement (#352) landing. Practically most useful once several of L3/L4/L5/L6/L7's node kinds already exist to filter, but is not code-blocked on any single one of them -- it works over whatever subset of kinds has shipped.\n\nDepends on: #352 landed first.",
-    "modifiableFiles": [
-      "jfred/webapp/layer1-tick-files.ts",
-      "jfred/tests/layer1-tick-files.test.ts",
-      "jfred/webapp/layer1.html",
-      "jfred/src/viewer_api_layer1_settings.ts",
-      "jfred/tests/viewer_api_layer1_settings.test.ts",
-      "jfred/webapp/layer1-settings.ts",
-      "jfred/tests/layer1-settings.test.ts",
-      "jfred/webapp/layer1-page.ts",
-      "jfred/tests/layer1-page.test.ts",
-      "jfred/webapp/layer1-kind-filter.ts",
-      "jfred/tests/layer1-kind-filter.test.ts"
-    ],
-    "readOnlyFiles": [
-      "*"
-    ],
-    "schemaVersion": "1.0.1",
-    "hasTests": false,
-    "tests": "",
-    "difficulty": 6,
-    "handoffFilePaths": [
-      "plans/handoff-develop-20260730-1820.md"
-    ],
-    "createsFiles": [
-      "jfred/webapp/layer1-kind-filter.ts",
-      "jfred/tests/layer1-kind-filter.test.ts"
     ]
   },
   {
