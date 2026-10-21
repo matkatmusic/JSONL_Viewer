@@ -7377,5 +7377,51 @@
       "1789e1f"
     ],
     "closureNote": "done by jfred work 2 and jfred work 4 on 2026-10-20; drawer test split + five more over-cap test files split, typecheck clean, test:ci 1146 pass"
+  },
+  {
+    "taskNumber": 385,
+    "version": "1e8da3045bafbcfc3cbe5c127080b1b942b1be8b",
+    "title": "L8 mockup: in-page fixture-mode show-row checkboxes replacing the static legend",
+    "userDescription": "In-page fixture-mode mockup of the Layer 8 show-row checkboxes (spec item S23, specs/from-scratch-SPEC.md around line 933) on the live layer1 page jfred/webapp/layer1.html. This is step 'l8-mockup' in specs/layers-3-9-wrap-up.json. Visual only and non-functional: a data-driven row of node-kind checkboxes that replaces the retired data-layer layer switcher (task 352 commented it out at jfred/webapp/layer1.html lines 36-42 and the .n-snap rule at jfred/webapp/layer1-styles.css line 70). Fixture mode is isFixtureMode in jfred/src/viewer_api_layer1_fixture.ts, routed by jfred/src/viewer_server_layer1_routes.ts; fixture data is jfred/src/viewer_api_layer1_fixture_data.ts plus the new jfred/src/viewer_api_layer2_fixture_data.ts from task 354. The user signs off this mockup (step 'l8-signoff') before task 360 builds the real show-row. Visual-first policy from plans/340-recon/DECISIONS.md. Follows tasks 352 and 354, both committed today 2026-10-20 (jfred 831506a, c24a024).",
+    "chainGoal": [
+      "- Layer 8 show-row chain: this mockup, then the user sign-off step l8-signoff, then task 360 builds the real data-driven filtering; all under umbrella task 340 and spec S23"
+    ],
+    "goal": [
+      "- Opening layer1.html in fixture mode shows a show-row of checkboxes where the old Layer: 1 2 bar was",
+      "- The checkbox list comes from the node kinds present in the loaded data, not a hard-coded list; one checkbox per kind",
+      "- Clicking a checkbox may do nothing yet; task 360 wires the filtering",
+      "- `npm run typecheck` and `npm run test:ci` exit 0"
+    ],
+    "notInScope": [
+      "- Filtering nodes when a box is toggled; task 360 owns it",
+      "- Real-data rendering; step l8-real-check in specs/layers-3-9-wrap-up.json, after the user signs off",
+      "- L3 edit nodes in the row; task 343 adds those kinds later and the data-driven row shows them by itself",
+      "- Restoring the old data-layer switcher; retired by task 352"
+    ],
+    "problemSolvedByTask": "There is no way to see the show-row design on the real page before building it; Since 352, snapshots always show and nothing marks the gap",
+    "description": "This is a visual-only, non-functional mockup (spec S23, specs/from-scratch-SPEC.md:933-998; wrap-up step 'l8-mockup' in specs/layers-3-9-wrap-up.json). It must render on the live jfred/webapp/layer1.html page under fixture mode (isFixtureMode() in jfred/src/viewer_api_layer1_fixture.ts, dispatched via jfred/src/viewer_server_layer1_routes.ts) rather than as a separate HTML file, per the 2026-08-01 visual-first decision in plans/340-recon/DECISIONS.md ('mockup home moved to fixture mode'). Per S23: checkboxes not radios, data-driven from the kinds present in the loaded view (precedent: renderSessionPane in layer1-sessions.ts, listFileNavEntries in layer1-filenav.ts), and it REPLACES the static legend at layer1.html:89-96 (six inert swatches: commit/on-disk/snapshot/created-at/orphan-bucket/JSONL-range, using CSS vars like --c-commit, --c-disk, --c-snap defined in layer1-styles.css around lines 256-258 and 620) rather than sitting beside it. The layer switcher this show row supersedes was already retired by task 352: layer1.html:36-42 (buttons) is commented out, and the `.n-snap` display:none rule at layer1-styles.css:70-71 is commented out; both left in place as the model for the hide-only CSS mechanism this mockup should visually suggest (no actual filtering wiring; task 360 builds that). The user asked for the row to be data-driven, so a small webapp/layer1-show-row.ts module reads the kinds from the loaded view and renders the row; the DOM test lives in tests/layer1-show-row.test.ts. jfred/src/viewer_api_layer1_fixture_data.ts and the task-354 split jfred/src/viewer_api_layer2_fixture_data.ts already supply the kinds (commit, on-disk, created, snapshot, script, orphan). The user signs off this mockup in a separate step ('l8-signoff') before task 360 implements real filtering.",
+    "modifiableFiles": [
+      "jfred/webapp/layer1.html",
+      "jfred/webapp/layer1-styles.css",
+      "jfred/webapp/layer1-page.ts",
+      "jfred/webapp/layer1-show-row.ts",
+      "jfred/tests/layer1-show-row.test.ts"
+    ],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "createsFiles": [
+      "jfred/webapp/layer1-show-row.ts",
+      "jfred/tests/layer1-show-row.test.ts"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": true,
+    "tests": "DOM test: show-row renders one checkbox per node kind in fixture mode. A test under jfred/tests loads layer1 in fixture mode and asserts a `.show-row` with one labeled checkbox per node kind present in the fixture, all checked, and no `data-layer` anywhere.",
+    "difficulty": 3,
+    "completionDate": "2026-10-20",
+    "commitHashes": [
+      "e59d69a"
+    ],
+    "closureNote": "done by jfred work 3 on 2026-10-20; typecheck clean, test:ci 1146 pass, visual + visual:layer2 pass; user signed off the L8 mockup"
   }
 ]
