@@ -918,43 +918,5 @@
     "hasTests": true,
     "tests": "DOM test in jfred/tests/layer1-drawer.test.ts: click a snapshot node, click [{ }], assert a linkable string value renders as a clickable jump-link and a revision link opens the revision view.",
     "difficulty": 8
-  },
-  {
-    "taskNumber": 386,
-    "version": "27ce2641e9edf3c2b0d5414972b1b50f3970645f",
-    "title": "Repair npm run visual:mockup: #306 session titles and the window.__fixture crash",
-    "userDescription": "Repair the pre-existing npm run visual:mockup failures in RevEng/jfred (found by task 343 at jfred HEAD 91f8586, before any 343 change). Symptoms: 4 FAIL lines for check #306 (JSONL Nav / session rows title order), then the run crashes (exit 137) because scripts/visual/mockup-checks-snapshots.ts and the nav checks read window.__fixture, which nothing on the page defines anymore. Goal: npm run visual:mockup runs every check to the end with 0 failures. Files: jfred/scripts/visual/mockup.ts, mockup-checks.ts, mockup-checks-snapshots.ts, the nav check file, plus whatever page code should expose the fixture. User ruling 2026-10-21: this is a separate task, not part of 343. Not blocked by anything, but do it after 343 lands, since 343 wires layer3-checks into mockup.ts.",
-    "goal": [
-      "- npm run visual:mockup runs every check to the end and exits 0 with no FAIL lines.",
-      "- Check #306 (JSONL Nav session rows title order) passes.",
-      "- No check crashes on window.__fixture being undefined.",
-      "- typecheck, test:ci, visual and visual:layer2 still pass."
-    ],
-    "notInScope": [
-      "- The new layer3-checks and their wiring into mockup.ts: task 343 owns them.",
-      "- The real Edit data feed (/api/layer1-edits on a real server): task 355 owns it."
-    ],
-    "problemSolvedByTask": "Checks are blind: The mockup picture checks crash partway, so most mockup checks never run and nobody sees new breaks. Blocks layer goals: Each layer's mockup task says visual:mockup must pass, and it cannot pass right now. Old #306 failures: Check #306 reports 4 failures that nobody has looked at.",
-    "description": "Two distinct bugs, confirmed against jfred HEAD. (1) #306 failures are a real rendering bug, not a __fixture crash: validateNavRows in mockup-checks.ts expects each .session-item to read sname, then one stitle per rename, then a trailing smeta, but buildSessionItem in webapp/layer1-sessions.ts renders sname + two smeta divs (date and a single title string) and never emits any .stitle element. Root cause traces to WireSession.title (webapp/layer1-wire.ts) being a single string collapsed from the richer rename history: src/viewer_api_layer1_fixture.ts:65 sets `title: session.titles[0]?.title ?? \"\"`, always taking the FIRST rename and dropping later ones, so a twice-renamed session can never show both titles. User ruling 2026-10-21: the page fix is in scope. (2) The exit-137 crash is a second, separate gap: mockup-checks-snapshots.ts, mockup-checks-nav.ts, and validateScale/validateOrdering in mockup-checks.ts all read `window.__fixture.{SESSIONS,SNAPSHOTS,DISK,COMMITS}`, but nothing in webapp/ ever defines `window.__fixture`; the raw arrays live server-side in src/viewer_api_layer1_fixture_data.ts (SESSIONS, DISK, COMMITS) and src/viewer_api_layer2_fixture_data.ts (SNAPSHOTS), and the client has zero fixture-mode awareness today. Fixing the crash needs the fixture arrays surfaced to the page (via the existing fixture view payload or a small dedicated route) and stashed onto `window.__fixture` only when the server runs with `--fixture`; fixing #306 needs WireSession's title field to carry the full rename list and buildSessionItem to render one .stitle node per title ahead of a single trailing .smeta.",
-    "modifiableFiles": [
-      "jfred/scripts/visual/mockup-checks.ts",
-      "jfred/scripts/visual/mockup-checks-snapshots.ts",
-      "jfred/scripts/visual/mockup-checks-nav.ts",
-      "jfred/scripts/visual/mockup.ts",
-      "jfred/webapp/layer1-sessions.ts",
-      "jfred/webapp/layer1-wire.ts",
-      "jfred/webapp/layer1-page.ts",
-      "jfred/src/viewer_api_layer1_fixture.ts",
-      "jfred/src/viewer_api_layer1_fixture_data.ts",
-      "jfred/src/viewer_api_layer2_fixture_data.ts",
-      "jfred/tests/mockup-checks.test.ts"
-    ],
-    "readOnlyFiles": [
-      "*"
-    ],
-    "schemaVersion": "1.0.1",
-    "hasTests": true,
-    "tests": "Test = npm run visual:mockup runs every check to the end and prints 0 FAIL lines.",
-    "difficulty": 7
   }
 ]
