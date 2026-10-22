@@ -7603,5 +7603,96 @@
       "098b797"
     ],
     "closureNote": "done by jfred work 5 on 2026-10-21; typecheck clean, test:ci 1238 pass, visual 0 violations, visual:layer2 pass, visual:mockup 28/28 #343 checks pass (old #306 failures + mockup.ts:47 crash are task 386); diff-wash edit gap fixed in 098b797; user signed off the L3 mockup"
+  },
+  {
+    "taskNumber": 355,
+    "title": "Engine build-out: Layer 3 beacons and extracted Edit/Write nodes",
+    "goal": [
+      "- npm run typecheck and the full npm test (through the block-npm-test hook, until it prints all passing) pass with the new Layer 1 edit modules in place; no new LayeredNodeKind member and no buildEditDerivedNode are added",
+      "- The /api/layer1-edits endpoint computes a verified, derived, or reseeded confidence for every Edit/Write event at fetch time and sends it in the response; clicking a node replays only its base and target bytes, and the browser never computes confidence",
+      "- npm run visual:layer3 passes on the demo bundle and on the real jot sessions (--jot), using checks in jfred/scripts/visual/layer3-real-checks.ts whose expectations come from the payload: the blocking progress overlay opens during the fetch with an 'n / m' count and blocks clicks, exactly one fetch happens, off/on toggling after that makes no new request, every node's confidence matches the payload, and a clicked verified node opens its diff and flashes its JSONL; the fixture probes (an L3-free pair byte-identical to Layer 2, the mismatched-hunk fixture) belong to task 343"
+    ],
+    "notInScope": [
+      "- Building the Layer 3 mockup UI itself; that is task #343, which must be signed off before this task starts",
+      "- Defining the shared seven-state confidence vocabulary; that was closed task #376",
+      "- Splitting jfred/tests/layer1-drawer.test.ts under the 250-line cap; that was closed task #378"
+    ],
+    "description": "Spec item S20 in specs/from-scratch-SPEC.md (rewritten 2026-07-30) is the source of truth for WHAT to build. Plan: plans/task-355-plan.md (approved 2026-10-21). Task #343 ships the whole client and the fixture data: the Edit box, the [3] button, .n-edit and .n-read nodes, webapp/layer1-edits.ts (loadEditsOnce), the edits? field on WirePairOf, WireConfidence, the drawer branch, the { } reveal (appendRawJsonReveal), and the canned /api/layer1-edits route. This task replaces the canned route with the real engine. The page does not change between fixture mode and real mode: the same URLs are served by the fixture handlers when isFixtureMode() is true (src/viewer_server_layer1_routes.ts) and by the new handlers otherwise.\n\nEngine home (user decision 1): new Layer 1 modules only. src/layered_load.ts (buildNodeFromEvent), LayeredNodeKind (src/structures/vocabulary_views.ts, five members) and the old layered page stay untouched. There is no buildEditDerivedNode. The Layer 1 page is built by buildLayer1View and collectViewSnapshotsByRelativePath (src/layer1_snapshot_wire.ts), so the edit join follows that shape.\n\nEngine must provide, per S20's three stages: (1) Read tool results that carry full contents become beacons: reuse collectReadEchoNodes (src/layered_anchor.ts), keep only beacon nodes, skip preAnchorStub; add changeId (the tool_use_id) and instant to ReadEchoPlacement. (2) Bash results that carry full contents become beacons, for `cat FILE` only (user decision 2): a single-file cat with no pipe, flag or glob, empty stderr, not interrupted, target resolved against the record cwd; Bash stays excluded as a change source; head, tail and sed are not data sources. (3) Edit and Write events from extractFileEvents (src/reconstruction_extract.ts; collectEditDetailFromRecord builds no Edit event without structuredPatch) are applied onto the preceding beacon. A hunk that matches its base is verified. A hunk that does not match asks the backup seed (backupSeedWriteFor in src/reconstruction_sidecar.ts, read per HTTP request through createSidecarReader, the shape of readSnapshotFileContent in src/viewer_api_layer1_snapshot.ts); a matching seed makes the node reseeded. With no matching seed, the hunk is applied best-effort and the node is derived. A later beacon that differs from the segment result marks that segment derived.\n\nNew modules: src/layer1_edit_hunks.ts (checkHunkMatchesBase, applyHunksToLines), src/layer1_edit_events.ts (per-session LayerEditEvent list, cached by file mtime), src/layer1_cat_beacons.ts, src/layer1_edit_replay.ts (replayPathEvents with an injected seed reader), src/layer1_edits_wire.ts (join to pairs with relativizeToProjectFolder, one NDJSON progress line per session file), src/viewer_api_layer1_edits.ts (GET /api/layer1-edits, progress=1 streams through streamNdjsonBuild, shape of handleLayer1ViewRequest), src/viewer_api_layer1_edit_file.ts (GET /api/layer1-file with editChangeId, side=base|target, path, dir, jsonl: returns {content, title, record}). Dispatch lines go in src/viewer_server_layer1_routes.ts and src/viewer_api_layer1_file.ts. The wire shapes are the ones #343 defines; the client reads confidence from the response and never replays or classifies.\n\nWebapp changes are small: WireEditSide in webapp/layer1-wire.ts; describeEditSteps in webapp/layer1-revision-sources.ts appends the jsonl folders to the file-route params; a dotted .conf-reseeded ring in webapp/layer1-styles.css; and a blocking progress overlay for the Edit fetch (user decision 3): webapp/layer1-busy-shield.ts plus markup in layer1.html and CSS. The overlay opens before the first await in loadEditsOnce, counts per session file ('n / m'), covers the viewport so clicks are blocked, has a Cancel button, and on a failed fetch stays open with the error message and a Close button, and loadEditsOnce returns false so the Edit box unticks. The existing #loadbar strip stays.\n\nViewport gating is not built (user decision 3): the endpoint computes the confidence of every event at fetch; the bytes are replayed on click. Confidence is computed once per request and shown as a ring, never a fill.\n\nVerify: baseline first (npm run typecheck, npm run test:ci), then npm run typecheck, the full npm test through the block-npm-test hook until it prints all passing, npm run visual:layer3 on the demo bundle (new scripts/visual/layer3.ts and layer3-real-checks.ts, expectations derived from the payload), npm run visual:layer3 -- --jot on the real jot sessions, then npm run visual, npm run visual:layer2 and npm run visual:mockup for regression. The user does the final visual sign-off.\n\nDepends on: #343 (L3 mockup) closed. Tasks #376 and #378 are closed and no longer block: WireConfidenceState was removed by jfred 63f4fc2, so this task uses #343's WireConfidence, and the drawer tests are already split (this task edits only #343's new tests/layer1-drawer-edit.test.ts).",
+    "modifiableFiles": [
+      "jfred/src/layer1_edit_hunks.ts",
+      "jfred/tests/layer1_edit_hunks.test.ts",
+      "jfred/src/layer1_edit_events.ts",
+      "jfred/tests/layer1_edit_events.test.ts",
+      "jfred/src/layer1_cat_beacons.ts",
+      "jfred/tests/layer1_cat_beacons.test.ts",
+      "jfred/src/layer1_edit_replay.ts",
+      "jfred/tests/layer1_edit_replay.test.ts",
+      "jfred/src/layer1_edits_wire.ts",
+      "jfred/tests/layer1_edits_wire.test.ts",
+      "jfred/src/viewer_api_layer1_edits.ts",
+      "jfred/tests/viewer_api_layer1_edits.test.ts",
+      "jfred/src/viewer_api_layer1_edit_file.ts",
+      "jfred/tests/viewer_api_layer1_edit_file.test.ts",
+      "jfred/tests/viewer_server_layer1_routes.test.ts",
+      "jfred/webapp/layer1-busy-shield.ts",
+      "jfred/tests/layer1-busy-shield.test.ts",
+      "jfred/scripts/visual/layer3.ts",
+      "jfred/scripts/visual/layer3-real-checks.ts",
+      "jfred/src/layered_anchor.ts",
+      "jfred/tests/layered_anchor.test.ts",
+      "jfred/src/viewer_server_layer1_routes.ts",
+      "jfred/src/viewer_api_layer1_file.ts",
+      "jfred/tests/viewer_api_layer1_file.test.ts",
+      "jfred/webapp/layer1-wire.ts",
+      "jfred/tests/layer1-wire.test.ts",
+      "jfred/webapp/layer1-revision-sources.ts",
+      "jfred/webapp/layer1-styles.css",
+      "jfred/webapp/layer1.html",
+      "jfred/webapp/layer1-edits.ts",
+      "jfred/tests/layer1-edits.test.ts",
+      "jfred/webapp/layer1-page.ts",
+      "jfred/tests/layer1-drawer-edit.test.ts",
+      "jfred/tests/layer1-page-edits.test.ts",
+      "jfred/src/viewer_api_layer3_fixture_data.ts",
+      "jfred/src/viewer_api_layer3_fixture_replay.ts",
+      "jfred/src/viewer_api_fixture_check.ts",
+      "jfred/package.json"
+    ],
+    "readOnlyFiles": [
+      "*"
+    ],
+    "schemaVersion": "1.0.1",
+    "hasTests": false,
+    "tests": "",
+    "difficulty": 8,
+    "handoffFilePaths": [
+      "plans/handoff-develop-20260730-1820.md"
+    ],
+    "createsFiles": [
+      "jfred/src/layer1_edit_hunks.ts",
+      "jfred/tests/layer1_edit_hunks.test.ts",
+      "jfred/src/layer1_edit_events.ts",
+      "jfred/tests/layer1_edit_events.test.ts",
+      "jfred/src/layer1_cat_beacons.ts",
+      "jfred/tests/layer1_cat_beacons.test.ts",
+      "jfred/src/layer1_edit_replay.ts",
+      "jfred/tests/layer1_edit_replay.test.ts",
+      "jfred/src/layer1_edits_wire.ts",
+      "jfred/tests/layer1_edits_wire.test.ts",
+      "jfred/src/viewer_api_layer1_edits.ts",
+      "jfred/tests/viewer_api_layer1_edits.test.ts",
+      "jfred/src/viewer_api_layer1_edit_file.ts",
+      "jfred/tests/viewer_api_layer1_edit_file.test.ts",
+      "jfred/tests/viewer_server_layer1_routes.test.ts",
+      "jfred/webapp/layer1-busy-shield.ts",
+      "jfred/tests/layer1-busy-shield.test.ts",
+      "jfred/scripts/visual/layer3.ts",
+      "jfred/scripts/visual/layer3-real-checks.ts"
+    ],
+    "completionDate": "2026-10-22",
+    "commitHashes": [
+      "6793447"
+    ],
+    "closureNote": "L3 build verified; jfred commit 6793447"
   }
 ]
